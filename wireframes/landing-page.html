@@ -1,0 +1,1841 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Centrid - AI For Knowledge Work With Persistent Context</title>
+    <meta name="description" content="Stop re-explaining context. Start working smarter. Upload documents once, work across multiple chats with persistent context.">
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            /* Brand Colors - Dark Mode */
+            --color-centrid-primary: #8b5cf6;
+            --color-centrid-dark: #f2f2f7;
+            --color-centrid-light: #0d0d0d;
+            
+            /* AI Agent Colors - Dark Mode */
+            --color-create: #8b5cf6;
+            --color-edit: #c084fc;
+            --color-research: #818cf8;
+            
+            /* System Colors - Dark Mode */
+            --color-success: #30d158;
+            --color-warning: #ffd60a;
+            --color-error: #ff453a;
+            
+            /* Grays - Dark Mode */
+            --gray-50: #1c1c1e;
+            --gray-100: #2c2c2e;
+            --gray-200: #3a3a3c;
+            --gray-300: #48484a;
+            --gray-400: #636366;
+            --gray-500: #8e8e93;
+            --gray-600: #98989d;
+            --gray-700: #aeaeb2;
+            --gray-800: #c7c7cc;
+            --gray-900: #f2f2f7;
+            
+            /* Spacing (4px grid) */
+            --space-xs: 4px;
+            --space-sm: 8px;
+            --space-md: 16px;
+            --space-lg: 24px;
+            --space-xl: 32px;
+            --space-xxl: 48px;
+            --space-xxxl: 64px;
+            
+            /* Typography */
+            --font-display-lg: 72px;
+            --font-display-md: 57px;
+            --font-headline-lg: 42px;
+            --font-headline-md: 32px;
+            --font-body-lg: 18px;
+            --font-body-md: 16px;
+            --font-body-sm: 14px;
+            
+            /* Line Heights */
+            --line-height-tight: 1.25;
+            --line-height-normal: 1.5;
+            --line-height-relaxed: 1.75;
+            
+            /* Border Radius */
+            --radius-sm: 4px;
+            --radius-md: 8px;
+            --radius-lg: 12px;
+            --radius-xl: 16px;
+            --radius-full: 9999px;
+            
+            /* Shadows - Dark Mode */
+            --shadow-sm: 0px 1px 2px rgba(0, 0, 0, 0.4);
+            --shadow-md: 0px 2px 8px rgba(0, 0, 0, 0.3);
+            --shadow-lg: 0px 4px 16px rgba(0, 0, 0, 0.25);
+            --shadow-xl: 0px 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui, sans-serif;
+            color: var(--gray-900);
+            background: var(--color-centrid-light);
+            line-height: var(--line-height-normal);
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            scroll-behavior: smooth;
+        }
+
+        html {
+            scroll-padding-top: 72px;
+        }
+
+        /* Container */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 var(--space-xl);
+        }
+
+        .container-narrow {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 0 var(--space-xl);
+        }
+
+        /* Section Spacing */
+        section {
+            padding: 80px 0;
+        }
+
+        /* Landing Nav Bar */
+        .landing-nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 72px;
+            background: rgba(13, 13, 13, 0.8);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--gray-100);
+            z-index: 1000;
+            transition: all 0.3s ease;
+        }
+
+        .landing-nav.scrolled {
+            background: rgba(13, 13, 13, 0.95);
+            box-shadow: var(--shadow-md);
+        }
+
+        .nav-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 var(--space-xl);
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .nav-logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .nav-logo:hover {
+            opacity: 0.8;
+        }
+
+        .nav-logo-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, var(--color-centrid-primary) 0%, var(--color-edit) 100%);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: 900;
+            color: white;
+            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+        }
+
+        .nav-logo-text {
+            font-size: 24px;
+            font-weight: 800;
+            color: var(--gray-900);
+            letter-spacing: -0.02em;
+        }
+
+        .nav-cta {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .nav-cta .btn {
+            padding: 10px 24px;
+            font-size: 15px;
+            min-height: auto;
+        }
+
+        /* Hero Section */
+        .hero {
+            background: linear-gradient(135deg, #1a0a2e 0%, #16213e 100%);
+            padding: 192px 0 80px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: radial-gradient(circle at 20% 50%, rgba(139, 92, 246, 0.15) 0%, transparent 50%),
+                        radial-gradient(circle at 80% 80%, rgba(129, 140, 248, 0.12) 0%, transparent 50%);
+            pointer-events: none;
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero h1 {
+            font-size: var(--font-display-lg);
+            font-weight: 900;
+            color: var(--gray-900);
+            margin-bottom: var(--space-lg);
+            letter-spacing: -0.03em;
+            line-height: 1.1;
+        }
+
+        .hero h1 .gradient-text {
+            background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero .subheadline {
+            font-size: 28px;
+            color: var(--gray-700);
+            margin-bottom: var(--space-xxl);
+            font-weight: 500;
+            line-height: 1.4;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        /* CTA Buttons */
+        .cta-group {
+            display: flex;
+            gap: var(--space-md);
+            justify-content: center;
+            align-items: center;
+            margin-bottom: var(--space-xl);
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-sm);
+            padding: 18px 40px;
+            font-size: var(--font-body-lg);
+            font-weight: 700;
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            text-decoration: none;
+            border: none;
+        }
+
+        .btn-primary {
+            background: var(--color-centrid-primary);
+            color: white;
+            box-shadow: 0 4px 16px rgba(139, 92, 246, 0.4);
+        }
+
+        .btn-primary:hover {
+            background: #7c3aed;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(139, 92, 246, 0.5);
+        }
+
+        .btn-secondary {
+            background: rgba(139, 92, 246, 0.1);
+            color: var(--gray-900);
+            border: 2px solid rgba(139, 92, 246, 0.3);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(139, 92, 246, 0.2);
+            border-color: var(--color-centrid-primary);
+            transform: translateY(-2px);
+        }
+
+        /* Trust Indicators */
+        .trust-indicators {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--space-lg);
+            font-size: var(--font-body-md);
+            color: var(--gray-700);
+            margin-bottom: var(--space-xxl);
+        }
+
+        .trust-indicator {
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+        }
+
+        .trust-indicator i {
+            width: 20px;
+            height: 20px;
+            color: var(--color-centrid-primary);
+        }
+
+        .divider {
+            width: 1px;
+            height: 16px;
+            background: var(--gray-300);
+        }
+
+        /* Workspace Demo Mockup */
+        .workspace-demo {
+            max-width: 1200px;
+            margin: 0 auto;
+            height: 650px;
+            border-radius: 12px;
+            box-shadow: 0 40px 100px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .workspace-demo:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 50px 120px rgba(0, 0, 0, 0.4);
+        }
+
+
+        /* Problem Section */
+        .problem-section {
+            background: var(--color-centrid-light);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .problem-section::before {
+            content: '';
+            position: absolute;
+            top: -200px;
+            right: -200px;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(255, 159, 10, 0.08) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .problem-section::after {
+            content: '';
+            position: absolute;
+            bottom: -250px;
+            left: -250px;
+            width: 700px;
+            height: 700px;
+            background: radial-gradient(circle, rgba(139, 92, 246, 0.06) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .section-title {
+            font-size: var(--font-headline-lg);
+            font-weight: 800;
+            color: var(--gray-900);
+            text-align: center;
+            margin-bottom: var(--space-xl);
+            letter-spacing: -0.02em;
+            line-height: 1.2;
+        }
+
+        .problem-list {
+            list-style: none;
+            max-width: 700px;
+            margin: 0 auto var(--space-xxl);
+        }
+
+        .problem-item {
+            display: flex;
+            align-items: start;
+            gap: var(--space-lg);
+            padding: var(--space-xl);
+            margin-bottom: var(--space-md);
+            background: rgba(28, 28, 30, 0.4);
+            border-radius: 16px;
+            font-size: var(--font-body-lg);
+            color: var(--gray-700);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .problem-item::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background: linear-gradient(180deg, #ff9f0a 0%, #ff6b35 100%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .problem-item:hover {
+            background: rgba(28, 28, 30, 0.6);
+            border-color: rgba(255, 159, 10, 0.2);
+            transform: translateX(4px);
+        }
+
+        .problem-item:hover::before {
+            opacity: 1;
+        }
+
+        .problem-item i {
+            width: 28px;
+            height: 28px;
+            color: #ff9f0a;
+            flex-shrink: 0;
+            margin-top: 0;
+            background: rgba(255, 159, 10, 0.1);
+            padding: 6px;
+            border-radius: 8px;
+        }
+
+        .empathy-statement {
+            text-align: center;
+            max-width: 700px;
+            margin: 0 auto;
+            font-size: 20px;
+            color: var(--gray-700);
+            line-height: 1.6;
+        }
+
+        .empathy-statement strong {
+            color: var(--gray-900);
+            font-weight: 700;
+        }
+
+        /* Solution Section */
+        .solution-section {
+            background: linear-gradient(180deg, var(--gray-50) 0%, var(--color-centrid-light) 100%);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .solution-section::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 1200px;
+            height: 1200px;
+            background: radial-gradient(circle, rgba(139, 92, 246, 0.08) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .solution-steps {
+            display: grid;
+            gap: var(--space-xxl);
+            max-width: 900px;
+            margin: 0 auto var(--space-xxl);
+            position: relative;
+            z-index: 1;
+        }
+
+        .solution-step {
+            display: flex;
+            gap: var(--space-xl);
+            align-items: start;
+            background: rgba(28, 28, 30, 0.3);
+            padding: var(--space-xxl);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .solution-step::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.05) 0%, rgba(192, 132, 252, 0.05) 100%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .solution-step:hover {
+            border-color: rgba(139, 92, 246, 0.3);
+            transform: translateY(-4px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .solution-step:hover::before {
+            opacity: 1;
+        }
+
+        .step-number {
+            width: 72px;
+            height: 72px;
+            background: linear-gradient(135deg, var(--color-centrid-primary) 0%, var(--color-edit) 100%);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            font-weight: 900;
+            color: white;
+            flex-shrink: 0;
+            box-shadow: 0 8px 24px rgba(139, 92, 246, 0.5), 0 0 0 4px rgba(139, 92, 246, 0.1);
+            position: relative;
+            z-index: 1;
+        }
+
+        .step-content h3 {
+            font-size: 26px;
+            font-weight: 700;
+            color: var(--gray-900);
+            margin-bottom: var(--space-md);
+            position: relative;
+            z-index: 1;
+        }
+
+        .step-content p {
+            font-size: 18px;
+            color: var(--gray-700);
+            line-height: 1.7;
+            position: relative;
+            z-index: 1;
+        }
+
+        .cta-center {
+            text-align: center;
+        }
+
+        .cta-subtext {
+            margin-top: var(--space-sm);
+            font-size: var(--font-body-sm);
+            color: var(--gray-500);
+        }
+
+        /* Use Cases Section */
+        .use-cases-section {
+            background: var(--color-centrid-light);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .use-cases-section::before {
+            content: '';
+            position: absolute;
+            top: -300px;
+            left: -300px;
+            width: 800px;
+            height: 800px;
+            background: radial-gradient(circle, rgba(139, 92, 246, 0.06) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .use-cases-section::after {
+            content: '';
+            position: absolute;
+            bottom: -300px;
+            right: -300px;
+            width: 800px;
+            height: 800px;
+            background: radial-gradient(circle, rgba(99, 102, 241, 0.06) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .use-cases-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: var(--space-xl);
+            margin-top: var(--space-xxl);
+            position: relative;
+            z-index: 1;
+        }
+
+        .use-case-card {
+            background: rgba(28, 28, 30, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 20px;
+            padding: var(--space-xxl);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+            backdrop-filter: blur(10px);
+        }
+
+        .use-case-card::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, var(--gradient-color-1), var(--gradient-color-2));
+            opacity: 0;
+            transition: opacity 0.4s ease;
+        }
+
+        .use-case-card::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--gradient-color-1), var(--gradient-color-2));
+            opacity: 0;
+            transition: opacity 0.4s ease;
+        }
+
+        .use-case-card:hover {
+            transform: translateY(-12px);
+            box-shadow: 0 24px 48px rgba(0, 0, 0, 0.4);
+            border-color: var(--gradient-color-1);
+        }
+
+        .use-case-card:hover::before {
+            opacity: 0.05;
+        }
+
+        .use-case-card:hover::after {
+            opacity: 1;
+        }
+
+        .use-case-card.create {
+            --gradient-color-1: #8b5cf6;
+            --gradient-color-2: #c084fc;
+        }
+
+        .use-case-card.research {
+            --gradient-color-1: #818cf8;
+            --gradient-color-2: #a5b4fc;
+        }
+
+        .use-case-card.analyze {
+            --gradient-color-1: #a855f7;
+            --gradient-color-2: #e0b4fc;
+        }
+
+        .use-case-card.branch {
+            --gradient-color-1: #22d3ee;
+            --gradient-color-2: #67e8f9;
+        }
+
+        .use-case-icon {
+            width: 72px;
+            height: 72px;
+            background: linear-gradient(135deg, var(--gradient-color-1), var(--gradient-color-2));
+            border-radius: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: var(--space-xl);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3), 0 0 0 4px rgba(255, 255, 255, 0.05);
+            position: relative;
+            z-index: 1;
+            transition: transform 0.3s ease;
+        }
+
+        .use-case-card:hover .use-case-icon {
+            transform: scale(1.1) rotate(5deg);
+        }
+
+        .use-case-icon i {
+            width: 36px;
+            height: 36px;
+            color: white;
+        }
+
+        .use-case-card h3 {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--gray-900);
+            margin-bottom: var(--space-md);
+            position: relative;
+            z-index: 1;
+        }
+
+        .use-case-card p {
+            font-size: 16px;
+            color: var(--gray-700);
+            line-height: 1.7;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Security & Privacy Section */
+        .security-section {
+            background: linear-gradient(180deg, var(--color-centrid-light) 0%, var(--gray-50) 100%);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .security-section::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 1000px;
+            height: 1000px;
+            background: radial-gradient(circle, rgba(34, 211, 238, 0.06) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .security-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: var(--space-xl);
+            margin-top: var(--space-xxl);
+            position: relative;
+            z-index: 1;
+        }
+
+        .security-item {
+            display: flex;
+            align-items: start;
+            gap: var(--space-lg);
+            padding: var(--space-xl);
+            background: rgba(28, 28, 30, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .security-item::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.03) 0%, rgba(34, 211, 238, 0.03) 100%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .security-item:hover {
+            border-color: rgba(139, 92, 246, 0.3);
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3);
+            transform: translateY(-4px);
+        }
+
+        .security-item:hover::before {
+            opacity: 1;
+        }
+
+        .security-icon {
+            width: 56px;
+            height: 56px;
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(129, 140, 248, 0.2) 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            position: relative;
+            z-index: 1;
+            box-shadow: 0 4px 16px rgba(139, 92, 246, 0.2);
+        }
+
+        .security-icon i {
+            width: 28px;
+            height: 28px;
+            color: var(--color-centrid-primary);
+        }
+
+        .security-content h4 {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--gray-900);
+            margin-bottom: var(--space-sm);
+            position: relative;
+            z-index: 1;
+        }
+
+        .security-content p {
+            font-size: 15px;
+            color: var(--gray-700);
+            line-height: 1.6;
+            position: relative;
+            z-index: 1;
+        }
+
+        .security-footer {
+            text-align: center;
+            margin-top: var(--space-xxl);
+            font-size: 18px;
+            color: var(--gray-900);
+            font-weight: 600;
+            padding: var(--space-xl);
+            background: rgba(139, 92, 246, 0.08);
+            border-radius: 16px;
+            border: 1px solid rgba(139, 92, 246, 0.2);
+            position: relative;
+            z-index: 1;
+        }
+
+        /* FAQ Section */
+        .faq-section {
+            background: var(--color-centrid-light);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .faq-section::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 1000px;
+            height: 1000px;
+            background: radial-gradient(circle, rgba(139, 92, 246, 0.05) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .faq-list {
+            max-width: 900px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
+        }
+
+        .faq-item {
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            margin-bottom: var(--space-md);
+            overflow: hidden;
+            transition: all 0.3s ease;
+            background: rgba(28, 28, 30, 0.3);
+            backdrop-filter: blur(10px);
+        }
+
+        .faq-item:hover {
+            border-color: rgba(139, 92, 246, 0.3);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+        }
+
+        .faq-question {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: var(--space-xl);
+            cursor: pointer;
+            background: transparent;
+            transition: background 0.3s ease;
+        }
+
+        .faq-question:hover {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .faq-question h4 {
+            font-size: var(--font-body-lg);
+            font-weight: 600;
+            color: var(--gray-900);
+        }
+
+        .faq-question i {
+            width: 20px;
+            height: 20px;
+            color: var(--color-centrid-primary);
+            transition: transform 0.3s ease;
+        }
+
+        .faq-item.active .faq-question i {
+            transform: rotate(180deg);
+        }
+
+        .faq-answer {
+            padding: 0 var(--space-lg);
+            max-height: 0;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .faq-item.active .faq-answer {
+            padding: 0 var(--space-lg) var(--space-lg);
+            max-height: 500px;
+        }
+
+        .faq-answer p {
+            font-size: var(--font-body-md);
+            color: var(--gray-700);
+            line-height: 1.6;
+        }
+
+        /* Final CTA Section */
+        .final-cta-section {
+            background: linear-gradient(135deg, #1a0a2e 0%, #16213e 100%);
+            color: white;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .final-cta-section::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at 30% 50%, rgba(139, 92, 246, 0.2) 0%, transparent 50%),
+                        radial-gradient(circle at 70% 80%, rgba(129, 140, 248, 0.15) 0%, transparent 50%);
+            pointer-events: none;
+        }
+
+        .final-cta-section .container-narrow {
+            position: relative;
+            z-index: 1;
+        }
+
+        .final-cta-section .section-title {
+            color: white;
+        }
+
+        .final-cta-section p {
+            font-size: 20px;
+            margin-bottom: var(--space-xl);
+            opacity: 0.95;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .final-cta-section .btn-primary {
+            background: var(--color-centrid-primary);
+            color: white;
+        }
+
+        .final-cta-section .btn-primary:hover {
+            background: #7c3aed;
+            transform: translateY(-2px);
+        }
+
+        .final-benefits {
+            display: flex;
+            justify-content: center;
+            gap: var(--space-xl);
+            margin-top: var(--space-lg);
+            font-size: var(--font-body-sm);
+            opacity: 0.9;
+            flex-wrap: wrap;
+        }
+
+        .final-benefit {
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+        }
+
+        .final-benefit i {
+            width: 16px;
+            height: 16px;
+        }
+
+        /* Footer */
+        .footer {
+            background: #0a0a0a;
+            color: var(--gray-500);
+            padding: var(--space-xl) 0;
+            text-align: center;
+            font-size: var(--font-body-sm);
+            border-top: 1px solid var(--gray-100);
+        }
+
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: var(--space-lg);
+            margin-bottom: var(--space-md);
+        }
+
+        .footer-links a {
+            color: var(--gray-500);
+            text-decoration: none;
+            transition: color 0.3s ease;
+        }
+
+        .footer-links a:hover {
+            color: var(--gray-700);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .landing-nav {
+                height: 60px;
+            }
+
+            .nav-logo-icon {
+                width: 36px;
+                height: 36px;
+                font-size: 20px;
+            }
+
+            .nav-logo-text {
+                font-size: 20px;
+            }
+
+            .nav-cta .btn-secondary {
+                display: none;
+            }
+
+            .hero {
+                padding: 140px 0 60px;
+            }
+
+            .hero h1 {
+                font-size: 40px;
+            }
+
+            .hero .subheadline {
+                font-size: 20px;
+            }
+
+            .section-title {
+                font-size: 32px;
+            }
+
+            .cta-group {
+                flex-direction: column;
+                width: 100%;
+            }
+
+            .btn {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .trust-indicators {
+                flex-direction: column;
+                gap: var(--space-md);
+            }
+
+            .divider {
+                display: none;
+            }
+
+            .workspace-demo {
+                margin: 0 -16px;
+                border-radius: 0;
+                max-width: none;
+            }
+
+            .demo-panels {
+                grid-template-columns: 1fr;
+                height: 450px;
+            }
+
+            .demo-panel-left,
+            .demo-panel-right {
+                display: none;
+            }
+
+            .demo-doc-title {
+                font-size: 22px;
+            }
+
+            .demo-doc-content h3 {
+                font-size: 18px;
+            }
+
+            .demo-doc-content {
+                font-size: 15px;
+            }
+
+            .use-cases-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .security-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .final-benefits {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            section {
+                padding: 60px 0;
+            }
+
+            .hero {
+                padding: 80px 0 60px;
+            }
+        }
+
+        /* Scroll Animations */
+        .fade-in {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: opacity 0.6s ease, transform 0.6s ease;
+        }
+
+        .fade-in.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Landing Navigation -->
+    <nav class="landing-nav">
+        <div class="nav-content">
+            <a href="#" class="nav-logo">
+                <div class="nav-logo-icon">C</div>
+                <span class="nav-logo-text">Centrid</span>
+            </a>
+            <div class="nav-cta">
+                <a href="#" class="btn btn-secondary">Sign In</a>
+                <a href="#" class="btn btn-primary">Get Started Free</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <div class="hero-content">
+                <h1>
+                    AI For Knowledge Work With Persistent Context.
+                </h1>
+                <p class="subheadline">
+                    Stop Re-Explaining Context. Start Working Smarter.<br>
+                    Upload your documents once. Work across multiple chats.<br>
+                    Persistent document context for your knowledge work—reducing re-explanation.
+                </p>
+                
+                <div class="cta-group">
+                    <a href="#" class="btn btn-primary">
+                        Start Working Smarter
+                        <i data-lucide="arrow-right"></i>
+                    </a>
+                    <a href="#" class="btn btn-secondary">
+                        Sign In
+                    </a>
+                </div>
+                
+                <div class="trust-indicators">
+                    <div class="trust-indicator">
+                        <i data-lucide="lock"></i>
+                        <span>Your documents stay private</span>
+                    </div>
+                    <div class="divider"></div>
+                    <div class="trust-indicator">
+                        <i data-lucide="zap"></i>
+                        <span>Powered by Claude AI</span>
+                    </div>
+                </div>
+                
+                <p style="text-align: center; margin-top: var(--space-md); font-size: var(--font-body-sm); color: var(--gray-500);">
+                    No credit card required • 7-day free trial • Setup in 60 seconds
+                </p>
+                
+                <!-- Workspace Demo Mockup -->
+                <div class="workspace-demo fade-in">
+                    <div style="display: grid; grid-template-columns: 260px 1fr 360px; height: 100%; overflow: hidden; border-radius: 12px; box-shadow: 0 40px 100px rgba(0, 0, 0, 0.6);">
+                        
+                        <!-- Left Sidebar: Documents -->
+                        <div style="background: #1c1c1e; border-right: 1px solid #2c2c2e; display: flex; flex-direction: column;">
+                            <div style="padding: 20px 16px; border-bottom: 1px solid #2c2c2e;">
+                                <div style="position: relative;">
+                                    <i data-lucide="search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: #8e8e93;"></i>
+                                    <input type="text" placeholder="Search..." style="width: 100%; padding: 10px 12px 10px 36px; border: 1px solid #2c2c2e; border-radius: 8px; font-size: 13px; background: #2c2c2e; color: #f2f2f7; transition: all 0.2s ease;" />
+                                </div>
+                            </div>
+                            <div style="flex: 1; overflow-y: auto; padding: 12px 8px;">
+                                
+                                <!-- Folder: Marketing -->
+                                <div style="margin-bottom: 4px;">
+                                    <div style="display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 6px; cursor: pointer; transition: all 0.2s ease;" onmouseover="this.style.background='#2c2c2e'" onmouseout="this.style.background='transparent'">
+                                        <i data-lucide="chevron-down" style="width: 14px; height: 14px; color: #8e8e93;"></i>
+                                        <i data-lucide="folder" style="width: 16px; height: 16px; color: #8b5cf6;"></i>
+                                        <span style="font-size: 13px; font-weight: 500; color: #f2f2f7; flex: 1;">Marketing</span>
+                                    </div>
+                                    <div style="margin-left: 20px; padding-left: 12px; border-left: 1px solid #2c2c2e;">
+                                        <!-- Active File -->
+                                        <div style="display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 6px; cursor: pointer; background: rgba(139, 92, 246, 0.15); margin: 2px 0; border-left: 2px solid #8b5cf6;">
+                                            <i data-lucide="file-text" style="width: 15px; height: 15px; color: #8b5cf6; margin-left: 2px;"></i>
+                                            <span style="font-size: 13px; font-weight: 500; color: #f2f2f7; flex: 1;">AI Marketing Strategy</span>
+                                        </div>
+                                        <div style="display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 6px; cursor: pointer; margin: 2px 0; transition: all 0.2s ease;" onmouseover="this.style.background='#2c2c2e'" onmouseout="this.style.background='transparent'">
+                                            <i data-lucide="file-text" style="width: 15px; height: 15px; color: #8e8e93; margin-left: 2px;"></i>
+                                            <span style="font-size: 13px; color: #aeaeb2; flex: 1;">Content Calendar</span>
+                                        </div>
+                                        <div style="display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 6px; cursor: pointer; margin: 2px 0; transition: all 0.2s ease;" onmouseover="this.style.background='#2c2c2e'" onmouseout="this.style.background='transparent'">
+                                            <i data-lucide="file-text" style="width: 15px; height: 15px; color: #8e8e93; margin-left: 2px;"></i>
+                                            <span style="font-size: 13px; color: #aeaeb2; flex: 1;">Campaign Ideas</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Folder: Projects -->
+                                <div style="margin-bottom: 4px;">
+                                    <div style="display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 6px; cursor: pointer; transition: all 0.2s ease;" onmouseover="this.style.background='#2c2c2e'" onmouseout="this.style.background='transparent'">
+                                        <i data-lucide="chevron-right" style="width: 14px; height: 14px; color: #8e8e93;"></i>
+                                        <i data-lucide="folder" style="width: 16px; height: 16px; color: #c084fc;"></i>
+                                        <span style="font-size: 13px; font-weight: 500; color: #f2f2f7; flex: 1;">Projects</span>
+                                        <span style="font-size: 11px; color: #8e8e93;">4</span>
+                                    </div>
+                                </div>
+                                
+                                <!-- Folder: Research -->
+                                <div style="margin-bottom: 4px;">
+                                    <div style="display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 6px; cursor: pointer; transition: all 0.2s ease;" onmouseover="this.style.background='#2c2c2e'" onmouseout="this.style.background='transparent'">
+                                        <i data-lucide="chevron-right" style="width: 14px; height: 14px; color: #8e8e93;"></i>
+                                        <i data-lucide="folder" style="width: 16px; height: 16px; color: #818cf8;"></i>
+                                        <span style="font-size: 13px; font-weight: 500; color: #f2f2f7; flex: 1;">Research</span>
+                                        <span style="font-size: 11px; color: #8e8e93;">2</span>
+                                    </div>
+                                </div>
+                                
+                                <!-- Root Level Files -->
+                                <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #2c2c2e;">
+                                    <div style="display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 6px; cursor: pointer; margin: 2px 0; transition: all 0.2s ease;" onmouseover="this.style.background='#2c2c2e'" onmouseout="this.style.background='transparent'">
+                                        <i data-lucide="file-text" style="width: 15px; height: 15px; color: #8e8e93;"></i>
+                                        <span style="font-size: 13px; color: #aeaeb2; flex: 1;">Quick Notes</span>
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 6px; cursor: pointer; margin: 2px 0; transition: all 0.2s ease;" onmouseover="this.style.background='#2c2c2e'" onmouseout="this.style.background='transparent'">
+                                        <i data-lucide="file-text" style="width: 15px; height: 15px; color: #8e8e93;"></i>
+                                        <span style="font-size: 13px; color: #aeaeb2; flex: 1;">Ideas Scratch</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div style="padding: 16px; border-top: 1px solid #2c2c2e;">
+                                <button style="width: 100%; padding: 10px 14px; background: #8b5cf6; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; gap: 8px;" onmouseover="this.style.background='#7c3aed'" onmouseout="this.style.background='#8b5cf6'">
+                                    <i data-lucide="plus" style="width: 16px; height: 16px;"></i>
+                                    <span>New Document</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Middle: Document Editor -->
+                        <div style="background: #0d0d0d; overflow-y: auto; padding: 48px 72px;">
+                            <!-- Document Toolbar -->
+                            <div style="display: flex; gap: 4px; margin-bottom: 32px; padding-bottom: 16px; border-bottom: 1px solid #2c2c2e;">
+                                <button style="padding: 8px; background: transparent; border: 1px solid #2c2c2e; border-radius: 6px; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center;" onmouseover="this.style.background='#2c2c2e'" onmouseout="this.style.background='transparent'">
+                                    <i data-lucide="bold" style="width: 16px; height: 16px; color: #8e8e93;"></i>
+                                </button>
+                                <button style="padding: 8px; background: transparent; border: 1px solid #2c2c2e; border-radius: 6px; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center;" onmouseover="this.style.background='#2c2c2e'" onmouseout="this.style.background='transparent'">
+                                    <i data-lucide="italic" style="width: 16px; height: 16px; color: #8e8e93;"></i>
+                                </button>
+                                <button style="padding: 8px; background: transparent; border: 1px solid #2c2c2e; border-radius: 6px; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center;" onmouseover="this.style.background='#2c2c2e'" onmouseout="this.style.background='transparent'">
+                                    <i data-lucide="underline" style="width: 16px; height: 16px; color: #8e8e93;"></i>
+                                </button>
+                                <div style="width: 1px; background: #2c2c2e; margin: 0 8px;"></div>
+                                <button style="padding: 8px; background: transparent; border: 1px solid #2c2c2e; border-radius: 6px; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center;" onmouseover="this.style.background='#2c2c2e'" onmouseout="this.style.background='transparent'">
+                                    <i data-lucide="heading-1" style="width: 16px; height: 16px; color: #8e8e93;"></i>
+                                </button>
+                                <button style="padding: 8px; background: transparent; border: 1px solid #2c2c2e; border-radius: 6px; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center;" onmouseover="this.style.background='#2c2c2e'" onmouseout="this.style.background='transparent'">
+                                    <i data-lucide="heading-2" style="width: 16px; height: 16px; color: #8e8e93;"></i>
+                                </button>
+                                <div style="width: 1px; background: #2c2c2e; margin: 0 8px;"></div>
+                                <button style="padding: 8px; background: transparent; border: 1px solid #2c2c2e; border-radius: 6px; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center;" onmouseover="this.style.background='#2c2c2e'" onmouseout="this.style.background='transparent'">
+                                    <i data-lucide="list" style="width: 16px; height: 16px; color: #8e8e93;"></i>
+                                </button>
+                                <button style="padding: 8px; background: transparent; border: 1px solid #2c2c2e; border-radius: 6px; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center;" onmouseover="this.style.background='#2c2c2e'" onmouseout="this.style.background='transparent'">
+                                    <i data-lucide="link" style="width: 16px; height: 16px; color: #8e8e93;"></i>
+                                </button>
+                            </div>
+                            
+                            <h1 style="font-size: 42px; margin-bottom: 16px; color: #f2f2f7; font-weight: 800; line-height: 1.2; letter-spacing: -0.02em;">The AI Revolution in Content Marketing</h1>
+                            
+                            <div style="display: flex; gap: 16px; align-items: center; margin-bottom: 40px; padding-bottom: 24px; border-bottom: 1px solid #2c2c2e;">
+                                <div style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: rgba(139, 92, 246, 0.15); color: #8b5cf6; border-radius: 6px; font-size: 12px; font-weight: 600;">
+                                    <i data-lucide="tag" style="width: 12px; height: 12px;"></i>
+                                    <span>Marketing</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: #8e8e93;">
+                                    <i data-lucide="clock" style="width: 14px; height: 14px;"></i>
+                                    <span>5 min ago</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: #8e8e93;">
+                                    <i data-lucide="type" style="width: 14px; height: 14px;"></i>
+                                    <span>847 words</span>
+                                </div>
+                            </div>
+                            
+                            <p style="font-size: 18px; line-height: 1.8; color: #aeaeb2; margin-bottom: 28px; font-weight: 400;">
+                                Artificial intelligence is fundamentally transforming how marketing professionals create, distribute, and optimize content. From automated content generation to personalized recommendations, AI tools are becoming indispensable in the modern marketer's toolkit.
+                            </p>
+
+                            <h2 style="font-size: 32px; margin: 48px 0 24px; color: #f2f2f7; font-weight: 700; letter-spacing: -0.01em;">Key Benefits of AI in Content</h2>
+                            
+                            <ul style="font-size: 18px; line-height: 1.8; color: #aeaeb2; margin-left: 28px; margin-bottom: 28px;">
+                                <li style="margin-bottom: 14px;">Automated content generation at scale</li>
+                                <li style="margin-bottom: 14px;">Personalization for different audience segments</li>
+                                <li style="margin-bottom: 14px;">Data-driven insights and optimization</li>
+                                <li style="margin-bottom: 14px;">Improved SEO and content discovery</li>
+                            </ul>
+
+                            <h2 style="font-size: 32px; margin: 48px 0 24px; color: #f2f2f7; font-weight: 700; letter-spacing: -0.01em;">Implementation Strategy</h2>
+                            
+                            <p style="font-size: 18px; line-height: 1.8; color: #aeaeb2; margin-bottom: 28px;">
+                                To successfully integrate AI into your content marketing workflow, start with clear objectives and measurable KPIs. Define what success looks like for your organization, whether it's increased content output, improved engagement rates, or reduced production costs.
+                            </p>
+
+                            <p style="font-size: 18px; line-height: 1.8; color: #aeaeb2;">
+                                The key is to start small, experiment with different AI tools, and gradually scale your usage based on proven results...
+                            </p>
+                        </div>
+
+                        <!-- Right Sidebar: AI Chat -->
+                        <div style="background: #1c1c1e; border-left: 1px solid #2c2c2e; display: flex; flex-direction: column;">
+                            <!-- Chat Selector -->
+                            <div style="padding: 16px; border-bottom: 1px solid #2c2c2e;">
+                                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                                    <h4 style="font-size: 13px; font-weight: 600; color: #8e8e93; text-transform: uppercase; letter-spacing: 0.5px;">Active Chat</h4>
+                                    <button style="padding: 6px; background: #2c2c2e; border: 1px solid #48484a; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center;" onmouseover="this.style.background='#48484a'" onmouseout="this.style.background='#2c2c2e'">
+                                        <i data-lucide="plus" style="width: 14px; height: 14px; color: #8b5cf6;"></i>
+                                    </button>
+                                </div>
+                                <!-- Selected Chat -->
+                                <div style="padding: 12px; background: rgba(139, 92, 246, 0.15); border-radius: 10px; cursor: pointer; border: 1px solid rgba(139, 92, 246, 0.3);">
+                                    <div style="display: flex; align-items: center; gap: 10px;">
+                                        <div style="width: 32px; height: 32px; background: linear-gradient(135deg, #8b5cf6 0%, #c084fc 100%); border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                            <i data-lucide="sparkles" style="width: 16px; height: 16px; color: white;"></i>
+                                        </div>
+                                        <div style="flex: 1; min-width: 0;">
+                                            <div style="font-size: 13px; font-weight: 600; color: #f2f2f7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Marketing Strategy</div>
+                                            <div style="font-size: 11px; color: #8e8e93;">2 min ago</div>
+                                        </div>
+                                        <i data-lucide="chevron-down" style="width: 16px; height: 16px; color: #8e8e93;"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- AI Assistant Info -->
+                            <div style="padding: 16px; border-bottom: 1px solid #2c2c2e;">
+                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                    <i data-lucide="sparkles" style="width: 14px; height: 14px; color: #8b5cf6;"></i>
+                                    <span style="font-size: 12px; font-weight: 600; color: #f2f2f7;">AI Assistant</span>
+                                </div>
+                                <div style="background: rgba(139, 92, 246, 0.1); padding: 8px 10px; border-radius: 6px; font-size: 11px; color: #8b5cf6;">
+                                    Auto-selecting best agent
+                                </div>
+                            </div>
+                            
+                            <!-- Chat Messages -->
+                            <div style="flex: 1; overflow-y: auto; padding: 16px;">
+                                <div style="margin-bottom: 16px; display: flex; justify-content: flex-end;">
+                                    <div style="background: #8b5cf6; color: white; padding: 10px 14px; border-radius: 12px 12px 2px 12px; font-size: 13px; line-height: 1.5; max-width: 85%;">
+                                        Add a section about ROI metrics
+                                    </div>
+                                </div>
+                                
+                                <div style="margin-bottom: 16px; max-width: 90%;">
+                                    <div style="background: #2c2c2e; padding: 12px 14px; border-radius: 12px 12px 12px 2px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); border: 1px solid #48484a;">
+                                        <div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; background: rgba(192, 132, 252, 0.15); color: #c084fc; border-radius: 4px; font-size: 11px; font-weight: 600; margin-bottom: 8px;">
+                                            <i data-lucide="pencil" style="width: 10px; height: 10px;"></i>
+                                            <span>Edit Agent</span>
+                                        </div>
+                                        <div style="color: #aeaeb2; font-size: 13px; line-height: 1.6;">I'll help you add an ROI metrics section. Based on the document context, I can add data about cost reduction, efficiency gains...</div>
+                                    </div>
+                                </div>
+                                
+                                <div style="background: rgba(139, 92, 246, 0.1); border: 1px solid rgba(139, 92, 246, 0.3); padding: 14px; border-radius: 10px;">
+                                    <div style="display: flex; align-items: center; gap: 6px; font-weight: 600; color: #8b5cf6; margin-bottom: 8px; font-size: 12px;">
+                                        <i data-lucide="lightbulb" style="width: 14px; height: 14px;"></i>
+                                        <span>Suggested Addition</span>
+                                    </div>
+                                    <div style="color: #aeaeb2; font-size: 12px; line-height: 1.5; margin-bottom: 12px;">
+                                        New section: "Measuring ROI and Success" with metrics framework and case studies
+                                    </div>
+                                    <div style="display: flex; gap: 8px;">
+                                        <button style="flex: 1; padding: 8px; background: #8b5cf6; color: white; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s ease;" onmouseover="this.style.background='#7c3aed'" onmouseout="this.style.background='#8b5cf6'">Apply</button>
+                                        <button style="flex: 1; padding: 8px; background: #2c2c2e; color: #aeaeb2; border: 1px solid #48484a; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s ease;" onmouseover="this.style.background='#48484a'" onmouseout="this.style.background='#2c2c2e'">Revise</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Quick Switch Chats -->
+                            <div style="border-top: 1px solid #2c2c2e; padding: 16px;">
+                                <div style="padding: 8px 10px; background: #2c2c2e; border-radius: 6px; margin-bottom: 6px; cursor: pointer; border: 1px solid #2c2c2e; transition: all 0.2s ease;" onmouseover="this.style.background='#48484a'" onmouseout="this.style.background='#2c2c2e'">
+                                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                                        <i data-lucide="message-square" style="width: 12px; height: 12px; color: #8b5cf6;"></i>
+                                        <span style="color: #f2f2f7; font-weight: 500; font-size: 12px;">Marketing Blog</span>
+                                    </div>
+                                    <div style="color: #8e8e93; font-size: 11px; margin-left: 20px;">2h ago</div>
+                                </div>
+                                <div style="padding: 8px 10px; background: #2c2c2e; border-radius: 6px; margin-bottom: 6px; cursor: pointer; border: 1px solid #2c2c2e; transition: all 0.2s ease;" onmouseover="this.style.background='#48484a'" onmouseout="this.style.background='#2c2c2e'">
+                                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                                        <i data-lucide="message-square" style="width: 12px; height: 12px; color: #c084fc;"></i>
+                                        <span style="color: #f2f2f7; font-weight: 500; font-size: 12px;">Project Planning</span>
+                                    </div>
+                                    <div style="color: #8e8e93; font-size: 11px; margin-left: 20px;">5h ago</div>
+                                </div>
+                                <div style="padding: 8px 10px; background: #2c2c2e; border-radius: 6px; cursor: pointer; border: 1px solid #2c2c2e; transition: all 0.2s ease;" onmouseover="this.style.background='#48484a'" onmouseout="this.style.background='#2c2c2e'">
+                                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                                        <i data-lucide="message-square" style="width: 12px; height: 12px; color: #818cf8;"></i>
+                                        <span style="color: #f2f2f7; font-weight: 500; font-size: 12px;">Content Strategy</span>
+                                    </div>
+                                    <div style="color: #8e8e93; font-size: 11px; margin-left: 20px;">Yesterday</div>
+                                </div>
+                            </div>
+
+                            <!-- Chat Input -->
+                            <div style="padding: 16px; border-top: 1px solid #2c2c2e; background: #1c1c1e;">
+                                <textarea placeholder="Ask AI to help..." style="width: 100%; min-height: 80px; resize: none; font-size: 13px; padding: 12px; border: 1px solid #2c2c2e; border-radius: 8px; transition: all 0.2s ease; font-family: inherit; background: #2c2c2e; color: #f2f2f7;"></textarea>
+                                <button style="width: 100%; margin-top: 10px; padding: 10px; background: #8b5cf6; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; gap: 8px;" onmouseover="this.style.background='#7c3aed'" onmouseout="this.style.background='#8b5cf6'">
+                                    <i data-lucide="send" style="width: 14px; height: 14px;"></i>
+                                    <span>Send</span>
+                                </button>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- VISUAL ASSET: Feature Highlights with Illustrations -->
+    <section style="padding: var(--space-xxl) 0; background: linear-gradient(180deg, var(--gray-50) 0%, var(--color-centrid-light) 100%);">
+        <div class="container">
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-xl); max-width: 1100px; margin: 0 auto;">
+                <!-- Multi-Chat Context Illustration -->
+                <div style="text-align: center; padding: var(--space-xl); background: rgba(28, 28, 30, 0.3); border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.08); backdrop-filter: blur(10px);">
+                    <div style="width: 240px; height: 240px; margin: 0 auto var(--space-lg); display: flex; align-items: center; justify-content: center;">
+                        <img src="assets/illustrations/multi-chat.png" alt="Multiple chat windows connected to central document hub" style="width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 8px 24px rgba(139, 92, 246, 0.3));" />
+                    </div>
+                    <h3 style="font-size: 20px; font-weight: 700; color: var(--gray-900); margin-bottom: var(--space-sm);">Multiple Conversations</h3>
+                    <p style="font-size: 15px; color: var(--gray-700); line-height: 1.6;">Start separate chats for different topics while maintaining document context</p>
+                </div>
+
+                <!-- Document Context Illustration -->
+                <div style="text-align: center; padding: var(--space-xl); background: rgba(28, 28, 30, 0.3); border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.08); backdrop-filter: blur(10px);">
+                    <div style="width: 240px; height: 240px; margin: 0 auto var(--space-lg); display: flex; align-items: center; justify-content: center;">
+                        <img src="assets/illustrations/context-flow.png" alt="Documents flowing through AI system with connections" style="width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 8px 24px rgba(139, 92, 246, 0.3));" />
+                    </div>
+                    <h3 style="font-size: 20px; font-weight: 700; color: var(--gray-900); margin-bottom: var(--space-sm);">Persistent Context</h3>
+                    <p style="font-size: 15px; color: var(--gray-700); line-height: 1.6;">Upload once, reference everywhere—your documents stay available across all chats</p>
+                </div>
+
+                <!-- AI Agent Illustration -->
+                <div style="text-align: center; padding: var(--space-xl); background: rgba(28, 28, 30, 0.3); border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.08); backdrop-filter: blur(10px);">
+                    <div style="width: 240px; height: 240px; margin: 0 auto var(--space-lg); display: flex; align-items: center; justify-content: center;">
+                        <img src="assets/illustrations/ai-agent.png" alt="AI brain selecting specialized agents with neural connections" style="width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 8px 24px rgba(139, 92, 246, 0.3));" />
+                    </div>
+                    <h3 style="font-size: 20px; font-weight: 700; color: var(--gray-900); margin-bottom: var(--space-sm);">Smart Agents</h3>
+                    <p style="font-size: 15px; color: var(--gray-700); line-height: 1.6;">AI automatically selects the best agent based on your request and context</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Problem Agitation Section -->
+    <section class="problem-section">
+        <div class="container-narrow">
+            <h2 class="section-title fade-in">
+                Context Fragmentation Is Killing Your Productivity
+            </h2>
+            
+            <ul class="problem-list">
+                <li class="problem-item fade-in">
+                    <i data-lucide="alert-triangle"></i>
+                    <span>Re-explain the same context in different conversations</span>
+                </li>
+                <li class="problem-item fade-in">
+                    <i data-lucide="alert-triangle"></i>
+                    <span>Copy-paste documents repeatedly to maintain context</span>
+                </li>
+                <li class="problem-item fade-in">
+                    <i data-lucide="alert-triangle"></i>
+                    <span>Lose your train of thought when exploring tangents</span>
+                </li>
+                <li class="problem-item fade-in">
+                    <i data-lucide="alert-triangle"></i>
+                    <span>Manage disconnected threads about related work</span>
+                </li>
+                <li class="problem-item fade-in">
+                    <i data-lucide="alert-triangle"></i>
+                    <span>Spend more time on context setup than actual work</span>
+                </li>
+            </ul>
+            
+            <div class="empathy-statement fade-in">
+                <p>
+                     Stop wasting <strong>hours every week</strong> on context management instead of meaningful knowledge work.
+                </p>
+                <p style="margin-top: 16px;">
+                    There's a better way to work with AI.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Solution Section -->
+    <section class="solution-section">
+        <div class="container-narrow">
+            <h2 class="section-title fade-in">
+                Persistent Context For Knowledge Work.
+            </h2>
+            
+            <div class="solution-steps">
+                <div class="solution-step fade-in">
+                    <div class="step-number">1</div>
+                    <div class="step-content">
+                        <h3>Upload Your Documents Once</h3>
+                        <p>Drop in your documents, notes, research—anything you reference. Centrid maintains this context across all your work.</p>
+                    </div>
+                </div>
+                
+                <div class="solution-step fade-in">
+                    <div class="step-number">2</div>
+                    <div class="step-content">
+                        <h3>Work Across Multiple Chats</h3>
+                        <p>Start new conversations for different topics or angles. Each chat maintains access to your document context—automatically.</p>
+                    </div>
+                </div>
+                
+                <div class="solution-step fade-in">
+                    <div class="step-number">3</div>
+                    <div class="step-content">
+                        <h3>Focus on Knowledge Work, Not Context Management</h3>
+                        <p>Switch topics, branch conversations, explore tangents—your AI maintains document context. Designed to reduce copy-pasting and re-explaining.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="cta-center fade-in">
+                <a href="#" class="btn btn-primary">
+                    Start Working Smarter
+                    <i data-lucide="arrow-right"></i>
+                </a>
+                <p class="cta-subtext">Free for 7 days • No credit card</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Use Cases Section -->
+    <section class="use-cases-section">
+        <div class="container">
+            <h2 class="section-title fade-in">
+                Built For How Knowledge Workers Actually Work
+            </h2>
+            
+            <div class="use-cases-grid">
+                <div class="use-case-card create fade-in">
+                    <div class="use-case-icon">
+                        <i data-lucide="sparkles"></i>
+                    </div>
+                    <h3>Create & Generate</h3>
+                    <p>Generate blog posts, proposals, reports—grounded in your uploaded documents. Start separate chats for different pieces without re-uploading context.</p>
+                </div>
+                
+                <div class="use-case-card research fade-in">
+                    <div class="use-case-icon">
+                        <i data-lucide="search"></i>
+                    </div>
+                    <h3>Research & Synthesize</h3>
+                    <p>Find information across your documents. Different chats can research different angles—all with document access.</p>
+                </div>
+                
+                <div class="use-case-card analyze fade-in">
+                    <div class="use-case-icon">
+                        <i data-lucide="bar-chart-3"></i>
+                    </div>
+                    <h3>Analyze & Decide</h3>
+                    <p>Make informed decisions with context. Analyze options, compare approaches—all informed by your uploaded documents.</p>
+                </div>
+                
+                <div class="use-case-card branch fade-in">
+                    <div class="use-case-icon">
+                        <i data-lucide="git-branch"></i>
+                    </div>
+                    <h3>Branch & Explore</h3>
+                    <p>Explore tangents without losing context. Start new conversations to explore subtopics. Your document context travels with you.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Security & Privacy Section -->
+    <section class="security-section">
+        <div class="container-narrow">
+            <h2 class="section-title fade-in">
+                Your Data, Your Control
+            </h2>
+            
+            <div class="security-grid">
+                <div class="security-item fade-in">
+                    <div class="security-icon">
+                        <i data-lucide="lock"></i>
+                    </div>
+                    <div class="security-content">
+                        <h4>Enterprise-grade encryption</h4>
+                        <p>All your documents are encrypted at rest and in transit</p>
+                    </div>
+                </div>
+                
+                <div class="security-item fade-in">
+                    <div class="security-icon">
+                        <i data-lucide="shield-off"></i>
+                    </div>
+                    <div class="security-content">
+                        <h4>Never train on your data</h4>
+                        <p>We never use your content to train AI models</p>
+                    </div>
+                </div>
+                
+                <div class="security-item fade-in">
+                    <div class="security-icon">
+                        <i data-lucide="user-check"></i>
+                    </div>
+                    <div class="security-content">
+                        <h4>You own your content</h4>
+                        <p>Your work stays yours—completely and forever</p>
+                    </div>
+                </div>
+                
+                <div class="security-item fade-in">
+                    <div class="security-icon">
+                        <i data-lucide="scale"></i>
+                    </div>
+                    <div class="security-content">
+                        <h4>GDPR compliant</h4>
+                        <p>Full data portability and transparency</p>
+                    </div>
+                </div>
+                
+                <div class="security-item fade-in">
+                    <div class="security-icon">
+                        <i data-lucide="trash-2"></i>
+                    </div>
+                    <div class="security-content">
+                        <h4>Delete everything anytime</h4>
+                        <p>No questions asked—your data, your choice</p>
+                    </div>
+                </div>
+            </div>
+            
+            <p class="security-footer fade-in">
+                Your documents stay private. Your work stays yours.
+            </p>
+        </div>
+    </section>
+
+    <!-- FAQ Section -->
+    <section class="faq-section">
+        <div class="container-narrow">
+            <h2 class="section-title fade-in">
+                Questions? We've Got Answers.
+            </h2>
+            
+            <div class="faq-list">
+                <div class="faq-item fade-in">
+                    <div class="faq-question">
+                        <h4>Is my data secure?</h4>
+                        <i data-lucide="chevron-down"></i>
+                    </div>
+                    <div class="faq-answer">
+                        <p>Absolutely. Your documents are encrypted and stored securely. We never share your data or use it to train AI models. You own your content.</p>
+                    </div>
+                </div>
+                
+                <div class="faq-item fade-in">
+                    <div class="faq-question">
+                        <h4>How is this different from ChatGPT?</h4>
+                        <i data-lucide="chevron-down"></i>
+                    </div>
+                    <div class="faq-answer">
+                        <p>ChatGPT doesn't maintain document context across conversations—you have to re-upload or copy-paste context each time. Centrid provides shared document access across multiple chats. It's designed to reduce the constant context re-explanation that happens with traditional AI chat interfaces.</p>
+                    </div>
+                </div>
+                
+                <div class="faq-item fade-in">
+                    <div class="faq-question">
+                        <h4>What if I don't have many documents?</h4>
+                        <i data-lucide="chevron-down"></i>
+                    </div>
+                    <div class="faq-answer">
+                        <p>No problem! Start with 3-5 documents (even notes or drafts). Centrid works with whatever you have and gets smarter as you add more.</p>
+                    </div>
+                </div>
+                
+                <div class="faq-item fade-in">
+                    <div class="faq-question">
+                        <h4>Do I need to learn prompt engineering?</h4>
+                        <i data-lucide="chevron-down"></i>
+                    </div>
+                    <div class="faq-answer">
+                        <p>Nope. Just talk naturally: "Create a blog post about X" or "Make this better." The AI is designed to understand intent conversationally.</p>
+                    </div>
+                </div>
+                
+                <div class="faq-item fade-in">
+                    <div class="faq-question">
+                        <h4>What happens after my trial?</h4>
+                        <i data-lucide="chevron-down"></i>
+                    </div>
+                    <div class="faq-answer">
+                        <p>You can upgrade to a paid plan ($25/month) or cancel anytime. No credit card required to start, so there's zero risk.</p>
+                    </div>
+                </div>
+                
+                <div class="faq-item fade-in">
+                    <div class="faq-question">
+                        <h4>Which AI model do you use?</h4>
+                        <i data-lucide="chevron-down"></i>
+                    </div>
+                    <div class="faq-answer">
+                        <p>We use Claude (by Anthropic)—one of the most advanced and capable AI models available. It excels at understanding context and maintaining consistency across documents.</p>
+                    </div>
+                </div>
+                
+                <div class="faq-item fade-in">
+                    <div class="faq-question">
+                        <h4>Do my chats share context with each other?</h4>
+                        <i data-lucide="chevron-down"></i>
+                    </div>
+                    <div class="faq-answer">
+                        <p>Multiple chats access the same uploaded documents, providing shared document context. Chat history awareness (one chat referencing another chat's conversation) is planned for a future update.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Final CTA Section -->
+    <section class="final-cta-section">
+        <div class="container-narrow">
+            <h2 class="section-title fade-in">
+                Ready For AI-Optimized Knowledge Work?
+            </h2>
+            
+            <p class="fade-in">
+                Try Centrid free for 7 days. No credit card required.<br>
+                Upload your documents once. Persistent context across chats.<br>
+                Focus on knowledge work, not context management.
+            </p>
+            
+            <div class="cta-center fade-in">
+                <a href="#" class="btn btn-primary" style="box-shadow: 0 8px 24px rgba(0,0,0,0.2);">
+                    Get Started Now
+                    <i data-lucide="arrow-right"></i>
+                </a>
+            </div>
+            
+            <div class="final-benefits fade-in">
+                <div class="final-benefit">
+                    <i data-lucide="zap"></i>
+                    <span>Setup in 60 seconds</span>
+                </div>
+                <div class="final-benefit">
+                    <i data-lucide="lock"></i>
+                    <span>Your data stays private</span>
+                </div>
+                <div class="final-benefit">
+                    <i data-lucide="x-circle"></i>
+                    <span>Cancel anytime</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-links">
+                <a href="#">Privacy Policy</a>
+                <a href="#">Terms of Service</a>
+            </div>
+            <p>&copy; 2025 Centrid. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script>
+        // Initialize Lucide Icons
+        lucide.createIcons();
+
+        // FAQ Accordion
+        document.querySelectorAll('.faq-question').forEach(question => {
+            question.addEventListener('click', () => {
+                const faqItem = question.parentElement;
+                faqItem.classList.toggle('active');
+            });
+        });
+
+        // Landing nav scroll effect
+        const landingNav = document.querySelector('.landing-nav');
+        let lastScroll = 0;
+        
+        window.addEventListener('scroll', () => {
+            const currentScroll = window.pageYOffset;
+            
+            if (currentScroll > 50) {
+                landingNav.classList.add('scrolled');
+            } else {
+                landingNav.classList.remove('scrolled');
+            }
+            
+            lastScroll = currentScroll;
+        });
+
+        // Scroll animations
+        const observerOptions = {
+            threshold: 0.2,
+            rootMargin: '0px 0px -50px 0px'
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                }
+            });
+        }, observerOptions);
+
+        document.querySelectorAll('.fade-in').forEach(el => {
+            observer.observe(el);
+        });
+
+        // Smooth scroll for anchor links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+    </script>
+
+</body>
+</html>
+

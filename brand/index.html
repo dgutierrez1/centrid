@@ -1,0 +1,1711 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Centrid - Brand Identity & Design System</title>
+    <style>
+        /* CSS Custom Properties - Centrid Design Tokens */
+        :root {
+            /* Brand Colors */
+            --color-centrid-primary: #7C3AED;
+            --color-centrid-dark: #1a1a1a;
+            --color-centrid-light: #f8f9fa;
+            
+            /* AI Agent Colors - Harmonized with Deep Violet */
+            --color-create: #7C3AED;        /* Primary violet for creation */
+            --color-edit: #A855F7;          /* Lighter violet for editing */
+            --color-research: #6366F1;      /* Blue-violet for research */
+            
+            /* System Colors */
+            --color-success: #34c759;
+            --color-warning: #ff9f0a;
+            --color-error: #ff3b30;
+            
+            /* Gray Scale */
+            --gray-50: #f8f9fa;
+            --gray-100: #e9ecef;
+            --gray-300: #adb5bd;
+            --gray-500: #6c757d;
+            --gray-700: #495057;
+            --gray-900: #1a1a1a;
+            
+            /* Typography */
+            --font-display-lg: 57px;
+            --font-display-md: 45px;
+            --font-headline-lg: 32px;
+            --font-headline-md: 24px;
+            --font-body-lg: 16px;
+            --font-body-md: 14px;
+            --font-body-sm: 12px;
+            
+            /* Spacing (4px grid) */
+            --space-xs: 4px;
+            --space-sm: 8px;
+            --space-md: 16px;
+            --space-lg: 24px;
+            --space-xl: 32px;
+            --space-xxl: 48px;
+            --space-xxxl: 64px;
+            
+            /* Border Radius */
+            --radius-sm: 4px;
+            --radius-md: 8px;
+            --radius-lg: 12px;
+            --radius-xl: 16px;
+            
+            /* Shadows */
+            --shadow-sm: 0px 1px 2px rgba(0,0,0,0.04);
+            --shadow-md: 0px 2px 8px rgba(0,0,0,0.04);
+            --shadow-lg: 0px 4px 16px rgba(0,0,0,0.08);
+        }
+        
+        /* Dark Mode Support - Manual Toggle */
+        .dark-mode {
+            /* Dark Mode Background & Text Colors */
+            --color-centrid-light: #0d0d0d;
+            --color-centrid-dark: #f2f2f7;
+            --gray-50: #1c1c1e;
+            --gray-100: #2c2c2e;
+            --gray-300: #48484a;
+            --gray-500: #8e8e93;
+            --gray-700: #aeaeb2;
+            --gray-900: #f2f2f7;
+            
+            /* Dark Mode Agent Colors - Enhanced for visibility */
+            --color-create: #8B5CF6;
+            --color-edit: #C084FC;
+            --color-research: #818CF8;
+            
+            /* Dark Mode System Colors */
+            --color-success: #30D158;
+            --color-warning: #FFD60A;
+            --color-error: #FF453A;
+            
+            /* Dark Mode Shadows */
+            --shadow-sm: 0px 1px 2px rgba(0,0,0,0.4);
+            --shadow-md: 0px 2px 8px rgba(0,0,0,0.3);
+            --shadow-lg: 0px 4px 16px rgba(0,0,0,0.25);
+        }
+        
+        /* System Dark Mode Preference */
+        @media (prefers-color-scheme: dark) {
+            body:not(.light-mode) {
+                /* Dark Mode Background & Text Colors */
+                --color-centrid-light: #0d0d0d;
+                --color-centrid-dark: #f2f2f7;
+                --gray-50: #1c1c1e;
+                --gray-100: #2c2c2e;
+                --gray-300: #48484a;
+                --gray-500: #8e8e93;
+                --gray-700: #aeaeb2;
+                --gray-900: #f2f2f7;
+                
+                /* Dark Mode Agent Colors */
+                --color-create: #8B5CF6;
+                --color-edit: #C084FC;
+                --color-research: #818CF8;
+                
+                /* Dark Mode System Colors */
+                --color-success: #30D158;
+                --color-warning: #FFD60A;
+                --color-error: #FF453A;
+                
+                /* Dark Mode Shadows */
+                --shadow-sm: 0px 1px 2px rgba(0,0,0,0.4);
+                --shadow-md: 0px 2px 8px rgba(0,0,0,0.3);
+                --shadow-lg: 0px 4px 16px rgba(0,0,0,0.25);
+            }
+        }
+        
+        /* Base Styles */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            color: var(--gray-900);
+            background-color: var(--color-centrid-light);
+            font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        
+        /* Mode Toggle Button */
+        .mode-toggle {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            padding: var(--space-sm) var(--space-md);
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+            font-size: var(--font-body-sm);
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+        
+        .mode-toggle:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-1px);
+        }
+        
+        .mode-toggle-icon {
+            font-size: 16px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: var(--space-lg);
+        }
+        
+        /* Navigation */
+        nav {
+            background: var(--color-centrid-primary);
+            color: white;
+            padding: var(--space-md) 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .nav-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 var(--space-lg);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .logo {
+            font-size: var(--font-headline-lg);
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+        }
+        
+        .logo-mark {
+            width: 40px;
+            height: 40px;
+            background: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: var(--color-centrid-primary);
+            position: relative;
+        }
+        
+        .logo-mark--on-white {
+            background: transparent;
+            color: var(--color-centrid-primary);
+            border: 2px solid var(--color-centrid-primary);
+        }
+        
+        .logo-mark::after {
+            content: "•";
+            position: absolute;
+            font-size: 12px;
+        }
+        
+        .nav-links {
+            display: flex;
+            gap: var(--space-lg);
+            list-style: none;
+        }
+        
+        .nav-links a {
+            color: white;
+            text-decoration: none;
+            font-weight: 500;
+            padding: var(--space-sm) var(--space-md);
+            border-radius: var(--radius-md);
+            transition: background-color 0.2s ease;
+        }
+        
+        .nav-links a:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        /* Section Styles */
+        section {
+            margin: var(--space-xxxl) 0;
+        }
+        
+        h1 {
+            font-size: var(--font-display-lg);
+            font-weight: 700;
+            margin-bottom: var(--space-lg);
+            color: var(--gray-900);
+        }
+        
+        h2 {
+            font-size: var(--font-display-md);
+            font-weight: 600;
+            margin-bottom: var(--space-lg);
+            color: var(--color-centrid-primary);
+        }
+        
+        h3 {
+            font-size: var(--font-headline-lg);
+            font-weight: 600;
+            margin-bottom: var(--space-md);
+            color: var(--gray-900);
+        }
+        
+        h4 {
+            font-size: var(--font-headline-md);
+            font-weight: 600;
+            margin-bottom: var(--space-md);
+            color: var(--gray-700);
+        }
+        
+        p {
+            font-size: var(--font-body-lg);
+            margin-bottom: var(--space-md);
+            color: var(--gray-700);
+        }
+        
+        /* Brand Foundation */
+        .brand-foundation {
+            background: var(--color-centrid-primary);
+            color: white;
+            padding: var(--space-xxxl) var(--space-lg);
+            border-radius: var(--radius-xl);
+            text-align: center;
+            position: relative;
+        }
+        
+        .brand-foundation::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(124, 58, 237, 0.1));
+            border-radius: var(--radius-xl);
+        }
+        
+        .brand-foundation > * {
+            position: relative;
+            z-index: 1;
+        }
+        
+        .brand-foundation h1 {
+            color: white;
+            font-size: 4rem;
+            margin-bottom: var(--space-md);
+        }
+        
+        .tagline {
+            font-size: var(--font-headline-lg);
+            margin-bottom: var(--space-lg);
+            opacity: 0.9;
+        }
+        
+        .positioning {
+            font-size: var(--font-body-lg);
+            max-width: 800px;
+            margin: 0 auto var(--space-xl);
+            opacity: 0.9;
+        }
+        
+        .brand-values {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: var(--space-lg);
+            margin-top: var(--space-xl);
+        }
+        
+        .brand-value {
+            background: rgba(255, 255, 255, 0.1);
+            padding: var(--space-lg);
+            border-radius: var(--radius-lg);
+            text-align: left;
+        }
+        
+        .brand-value h4 {
+            color: white;
+            margin-bottom: var(--space-sm);
+        }
+        
+        .brand-value p {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: var(--font-body-md);
+        }
+        
+        /* Color System */
+        .color-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: var(--space-lg);
+            margin-bottom: var(--space-xl);
+        }
+        
+        .color-card {
+            background: var(--gray-50);
+            border-radius: var(--radius-lg);
+            padding: var(--space-lg);
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--gray-100);
+            transition: all 0.3s ease;
+        }
+        
+        .color-swatch {
+            width: 100%;
+            height: 100px;
+            border-radius: var(--radius-md);
+            margin-bottom: var(--space-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: var(--font-body-md);
+        }
+        
+        .color-info h4 {
+            margin-bottom: var(--space-sm);
+        }
+        
+        .color-info p {
+            font-size: var(--font-body-sm);
+            margin-bottom: var(--space-xs);
+        }
+        
+        /* Typography System */
+        .type-scale {
+            background: var(--gray-50);
+            border-radius: var(--radius-lg);
+            padding: var(--space-xl);
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--gray-100);
+            margin-bottom: var(--space-xl);
+            transition: all 0.3s ease;
+        }
+        
+        .type-sample {
+            margin-bottom: var(--space-lg);
+            padding: var(--space-md) 0;
+            border-bottom: 1px solid var(--gray-100);
+        }
+        
+        .type-sample:last-child {
+            border-bottom: none;
+        }
+        
+        .type-label {
+            font-size: var(--font-body-sm);
+            color: var(--gray-500);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: var(--space-xs);
+        }
+        
+        .display-lg { font-size: var(--font-display-lg); font-weight: 700; }
+        .display-md { font-size: var(--font-display-md); font-weight: 600; }
+        .headline-lg { font-size: var(--font-headline-lg); font-weight: 600; }
+        .headline-md { font-size: var(--font-headline-md); font-weight: 600; }
+        .body-lg { font-size: var(--font-body-lg); font-weight: 400; }
+        .body-md { font-size: var(--font-body-md); font-weight: 400; }
+        .body-sm { font-size: var(--font-body-sm); font-weight: 400; }
+        
+        /* Component System */
+        .component-showcase {
+            background: var(--gray-50);
+            border-radius: var(--radius-lg);
+            padding: var(--space-xl);
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--gray-100);
+            margin-bottom: var(--space-xl);
+            transition: all 0.3s ease;
+        }
+        
+        .component-group {
+            margin-bottom: var(--space-xl);
+        }
+        
+        .component-group:last-child {
+            margin-bottom: 0;
+        }
+        
+        .component-grid {
+            display: flex;
+            gap: var(--space-md);
+            flex-wrap: wrap;
+            align-items: center;
+            margin-bottom: var(--space-lg);
+        }
+        
+        /* Buttons */
+        .btn {
+            font-family: inherit;
+            font-weight: 600;
+            border-radius: var(--radius-md);
+            transition: all 0.2s ease;
+            min-height: 44px;
+            padding: 12px 24px;
+            font-size: var(--font-body-md);
+            border: none;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            gap: var(--space-sm);
+        }
+        
+        .btn--sm {
+            min-height: 36px;
+            padding: 8px 16px;
+            font-size: var(--font-body-sm);
+        }
+        
+        .btn--lg {
+            min-height: 52px;
+            padding: 16px 32px;
+            font-size: var(--font-body-lg);
+        }
+        
+        .btn--primary {
+            background-color: var(--color-centrid-primary);
+            color: white;
+        }
+        
+        .btn--primary:hover {
+            background-color: #6D28D9;
+            transform: translateY(-1px);
+        }
+        
+        .btn--primary:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.3);
+        }
+        
+        .btn--secondary {
+            background: transparent;
+            color: var(--color-centrid-primary);
+            border: 1px solid var(--color-centrid-primary);
+        }
+        
+        .btn--secondary:hover {
+            background-color: var(--color-centrid-primary);
+            color: white;
+            transform: translateY(-1px);
+        }
+        
+        .btn--secondary:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.3);
+        }
+        
+        .btn--outline {
+            background: transparent;
+            color: var(--color-centrid-primary);
+            border: 1px solid var(--color-centrid-primary);
+        }
+        
+        .btn--outline:hover {
+            background-color: var(--color-centrid-primary);
+            color: white;
+            transform: translateY(-1px);
+        }
+        
+        .btn--outline:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.3);
+        }
+        
+        .btn--minimal {
+            background: transparent;
+            color: var(--color-centrid-primary);
+            border: none;
+            padding: var(--space-sm) var(--space-md);
+        }
+        
+        .btn--minimal:hover {
+            background-color: rgba(124, 58, 237, 0.08);
+            transform: translateY(-1px);
+        }
+        
+        .btn--minimal:focus {
+            outline: none;
+            background-color: rgba(124, 58, 237, 0.12);
+        }
+        
+        .btn--ghost {
+            background: var(--gray-50);
+            color: var(--gray-700);
+            border: 1px solid var(--gray-300);
+        }
+        
+        .btn--ghost:hover {
+            background: var(--gray-100);
+            border-color: var(--color-centrid-primary);
+            color: var(--color-centrid-primary);
+            transform: translateY(-1px);
+        }
+        
+        .btn--ghost:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.2);
+        }
+        
+        .btn--agent-create {
+            background-color: var(--color-create);
+            color: white;
+        }
+        
+        .btn--agent-edit {
+            background-color: var(--color-edit);
+            color: white;
+        }
+        
+        .btn--agent-research {
+            background-color: var(--color-research);
+            color: white;
+        }
+        
+        /* Input Fields */
+        .input {
+            font-family: inherit;
+            font-size: var(--font-body-lg);
+            padding: 12px 16px;
+            border: 1px solid var(--gray-300);
+            border-radius: var(--radius-md);
+            min-height: 44px;
+            width: 100%;
+            max-width: 300px;
+        }
+        
+        .input:focus {
+            outline: none;
+            border: 2px solid var(--color-centrid-primary);
+            box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.2);
+        }
+        
+        /* Cards */
+        .card {
+            background: var(--gray-50);
+            border: 1px solid var(--gray-100);
+            border-radius: var(--radius-lg);
+            padding: var(--space-lg);
+            box-shadow: var(--shadow-sm);
+            transition: all 0.3s ease;
+        }
+        
+        .card:hover {
+            box-shadow: var(--shadow-md);
+            transform: translateY(-2px);
+            transition: all 0.2s ease;
+        }
+        
+        .card--agent {
+            border-left: 3px solid var(--color-create);
+        }
+        
+        /* Mobile UI Elements */
+        .mobile-popup {
+            background: var(--gray-50);
+            border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+            padding: var(--space-lg);
+            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            border: 1px solid var(--gray-100);
+            border-bottom: none;
+            transition: all 0.3s ease;
+        }
+        
+        .mobile-menu {
+            background: var(--gray-50);
+            border-radius: var(--radius-lg);
+            padding: var(--space-sm) 0;
+            box-shadow: var(--shadow-lg);
+            min-width: 200px;
+            border: 1px solid var(--gray-100);
+            transition: all 0.3s ease;
+        }
+        
+        .mobile-menu-item {
+            padding: var(--space-md) var(--space-lg);
+            display: flex;
+            align-items: center;
+            gap: var(--space-md);
+            color: var(--gray-700);
+            font-size: var(--font-body-lg);
+        }
+        
+        .mobile-menu-item:hover {
+            background: var(--gray-100);
+            color: var(--color-centrid-primary);
+        }
+        
+        .mobile-menu-item--danger {
+            color: var(--color-error);
+        }
+        
+        .mobile-menu-item--danger:hover {
+            background: rgba(255, 59, 48, 0.1);
+            color: var(--color-error);
+        }
+        
+        /* Document List */
+        .doc-list {
+            background: var(--gray-50);
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--gray-100);
+            transition: all 0.3s ease;
+        }
+        
+        .doc-item {
+            padding: var(--space-lg);
+            border-bottom: 1px solid var(--gray-100);
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            cursor: pointer;
+        }
+        
+        .doc-item:last-child {
+            border-bottom: none;
+        }
+        
+        .doc-item:hover {
+            background: var(--gray-100);
+        }
+        
+        .doc-item--selected {
+            background: rgba(124, 58, 237, 0.08);
+            border-left: 3px solid var(--color-centrid-primary);
+        }
+        
+        .doc-item--selected:hover {
+            background: rgba(124, 58, 237, 0.12);
+        }
+        
+        .doc-meta {
+            font-size: var(--font-body-sm);
+            color: var(--gray-500);
+        }
+        
+        /* File Tree */
+        .file-tree {
+            background: var(--gray-50);
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--gray-100);
+            padding: var(--space-md);
+            transition: all 0.3s ease;
+        }
+        
+        .tree-item {
+            padding: var(--space-xs) var(--space-sm);
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+            font-size: var(--font-body-md);
+            cursor: pointer;
+        }
+        
+        .tree-item:hover {
+            background: var(--gray-100);
+        }
+        
+        .tree-item--folder {
+            font-weight: 600;
+            color: var(--gray-900);
+        }
+        
+        .tree-item--file {
+            color: var(--gray-700);
+            margin-left: var(--space-lg);
+            font-weight: 400;
+        }
+        
+        /* Chat Interface */
+        .chat-container {
+            background: var(--gray-50);
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--gray-100);
+            display: flex;
+            flex-direction: column;
+            height: 400px;
+            transition: all 0.3s ease;
+        }
+        
+        .chat-messages {
+            flex: 1;
+            padding: var(--space-lg);
+            overflow-y: auto;
+        }
+        
+        .chat-message {
+            margin-bottom: var(--space-md);
+            max-width: 80%;
+        }
+        
+        .chat-message--user {
+            align-self: flex-end;
+            background: var(--color-centrid-primary);
+            color: white;
+            padding: var(--space-md);
+            border-radius: var(--radius-lg) var(--radius-lg) var(--radius-sm) var(--radius-lg);
+            margin-left: auto;
+        }
+        
+        .chat-message--agent {
+            align-self: flex-start;
+            background: var(--gray-100);
+            color: var(--gray-900);
+            padding: var(--space-md);
+            border-radius: var(--radius-lg) var(--radius-lg) var(--radius-lg) var(--radius-sm);
+            border: 1px solid var(--gray-300);
+        }
+        
+        .chat-input {
+            border-top: 1px solid var(--gray-100);
+            padding: var(--space-lg);
+            display: flex;
+            gap: var(--space-md);
+        }
+        
+        .chat-input input {
+            flex: 1;
+        }
+        
+        /* Agent Showcase */
+        .agent-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: var(--space-lg);
+        }
+        
+        .agent-card {
+            background: var(--gray-50);
+            border-radius: var(--radius-lg);
+            padding: var(--space-xl);
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--gray-100);
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+        
+        .agent-card:hover {
+            box-shadow: var(--shadow-lg);
+            transform: translateY(-2px);
+            transition: all 0.2s ease;
+        }
+        
+        .agent-card--create {
+            border-top: 4px solid var(--color-create);
+        }
+        
+        .agent-card--edit {
+            border-top: 4px solid var(--color-edit);
+        }
+        
+        .agent-card--research {
+            border-top: 4px solid var(--color-research);
+        }
+        
+        .agent-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto var(--space-md);
+            font-size: 24px;
+        }
+        
+        .agent-icon--create {
+            background: var(--color-create);
+            color: white;
+        }
+        
+        .agent-icon--edit {
+            background: var(--color-edit);
+            color: white;
+        }
+        
+        .agent-icon--research {
+            background: var(--color-research);
+            color: white;
+        }
+        
+        /* Implementation Guide */
+        .code-block {
+            background: var(--gray-900);
+            color: #e6e6e6;
+            padding: var(--space-lg);
+            border-radius: var(--radius-md);
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Consolas', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            overflow-x: auto;
+            margin-bottom: var(--space-lg);
+        }
+        
+        .code-block .comment {
+            color: #8e8e93;
+        }
+        
+        .code-block .keyword {
+            color: #ff79c6;
+        }
+        
+        .code-block .string {
+            color: #50fa7b;
+        }
+        
+        .code-block .property {
+            color: #8be9fd;
+        }
+        
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .nav-links {
+                display: none;
+            }
+            
+            .brand-foundation h1 {
+                font-size: 2.5rem;
+            }
+            
+            .tagline {
+                font-size: var(--font-headline-md);
+            }
+            
+            .color-grid,
+            .agent-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .component-grid {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .component-grid .btn,
+            .component-grid .input {
+                max-width: none;
+            }
+        }
+        
+        /* Accessibility */
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+        
+        /* High Contrast Support */
+        @media (prefers-contrast: high) {
+            :root {
+                --shadow-sm: 0px 2px 4px rgba(0,0,0,0.2);
+                --shadow-md: 0px 4px 12px rgba(0,0,0,0.2);
+                --shadow-lg: 0px 8px 24px rgba(0,0,0,0.3);
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav>
+        <div class="nav-container">
+            <div class="logo">
+                <div class="logo-mark">C</div>
+                <span>Centrid</span>
+            </div>
+            <ul class="nav-links">
+                <li><a href="#brand">Brand</a></li>
+                <li><a href="#colors">Colors</a></li>
+                <li><a href="#typography">Typography</a></li>
+                <li><a href="#components">Components</a></li>
+                <li><a href="#interface">Interface</a></li>
+                <li><a href="#agents">Agents</a></li>
+                <li><a href="#implementation">Implementation</a></li>
+            </ul>
+            <button class="mode-toggle" onclick="toggleMode()">
+                <span class="mode-toggle-icon">🌙</span>
+                <span class="mode-toggle-text">Dark</span>
+            </button>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- Brand Foundation -->
+        <section id="brand">
+            <div class="brand-foundation">
+                <h1>Centrid</h1>
+                <p class="tagline">Your central intelligence for content creation</p>
+                <p class="positioning">
+                    For content creators and knowledge workers who need mobile-accessible content creation with AI assistance, 
+                    Centrid is the central AI hub that transforms how you work with content by providing context-aware agents 
+                    that understand your entire knowledge base and work seamlessly across all devices.
+                </p>
+                
+                <div class="brand-values">
+                    <div class="brand-value">
+                        <h4>Context is Everything</h4>
+                        <p>Deep understanding beats generic responses</p>
+                    </div>
+                    <div class="brand-value">
+                        <h4>Mobile-First</h4>
+                        <p>Great experiences work beautifully on all devices</p>
+                    </div>
+                    <div class="brand-value">
+                        <h4>Preview Always</h4>
+                        <p>Never surprise users - show before applying</p>
+                    </div>
+                    <div class="brand-value">
+                        <h4>AI Agents Work</h4>
+                        <p>Agents do the work, not just suggest</p>
+                    </div>
+                    <div class="brand-value">
+                        <h4>Central Hub</h4>
+                        <p>One place for all your content creation needs</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Color System -->
+        <section id="colors">
+            <h2>Color System</h2>
+            
+            <h3>Brand Colors</h3>
+            <div class="color-grid">
+                <div class="color-card">
+                    <div class="color-swatch" style="background-color: var(--color-centrid-primary);">
+                        #7C3AED
+                    </div>
+                    <div class="color-info">
+                        <h4>Centrid Purple</h4>
+                        <p>Primary brand color</p>
+                        <p>--color-centrid-primary</p>
+                        <p>Creative intelligence, innovation</p>
+                    </div>
+                </div>
+                
+                <div class="color-card">
+                    <div class="color-swatch" style="background-color: var(--color-centrid-dark);">
+                        #1A1A1A
+                    </div>
+                    <div class="color-info">
+                        <h4>Centrid Dark</h4>
+                        <p>Text, UI elements</p>
+                        <p>--color-centrid-dark</p>
+                        <p>Professional, readable</p>
+                    </div>
+                </div>
+                
+                <div class="color-card">
+                    <div class="color-swatch" style="background-color: var(--color-centrid-light); color: var(--gray-700);">
+                        #F8F9FA
+                    </div>
+                    <div class="color-info">
+                        <h4>Centrid Light</h4>
+                        <p>Light mode backgrounds</p>
+                        <p>--color-centrid-light</p>
+                        <p>Clean, spacious</p>
+                    </div>
+                </div>
+                
+                <div class="color-card">
+                    <div class="color-swatch" style="background-color: #0d0d0d; color: white;">
+                        #0D0D0D
+                    </div>
+                    <div class="color-info">
+                        <h4>Centrid Dark Bg</h4>
+                        <p>Dark mode backgrounds</p>
+                        <p>--color-centrid-light (dark mode)</p>
+                        <p>Deep, immersive</p>
+                    </div>
+                </div>
+            </div>
+            
+            <h3>AI Agent Colors - Harmonized Purple System</h3>
+            <div class="color-grid">
+                <div class="color-card">
+                    <div class="color-swatch" style="background-color: var(--color-create);">
+                        #7C3AED
+                    </div>
+                    <div class="color-info">
+                        <h4>Create Agent</h4>
+                        <p>Primary violet - Content generation</p>
+                        <p>--color-create</p>
+                        <p>Core creation, primary brand</p>
+                    </div>
+                </div>
+                
+                <div class="color-card">
+                    <div class="color-swatch" style="background-color: var(--color-edit);">
+                        #A855F7
+                    </div>
+                    <div class="color-info">
+                        <h4>Edit Agent</h4>
+                        <p>Light violet - Content refinement</p>
+                        <p>--color-edit</p>
+                        <p>Lighter for editing actions</p>
+                    </div>
+                </div>
+                
+                <div class="color-card">
+                    <div class="color-swatch" style="background-color: var(--color-research);">
+                        #6366F1
+                    </div>
+                    <div class="color-info">
+                        <h4>Research Agent</h4>
+                        <p>Blue-violet - Information synthesis</p>
+                        <p>--color-research</p>
+                        <p>Analytical intelligence</p>
+                    </div>
+                </div>
+            </div>
+            
+            <h3>Dark Mode Agent Colors</h3>
+            <div class="color-grid">
+                <div class="color-card">
+                    <div class="color-swatch" style="background-color: #8B5CF6;">
+                        #8B5CF6
+                    </div>
+                    <div class="color-info">
+                        <h4>Create Agent (Dark)</h4>
+                        <p>Enhanced visibility in dark mode</p>
+                        <p>--color-create (dark mode)</p>
+                        <p>Lighter violet for contrast</p>
+                    </div>
+                </div>
+                
+                <div class="color-card">
+                    <div class="color-swatch" style="background-color: #C084FC;">
+                        #C084FC
+                    </div>
+                    <div class="color-info">
+                        <h4>Edit Agent (Dark)</h4>
+                        <p>More visible light violet</p>
+                        <p>--color-edit (dark mode)</p>
+                        <p>Clear differentiation from create</p>
+                    </div>
+                </div>
+                
+                <div class="color-card">
+                    <div class="color-swatch" style="background-color: #818CF8;">
+                        #818CF8
+                    </div>
+                    <div class="color-info">
+                        <h4>Research Agent (Dark)</h4>
+                        <p>Lighter blue-violet</p>
+                        <p>--color-research (dark mode)</p>
+                        <p>Perfect dark mode visibility</p>
+                    </div>
+                </div>
+            </div>
+            
+            
+            <div style="background: var(--gray-50); padding: var(--space-xl); border-radius: var(--radius-lg); margin-top: var(--space-xl);">
+                <h4>🎨 Harmonized Purple System Benefits</h4>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: var(--space-lg); margin-top: var(--space-md);">
+                    <div>
+                        <strong>🧠 Psychological Coherence</strong>
+                        <p style="margin-top: var(--space-xs); font-size: var(--font-body-sm);">All agents feel like part of one intelligent system rather than separate tools</p>
+                    </div>
+                    <div>
+                        <strong>🎯 Brand Recognition</strong>
+                        <p style="margin-top: var(--space-xs); font-size: var(--font-body-sm);">Users instantly recognize Centrid's signature purple across all interfaces</p>
+                    </div>
+                    <div>
+                        <strong>♿ Accessibility</strong>
+                        <p style="margin-top: var(--space-xs); font-size: var(--font-body-sm);">Excellent contrast ratios in both light and dark modes (WCAG AAA)</p>
+                    </div>
+                    <div>
+                        <strong>📱 Mobile Optimization</strong>
+                        <p style="margin-top: var(--space-xs); font-size: var(--font-body-sm);">Colors work beautifully on small screens with high visibility</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Typography System -->
+        <section id="typography">
+            <h2>Typography System</h2>
+            
+            <h3>Font Stack</h3>
+            <div class="type-scale">
+                <div style="padding: var(--space-lg); background: var(--gray-50); border-radius: var(--radius-md); margin-bottom: var(--space-lg);">
+                    <h4>Primary: SF Pro (Apple System Font)</h4>
+                    <p style="margin-bottom: var(--space-sm);">SF Pro Text for body content, SF Pro Display for headlines</p>
+                    <div style="font-size: var(--font-body-sm); color: var(--gray-500); font-family: 'SF Mono', monospace;">
+                        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display"
+                    </div>
+                    
+                    <h4 style="margin-top: var(--space-md);">Fallback: Inter (Web Font)</h4>
+                    <p style="margin-bottom: var(--space-sm);">Clean, modern alternative with excellent readability</p>
+                    <div style="font-size: var(--font-body-sm); color: var(--gray-500); font-family: 'SF Mono', monospace;">
+                        "Inter", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif
+                    </div>
+                    
+                    <h4 style="margin-top: var(--space-md);">Features Enabled</h4>
+                    <p style="margin-bottom: var(--space-sm);">Kerning, ligatures, contextual alternates for optimal readability</p>
+                    <div style="font-size: var(--font-body-sm); color: var(--gray-500); font-family: 'SF Mono', monospace;">
+                        font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
+                    </div>
+                </div>
+                
+                <div class="type-sample">
+                    <div class="type-label">Display Large / 57px / Bold - Headlines & Hero</div>
+                    <div class="display-lg">Your Central Intelligence</div>
+                </div>
+                
+                <div class="type-sample">
+                    <div class="type-label">Display Medium / 45px / Semibold - Section Headers</div>
+                    <div class="display-md">For Content Creation</div>
+                </div>
+                
+                <div class="type-sample">
+                    <div class="type-label">Headline Large / 32px / Bold - Page Titles</div>
+                    <div class="headline-lg">AI Agents That Do The Work</div>
+                </div>
+                
+                <div class="type-sample">
+                    <div class="type-label">Headline Medium / 24px / Semibold - Card Titles</div>
+                    <div class="headline-md">Mobile-First AI Workspace</div>
+                </div>
+                
+                <div class="type-sample">
+                    <div class="type-label">Body Large / 16px / Regular - Primary Body Text</div>
+                    <div class="body-lg">Transform how you create, edit, and research content with intelligent AI agents that understand your entire knowledge base and work seamlessly across all your devices.</div>
+                </div>
+                
+                <div class="type-sample">
+                    <div class="type-label">Body Medium / 14px / Regular - Secondary Text & UI</div>
+                    <div class="body-md">Secondary text, captions, and supporting information that provides additional context.</div>
+                </div>
+                
+                <div class="type-sample">
+                    <div class="type-label">Body Small / 12px / Regular - Fine Print & Metadata</div>
+                    <div class="body-sm">Fine print, timestamps, metadata, and micro-interactions.</div>
+                </div>
+            </div>
+            
+            <h3>Typography in Context</h3>
+            <div class="color-grid">
+                <!-- Interface Example -->
+                <div class="color-card">
+                    <div style="background: var(--color-centrid-blue); color: white; padding: var(--space-md); border-radius: var(--radius-md); margin-bottom: var(--space-md);">
+                        <div class="headline-md">Create Agent</div>
+                        <div class="body-md">Generate new content from your knowledge base</div>
+                    </div>
+                    <div class="color-info">
+                        <h4>Agent Interface</h4>
+                        <p>Headline Medium + Body Medium</p>
+                        <p>High contrast for accessibility</p>
+                    </div>
+                </div>
+                
+                <!-- Mobile Interface -->
+                <div class="color-card">
+                    <div style="background: white; border: 1px solid var(--gray-100); padding: var(--space-md); border-radius: var(--radius-md); margin-bottom: var(--space-md);">
+                        <div class="body-lg" style="margin-bottom: var(--space-sm);">📱 Mobile Optimized</div>
+                        <div class="body-sm" style="color: var(--gray-500);">Touch-friendly sizing</div>
+                    </div>
+                    <div class="color-info">
+                        <h4>Mobile Interface</h4>
+                        <p>Body Large + Body Small</p>
+                        <p>44px+ touch targets</p>
+                    </div>
+                </div>
+                
+                <!-- Content Hierarchy -->
+                <div class="color-card">
+                    <div style="background: white; border: 1px solid var(--gray-100); padding: var(--space-md); border-radius: var(--radius-md); margin-bottom: var(--space-md);">
+                        <div class="headline-lg" style="margin-bottom: var(--space-sm);">Document Title</div>
+                        <div class="body-lg" style="margin-bottom: var(--space-sm);">Primary content with optimal readability and comfortable line spacing for extended reading sessions.</div>
+                        <div class="body-sm" style="color: var(--gray-500);">Last edited 2 hours ago</div>
+                    </div>
+                    <div class="color-info">
+                        <h4>Content Hierarchy</h4>
+                        <p>Clear information hierarchy</p>
+                        <p>Comfortable reading experience</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Component System -->
+        <section id="components">
+            <h2>Component System</h2>
+            
+            <div class="component-showcase">
+                <div class="component-group">
+                    <h3>Buttons</h3>
+                    <div class="component-grid">
+                        <button class="btn btn--primary">Primary Action</button>
+                        <button class="btn btn--outline">Outline Button</button>
+                        <button class="btn btn--minimal">Minimal Button</button>
+                        <button class="btn btn--ghost">Ghost Button</button>
+                    </div>
+                    <h4 style="margin-top: var(--space-lg); margin-bottom: var(--space-md);">Agent Buttons</h4>
+                    <div class="component-grid">
+                        <button class="btn btn--outline btn--agent-create">📝 Ask Create Agent</button>
+                        <button class="btn btn--outline btn--agent-edit">✏️ Ask Edit Agent</button>
+                        <button class="btn btn--outline btn--agent-research">🔍 Ask Research Agent</button>
+                    </div>
+                </div>
+                
+                <div class="component-group">
+                    <h3>Input Fields</h3>
+                    <div class="component-grid">
+                        <input type="text" class="input" placeholder="Search your knowledge base...">
+                        <input type="email" class="input" placeholder="Enter your email">
+                    </div>
+                </div>
+                
+                <div class="component-group">
+                    <h3>Cards</h3>
+                    <div class="component-grid" style="flex-direction: column; align-items: stretch;">
+                        <div class="card">
+                            <h4>Base Card</h4>
+                            <p>Standard card component with subtle shadow and border.</p>
+                            <div style="margin-top: var(--space-md);">
+                                <button class="btn btn--outline btn--sm">Edit</button>
+                                <button class="btn btn--minimal btn--sm" style="margin-left: var(--space-sm);">Share</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="component-group">
+                    <h3>Document List</h3>
+                    <div class="doc-list">
+                        <div class="doc-item doc-item--selected">
+                            <div>
+                                <div style="font-weight: 600; margin-bottom: var(--space-xs);">📄 Project Notes</div>
+                                <div class="doc-meta">Modified 2 hours ago • Created Jan 15, 2024 • 2.4 KB</div>
+                            </div>
+                            <button class="btn btn--minimal btn--sm">⋮</button>
+                        </div>
+                        <div class="doc-item">
+                            <div>
+                                <div style="font-weight: 600; margin-bottom: var(--space-xs);">📝 Meeting Notes</div>
+                                <div class="doc-meta">Modified yesterday • Created Jan 14, 2024 • 1.8 KB</div>
+                            </div>
+                            <button class="btn btn--minimal btn--sm">⋮</button>
+                        </div>
+                        <div class="doc-item">
+                            <div>
+                                <div style="font-weight: 600; margin-bottom: var(--space-xs);">📊 Research Summary</div>
+                                <div class="doc-meta">Modified 3 days ago • Created Jan 12, 2024 • 5.2 KB</div>
+                            </div>
+                            <button class="btn btn--minimal btn--sm">⋮</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="component-group">
+                    <h3>File & Folder Tree</h3>
+                    <div class="file-tree">
+                        <div class="tree-item tree-item--folder">📁 My Documents</div>
+                        <div class="tree-item tree-item--file">📄 project-notes.md</div>
+                        <div class="tree-item tree-item--file">📝 meeting-notes.md</div>
+                        <div class="tree-item tree-item--folder">📁 Research</div>
+                        <div class="tree-item tree-item--file">📊 market-analysis.md</div>
+                        <div class="tree-item tree-item--file">📈 competitor-research.md</div>
+                    </div>
+                </div>
+                
+                <div class="component-group">
+                    <h3>Chat Interface</h3>
+                    <div class="chat-container">
+                        <div class="chat-messages">
+                            <div class="chat-message chat-message--user">
+                                Create a blog post about AI agents in content creation
+                            </div>
+                            <div class="chat-message chat-message--agent">
+                                <strong>Create Agent:</strong> I'll help you write a comprehensive blog post about AI agents in content creation. Let me pull information from your knowledge base about AI trends, content strategy, and recent developments...
+                            </div>
+                        </div>
+                        <div class="chat-input">
+                            <input type="text" class="input" placeholder="Ask your AI agents...">
+                            <button class="btn btn--primary">Send</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="component-group">
+                    <h3>Mobile UI Elements</h3>
+                    <h4 style="margin-bottom: var(--space-md);">Mobile Popup</h4>
+                    <div class="mobile-popup" style="position: relative; margin-bottom: var(--space-lg);">
+                        <div style="text-align: center; margin-bottom: var(--space-md);">
+                            <div style="width: 40px; height: 4px; background: var(--gray-300); border-radius: 2px; margin: 0 auto;"></div>
+                        </div>
+                        <h4 style="margin-bottom: var(--space-md); color: var(--gray-900);">Share Document</h4>
+                        <div style="display: flex; gap: var(--space-sm);">
+                            <button class="btn btn--outline" style="flex: 1;">Copy Link</button>
+                            <button class="btn btn--primary" style="flex: 1;">Share</button>
+                        </div>
+                    </div>
+                    
+                    <h4 style="margin-bottom: var(--space-md);">Long Press Menu</h4>
+                    <div class="mobile-menu">
+                        <div class="mobile-menu-item">
+                            <span>✏️</span>
+                            <span>Edit Document</span>
+                        </div>
+                        <div class="mobile-menu-item">
+                            <span>📤</span>
+                            <span>Share</span>
+                        </div>
+                        <div class="mobile-menu-item">
+                            <span>📁</span>
+                            <span>Move to Folder</span>
+                        </div>
+                        <div class="mobile-menu-item mobile-menu-item--danger">
+                            <span>🗑️</span>
+                            <span>Delete</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Live Interface Demo -->
+        <section id="interface">
+            <h2>🎨 Live Interface Demo</h2>
+            <p style="margin-bottom: var(--space-xl); color: var(--gray-700); font-size: var(--font-body-lg);">
+                Use the <strong>Dark/Light toggle</strong> in the header above to see how all components adapt in real-time.
+            </p>
+            
+            <div style="background: var(--gray-50); padding: var(--space-xxxl) var(--space-xl); border-radius: var(--radius-xl); border: 1px solid var(--gray-100); transition: all 0.3s ease;">
+                
+                <!-- Sample Navigation -->
+                <div style="background: var(--color-centrid-primary); color: white; padding: var(--space-lg); border-radius: var(--radius-lg); margin-bottom: var(--space-xl); display: flex; justify-content: space-between; align-items: center;">
+                    <div style="display: flex; align-items: center; gap: var(--space-md);">
+                        <div style="background: white; color: var(--color-centrid-primary); width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; position: relative;">
+                            C
+                            <div style="position: absolute; font-size: 8px;">•</div>
+                        </div>
+                        <span style="font-size: var(--font-headline-md); font-weight: 600;">Centrid</span>
+                    </div>
+                    <div style="display: flex; gap: var(--space-md); align-items: center;">
+                        <button style="background: rgba(255,255,255,0.2); border: none; color: white; padding: var(--space-sm) var(--space-md); border-radius: var(--radius-md); font-size: var(--font-body-md);">Profile</button>
+                    </div>
+                </div>
+
+                <!-- Agent Action Buttons -->
+                <div style="margin-bottom: var(--space-xl);">
+                    <h3 style="color: var(--gray-900); margin-bottom: var(--space-lg);">AI Agent Actions</h3>
+                    <div style="display: flex; gap: var(--space-md); flex-wrap: wrap;">
+                        <button class="btn btn--outline">📝 Ask Create Agent</button>
+                        <button class="btn btn--outline btn--agent-edit">✏️ Ask Edit Agent</button>
+                        <button class="btn btn--outline btn--agent-research">🔍 Ask Research Agent</button>
+                    </div>
+                </div>
+
+                <!-- Chat Interface Example -->
+                <div class="chat-container" style="margin-bottom: var(--space-xl);">
+                    <div style="padding: var(--space-lg); border-bottom: 1px solid var(--gray-100);">
+                        <h4 style="color: var(--gray-900); margin-bottom: var(--space-md);">Chat with AI Agents</h4>
+                    </div>
+                    <div class="chat-messages">
+                        <div class="chat-message chat-message--user">
+                            Create a blog post about AI agents in content creation
+                        </div>
+                        <div class="chat-message chat-message--agent">
+                            <strong>Create Agent:</strong> I'll help you write a comprehensive blog post about AI agents. Let me pull information from your knowledge base about AI trends, content strategy, and recent developments...
+                        </div>
+                    </div>
+                    <div class="chat-input">
+                        <input type="text" class="input" placeholder="Ask your AI agents..." />
+                        <button class="btn btn--primary">Send</button>
+                    </div>
+                </div>
+
+                <!-- Document List Example -->
+                <div class="doc-list">
+                    <div style="padding: var(--space-lg); border-bottom: 1px solid var(--gray-100);">
+                        <h4 style="color: var(--gray-900);">📄 Recent Documents</h4>
+                    </div>
+                    <div class="doc-item doc-item--selected">
+                        <div>
+                            <div style="font-weight: 600; color: var(--gray-900); margin-bottom: var(--space-xs);">📄 Project Notes</div>
+                            <div class="doc-meta">Modified 2 hours ago • Created Jan 15, 2024 • 2.4 KB</div>
+                        </div>
+                        <button class="btn btn--minimal btn--sm">⋮</button>
+                    </div>
+                    <div class="doc-item">
+                        <div>
+                            <div style="font-weight: 600; color: var(--gray-900); margin-bottom: var(--space-xs);">📝 Meeting Notes</div>
+                            <div class="doc-meta">Modified yesterday • Created Jan 14, 2024 • 1.8 KB</div>
+                        </div>
+                        <button class="btn btn--minimal btn--sm">⋮</button>
+                    </div>
+                    <div class="doc-item">
+                        <div>
+                            <div style="font-weight: 600; color: var(--gray-900); margin-bottom: var(--space-xs);">📊 Research Summary</div>
+                            <div class="doc-meta">Modified 3 days ago • Created Jan 12, 2024 • 5.2 KB</div>
+                        </div>
+                        <button class="btn btn--minimal btn--sm">⋮</button>
+                    </div>
+                </div>
+
+            </div>
+            
+            <div style="background: var(--gray-50); padding: var(--space-xl); border-radius: var(--radius-lg); margin-top: var(--space-xl); border: 1px solid var(--gray-100); transition: all 0.3s ease;">
+                <h3>🎯 Adaptive Design Principles</h3>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: var(--space-lg); margin-top: var(--space-md);">
+                    <div>
+                        <strong style="color: var(--gray-900);">🌈 Dynamic Colors</strong>
+                        <p style="margin-top: var(--space-xs); font-size: var(--font-body-sm); color: var(--gray-700);">CSS custom properties automatically switch between light/dark variants</p>
+                    </div>
+                    <div>
+                        <strong style="color: var(--gray-900);">⚡ Smooth Transitions</strong>
+                        <p style="margin-top: var(--space-xs); font-size: var(--font-body-sm); color: var(--gray-700);">All components animate gracefully between modes</p>
+                    </div>
+                    <div>
+                        <strong style="color: var(--gray-900);">🎨 Consistent Branding</strong>
+                        <p style="margin-top: var(--space-xs); font-size: var(--font-body-sm); color: var(--gray-700);">Centrid purple adapts for optimal visibility in each mode</p>
+                    </div>
+                    <div>
+                        <strong style="color: var(--gray-900);">📱 Perfect Contrast</strong>
+                        <p style="margin-top: var(--space-xs); font-size: var(--font-body-sm); color: var(--gray-700);">WCAG AAA accessibility standards maintained in both modes</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- AI Agents -->
+        <section id="agents">
+            <h2>AI Agent System</h2>
+            <div class="agent-grid">
+                <div class="agent-card agent-card--create">
+                    <div class="agent-icon agent-icon--create">📝</div>
+                    <h3>Create Agent</h3>
+                    <p>Generates new content from scratch using your knowledge base. Perfect for documentation, blog posts, guides, and technical specifications.</p>
+                    <div style="margin-top: 1rem;">
+                        <button class="btn btn--agent-create">Ask Create Agent</button>
+                    </div>
+                </div>
+                
+                <div class="agent-card agent-card--edit">
+                    <div class="agent-icon agent-icon--edit">✏️</div>
+                    <h3>Edit Agent</h3>
+                    <p>Refines and improves existing content with precision. Handles grammar, style, structure, and clarity improvements.</p>
+                    <div style="margin-top: 1rem;">
+                        <button class="btn btn--agent-edit">Ask Edit Agent</button>
+                    </div>
+                </div>
+                
+                <div class="agent-card agent-card--research">
+                    <div class="agent-icon agent-icon--research">🔍</div>
+                    <h3>Research Agent</h3>
+                    <p>Synthesizes information from your entire knowledge base. Finds connections, patterns, and insights across documents.</p>
+                    <div style="margin-top: 1rem;">
+                        <button class="btn btn--agent-research">Ask Research Agent</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Implementation Guide -->
+        <section id="implementation">
+            <h2>Implementation Guide</h2>
+            
+            <h3>CSS Custom Properties</h3>
+            <div class="code-block">
+<span class="comment">/* Centrid Design Tokens */</span>
+:root {
+  <span class="comment">/* Brand Colors */</span>
+  <span class="property">--color-centrid-primary</span>: <span class="string">#7C3AED</span>;
+  <span class="property">--color-centrid-dark</span>: <span class="string">#1a1a1a</span>;
+  <span class="property">--color-centrid-light</span>: <span class="string">#f8f9fa</span>;
+  
+  <span class="comment">/* Agent Colors - Harmonized Purple */</span>
+  <span class="property">--color-create</span>: <span class="string">#7C3AED</span>;
+  <span class="property">--color-edit</span>: <span class="string">#A855F7</span>;
+  <span class="property">--color-research</span>: <span class="string">#6366F1</span>;
+}
+
+<span class="comment">/* Dark Mode */</span>
+@media (prefers-color-scheme: dark) {
+  :root {
+    <span class="comment">/* Dark Mode Agent Colors */</span>
+    <span class="property">--color-create</span>: <span class="string">#8B5CF6</span>;
+    <span class="property">--color-edit</span>: <span class="string">#C084FC</span>;
+    <span class="property">--color-research</span>: <span class="string">#818CF8</span>;
+  }
+}
+            </div>
+            
+            <h3>Complete Color Variables</h3>
+            <div class="code-block">
+<span class="comment">/* Light Mode Colors */</span>
+:root {
+  <span class="property">--color-centrid-primary</span>: <span class="string">#7C3AED</span>;
+  <span class="property">--color-create</span>: <span class="string">#7C3AED</span>;
+  <span class="property">--color-edit</span>: <span class="string">#A855F7</span>;
+  <span class="property">--color-research</span>: <span class="string">#6366F1</span>;
+}
+
+<span class="comment">/* Dark Mode Colors */</span>
+@media (prefers-color-scheme: dark) {
+  :root {
+    <span class="property">--color-create</span>: <span class="string">#8B5CF6</span>;
+    <span class="property">--color-edit</span>: <span class="string">#C084FC</span>;
+    <span class="property">--color-research</span>: <span class="string">#818CF8</span>;
+  }
+  
+  <span class="comment">/* Spacing */</span>
+  <span class="property">--space-sm</span>: <span class="string">8px</span>;
+  <span class="property">--space-md</span>: <span class="string">16px</span>;
+  <span class="property">--space-lg</span>: <span class="string">24px</span>;
+}
+            </div>
+            
+            <h3>React Components</h3>
+            <div class="code-block">
+<span class="comment">// Centrid Button Component</span>
+<span class="keyword">const</span> CentridButton = ({ 
+  variant = <span class="string">"primary"</span>, 
+  agent, 
+  children, 
+  ...props 
+}) => (
+  &lt;<span class="keyword">button</span> 
+    <span class="property">className</span>={`btn btn--${variant} ${agent ? `btn--agent-${agent}` : <span class="string">""</span>}`}
+    {...props}
+  &gt;
+    {children}
+  &lt;/<span class="keyword">button</span>&gt;
+);
+
+<span class="comment">// Usage Examples</span>
+&lt;CentridButton&gt;Primary Action&lt;/CentridButton&gt;
+&lt;CentridButton variant=<span class="string">"outline"</span>&gt;Outline Button&lt;/CentridButton&gt;
+&lt;CentridButton variant=<span class="string">"minimal"</span>&gt;Minimal Button&lt;/CentridButton&gt;
+&lt;CentridButton variant=<span class="string">"ghost"</span>&gt;Ghost Button&lt;/CentridButton&gt;
+&lt;CentridButton variant=<span class="string">"outline"</span> agent=<span class="string">"create"</span>&gt;📝 Ask Create Agent&lt;/CentridButton&gt;
+            </div>
+            
+            <h3>Mobile-First CSS</h3>
+            <div class="code-block">
+<span class="comment">/* Mobile-First Responsive Design */</span>
+.<span class="property">centrid-component</span> {
+  <span class="comment">/* Mobile styles (320px+) */</span>
+  <span class="property">font-size</span>: <span class="string">var(--font-body-md)</span>;
+  <span class="property">padding</span>: <span class="string">var(--space-sm)</span>;
+}
+
+<span class="keyword">@media</span> (min-width: 768px) {
+  .<span class="property">centrid-component</span> {
+    <span class="comment">/* Tablet styles */</span>
+    <span class="property">font-size</span>: <span class="string">var(--font-body-lg)</span>;
+    <span class="property">padding</span>: <span class="string">var(--space-md)</span>;
+  }
+}
+
+<span class="keyword">@media</span> (min-width: 1024px) {
+  .<span class="property">centrid-component</span> {
+    <span class="comment">/* Desktop styles */</span>
+    <span class="property">padding</span>: <span class="string">var(--space-lg)</span>;
+  }
+}
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer style="text-align: center; padding: var(--space-xxxl) 0; color: var(--gray-500); border-top: 1px solid var(--gray-100); margin-top: var(--space-xxxl);">
+            <div class="logo" style="justify-content: center; margin-bottom: var(--space-md); color: var(--color-centrid-primary);">
+                <div class="logo-mark logo-mark--on-white">C</div>
+                <span>Centrid</span>
+            </div>
+            <p>Your central intelligence for content creation</p>
+            <p style="margin-top: var(--space-md); font-size: var(--font-body-sm);">
+                Brand Identity & Design System • Version 2.0 • 
+                <a href="https://centrid.ai" style="color: var(--color-centrid-primary);">centrid.ai</a>
+            </p>
+        </footer>
+    </div>
+    
+    <script>
+        // Theme toggle functionality
+        function toggleMode() {
+            const body = document.body;
+            const toggleIcon = document.querySelector('.mode-toggle-icon');
+            const toggleText = document.querySelector('.mode-toggle-text');
+            
+            if (body.classList.contains('dark-mode')) {
+                // Switch to light mode
+                body.classList.remove('dark-mode');
+                body.classList.add('light-mode');
+                toggleIcon.textContent = '🌙';
+                toggleText.textContent = 'Dark';
+                localStorage.setItem('theme', 'light');
+            } else {
+                // Switch to dark mode
+                body.classList.remove('light-mode');
+                body.classList.add('dark-mode');
+                toggleIcon.textContent = '☀️';
+                toggleText.textContent = 'Light';
+                localStorage.setItem('theme', 'dark');
+            }
+        }
+        
+        // Initialize theme on page load
+        function initializeTheme() {
+            const savedTheme = localStorage.getItem('theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            const toggleIcon = document.querySelector('.mode-toggle-icon');
+            const toggleText = document.querySelector('.mode-toggle-text');
+            
+            if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+                document.body.classList.add('dark-mode');
+                toggleIcon.textContent = '☀️';
+                toggleText.textContent = 'Light';
+            } else {
+                document.body.classList.add('light-mode');
+                toggleIcon.textContent = '🌙';
+                toggleText.textContent = 'Dark';
+            }
+        }
+        
+        // Initialize theme when page loads
+        document.addEventListener('DOMContentLoaded', initializeTheme);
+        
+        // Listen for system theme changes
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+            if (!localStorage.getItem('theme')) {
+                const toggleIcon = document.querySelector('.mode-toggle-icon');
+                const toggleText = document.querySelector('.mode-toggle-text');
+                
+                if (e.matches) {
+                    document.body.classList.remove('light-mode');
+                    document.body.classList.add('dark-mode');
+                    toggleIcon.textContent = '☀️';
+                    toggleText.textContent = 'Light';
+                } else {
+                    document.body.classList.remove('dark-mode');
+                    document.body.classList.add('light-mode');
+                    toggleIcon.textContent = '🌙';
+                    toggleText.textContent = 'Dark';
+                }
+            }
+        });
+    </script>
+</body>
+</html>

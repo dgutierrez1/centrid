@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Centrid - AI Agents for Content Creation</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+        .container { text-align: center; max-width: 600px; padding: 2rem; }
+        h1 { font-size: 3rem; margin-bottom: 1rem; font-weight: 700; }
+        .subtitle { font-size: 1.2rem; margin-bottom: 2rem; opacity: 0.9; }
+        .email-form { display: flex; gap: 1rem; margin: 2rem 0; }
+        input { 
+            flex: 1; padding: 1rem; border: none; border-radius: 8px;
+            font-size: 1rem; outline: none;
+        }
+        button { 
+            background: #ff6b6b; border: none; padding: 1rem 2rem;
+            border-radius: 8px; color: white; font-weight: bold;
+            cursor: pointer; font-size: 1rem;
+        }
+        button:hover { background: #ff5252; }
+        .features { margin-top: 3rem; }
+        .feature { margin: 1rem 0; font-size: 1.1rem; }
+        @media (max-width: 768px) {
+            h1 { font-size: 2rem; }
+            .email-form { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 Centrid</h1>
+        <p class="subtitle">AI Agents for Content Creation</p>
+        <p>Transform how you create, edit, and research content with intelligent AI agents that understand your knowledge base.</p>
+        
+        <form class="email-form" onsubmit="handleSubmit(event)">
+            <input type="email" placeholder="Enter your email for early access" required>
+            <button type="submit">Join Waitlist</button>
+        </form>
+        
+        <div class="features">
+            <div class="feature">🤖 Create Agent - Generate content from your knowledge</div>
+            <div class="feature">✏️ Edit Agent - Intelligent content refinement</div>
+            <div class="feature">🔍 Research Agent - Smart information synthesis</div>
+        </div>
+        
+        <p style="margin-top: 2rem; opacity: 0.8;">🚀 Coming Soon • 📱 Mobile-First • 🔒 Secure</p>
+    </div>
+
+    <script>
+        function handleSubmit(event) {
+            event.preventDefault();
+            const email = event.target.querySelector('input').value;
+            alert(`Thanks! We'll notify ${email} when Centrid launches! 🚀`);
+            event.target.reset();
+        }
+    </script>
+</body>
+</html>

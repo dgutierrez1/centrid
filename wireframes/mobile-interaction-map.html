@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Centrid - Mobile Wireframe Flow</title>
+    <style>
+        :root {
+            --color-primary: #7C3AED;
+            --color-create: #7C3AED;
+            --color-edit: #A855F7;
+            --color-research: #6366F1;
+            --gray-50: #f8f9fa;
+            --gray-100: #e9ecef;
+            --gray-300: #adb5bd;
+            --gray-500: #6c757d;
+            --gray-700: #495057;
+            --gray-900: #1a1a1a;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+            background: #f5f5f7;
+            color: var(--gray-900);
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        .header {
+            background: var(--color-primary);
+            color: white;
+            padding: 24px;
+            margin-bottom: 32px;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .flow-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .screen-row {
+            display: flex;
+            gap: 24px;
+            align-items: center;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .screen {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .screen:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+        }
+
+        .screen.active {
+            border: 2px solid var(--color-primary);
+        }
+
+        .phone-frame {
+            width: 160px;
+            height: 320px;
+            background: #1a1a1a;
+            border-radius: 12px;
+            padding: 3px;
+            position: relative;
+        }
+
+        .phone-screen {
+            width: 100%;
+            height: 100%;
+            background: white;
+            border-radius: 9px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .status-bar {
+            background: #000;
+            color: white;
+            height: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 6px;
+            font-size: 7px;
+            font-weight: 600;
+        }
+
+        .nav-bar {
+            background: var(--color-primary);
+            color: white;
+            padding: 6px 8px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 26px;
+            font-size: 9px;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+            font-weight: 700;
+        }
+
+        .logo-icon {
+            width: 12px;
+            height: 12px;
+            background: white;
+            color: var(--color-primary);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 7px;
+            font-weight: bold;
+        }
+
+        .content {
+            padding: 8px;
+            height: calc(100% - 56px);
+            overflow: hidden;
+            font-size: 8px;
+        }
+
+        .content-with-nav {
+            height: calc(100% - 80px);
+        }
+
+        .wireframe-box {
+            border: 1px solid var(--gray-300);
+            background: var(--gray-50);
+            padding: 4px;
+            margin: 2px 0;
+            border-radius: 2px;
+            font-size: 7px;
+            color: var(--gray-700);
+            text-align: center;
+        }
+
+        .wireframe-text {
+            color: var(--gray-500);
+            font-size: 6px;
+            line-height: 1.2;
+        }
+
+        .btn-wireframe {
+            border: 1px solid var(--color-primary);
+            background: var(--color-primary);
+            color: white;
+            padding: 3px 6px;
+            border-radius: 2px;
+            font-size: 7px;
+            margin: 2px;
+            display: inline-block;
+            text-align: center;
+        }
+
+        .btn-outline {
+            background: white;
+            color: var(--color-primary);
+        }
+
+        .bottom-nav {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            border-top: 1px solid var(--gray-100);
+            display: flex;
+            justify-content: space-around;
+            padding: 4px 0;
+            font-size: 6px;
+        }
+
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1px;
+            color: var(--gray-500);
+            padding: 2px;
+        }
+
+        .nav-item.active {
+            color: var(--color-primary);
+        }
+
+        .fab {
+            position: absolute;
+            bottom: 30px;
+            right: 8px;
+            width: 24px;
+            height: 24px;
+            background: var(--color-primary);
+            border: none;
+            border-radius: 50%;
+            color: white;
+            font-size: 12px;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(124, 58, 237, 0.3);
+        }
+
+        .flow-arrow {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            color: var(--color-primary);
+            font-size: 16px;
+        }
+
+        .flow-trigger {
+            background: var(--gray-100);
+            border: 1px solid var(--color-primary);
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 10px;
+            color: var(--color-primary);
+            margin: 4px 0;
+            text-align: center;
+        }
+
+        .screen-label {
+            position: absolute;
+            top: -8px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--color-primary);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 8px;
+            font-weight: 600;
+            z-index: 10;
+        }
+
+        .agent-btn {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+            width: 100%;
+            margin-bottom: 2px;
+            padding: 3px 6px;
+            border: 1px solid var(--color-primary);
+            border-radius: 2px;
+            background: white;
+            color: var(--color-primary);
+            font-size: 6px;
+        }
+
+        .chat-message {
+            margin-bottom: 3px;
+            padding: 3px;
+            border-radius: 4px;
+            font-size: 6px;
+            max-width: 80%;
+        }
+
+        .chat-user {
+            background: var(--color-primary);
+            color: white;
+            margin-left: auto;
+            border-bottom-right-radius: 1px;
+        }
+
+        .chat-agent {
+            background: var(--gray-100);
+            color: var(--gray-900);
+            border-bottom-left-radius: 1px;
+        }
+
+        .instructions {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 24px;
+            border-left: 4px solid var(--color-primary);
+        }
+
+        .doc-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 4px;
+            border-bottom: 1px solid var(--gray-100);
+            font-size: 6px;
+        }
+
+        .doc-selected {
+            background: rgba(124, 58, 237, 0.1);
+            border-left: 2px solid var(--color-primary);
+        }
+
+        @media (max-width: 600px) {
+            .screen-row {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📱 Centrid Mobile Wireframe Flow</h1>
+            <p>Complete mobile user journey with realistic content scaling and clear navigation flows</p>
+        </div>
+
+        <div class="instructions">
+            <h3>🎯 Mobile Wireframe Overview</h3>
+            <p>These wireframes show realistic mobile proportions, touch-optimized layouts, and native mobile interaction patterns. Each screen demonstrates the mobile-first approach with proper content hierarchy and navigation.</p>
+        </div>
+
+        <div class="flow-container">
+            
+            <!-- Welcome Screen -->
+            <div class="screen" id="welcome" onclick="showScreen('welcome')">
+                <div class="screen-label">1. Welcome</div>
+                <div class="phone-frame">
+                    <div class="phone-screen">
+                        <div class="status-bar">
+                            <span>9:41</span>
+                            <span>🔋 100%</span>
+                        </div>
+                        <div class="content" style="text-align: center; padding-top: 32px;">
+                            <div style="font-size: 24px; margin-bottom: 8px;">🤖</div>
+                            <div style="font-size: 12px; font-weight: 600; color: var(--color-primary); margin-bottom: 4px;">Welcome to Centrid</div>
+                            <div class="wireframe-text" style="margin-bottom: 16px;">Your central intelligence for content creation</div>
+                            <div style="display: flex; flex-direction: column; gap: 4px; padding: 0 16px;">
+                                <div class="btn-wireframe">Get Started</div>
+                                <div class="btn-wireframe btn-outline">Sign In</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flow-arrow">
+                <div class="flow-trigger">Tap "Get Started"</div>
+                <div>↓</div>
+            </div>
+
+            <!-- Sign Up -->
+            <div class="screen" id="signup" onclick="showScreen('signup')">
+                <div class="screen-label">2. Sign Up</div>
+                <div class="phone-frame">
+                    <div class="phone-screen">
+                        <div class="status-bar">
+                            <span>9:41</span>
+                            <span>🔋 100%</span>
+                        </div>
+                        <div class="nav-bar">
+                            <span style="font-size: 8px;">←</span>
+                            <span style="font-weight: 600;">Create Account</span>
+                            <span></span>
+                        </div>
+                        <div class="content">
+                            <div style="text-align: center; margin-bottom: 12px;">
+                                <div style="font-size: 10px; font-weight: 600; margin-bottom: 8px;">Join Centrid</div>
+                            </div>
+                            <div class="wireframe-box">Email address</div>
+                            <div class="wireframe-box">Password</div>
+                            <div class="wireframe-box">Confirm password</div>
+                            <div class="btn-wireframe" style="width: 100%; margin: 6px 0;">Create Account</div>
+                            <div class="wireframe-text" style="text-align: center;">Already have an account? <span style="color: var(--color-primary);">Sign in</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flow-arrow">
+                <div class="flow-trigger">Complete Registration</div>
+                <div>↓</div>
+            </div>
+
+            <!-- Onboarding -->
+            <div class="screen" id="onboarding" onclick="showScreen('onboarding')">
+                <div class="screen-label">3. Onboarding</div>
+                <div class="phone-frame">
+                    <div class="phone-screen">
+                        <div class="status-bar">
+                            <span>9:41</span>
+                            <span>🔋 100%</span>
+                        </div>
+                        <div class="content" style="text-align: center; padding-top: 24px;">
+                            <div style="font-size: 20px; margin-bottom: 8px;">📝</div>
+                            <div style="font-size: 10px; font-weight: 600; margin-bottom: 4px;">Meet Your AI Agents</div>
+                            <div class="wireframe-text" style="margin-bottom: 12px;">Three specialized agents to help with content</div>
+                            <div style="text-align: left; margin-bottom: 16px;">
+                                <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px; padding: 4px;">
+                                    <div style="width: 16px; height: 16px; background: var(--color-create); border-radius: 50%; color: white; display: flex; align-items: center; justify-content: center; font-size: 8px;">📝</div>
+                                    <div>
+                                        <div style="font-size: 7px; font-weight: 600;">Create Agent</div>
+                                        <div class="wireframe-text">Generate new content</div>
+                                    </div>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px; padding: 4px;">
+                                    <div style="width: 16px; height: 16px; background: var(--color-edit); border-radius: 50%; color: white; display: flex; align-items: center; justify-content: center; font-size: 8px;">✏️</div>
+                                    <div>
+                                        <div style="font-size: 7px; font-weight: 600;">Edit Agent</div>
+                                        <div class="wireframe-text">Improve existing content</div>
+                                    </div>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 6px; padding: 4px;">
+                                    <div style="width: 16px; height: 16px; background: var(--color-research); border-radius: 50%; color: white; display: flex; align-items: center; justify-content: center; font-size: 8px;">🔍</div>
+                                    <div>
+                                        <div style="font-size: 7px; font-weight: 600;">Research Agent</div>
+                                        <div class="wireframe-text">Find information & insights</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="btn-wireframe" style="width: 80%;">Continue</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flow-arrow">
+                <div class="flow-trigger">Tap "Continue"</div>
+                <div>↓</div>
+            </div>
+
+            <!-- Dashboard -->
+            <div class="screen" id="dashboard" onclick="showScreen('dashboard')">
+                <div class="screen-label">4. Dashboard</div>
+                <div class="phone-frame">
+                    <div class="phone-screen">
+                        <div class="status-bar">
+                            <span>9:41</span>
+                            <span>🔋 100%</span>
+                        </div>
+                        <div class="nav-bar">
+                            <div class="logo">
+                                <div class="logo-icon">C</div>
+                                <span>Centrid</span>
+                            </div>
+                            <span style="font-size: 10px;">👤</span>
+                        </div>
+                        <div class="content content-with-nav">
+                            <div class="wireframe-box" style="margin-bottom: 6px;">🔍 Search documents...</div>
+                            
+                            <div style="font-size: 8px; font-weight: 600; margin-bottom: 4px;">Quick Actions</div>
+                            <div class="agent-btn">📝 Ask Create Agent</div>
+                            <div class="agent-btn">✏️ Ask Edit Agent</div>
+                            <div class="agent-btn">🔍 Ask Research Agent</div>
+
+                            <div style="font-size: 8px; font-weight: 600; margin: 8px 0 4px;">Recent Documents</div>
+                            <div class="doc-item doc-selected">
+                                <div>
+                                    <div style="font-size: 6px; font-weight: 600;">📄 Project Notes</div>
+                                    <div class="wireframe-text">2 hours ago</div>
+                                </div>
+                                <span style="font-size: 8px;">⋮</span>
+                            </div>
+                            <div class="doc-item">
+                                <div>
+                                    <div style="font-size: 6px; font-weight: 600;">📝 Meeting Minutes</div>
+                                    <div class="wireframe-text">Yesterday</div>
+                                </div>
+                                <span style="font-size: 8px;">⋮</span>
+                            </div>
+                            <div class="doc-item">
+                                <div>
+                                    <div style="font-size: 6px; font-weight: 600;">📊 Research Summary</div>
+                                    <div class="wireframe-text">3 days ago</div>
+                                </div>
+                                <span style="font-size: 8px;">⋮</span>
+                            </div>
+                        </div>
+                        <div class="bottom-nav">
+                            <div class="nav-item active">
+                                <span>🏠</span>
+                                <span>Home</span>
+                            </div>
+                            <div class="nav-item">
+                                <span>📄</span>
+                                <span>Documents</span>
+                            </div>
+                            <div class="nav-item">
+                                <span>💬</span>
+                                <span>Chat</span>
+                            </div>
+                            <div class="nav-item">
+                                <span>⚙️</span>
+                                <span>Settings</span>
+                            </div>
+                        </div>
+                        <div class="fab">+</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flow-arrow">
+                <div class="flow-trigger">Tap Agent Action OR Tap Document OR Tap FAB</div>
+                <div style="display: flex; gap: 20px;">
+                    <div>↙️</div>
+                    <div>↓</div>
+                    <div>↘️</div>
+                </div>
+            </div>
+
+            <!-- Three-way split for different flows -->
+            <div class="screen-row">
+                <!-- Chat Flow -->
+                <div class="screen" id="chat" onclick="showScreen('chat')">
+                    <div class="screen-label">5a. AI Chat</div>
+                    <div class="phone-frame">
+                        <div class="phone-screen">
+                            <div class="status-bar">
+                                <span>9:41</span>
+                                <span>🔋 100%</span>
+                            </div>
+                            <div class="nav-bar">
+                                <span style="font-size: 8px;">←</span>
+                                <span style="font-weight: 600;">AI Agents</span>
+                                <span style="font-size: 8px;">⋮</span>
+                            </div>
+                            <div class="content" style="padding-bottom: 40px;">
+                                <div class="chat-message chat-user">Create a blog post about AI marketing</div>
+                                <div class="chat-message chat-agent"><strong>Create Agent:</strong> I'll help you create a blog post! Let me analyze your knowledge base...</div>
+                                <div class="chat-message chat-agent">
+                                    <div class="wireframe-box" style="background: rgba(124, 58, 237, 0.1); margin: 2px 0;">
+                                        <div style="font-size: 6px; font-weight: 600; margin-bottom: 2px;">📄 Preview: AI Marketing Blog Post</div>
+                                        <div class="wireframe-text" style="margin-bottom: 3px;"># The Future of AI in Marketing<br><br>AI is revolutionizing marketing...</div>
+                                        <div style="display: flex; gap: 2px;">
+                                            <div class="btn-wireframe" style="font-size: 5px;">Apply</div>
+                                            <div class="btn-wireframe btn-outline" style="font-size: 5px;">Edit</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div style="position: absolute; bottom: 24px; left: 3px; right: 3px; background: white; border-top: 1px solid var(--gray-100); padding: 4px;">
+                                <div style="display: flex; gap: 3px; align-items: center;">
+                                    <div class="wireframe-box" style="flex: 1; margin: 0;">Ask your agents...</div>
+                                    <div class="btn-wireframe" style="width: 16px; height: 16px; border-radius: 50%; margin: 0;">→</div>
+                                </div>
+                            </div>
+                            <div class="bottom-nav">
+                                <div class="nav-item">
+                                    <span>🏠</span>
+                                    <span>Home</span>
+                                </div>
+                                <div class="nav-item">
+                                    <span>📄</span>
+                                    <span>Documents</span>
+                                </div>
+                                <div class="nav-item active">
+                                    <span>💬</span>
+                                    <span>Chat</span>
+                                </div>
+                                <div class="nav-item">
+                                    <span>⚙️</span>
+                                    <span>Settings</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Editor Flow -->
+                <div class="screen" id="editor" onclick="showScreen('editor')">
+                    <div class="screen-label">5b. Document Editor</div>
+                    <div class="phone-frame">
+                        <div class="phone-screen">
+                            <div class="status-bar">
+                                <span>9:41</span>
+                                <span>🔋 100%</span>
+                            </div>
+                            <div class="nav-bar">
+                                <span style="font-size: 8px;">←</span>
+                                <span style="font-weight: 600;">Blog Post Draft</span>
+                                <span style="font-size: 8px;">💾</span>
+                            </div>
+                            <div class="content content-with-nav">
+                                <div class="wireframe-box" style="margin-bottom: 6px; font-weight: 600;">AI Content Marketing Blog Post</div>
+                                <div style="background: var(--gray-50); padding: 6px; border-radius: 3px; min-height: 120px; font-size: 6px; font-family: monospace; line-height: 1.2;">
+                                    <div># The Future of AI in Content Marketing</div>
+                                    <div><br></div>
+                                    <div>Artificial intelligence is revolutionizing how we create, distribute, and optimize content...</div>
+                                    <div><br></div>
+                                    <div>## Key Benefits of AI in Content</div>
+                                    <div>- Automated content generation</div>
+                                    <div>- Personalization at scale</div>
+                                    <div>- Data-driven insights</div>
+                                    <div style="color: var(--gray-400);">| Continue typing...</div>
+                                </div>
+                                <div style="position: absolute; bottom: 60px; right: 12px; display: flex; flex-direction: column; gap: 3px;">
+                                    <div style="background: var(--color-create); color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 8px;">📝</div>
+                                    <div style="background: var(--color-edit); color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 8px;">✏️</div>
+                                    <div style="background: var(--color-research); color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 8px;">🔍</div>
+                                </div>
+                            </div>
+                            <div class="bottom-nav">
+                                <div class="nav-item">
+                                    <span>🏠</span>
+                                    <span>Home</span>
+                                </div>
+                                <div class="nav-item active">
+                                    <span>📄</span>
+                                    <span>Documents</span>
+                                </div>
+                                <div class="nav-item">
+                                    <span>💬</span>
+                                    <span>Chat</span>
+                                </div>
+                                <div class="nav-item">
+                                    <span>⚙️</span>
+                                    <span>Settings</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Documents Flow -->
+                <div class="screen" id="documents" onclick="showScreen('documents')">
+                    <div class="screen-label">5c. Document List</div>
+                    <div class="phone-frame">
+                        <div class="phone-screen">
+                            <div class="status-bar">
+                                <span>9:41</span>
+                                <span>🔋 100%</span>
+                            </div>
+                            <div class="nav-bar">
+                                <div class="logo">
+                                    <div class="logo-icon">C</div>
+                                    <span>Documents</span>
+                                </div>
+                                <span style="font-size: 8px;">🔍</span>
+                            </div>
+                            <div class="content content-with-nav">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                    <div style="font-size: 8px; font-weight: 600;">My Documents</div>
+                                    <select style="padding: 1px 3px; border: 1px solid var(--gray-300); border-radius: 2px; font-size: 6px;">
+                                        <option>Recent</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="doc-item doc-selected">
+                                    <div>
+                                        <div style="font-size: 6px; font-weight: 600;">📄 AI Marketing Blog Post</div>
+                                        <div class="wireframe-text">Draft • Modified 2h ago • 1.2 KB</div>
+                                    </div>
+                                    <span style="font-size: 8px;">⋮</span>
+                                </div>
+                                <div class="doc-item">
+                                    <div>
+                                        <div style="font-size: 6px; font-weight: 600;">📝 Project Notes</div>
+                                        <div class="wireframe-text">Modified 5h ago • 2.4 KB</div>
+                                    </div>
+                                    <span style="font-size: 8px;">⋮</span>
+                                </div>
+                                <div class="doc-item">
+                                    <div>
+                                        <div style="font-size: 6px; font-weight: 600;">📊 Q1 Research Summary</div>
+                                        <div class="wireframe-text">Modified yesterday • 5.2 KB</div>
+                                    </div>
+                                    <span style="font-size: 8px;">⋮</span>
+                                </div>
+                                <div class="doc-item">
+                                    <div>
+                                        <div style="font-size: 6px; font-weight: 600;">📋 Meeting Minutes</div>
+                                        <div class="wireframe-text">Modified 2 days ago • 1.8 KB</div>
+                                    </div>
+                                    <span style="font-size: 8px;">⋮</span>
+                                </div>
+                                <div style="text-align: center; padding: 12px; color: var(--gray-500);">
+                                    <div style="font-size: 12px;">📁</div>
+                                    <div class="wireframe-text">4 documents</div>
+                                </div>
+                            </div>
+                            <div class="bottom-nav">
+                                <div class="nav-item">
+                                    <span>🏠</span>
+                                    <span>Home</span>
+                                </div>
+                                <div class="nav-item active">
+                                    <span>📄</span>
+                                    <span>Documents</span>
+                                </div>
+                                <div class="nav-item">
+                                    <span>💬</span>
+                                    <span>Chat</span>
+                                </div>
+                                <div class="nav-item">
+                                    <span>⚙️</span>
+                                    <span>Settings</span>
+                                </div>
+                            </div>
+                            <div class="fab">+</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flow-arrow">
+                <div class="flow-trigger">All paths converge to content creation workflow</div>
+                <div>↓</div>
+            </div>
+
+            <!-- Settings -->
+            <div class="screen" id="settings" onclick="showScreen('settings')">
+                <div class="screen-label">6. Settings</div>
+                <div class="phone-frame">
+                    <div class="phone-screen">
+                        <div class="status-bar">
+                            <span>9:41</span>
+                            <span>🔋 100%</span>
+                        </div>
+                        <div class="nav-bar">
+                            <span style="font-size: 8px;">←</span>
+                            <span style="font-weight: 600;">Settings</span>
+                            <span></span>
+                        </div>
+                        <div class="content content-with-nav">
+                            <div style="text-align: center; margin-bottom: 12px;">
+                                <div style="width: 32px; height: 32px; background: var(--color-primary); border-radius: 50%; margin: 0 auto 6px; display: flex; align-items: center; justify-content: center; color: white; font-size: 12px;">👤</div>
+                                <div style="font-size: 8px; font-weight: 600;">John Doe</div>
+                                <div class="wireframe-text">john@example.com</div>
+                            </div>
+
+                            <div style="margin-bottom: 8px;">
+                                <div style="font-size: 7px; font-weight: 600; margin-bottom: 4px;">AI Agents</div>
+                                <div class="wireframe-box" style="margin-bottom: 2px; display: flex; justify-content: space-between;">
+                                    <span>🎯 Default AI Model</span>
+                                    <span style="color: var(--gray-500);">GPT-4o →</span>
+                                </div>
+                                <div class="wireframe-box" style="display: flex; justify-content: space-between;">
+                                    <span>💬 Response Style</span>
+                                    <span style="color: var(--gray-500);">Professional →</span>
+                                </div>
+                            </div>
+
+                            <div style="margin-bottom: 8px;">
+                                <div style="font-size: 7px; font-weight: 600; margin-bottom: 4px;">Preferences</div>
+                                <div class="wireframe-box" style="margin-bottom: 2px; display: flex; justify-content: space-between; align-items: center;">
+                                    <span>🌙 Dark Mode</span>
+                                    <div style="width: 24px; height: 12px; background: var(--color-primary); border-radius: 6px; position: relative;">
+                                        <div style="width: 10px; height: 10px; background: white; border-radius: 50%; position: absolute; top: 1px; right: 1px;"></div>
+                                    </div>
+                                </div>
+                                <div class="wireframe-box" style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span>📱 Notifications</span>
+                                    <div style="width: 24px; height: 12px; background: var(--gray-300); border-radius: 6px; position: relative;">
+                                        <div style="width: 10px; height: 10px; background: white; border-radius: 50%; position: absolute; top: 1px; left: 1px;"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <div class="wireframe-box" style="margin-bottom: 2px;">❓ Help & Support →</div>
+                                <div class="wireframe-box" style="margin-bottom: 2px;">🔐 Privacy Policy →</div>
+                                <div class="wireframe-box" style="color: #ff3b30;">🚪 Sign Out →</div>
+                            </div>
+                        </div>
+                        <div class="bottom-nav">
+                            <div class="nav-item">
+                                <span>🏠</span>
+                                <span>Home</span>
+                            </div>
+                            <div class="nav-item">
+                                <span>📄</span>
+                                <span>Documents</span>
+                            </div>
+                            <div class="nav-item">
+                                <span>💬</span>
+                                <span>Chat</span>
+                            </div>
+                            <div class="nav-item active">
+                                <span>⚙️</span>
+                                <span>Settings</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div style="background: white; padding: 20px; border-radius: 8px; margin-top: 24px;">
+            <h3>🎯 Mobile User Flow Analysis</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 16px;">
+                <div>
+                    <h4 style="color: var(--color-primary);">📱 Quick Entry Flow</h4>
+                    <p style="font-size: 13px; color: var(--gray-700);">Welcome → Sign Up → Onboarding → Dashboard</p>
+                </div>
+                <div>
+                    <h4 style="color: var(--color-create);">📝 Content Creation Flow</h4>
+                    <p style="font-size: 13px; color: var(--gray-700);">Dashboard → Agent Chat → Preview → Apply → Editor</p>
+                </div>
+                <div>
+                    <h4 style="color: var(--color-edit);">✏️ Document Management Flow</h4>
+                    <p style="font-size: 13px; color: var(--gray-700);">Documents → Select → Mobile Editor → Agent FABs</p>
+                </div>
+                <div>
+                    <h4 style="color: var(--gray-700);">🎯 Bottom Navigation Pattern</h4>
+                    <p style="font-size: 13px; color: var(--gray-700);">Home → Documents → Chat → Settings (Standard mobile pattern)</p>
+                </div>
+            </div>
+        </div>
+
+        <div style="text-align: center; margin-top: 24px; color: var(--gray-500); font-size: 12px;">
+            <p>Centrid Mobile Wireframes • Realistic Content Scaling • Click screens to explore</p>
+        </div>
+    </div>
+
+    <script>
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
+            document.getElementById(screenId).scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            showScreen('welcome');
+        });
+    </script>
+</body>
+</html>
+        });
+    </script>
+</body>
+</html>

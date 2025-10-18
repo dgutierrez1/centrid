@@ -1,0 +1,1064 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Centrid - Desktop High-Fidelity Prototype</title>
+    <style>
+        :root {
+            /* Brand Colors */
+            --color-centrid-primary: #7c3aed;
+            --color-centrid-dark: #1a1a1a;
+            --color-centrid-light: #f8f9fa;
+            
+            /* AI Agent Colors */
+            --color-create: #7c3aed;
+            --color-edit: #a855f7;
+            --color-research: #6366f1;
+            
+            /* System Colors */
+            --color-success: #34c759;
+            --color-warning: #ff9f0a;
+            --color-error: #ff3b30;
+            
+            /* Gray Scale */
+            --gray-50: #f8f9fa;
+            --gray-100: #e9ecef;
+            --gray-200: #dee2e6;
+            --gray-300: #adb5bd;
+            --gray-500: #6c757d;
+            --gray-700: #495057;
+            --gray-900: #1a1a1a;
+            
+            /* Spacing */
+            --space-xs: 4px;
+            --space-sm: 8px;
+            --space-md: 16px;
+            --space-lg: 24px;
+            --space-xl: 32px;
+            
+            /* Shadows */
+            --shadow-sm: 0px 1px 2px rgba(0,0,0,0.04);
+            --shadow-md: 0px 2px 8px rgba(0,0,0,0.04);
+            --shadow-lg: 0px 4px 16px rgba(0,0,0,0.08);
+            
+            /* Border Radius */
+            --radius-sm: 4px;
+            --radius-md: 8px;
+            --radius-lg: 12px;
+            --radius-xl: 16px;
+        }
+
+        * { 
+            margin: 0; 
+            padding: 0; 
+            box-sizing: border-box; 
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter", sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: var(--gray-900);
+            font-size: 14px;
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        .header {
+            background: white;
+            color: var(--gray-900);
+            padding: var(--space-xl);
+            margin-bottom: var(--space-xl);
+            border-radius: var(--radius-xl);
+            text-align: center;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .header h1 {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: var(--space-sm);
+            color: var(--color-centrid-primary);
+        }
+
+        .header p {
+            color: var(--gray-700);
+            font-size: 16px;
+        }
+
+        .flow-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: var(--space-lg);
+        }
+
+        .screen-row {
+            display: flex;
+            gap: var(--space-lg);
+            align-items: center;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .screen {
+            background: white;
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-lg);
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .screen:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 32px rgba(0,0,0,0.2);
+        }
+
+        .screen.active {
+            box-shadow: 0 0 0 3px var(--color-centrid-primary), 0 12px 32px rgba(124, 58, 237, 0.3);
+            transform: scale(1.02);
+        }
+
+        .desktop-frame {
+            width: 400px;
+            height: 300px;
+            background: #2a2a2a;
+            border-radius: 6px;
+            padding: 3px;
+            position: relative;
+        }
+
+        .desktop-screen {
+            width: 100%;
+            height: 100%;
+            background: white;
+            border-radius: 3px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .window-bar {
+            background: #f0f0f0;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 8px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .window-controls {
+            display: flex;
+            gap: 4px;
+        }
+
+        .window-control {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .control-close { background: #ff5f57; }
+        .control-minimize { background: #ffbd2e; }
+        .control-maximize { background: #28ca42; }
+
+        .window-title {
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--gray-700);
+        }
+
+        .nav-bar {
+            background: var(--color-centrid-primary);
+            color: white;
+            padding: var(--space-sm) var(--space-md);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 36px;
+            font-size: 11px;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 700;
+            font-size: 12px;
+        }
+
+        .logo-icon {
+            width: 20px;
+            height: 20px;
+            background: white;
+            color: var(--color-centrid-primary);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: relative;
+        }
+
+        .logo-icon::after {
+            content: "•";
+            position: absolute;
+            font-size: 6px;
+            bottom: 2px;
+            right: 2px;
+        }
+
+        .content {
+            padding: 12px;
+            height: calc(100% - 56px);
+            overflow: hidden;
+            font-size: 9px;
+        }
+
+        .sidebar {
+            width: 80px;
+            background: var(--gray-50);
+            border-right: 1px solid var(--gray-100);
+            padding: 8px;
+            height: 100%;
+            float: left;
+        }
+
+        .main-content {
+            margin-left: 88px;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .wireframe-box {
+            border: 1px solid var(--gray-200);
+            background: white;
+            padding: var(--space-sm);
+            margin: var(--space-xs) 0;
+            border-radius: var(--radius-sm);
+            font-size: 9px;
+            color: var(--gray-900);
+            box-shadow: var(--shadow-sm);
+            transition: all 0.2s ease;
+        }
+
+        .wireframe-box:hover {
+            border-color: var(--color-centrid-primary);
+            box-shadow: var(--shadow-md);
+        }
+
+        .wireframe-text {
+            color: var(--gray-700);
+            font-size: 8px;
+            line-height: 1.4;
+        }
+
+        .flow-arrow {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .flow-trigger {
+            background: white;
+            border: 2px solid var(--color-centrid-primary);
+            border-radius: var(--radius-md);
+            padding: var(--space-sm) var(--space-md);
+            font-size: 11px;
+            color: var(--color-centrid-primary);
+            margin: var(--space-sm) 0;
+            text-align: center;
+            font-weight: 600;
+            box-shadow: var(--shadow-md);
+            transition: all 0.2s ease;
+        }
+
+        .flow-trigger:hover {
+            background: var(--color-centrid-primary);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
+        }
+
+        .screen-label {
+            position: absolute;
+            top: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--color-centrid-primary);
+            color: white;
+            padding: 4px 12px;
+            border-radius: var(--radius-md);
+            font-size: 10px;
+            font-weight: 600;
+            z-index: 10;
+            box-shadow: var(--shadow-md);
+        }
+
+        .layout-3col {
+            display: grid;
+            grid-template-columns: 60px 1fr 60px;
+            gap: 4px;
+            height: 100%;
+        }
+
+        .layout-2col {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 4px;
+            height: 100%;
+        }
+
+        .panel {
+            background: white;
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-sm);
+            padding: var(--space-sm);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .btn-wireframe {
+            border: 1px solid var(--color-centrid-primary);
+            background: white;
+            color: var(--color-centrid-primary);
+            padding: 4px 8px;
+            border-radius: var(--radius-sm);
+            font-size: 8px;
+            margin: 2px;
+            display: inline-block;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .btn-wireframe:hover {
+            background: var(--color-centrid-primary);
+            color: white;
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn-primary {
+            background: var(--color-centrid-primary);
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: var(--radius-md);
+            font-size: 9px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn-primary:hover {
+            background: #6d28d9;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
+        }
+
+        .input-field {
+            border: 1px solid var(--gray-300);
+            background: white;
+            padding: 6px 8px;
+            border-radius: var(--radius-sm);
+            font-size: 8px;
+            width: 100%;
+            font-family: inherit;
+            transition: all 0.2s ease;
+        }
+
+        .input-field:focus {
+            outline: none;
+            border-color: var(--color-centrid-primary);
+            box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.2);
+        }
+
+        .instructions {
+            background: white;
+            padding: var(--space-lg);
+            border-radius: var(--radius-xl);
+            margin-bottom: var(--space-lg);
+            border-left: 4px solid var(--color-centrid-primary);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .instructions h3 {
+            color: var(--color-centrid-primary);
+            margin-bottom: var(--space-sm);
+            font-size: 18px;
+        }
+
+        .instructions p {
+            color: var(--gray-700);
+            line-height: 1.6;
+        }
+
+        .stat-card {
+            background: white;
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-sm);
+            padding: var(--space-sm);
+            text-align: center;
+            box-shadow: var(--shadow-sm);
+            transition: all 0.2s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .agent-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 8px;
+            border-radius: var(--radius-sm);
+            font-size: 7px;
+            font-weight: 600;
+        }
+
+        .agent-badge.create {
+            background: rgba(124, 58, 237, 0.1);
+            color: var(--color-create);
+        }
+
+        .agent-badge.edit {
+            background: rgba(168, 85, 247, 0.1);
+            color: var(--color-edit);
+        }
+
+        .agent-badge.research {
+            background: rgba(99, 102, 241, 0.1);
+            color: var(--color-research);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🖥️ Centrid Desktop Experience</h1>
+            <p>High-fidelity interactive prototype showing the complete user journey</p>
+        </div>
+
+        <div class="instructions">
+            <h3>🎯 Interactive Prototype Overview</h3>
+            <p>Explore Centrid's desktop interface with fully styled components, animations, and interactions. Click on each screen to see it in action. This prototype demonstrates the harmonized purple design system, polished UI components, and seamless user flows across all features.</p>
+        </div>
+
+        <div class="flow-container">
+            
+            <!-- Landing Page -->
+            <div class="screen" id="landing" onclick="showScreen('landing')">
+                <div class="screen-label">1. Landing Page</div>
+                <div class="desktop-frame">
+                    <div class="desktop-screen">
+                        <div class="window-bar">
+                            <div class="window-controls">
+                                <div class="window-control control-close"></div>
+                                <div class="window-control control-minimize"></div>
+                                <div class="window-control control-maximize"></div>
+                            </div>
+                            <div class="window-title">Centrid - AI Agent Workspace</div>
+                            <div></div>
+                        </div>
+                        <div class="content">
+                            <div style="text-align: center; padding: 24px 40px;">
+                                <div style="display: flex; align-items: center; justify-content: center; gap: 6px; margin-bottom: 12px;">
+                                    <div class="logo-icon" style="width: 32px; height: 32px; font-size: 14px;">C</div>
+                                    <div style="font-size: 20px; font-weight: 700; color: var(--color-centrid-primary);">Centrid</div>
+                                </div>
+                                <div style="font-size: 11px; color: var(--gray-700); margin-bottom: 16px; line-height: 1.4;">Your central intelligence for content creation</div>
+                                <div style="display: flex; gap: 8px; justify-content: center; margin-bottom: 20px;">
+                                    <button class="btn-primary">Get Started Free</button>
+                                    <button class="btn-wireframe">Sign In</button>
+                                </div>
+                                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 24px;">
+                                    <div style="text-align: center;">
+                                        <div style="font-size: 18px; margin-bottom: 4px;">📝</div>
+                                        <div class="agent-badge create">Create</div>
+                                    </div>
+                                    <div style="text-align: center;">
+                                        <div style="font-size: 18px; margin-bottom: 4px;">✏️</div>
+                                        <div class="agent-badge edit">Edit</div>
+                                    </div>
+                                    <div style="text-align: center;">
+                                        <div style="font-size: 18px; margin-bottom: 4px;">🔍</div>
+                                        <div class="agent-badge research">Research</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flow-arrow">
+                <div class="flow-trigger">Click "Get Started Free"</div>
+                <div>↓</div>
+            </div>
+
+            <!-- Authentication -->
+            <div class="screen" id="auth" onclick="showScreen('auth')">
+                <div class="screen-label">2. Authentication</div>
+                <div class="desktop-frame">
+                    <div class="desktop-screen">
+                        <div class="window-bar">
+                            <div class="window-controls">
+                                <div class="window-control control-close"></div>
+                                <div class="window-control control-minimize"></div>
+                                <div class="window-control control-maximize"></div>
+                            </div>
+                            <div class="window-title">Sign Up - Centrid</div>
+                            <div></div>
+                        </div>
+                        <div class="content">
+                            <div style="max-width: 180px; margin: 30px auto; text-align: center;">
+                                <div class="logo" style="justify-content: center; margin-bottom: 20px;">
+                                    <div class="logo-icon" style="width: 28px; height: 28px; font-size: 12px;">C</div>
+                                    <span style="color: var(--color-centrid-primary); font-size: 14px;">Centrid</span>
+                                </div>
+                                <div style="font-size: 14px; font-weight: 600; margin-bottom: 20px; color: var(--gray-900);">Create your account</div>
+                                <input class="input-field" placeholder="Email" style="margin-bottom: 8px;" />
+                                <input class="input-field" type="password" placeholder="Password" style="margin-bottom: 8px;" />
+                                <input class="input-field" type="password" placeholder="Confirm password" style="margin-bottom: 12px;" />
+                                <button class="btn-primary" style="width: 100%; margin: 8px 0;">Create Account</button>
+                                <div style="font-size: 8px; color: var(--gray-500); margin-top: 12px;">Already have an account? <span style="color: var(--color-centrid-primary); cursor: pointer; font-weight: 600;">Sign in</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flow-arrow">
+                <div class="flow-trigger">Complete Registration</div>
+                <div>↓</div>
+            </div>
+
+            <!-- Dashboard -->
+            <div class="screen" id="dashboard" onclick="showScreen('dashboard')">
+                <div class="screen-label">3. Dashboard</div>
+                <div class="desktop-frame">
+                    <div class="desktop-screen">
+                        <div class="window-bar">
+                            <div class="window-controls">
+                                <div class="window-control control-close"></div>
+                                <div class="window-control control-minimize"></div>
+                                <div class="window-control control-maximize"></div>
+                            </div>
+                            <div class="window-title">Dashboard - Centrid</div>
+                            <div></div>
+                        </div>
+                        <div class="nav-bar">
+                            <div class="logo">
+                                <div class="logo-icon">C</div>
+                                <span>Centrid</span>
+                            </div>
+                            <div style="display: flex; gap: 12px; align-items: center; font-size: 9px;">
+                                <span>Dashboard</span>
+                                <span>Documents</span>
+                                <span>Chat</span>
+                                <span>Settings</span>
+                                <div style="width: 16px; height: 16px; background: rgba(255,255,255,0.2); border-radius: 50%;">👤</div>
+                            </div>
+                        </div>
+                        <div class="content">
+                            <!-- Search bar -->
+                            <input class="input-field" placeholder="🔍 Search documents, chat with agents... ⌘K" style="margin-bottom: 8px; font-size: 9px;" />
+                            
+                            <!-- Stats -->
+                            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 12px;">
+                                <div class="stat-card">
+                                    <div style="font-size: 14px; font-weight: 700; color: var(--color-centrid-primary);">12</div>
+                                    <div style="font-size: 7px; color: var(--gray-700); margin-top: 2px;">Documents</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div style="font-size: 14px; font-weight: 700; color: var(--color-create);">47</div>
+                                    <div style="font-size: 7px; color: var(--gray-700); margin-top: 2px;">Requests</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div style="font-size: 14px; font-weight: 700; color: var(--color-edit);">8.2k</div>
+                                    <div style="font-size: 7px; color: var(--gray-700); margin-top: 2px;">Words</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div style="font-size: 14px; font-weight: 700; color: var(--color-success);">94%</div>
+                                    <div style="font-size: 7px; color: var(--gray-700); margin-top: 2px;">Uptime</div>
+                                </div>
+                            </div>
+
+                            <!-- Quick Actions -->
+                            <div class="panel" style="margin-bottom: 8px; padding: 8px;">
+                                <div style="font-size: 9px; font-weight: 600; margin-bottom: 6px; color: var(--gray-900);">Quick AI Actions</div>
+                                <div style="display: flex; gap: 4px;">
+                                    <button class="btn-wireframe">📝 Create</button>
+                                    <button class="btn-wireframe">✏️ Edit</button>
+                                    <button class="btn-wireframe">🔍 Research</button>
+                                </div>
+                            </div>
+
+                            <!-- Recent Documents & Activity -->
+                            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 8px;">
+                                <div class="panel" style="padding: 8px;">
+                                    <div style="font-size: 9px; font-weight: 600; margin-bottom: 6px; color: var(--gray-900);">Recent Documents</div>
+                                    <div style="font-size: 8px; padding: 4px; margin: 2px 0; border-radius: var(--radius-sm); background: var(--gray-50); display: flex; align-items: center; gap: 6px;">
+                                        <span>📄</span>
+                                        <span style="flex: 1; color: var(--gray-900);">AI Marketing Strategy</span>
+                                        <span style="color: var(--gray-500);">2h ago</span>
+                                    </div>
+                                    <div style="font-size: 8px; padding: 4px; margin: 2px 0; border-radius: var(--radius-sm); display: flex; align-items: center; gap: 6px;">
+                                        <span>📝</span>
+                                        <span style="flex: 1; color: var(--gray-700);">Project Notes</span>
+                                        <span style="color: var(--gray-500);">5h ago</span>
+                                    </div>
+                                    <div style="font-size: 8px; padding: 4px; margin: 2px 0; border-radius: var(--radius-sm); display: flex; align-items: center; gap: 6px;">
+                                        <span>📊</span>
+                                        <span style="flex: 1; color: var(--gray-700);">Research Summary</span>
+                                        <span style="color: var(--gray-500);">Yesterday</span>
+                                    </div>
+                                </div>
+                                <div class="panel" style="padding: 8px;">
+                                    <div style="font-size: 9px; font-weight: 600; margin-bottom: 6px; color: var(--gray-900);">Activity</div>
+                                    <div style="font-size: 7px; padding: 3px; margin: 2px 0; display: flex; align-items: center; gap: 4px;">
+                                        <div class="agent-badge create">Create</div>
+                                        <span style="color: var(--gray-700);">2h ago</span>
+                                    </div>
+                                    <div style="font-size: 7px; padding: 3px; margin: 2px 0; display: flex; align-items: center; gap: 4px;">
+                                        <div class="agent-badge edit">Edit</div>
+                                        <span style="color: var(--gray-700);">5h ago</span>
+                                    </div>
+                                    <div style="font-size: 7px; padding: 3px; margin: 2px 0; display: flex; align-items: center; gap: 4px;">
+                                        <div class="agent-badge research">Research</div>
+                                        <span style="color: var(--gray-700);">1d ago</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flow-arrow">
+                <div class="flow-trigger">Click Agent Action OR Select Document</div>
+                <div style="display: flex; gap: 40px;">
+                    <div>↙️</div>
+                    <div>↓</div>
+                    <div>↘️</div>
+                </div>
+            </div>
+
+            <!-- Three-way split for different flows -->
+            <div class="screen-row">
+                <!-- Chat Flow -->
+                <div class="screen" id="chat" onclick="showScreen('chat')">
+                    <div class="screen-label">4a. AI Chat</div>
+                    <div class="desktop-frame">
+                        <div class="desktop-screen">
+                            <div class="window-bar">
+                                <div class="window-controls">
+                                    <div class="window-control control-close"></div>
+                                    <div class="window-control control-minimize"></div>
+                                    <div class="window-control control-maximize"></div>
+                                </div>
+                                <div class="window-title">AI Chat - Centrid</div>
+                                <div></div>
+                            </div>
+                            <div class="nav-bar">
+                                <div class="logo">
+                                    <div class="logo-icon">C</div>
+                                    <span>Centrid</span>
+                                </div>
+                                <div style="font-size: 9px;">Chat</div>
+                            </div>
+                            <div class="content">
+                                <div class="layout-2col">
+                                    <div class="panel" style="display: flex; flex-direction: column; height: 100%;">
+                                        <div style="flex: 1; overflow-y: auto;">
+                                            <div style="background: var(--color-centrid-primary); color: white; padding: 6px 10px; border-radius: var(--radius-md) var(--radius-md) var(--radius-sm) var(--radius-md); margin: 4px 20px 4px auto; max-width: 80%; font-size: 8px;">
+                                                Create blog post about AI marketing
+                                            </div>
+                                            <div style="background: var(--gray-50); border: 1px solid var(--gray-200); padding: 6px 10px; border-radius: var(--radius-md) var(--radius-md) var(--radius-md) var(--radius-sm); margin: 4px auto 4px 4px; max-width: 80%; font-size: 8px;">
+                                                <div class="agent-badge create" style="margin-bottom: 4px;">Create Agent</div>
+                                                I'll help you create a comprehensive blog post about AI in marketing. Let me pull insights from your knowledge base...
+                                            </div>
+                                            <div style="background: rgba(124, 58, 237, 0.08); border: 1px solid var(--color-centrid-primary); padding: 8px; border-radius: var(--radius-md); margin: 6px 4px; font-size: 8px;">
+                                                <div style="font-weight: 600; color: var(--color-centrid-primary); margin-bottom: 4px;">📄 Draft Ready</div>
+                                                <div style="color: var(--gray-700); margin-bottom: 6px;">AI Marketing Blog Post (1,247 words)</div>
+                                                <div style="display: flex; gap: 4px;">
+                                                    <button class="btn-primary" style="font-size: 7px; padding: 3px 8px;">Apply</button>
+                                                    <button class="btn-wireframe" style="font-size: 7px; padding: 3px 8px;">Edit</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div style="border-top: 1px solid var(--gray-200); padding: 6px 0; display: flex; gap: 4px;">
+                                            <input class="input-field" placeholder="Ask your agents..." style="flex: 1; font-size: 8px;" />
+                                            <button class="btn-primary" style="font-size: 8px; padding: 4px 10px;">Send</button>
+                                        </div>
+                                    </div>
+                                    <div class="panel">
+                                        <div style="font-size: 9px; font-weight: 600; margin-bottom: 6px; color: var(--gray-900);">Active Agent</div>
+                                        <div style="background: rgba(124, 58, 237, 0.1); padding: 8px; border-radius: var(--radius-md); border-left: 3px solid var(--color-create); margin-bottom: 8px;">
+                                            <div class="agent-badge create" style="margin-bottom: 4px;">Create Agent</div>
+                                            <div style="font-size: 7px; color: var(--gray-700);">Active & Processing</div>
+                                        </div>
+                                        <div style="font-size: 8px; font-weight: 600; margin: 12px 0 6px; color: var(--gray-900);">Quick Actions</div>
+                                        <button class="btn-wireframe" style="width: 100%; margin-bottom: 4px; font-size: 7px;">✏️ Switch to Edit</button>
+                                        <button class="btn-wireframe" style="width: 100%; margin-bottom: 4px; font-size: 7px;">🔍 Add Research</button>
+                                        <div style="font-size: 8px; font-weight: 600; margin: 12px 0 6px; color: var(--gray-900);">Context</div>
+                                        <div style="font-size: 7px; color: var(--gray-700); padding: 4px; background: var(--gray-50); border-radius: var(--radius-sm); margin-bottom: 3px;">📄 Project Notes</div>
+                                        <div style="font-size: 7px; color: var(--gray-700); padding: 4px; background: var(--gray-50); border-radius: var(--radius-sm);">🎯 GPT-4o</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Editor Flow -->
+                <div class="screen" id="editor" onclick="showScreen('editor')">
+                    <div class="screen-label">4b. Document Editor</div>
+                    <div class="desktop-frame">
+                        <div class="desktop-screen">
+                            <div class="window-bar">
+                                <div class="window-controls">
+                                    <div class="window-control control-close"></div>
+                                    <div class="window-control control-minimize"></div>
+                                    <div class="window-control control-maximize"></div>
+                                </div>
+                                <div class="window-title">AI Marketing Strategy.md</div>
+                                <div></div>
+                            </div>
+                            <div class="content">
+                                <div class="layout-3col">
+                                    <div class="panel">
+                                        <div style="font-size: 8px; font-weight: 600; margin-bottom: 4px;">Files</div>
+                                        <div class="wireframe-text" style="color: var(--color-primary);">📄 AI Marketing Strategy.md</div>
+                                        <div class="wireframe-text">📝 Project Notes.md</div>
+                                        <div class="wireframe-text">📊 Research Summary.md</div>
+                                        <div class="btn-wireframe" style="width: 100%; margin-top: 8px;">+ New File</div>
+                                    </div>
+                                    <div class="panel">
+                                        <div style="font-size: 8px; font-weight: 600; margin-bottom: 4px; border-bottom: 1px solid var(--gray-200); padding-bottom: 4px;">AI Marketing Strategy</div>
+                                        <div class="wireframe-text" style="font-family: monospace; line-height: 1.1;">
+                                            # The AI Revolution in Content Marketing<br><br>
+                                            Artificial intelligence is fundamentally transforming how marketing professionals create, distribute, and optimize content...<br><br>
+                                            ## Key Benefits of AI in Content<br>
+                                            - Automated content generation<br>
+                                            - Personalization at scale<br>
+                                            - Data-driven insights<br>
+                                            | Continue typing...
+                                        </div>
+                                    </div>
+                                    <div class="panel">
+                                        <div style="font-size: 8px; font-weight: 600; margin-bottom: 4px;">AI Assistant</div>
+                                        <div class="btn-wireframe" style="width: 100%; margin-bottom: 2px;">📝 Continue Writing</div>
+                                        <div class="btn-wireframe" style="width: 100%; margin-bottom: 2px;">✏️ Improve Selected</div>
+                                        <div class="btn-wireframe" style="width: 100%; margin-bottom: 2px;">🔍 Add Research</div>
+                                        <div class="wireframe-box" style="background: rgba(124, 58, 237, 0.05);">💡 Suggestion: Add ROI metrics section [Apply]</div>
+                                        <div class="wireframe-text" style="margin-top: 8px;">
+                                            Word Count: 1,247<br>
+                                            Reading Time: 5 min<br>
+                                            SEO Score: 8.2/10
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Documents Flow -->
+                <div class="screen" id="documents" onclick="showScreen('documents')">
+                    <div class="screen-label">4c. Document Manager</div>
+                    <div class="desktop-frame">
+                        <div class="desktop-screen">
+                            <div class="window-bar">
+                                <div class="window-controls">
+                                    <div class="window-control control-close"></div>
+                                    <div class="window-control control-minimize"></div>
+                                    <div class="window-control control-maximize"></div>
+                                </div>
+                                <div class="window-title">Documents - Centrid</div>
+                                <div></div>
+                            </div>
+                            <div class="nav-bar">
+                                <div class="logo">
+                                    <div class="logo-icon">C</div>
+                                    <span>Documents</span>
+                                </div>
+                                <div style="display: flex; gap: 8px; align-items: center; font-size: 9px;">
+                                    <select style="padding: 2px 4px; font-size: 8px;">
+                                        <option>Sort: Recent</option>
+                                    </select>
+                                    <div class="btn-wireframe">+ New Document</div>
+                                </div>
+                            </div>
+                            <div class="content">
+                                <div class="wireframe-box" style="margin-bottom: 8px;">🔍 Search documents... ⌘F</div>
+                                
+                                <div class="layout-2col">
+                                    <div class="panel">
+                                        <div style="display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 4px; font-size: 7px; font-weight: 600; padding: 4px; border-bottom: 1px solid var(--gray-200);">
+                                            <div>NAME</div>
+                                            <div>MODIFIED</div>
+                                            <div>SIZE</div>
+                                            <div></div>
+                                        </div>
+                                        <div style="display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 4px; padding: 4px; background: rgba(124, 58, 237, 0.1); border-left: 3px solid var(--color-primary);">
+                                            <div class="wireframe-text">📄 AI Marketing Strategy.md</div>
+                                            <div class="wireframe-text">2h ago</div>
+                                            <div class="wireframe-text">3.2 KB</div>
+                                            <div class="wireframe-text">⋮</div>
+                                        </div>
+                                        <div style="display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 4px; padding: 4px;">
+                                            <div class="wireframe-text">📝 Project Notes.md</div>
+                                            <div class="wireframe-text">5h ago</div>
+                                            <div class="wireframe-text">1.8 KB</div>
+                                            <div class="wireframe-text">⋮</div>
+                                        </div>
+                                        <div style="display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 4px; padding: 4px;">
+                                            <div class="wireframe-text">📊 Q1 Research Summary.md</div>
+                                            <div class="wireframe-text">Yesterday</div>
+                                            <div class="wireframe-text">5.1 KB</div>
+                                            <div class="wireframe-text">⋮</div>
+                                        </div>
+                                    </div>
+                                    <div class="panel">
+                                        <div style="font-size: 8px; font-weight: 600; margin-bottom: 4px;">Document Preview</div>
+                                        <div class="wireframe-text" style="font-weight: 600; margin-bottom: 4px;">📄 AI Marketing Strategy.md</div>
+                                        <div class="wireframe-text" style="margin-bottom: 8px; line-height: 1.2;"># The AI Revolution in Content Marketing<br><br>Artificial intelligence is fundamentally transforming...</div>
+                                        <div style="display: flex; gap: 4px;">
+                                            <div class="btn-wireframe">Open</div>
+                                            <div class="btn-wireframe">Edit</div>
+                                        </div>
+                                        <div style="margin-top: 12px;">
+                                            <div style="font-size: 8px; font-weight: 600; margin-bottom: 4px;">Quick Stats</div>
+                                            <div class="wireframe-text">Total Documents: 12<br>Total Size: 28.4 KB<br>Last Modified: 2h ago</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flow-arrow">
+                <div class="flow-trigger">All paths lead to Editor with AI assistance</div>
+                <div>↓</div>
+            </div>
+
+            <!-- Settings -->
+            <div class="screen" id="settings" onclick="showScreen('settings')">
+                <div class="screen-label">5. Settings & Profile</div>
+                <div class="desktop-frame">
+                    <div class="desktop-screen">
+                        <div class="window-bar">
+                            <div class="window-controls">
+                                <div class="window-control control-close"></div>
+                                <div class="window-control control-minimize"></div>
+                                <div class="window-control control-maximize"></div>
+                            </div>
+                            <div class="window-title">Settings - Centrid</div>
+                            <div></div>
+                        </div>
+                        <div class="nav-bar">
+                            <div class="logo">
+                                <div class="logo-icon">C</div>
+                                <span>Settings</span>
+                            </div>
+                        </div>
+                        <div class="content">
+                            <div style="display: grid; grid-template-columns: 120px 1fr; gap: 12px;">
+                                <div>
+                                    <div class="wireframe-box" style="background: rgba(124, 58, 237, 0.1); color: var(--color-primary);">👤 Profile</div>
+                                    <div class="wireframe-box">🤖 AI Agents</div>
+                                    <div class="wireframe-box">🎨 Appearance</div>
+                                    <div class="wireframe-box">💳 Billing</div>
+                                    <div class="wireframe-box">🔒 Privacy</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 10px; font-weight: 600; margin-bottom: 8px;">Profile Settings</div>
+                                    
+                                    <div class="wireframe-box" style="margin-bottom: 8px;">
+                                        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                                            <div style="width: 32px; height: 32px; background: var(--color-primary); border-radius: 50%; color: white; display: flex; align-items: center; justify-content: center; font-size: 12px;">👤</div>
+                                            <div>
+                                                <div style="font-size: 10px; font-weight: 600;">John Doe</div>
+                                                <div class="wireframe-text">john@example.com</div>
+                                            </div>
+                                        </div>
+                                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+                                            <div class="wireframe-box">First Name: John</div>
+                                            <div class="wireframe-box">Last Name: Doe</div>
+                                        </div>
+                                    </div>
+
+                                    <div class="wireframe-box" style="margin-bottom: 8px;">
+                                        <div style="font-size: 10px; font-weight: 600; margin-bottom: 6px;">AI Preferences</div>
+                                        <div class="wireframe-box" style="margin-bottom: 4px;">Default AI Model: GPT-4o [Dropdown]</div>
+                                        <div class="wireframe-box" style="margin-bottom: 4px;">Response Style: Professional [Dropdown]</div>
+                                        <div class="wireframe-box">Context Memory [Toggle: ON]</div>
+                                    </div>
+
+                                    <div class="wireframe-box">
+                                        <div style="font-size: 10px; font-weight: 600; margin-bottom: 6px;">Usage & Billing</div>
+                                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-bottom: 6px;">
+                                            <div class="wireframe-box" style="text-align: center;">47 Used</div>
+                                            <div class="wireframe-box" style="text-align: center;">53 Remaining</div>
+                                            <div class="wireframe-box" style="text-align: center;">Free Plan</div>
+                                        </div>
+                                        <div class="btn-wireframe">Upgrade to Pro</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div style="background: white; padding: var(--space-xl); border-radius: var(--radius-xl); margin-top: var(--space-xl); box-shadow: var(--shadow-lg);">
+            <h3 style="color: var(--color-centrid-primary); font-size: 24px; margin-bottom: var(--space-lg);">🎯 Desktop User Flow Analysis</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--space-lg); margin-top: var(--space-lg);">
+                <div class="panel" style="padding: var(--space-lg); transition: all 0.3s ease;">
+                    <h4 style="color: var(--color-centrid-primary); margin-bottom: var(--space-sm); font-size: 18px;">💻 Professional Entry Flow</h4>
+                    <p style="font-size: 14px; color: var(--gray-700); line-height: 1.6;">Landing → Sign Up → Dashboard → AI Actions</p>
+                </div>
+                <div class="panel" style="padding: var(--space-lg); transition: all 0.3s ease;">
+                    <h4 style="color: var(--color-create); margin-bottom: var(--space-sm); font-size: 18px;">📝 Content Creation Flow</h4>
+                    <p style="font-size: 14px; color: var(--gray-700); line-height: 1.6;">Dashboard → Chat → Preview → Editor → Save</p>
+                </div>
+                <div class="panel" style="padding: var(--space-lg); transition: all 0.3s ease;">
+                    <h4 style="color: var(--color-edit); margin-bottom: var(--space-sm); font-size: 18px;">✏️ Document Management Flow</h4>
+                    <p style="font-size: 14px; color: var(--gray-700); line-height: 1.6;">Documents → Select → Multi-Panel Editor → AI Assistant</p>
+                </div>
+                <div class="panel" style="padding: var(--space-lg); transition: all 0.3s ease;">
+                    <h4 style="color: var(--color-research); margin-bottom: var(--space-sm); font-size: 18px;">⚙️ Settings & Customization</h4>
+                    <p style="font-size: 14px; color: var(--gray-700); line-height: 1.6;">Profile → AI Preferences → Model Selection → Usage Tracking</p>
+                </div>
+            </div>
+        </div>
+
+        <div style="text-align: center; margin-top: var(--space-xl); padding: var(--space-lg);">
+            <div style="display: inline-flex; align-items: center; gap: var(--space-sm); background: white; padding: var(--space-md) var(--space-lg); border-radius: var(--radius-lg); box-shadow: var(--shadow-md);">
+                <div class="logo-icon" style="width: 24px; height: 24px; font-size: 10px;">C</div>
+                <span style="color: var(--color-centrid-primary); font-weight: 600; font-size: 14px;">Centrid Desktop Prototype</span>
+                <span style="color: var(--gray-500); font-size: 12px;">• High-Fidelity Design • Interactive Experience</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showScreen(screenId) {
+            // Remove active class from all screens
+            document.querySelectorAll('.screen').forEach(s => {
+                s.classList.remove('active');
+            });
+            
+            // Add active class to selected screen with animation
+            const screen = document.getElementById(screenId);
+            screen.classList.add('active');
+            
+            // Smooth scroll with offset
+            screen.scrollIntoView({ 
+                behavior: 'smooth', 
+                block: 'center' 
+            });
+            
+            // Add subtle pulse animation
+            screen.style.animation = 'pulse 0.5s ease';
+            setTimeout(() => {
+                screen.style.animation = '';
+            }, 500);
+        }
+
+        // Add CSS animation for pulse effect
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes pulse {
+                0% { transform: scale(1); }
+                50% { transform: scale(1.02); }
+                100% { transform: scale(1); }
+            }
+            
+            /* Add smooth transitions to panels */
+            .panel:hover {
+                transform: translateY(-2px);
+                box-shadow: var(--shadow-md);
+            }
+            
+            /* Add smooth transitions to buttons */
+            button {
+                cursor: pointer;
+            }
+            
+            /* Add ripple effect on click */
+            .screen::before {
+                content: '';
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                width: 0;
+                height: 0;
+                border-radius: 50%;
+                background: rgba(124, 58, 237, 0.1);
+                transform: translate(-50%, -50%);
+                transition: width 0.6s, height 0.6s;
+            }
+            
+            .screen.active::before {
+                width: 100%;
+                height: 100%;
+            }
+        `;
+        document.head.appendChild(style);
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            showScreen('landing');
+            
+            // Add keyboard navigation
+            document.addEventListener('keydown', function(e) {
+                const screens = ['landing', 'auth', 'dashboard', 'chat', 'editor', 'documents', 'settings'];
+                const activeScreen = document.querySelector('.screen.active');
+                const currentIndex = screens.findIndex(id => 
+                    document.getElementById(id) === activeScreen
+                );
+                
+                if (e.key === 'ArrowDown' && currentIndex < screens.length - 1) {
+                    showScreen(screens[currentIndex + 1]);
+                } else if (e.key === 'ArrowUp' && currentIndex > 0) {
+                    showScreen(screens[currentIndex - 1]);
+                }
+            });
+            
+            // Add hover effects to flow triggers
+            document.querySelectorAll('.flow-trigger').forEach(trigger => {
+                trigger.addEventListener('mouseenter', function() {
+                    this.style.transform = 'translateY(-2px) scale(1.05)';
+                });
+                trigger.addEventListener('mouseleave', function() {
+                    this.style.transform = '';
+                });
+            });
+        });
+    </script>
+</body>
+</html>
