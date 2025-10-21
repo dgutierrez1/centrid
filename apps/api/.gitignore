@@ -1,0 +1,11 @@
+# Supabase
+.branches
+.temp
+.env
+
+# Build
+dist/
+*.tsbuildinfo
+
+# Dependencies
+node_modules/

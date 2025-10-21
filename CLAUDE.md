@@ -1,224 +1,349 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Development guide for Claude Code working with Centrid.
 
 ## Project Overview
 
-Centrid AI Filesystem is a mobile-first AI agent workspace with document management, built on Next.js 14 with Supabase backend. The application provides AI-powered document processing, full-text search, and multi-agent interactions for creating, editing, and researching content.
+Centrid solves the context loss problem in AI chat applications by maintaining a **persistent knowledge graph**. Upload documents once, use them across all conversations forever.
 
-**Tech Stack**: Next.js 14 (Pages Router), React 18, TypeScript, Supabase (PostgreSQL + Edge Functions + Auth + Storage), Valtio (state management), Tailwind CSS
+**MVP Target**: Core features (document upload + RAG chat + context persistence) functional within 7 days.
+
+**Tech Stack**: Next.js 14 (Pages Router), React 18, TypeScript, Supabase (PostgreSQL + Edge Functions + Auth + Storage), Valtio, Tailwind CSS
+
+**Critical Principle**: MVP-first discipline. Scope features to deliver value in days, not weeks. Abstract only after third occurrence (Rule of Three).
+
+## Monorepo Structure
+
+```
+centrid/
+├── apps/
+│   ├── web/                 # Main Next.js frontend
+│   ├── design-system/       # Component playground (isolated)
+│   └── api/                 # Self-contained backend (ALL server logic)
+│       ├── src/
+│       │   ├── services/    # Business logic (RAG, AI, document processing)
+│       │   ├── utils/       # Backend utilities
+│       │   ├── lib/         # Supabase client config
+│       │   └── functions/   # Supabase Edge Functions
+│       │       ├── process-document/
+│       │       ├── execute-ai-agent/
+│       │       └── handle-webhook/
+│       └── supabase/
+│           ├── config.toml  # Supabase config (points to src/functions/)
+│           └── migrations/  # Database schema
+├── packages/
+│   ├── ui/                  # Pure UI components (SOURCE OF TRUTH)
+│   └── shared/              # Shared types & utilities (frontend + backend)
+└── scripts/
+    └── add-component.sh     # shadcn → packages/ui workflow
+```
+
+**Import Rules**:
+
+- `apps/web` → MAY import from `packages/ui`, `packages/shared`
+- `apps/design-system` → ONLY imports from `packages/ui`, `packages/shared`
+- `apps/api` → MAY import from `packages/shared` only
+- `packages/ui` → MAY import from `packages/shared`
+- `packages/ui` → FORBIDDEN to import Supabase, Valtio, or from `apps/`
+- `packages/shared` → NO imports from other packages (foundation layer)
+
+**Component Placement Principle**:
+
+- **Reusable presentational components** → `packages/ui/src/components/` (SOURCE OF TRUTH)
+- **App-specific business logic components** → `apps/web/src/components/`
+- **Backend business logic** → `apps/api/src/services/`
+- **Edge Function implementations** → `apps/api/src/functions/[name]/`
+- When in doubt: If it's pure UI with no server deps, put it in `packages/ui`
 
 ## Development Commands
 
 ### Local Development
+
 ```bash
-npm install                    # Install dependencies
-npm run dev                   # Start Next.js dev server (http://localhost:3000)
-npm run build                 # Build production bundle
-npm run type-check            # Run TypeScript compiler (no emit)
-npm run lint                  # Run ESLint
+npm install                    # Install all workspace dependencies
+npm run dev                    # Start all apps in parallel
+npm run web:dev               # Start main app (http://localhost:3000)
+npm run design:dev            # Start design system (http://localhost:3001)
+npm run build                 # Build all apps
+npm run type-check            # TypeScript check all workspaces
+npm run lint                  # Lint all workspaces
 ```
 
 ### Supabase Local Development
+
+All Supabase commands run from `apps/api/`:
+
 ```bash
-npm run supabase:start        # Start local Supabase (requires Docker)
-npm run supabase:stop         # Stop local Supabase
-npm run supabase:reset        # Reset local database (applies migrations)
-npm run supabase:gen-types    # Generate TypeScript types from DB schema
+cd apps/api
+supabase start                # Start local Supabase (requires Docker)
+supabase stop                 # Stop local Supabase
+supabase db reset             # Reset DB & apply migrations
+supabase gen types typescript # Generate types → ../../packages/shared/src/types/database.ts
 ```
 
-### Edge Functions
+### Component Workflow
+
 ```bash
-supabase functions deploy <function-name>      # Deploy specific function
-supabase functions serve                        # Serve functions locally
+./scripts/add-component.sh <name>   # Add shadcn component to packages/ui
+# Then manually export from packages/ui/src/components/index.ts
 ```
+
+**Never** run `shadcn add` directly in packages/ui - always use the script!
+
+### Edge Functions
+
+All Edge Function commands run from `apps/api/`:
+
+```bash
+cd apps/api
+supabase functions deploy <function-name>  # Deploy specific function
+supabase functions serve                    # Serve functions locally
+```
+
+**Creating new Edge Functions**:
+
+1. Create function directory: `apps/api/src/functions/my-function/`
+2. Create `index.ts` with Deno.serve handler
+3. Import shared logic from `apps/api/src/services/`
+4. Import types from `@centrid/shared` (via npm: specifier in Deno)
+5. Update `apps/api/supabase/config.toml` if needed
+
+### /speckit Workflow Commands
+
+Claude Code has access to `/speckit` slash commands for feature development and design iteration:
+
+- `/speckit.specify` - Create/update feature specifications
+- `/speckit.plan` - Generate implementation plans
+- `/speckit.tasks` - Generate dependency-ordered task lists
+- `/speckit.implement` - Execute implementation from tasks.md
+- `/speckit.design` - Design feature UI in design-system app
+- `/speckit.design-system` - Create/update global design system
+- `/speckit.clarify` - Ask targeted clarification questions
+- `/speckit.analyze` - Cross-artifact consistency analysis
+
+See [.specify/design-system/SETUP.md](.specify/design-system/SETUP.md) for design workflow details.
 
 ## Environment Configuration
 
-Copy `env.example` to `.env.local` and configure:
+Copy `env.example` to `.env.local`:
 
-**Required for basic development**:
+**Required**:
+
 - `NEXT_PUBLIC_SUPABASE_URL` - Supabase project URL
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase anonymous key
-- `SUPABASE_SERVICE_ROLE_KEY` - Service role key (server-side only)
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Anon key
+- `SUPABASE_SERVICE_ROLE_KEY` - Service role (server-side only)
+- `OPENAI_API_KEY` - For Create/Edit agents
+- `ANTHROPIC_API_KEY` - For Research agent
 
-**Required for AI features**:
-- `OPENAI_API_KEY` - OpenAI API key (for Create/Edit agents)
-- `ANTHROPIC_API_KEY` - Anthropic API key (for Research agent)
+**Optional** (for payments):
 
-**Optional** (for payment testing):
-- `MERCADO_PAGO_ACCESS_TOKEN` - Mercado Pago credentials
+- `MERCADO_PAGO_ACCESS_TOKEN`
 - `MERCADO_PAGO_WEBHOOK_SECRET`
 
-## Architecture
+## Database Schema
 
-### Database Schema
-
-The database schema is defined in `supabase/migrations/`:
+Defined in `apps/api/supabase/migrations/`:
 
 **Core Tables**:
+
 - `user_profiles` - Extended user data (plan, usage_count, subscription_status)
-- `documents` - File metadata with full-text search vectors (filename, file_type, content_text, search_vector)
-- `document_chunks` - Text segments for improved search and context retrieval
-- `agent_requests` - AI agent execution tracking (agent_type: create/edit/research, status, progress, results)
-- `agent_sessions` - Multi-turn conversation management (request_chain, context_state)
-- `usage_events` - Usage tracking for billing (event_type, tokens_used, cost_usd)
+- `documents` - File metadata with full-text search vectors
+- `document_chunks` - Text segments for RAG context retrieval
+- `agent_requests` - AI agent execution tracking
+- `agent_sessions` - Multi-turn conversation management
+- `usage_events` - Usage tracking for billing
 
-**Key Features**:
-- Automatic `tsvector` generation for full-text search on documents and chunks
-- Row Level Security (RLS) policies enforce user data isolation
-- Automatic `updated_at` timestamp triggers
-- Automatic user profile creation on signup
+**Features**:
 
-### State Management
+- Automatic `tsvector` generation for full-text search
+- Row Level Security (RLS) enforces user isolation
+- Automatic `updated_at` triggers
+- Auto user profile creation on signup
 
-Global state is managed with Valtio in `src/lib/state.ts`:
+**AI Agents**:
 
-```typescript
-import { appState, actions, computed } from '@/lib/state';
-import { useSnapshot } from 'valtio';
+- `create`: GPT-4o (temp: 0.7) for content generation
+- `edit`: GPT-4o-mini (temp: 0.3) for improvements
+- `research`: Claude 3.5 Sonnet (temp: 0.1) for analysis
 
-// In components
-const state = useSnapshot(appState);
+Context: Up to 20 document chunks per request
+Usage limits: Free (100/mo), Pro (1000/mo), Enterprise (10000/mo)
 
-// Update state
-actions.setDocuments(documents);
-actions.addNotification({ type: 'success', title: 'Done', message: 'Task completed' });
-
-// Access computed values
-const selectedDoc = computed.selectedDocument();
-const isOverLimit = computed.isOverUsageLimit();
-```
-
-**State Sections**: Authentication, Documents, AI Agents, Search, UI State, Notifications, Sync/Real-time, Error handling
-
-**Persistence**: Theme, sidebar state, and active view are auto-persisted to localStorage
-
-### Supabase Client Usage
-
-Import from `src/lib/supabase.ts`:
-
-```typescript
-import { supabase, callEdgeFunction, uploadFile } from '@/lib/supabase';
-
-// Client-side queries
-const { data, error } = await supabase.from('documents').select('*');
-
-// Edge function calls
-const result = await callEdgeFunction('execute-ai-agent', { requestId, userId, agentType, content });
-
-// File uploads
-await uploadFile('documents', `${userId}/${filename}`, file);
-```
-
-**Helper Functions**: `signInWithProvider()`, `signInWithEmail()`, `signUp()`, `getCurrentUser()`, `getUserProfile()`, `withRetry()` for resilient operations
-
-### Edge Functions
-
-Located in `supabase/functions/`:
-
-1. **process-document** - File upload, parsing, text extraction with chunking
-2. **execute-ai-agent** - Orchestrates AI agent requests with context building, model selection, progress tracking
-3. **text-search** - Full-text search across documents using PostgreSQL tsvector
-4. **billing-webhook** - Mercado Pago subscription webhooks
-5. **sync-operations** - Cross-device synchronization with conflict resolution
-
-**Edge Function Runtime**: Deno (TypeScript/JavaScript)
-- Import AI SDKs via ESM: `import Anthropic from "https://esm.sh/@anthropic-ai/sdk@0.24.0"`
-- Import OpenAI via: `import OpenAI from "https://esm.sh/openai@4.0.0"`
-- Use Deno-compatible libraries only (no Node.js-specific packages)
-
-**AI Agent System**:
-- `create` agent: Uses GPT-4o (temp: 0.7) for content generation
-- `edit` agent: Uses GPT-4o-mini (temp: 0.3) for content improvement
-- `research` agent: Uses Claude 3.5 Sonnet via Anthropic SDK (temp: 0.1) for document analysis
-- **Anthropic SDK features**: Tool use (function calling), streaming responses, automatic retries, prompt caching
-- Context building: Retrieves up to 20 document chunks for contextual AI operations
-- Usage limits enforced: Free (100/month), Pro (1000/month), Enterprise (10000/month)
-
-**Example AI Agent with Anthropic SDK**:
-```typescript
-import Anthropic from "https://esm.sh/@anthropic-ai/sdk@0.24.0";
-
-const anthropic = new Anthropic({
-  apiKey: Deno.env.get("ANTHROPIC_API_KEY")!,
-});
-
-// Basic message
-const message = await anthropic.messages.create({
-  model: "claude-3-5-sonnet-20241022",
-  max_tokens: 4096,
-  temperature: 0.1,
-  system: systemPrompt,
-  messages: [{ role: "user", content: userMessage }]
-});
-
-// With tool use (Claude can call functions autonomously)
-const messageWithTools = await anthropic.messages.create({
-  model: "claude-3-5-sonnet-20241022",
-  max_tokens: 4096,
-  tools: [
-    {
-      name: "search_documents",
-      description: "Search user's documents for information",
-      input_schema: {
-        type: "object",
-        properties: {
-          query: { type: "string", description: "Search query" }
-        },
-        required: ["query"]
-      }
-    }
-  ],
-  messages: [{ role: "user", content: request.content }]
-});
-
-// Handle tool calls
-if (message.stop_reason === "tool_use") {
-  const toolUse = message.content.find(c => c.type === "tool_use");
-  // Execute tool and continue conversation
-}
-```
-
-### TypeScript Path Aliases
+## TypeScript Path Aliases
 
 Configured in `tsconfig.json`:
 
 ```typescript
-import { Component } from '@/components/ui/Component';
-import { supabase } from '@/lib/supabase';
-import { appState } from '@/lib/state';
-import type { Database } from '@/types/database.types';
+// In apps/web
+import { Component } from "@/components/ui/Component";
+import { supabase } from "@/lib/supabase";
+import { appState } from "@/lib/state";
+import type { Database } from "@/types/database.types";
+
+// Shared packages (works in all apps)
+import { Button, Card } from "@centrid/ui/components";
+import { cn } from "@centrid/shared/utils";
+import type { Document } from "@centrid/shared/types";
 ```
 
-### Component Organization
+## Component Organization
 
-- `src/components/agents/` - AI agent interfaces (AgentInterface.tsx)
-- `src/components/documents/` - Document management (DocumentManager.tsx)
-- `src/components/layout/` - Layout components (Layout, Header, Sidebar)
-- `src/components/providers/` - Context providers (AuthProvider, RealtimeProvider, ThemeProvider)
-- `src/components/search/` - Search interface (SearchInterface.tsx)
-- `src/components/ui/` - Reusable UI components (LoadingSpinner, NotificationPanel)
+### apps/web/src/components/
 
-### Pages Router Structure
+Smart components with data fetching & business logic:
 
-Using Next.js Pages Router (not App Router):
+- `agents/` - AgentInterface.tsx
+- `documents/` - DocumentManager.tsx
+- `layout/` - Layout, Header, Sidebar
+- `providers/` - AuthProvider, RealtimeProvider, ThemeProvider
+- `search/` - SearchInterface.tsx
+- `ui/` - App-specific UI overrides
 
-- `src/pages/_app.tsx` - Application wrapper with providers
-- `src/pages/dashboard.tsx` - Main application dashboard
-- Root redirects to `/dashboard` (configured in `next.config.js`)
+### packages/ui/src/
+
+Pure presentational components (NO server deps):
+
+- `components/` - shadcn components (Button, Card, Input, etc)
+- `features/` - Feature UI (DocumentCard, DocumentGrid, etc)
+- `layout/` - Layout primitives
+
+### packages/shared/src/
+
+- `types/` - Shared TypeScript types
+- `utils/` - Utilities (cn, formatters)
+
+## Design System Quick Reference
+
+All apps use the **Coral Theme** from `packages/ui`:
+
+```tsx
+import { Button, Card, Input, SimpleBarChart } from "@centrid/ui/components";
+
+<Card className="p-6">
+  <Input className="mb-4" />
+  <Button className="bg-primary-600">Submit</Button>
+</Card>;
+```
+
+**Color Classes**: `bg-primary-600` (#ff4d4d coral), `text-success-500` (#34c759), `text-warning-500` (#ff9f0a), `text-error-500` (#ff3b30)
+
+**Typography**: `text-4xl` (36px), `text-2xl` (24px), `text-base` (16px), `text-sm` (14px)
+
+**Spacing**: `p-6` (24px), `gap-4` (16px), `mb-8` (32px)
+
+Full design tokens: `.specify/design-system/tokens.md`
+
+## Design Iteration Workflow
+
+Use `apps/design-system` to design and iterate on UI before implementing in `apps/web`.
+
+**Two-Layer Approach:**
+
+1. **Global Design System** (`/speckit.design-system`) - Run once at project start to establish colors, typography, spacing, components
+2. **Feature-Specific Design** (`/speckit.design`) - Run per feature to design screens/interactions using the global system
+
+### Design Loop
+
+1. Create component in `apps/design-system/components/[Feature].tsx`
+2. Add to showcase in `apps/design-system/pages/index.tsx`
+3. Run `npm run design:dev` → http://localhost:3001
+4. Screenshot with Playwright MCP (mobile + desktop)
+5. Get feedback → edit → auto-reload → re-screenshot
+6. Approve → implement in `apps/web`
+
+### Playwright MCP Screenshots
+
+**Viewports:**
+
+- Mobile: 375×812
+- Desktop: 1440×900
+
+**Save to:** `apps/design-system/public/screenshots/[feature-name]/`
+
+**Naming convention:**
+
+```
+[feature-name]/
+├── mobile-default.png
+├── mobile-hover.png
+├── mobile-error.png
+├── desktop-default.png
+└── desktop-hover.png
+```
+
+### /speckit Commands (detailed usage)
+
+**`/speckit.design-system`** - Create/update global design system:
+
+1. Interactive questionnaire about design decisions
+2. Generates/updates `.specify/design-system/tokens.md`
+3. Updates `packages/ui/colors.config.js`
+4. Screenshots showcase with Playwright MCP
+5. Iterates until approved
+
+**`/speckit.design`** - Design a specific feature:
+
+1. Loads feature `spec.md` + `plan.md`
+2. Creates component in `apps/design-system/components/[Feature].tsx`
+3. Adds to showcase
+4. Screenshots with Playwright MCP
+5. Iterates based on feedback
+6. Component ready for implementation in `apps/web`
+
+### Updating Design Tokens
+
+**Colors:**
+
+1. Edit `.specify/design-system/tokens.md` (documentation)
+2. Update `packages/ui/colors.config.js` (implementation)
+3. Restart dev servers
+
+**Spacing/Fonts:**
+
+1. Edit `.specify/design-system/tokens.md` (documentation)
+2. Update `packages/ui/tailwind.preset.js`
+3. Restart dev servers
+
+### Providing Design Feedback
+
+**10 Design Levers** (use these when iterating):
+
+1. **Visual Hierarchy** - Is the primary action obvious?
+2. **Consistency** - Do similar things look similar?
+3. **Information Density** - Right amount of info?
+4. **Color with Purpose** - Every color means something?
+5. **Typography Hierarchy** - Scannable text structure?
+6. **Spacing Rhythm** - Consistent, mathematical spacing?
+7. **Feedback & Affordance** - Interactivity obvious?
+8. **Mobile-First Responsive** - Designed for constraints first?
+9. **Accessibility** - Works for everyone?
+10. **States** - Loading, error, empty states designed?
+
+**Example feedback:**
+
+- "Visual hierarchy: Make submit button more prominent"
+- "Spacing: Feels cramped, increase gap between sections"
+- "Accessibility: Focus state hard to see, needs stronger contrast"
+- "States: Add loading spinner for AI response"
+
+**Browser MCP Integration:**
+
+- Automatically renders components and takes screenshots
+- Iterates visually without manual dev server
+- Supports viewport sizes, state triggers, element interactions
+- Fallback: Manual review in browser if MCP unavailable
 
 ## Key Implementation Patterns
 
 ### Real-time Subscriptions
 
-Use the helper from `src/lib/supabase.ts`:
-
 ```typescript
+import { createRealtimeSubscription } from "@/lib/supabase";
+
 const subscription = createRealtimeSubscription(
-  'agent_requests',
+  "agent_requests",
   (payload) => {
-    if (payload.new.status === 'completed') {
+    if (payload.new.status === "completed") {
       actions.updateAgentRequest(payload.new.id, payload.new);
     }
   },
@@ -228,77 +353,85 @@ const subscription = createRealtimeSubscription(
 
 ### Document Processing Flow
 
-1. User uploads file via DocumentManager
+1. User uploads file → DocumentManager
 2. File uploaded to Supabase Storage
 3. `process-document` Edge Function triggered
 4. Text extracted and chunked
-5. Full-text search vectors generated automatically via triggers
+5. Full-text search vectors auto-generated (triggers)
 6. Real-time updates via RealtimeProvider
 
 ### AI Agent Execution Flow
 
-1. User submits request via AgentInterface
-2. `agent_requests` record created with status: 'pending'
+1. User submits request → AgentInterface
+2. `agent_requests` record created (status: 'pending')
 3. `execute-ai-agent` Edge Function invoked
 4. Usage limits checked
 5. Context built from contextDocuments
 6. Model selected based on agent_type
-7. Progress updates published (0.1 → 0.2 → 0.3 → 0.8 → 1.0)
+7. Progress updates: 0.1 → 0.2 → 0.3 → 0.8 → 1.0
 8. Results stored in `agent_requests.results`
-9. Usage event logged for billing
-
-### Authentication Flow
-
-1. Supabase Auth handles OAuth (Google, GitHub, Apple) or email/password
-2. On user creation, `handle_new_user()` trigger creates user_profile
-3. AuthProvider manages session state
-4. RLS policies automatically filter data by `auth.uid()`
-
-## Database Type Generation
-
-After modifying migrations, regenerate types:
-
-```bash
-npm run supabase:gen-types
-```
-
-This creates `src/types/database.types.ts` with full type safety for all tables.
+9. Usage event logged
 
 ## Testing Local Changes
 
-1. Start local Supabase: `npm run supabase:start`
-2. Apply migrations: `npm run supabase:reset`
-3. Generate types: `npm run supabase:gen-types`
-4. Start Next.js: `npm run dev`
-5. Test Edge Functions locally: `supabase functions serve`
+```bash
+cd apps/api
+supabase start               # Start local Supabase
+supabase db reset            # Apply migrations
+supabase gen types typescript # Generate types
+
+cd ../..                     # Back to root
+npm run dev                  # Start all dev servers
+```
 
 ## Deployment
 
-- **Frontend**: Vercel (automatic via git push)
-- **Backend**: Supabase production instance
-- **Edge Functions**: `supabase functions deploy <function-name> --project-ref <ref>`
+- **Frontend**: Vercel (auto on git push) - `apps/web`
+- **Backend**: Supabase production
+- **Edge Functions**: From `apps/api/`: `supabase functions deploy <name> --project-ref <ref>`
+- **Migrations**: From `apps/api/`: `supabase db push --project-ref <ref>`
 
-Always run `npm run type-check` before deploying to catch TypeScript errors.
+Always run `npm run type-check` before deploying!
 
-## Performance Considerations
+## MVP Scope Guardrails
 
-- **Search**: Full-text search uses PostgreSQL `tsvector` with GiN indexes (defined in `supabase/migrations/20240115000003_create_indexes.sql`)
-- **Real-time**: Supabase channels filter by user_id to minimize bandwidth
-- **Code Splitting**: Webpack configured to split Supabase into separate bundle
-- **Context Limits**: AI agent context limited to 20 document chunks to prevent token overflow
-- **Caching**: Service worker caching configured for PWA offline support
+Before implementing any feature:
 
-## Common Gotchas
+1. **Necessity**: Required to prove core hypothesis?
+2. **Complexity**: Can this be simpler? Minimal version?
+3. **Timeline**: Completable in days (not weeks)?
+4. **Abstraction**: Premature? Wait for Rule of Three
+5. **Scope Creep**: "While we're at it" feature? Defer!
 
-1. **Edge Functions use Deno**: Not Node.js - use Deno-compatible imports (e.g., `https://deno.land/std@0.168.0/http/server.ts`)
-2. **AI SDK imports**: Use ESM CDN imports (esm.sh) not npm packages. Example: `https://esm.sh/@anthropic-ai/sdk@0.24.0`
-3. **RLS Policies**: Always active - queries automatically filtered by `auth.uid()`. Use service role key only for admin operations
-4. **Search Vectors**: Auto-updated via triggers on INSERT/UPDATE - don't manually set `search_vector` column
-5. **Usage Limits**: Enforced at Edge Function level, checked before AI execution
-6. **State Updates**: Use `actions` from `state.ts`, never mutate `appState` directly
-7. **Type Safety**: Run `npm run supabase:gen-types` after any migration changes
-8. **Anthropic SDK Tool Use**: When Claude calls tools, you must handle the tool execution and send results back in a new message to continue the conversation
+**MVP Core Features**:
 
-## Validation
+- Document upload (Markdown, Text, PDF)
+- Vector embeddings (pgvector)
+- RAG chat with context retrieval
+- Multi-chat/thread support
+- Real-time updates
+- Basic auth (email/password)
 
-Input validation uses Zod schemas in `src/lib/validation.ts`. Always validate user input before processing.
+**Deferred Post-MVP**:
+
+- Advanced formats (DOCX, Excel)
+- Social auth (Google, GitHub)
+- Complex billing
+- Multi-user collaboration
+- Advanced analytics
+- Document versioning
+
+## Performance Targets
+
+- Search: <300ms (tsvector with GiN indexes)
+- AI operations: <10s
+- Real-time propagation: <100ms
+- Document upload to chat: <60s
+
+---
+
+**Remember**: Ship first, refactor later. MVP-first discipline over perfect architecture.
+
+## Constitution Summary
+
+See [.specify/memory/constitution.md](.specify/memory/constitution.md) for complete project principles.

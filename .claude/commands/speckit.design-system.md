@@ -1,387 +1,508 @@
 # Design System Setup - Global Visual Foundation
 
-**Purpose**: Establish the global design system foundation that all features will use. This is a ONE-TIME setup that defines the visual DNA of your application.
+**Purpose**: Establish the global design system using the design sandbox for visual iteration. This defines design tokens (colors, typography, spacing) and sets up the component showcase.
 
 **When to use**:
 - At project start (before implementing features)
 - When rebranding or doing major visual overhaul
-- When establishing design consistency across the application
 
-**Prerequisites**: None (this is typically the first design step)
+**Prerequisites**:
+- Monorepo structure with `apps/design-system/` and `packages/ui/`
+- Tailwind + shadcn/ui installed
+- Component script exists (`scripts/add-component.sh`)
+- Centralized config in `packages/ui/` (tailwind.preset.js, colors.config.js, styles/globals.css)
 
 ---
 
 ## Workflow
 
-### Step 1: Check for Existing Design System
+### Step 1: Check Existing Design System
 
-```bash
-.specify/scripts/bash/check-prerequisites.sh --json --paths-only
-```
+Check for `.specify/design-system/tokens.md`. If exists, ask user:
+- Update existing?
+- View current system?
+- Proceed with existing?
 
-Look for `.specify/design-system/` directory. If it exists, ask user if they want to:
-- Update existing design system
-- View current design system
-- Proceed with existing system
+### Step 2: Interactive Design Questionnaire
 
-### Step 2: Interactive Design Foundation Questionnaire
-
-Ask the user these questions to establish the visual foundation:
+Ask user to establish visual foundation:
 
 #### Brand & Personality
-1. **What's the visual personality?** (Choose 1-2)
-   - [ ] Professional & Trustworthy (banking, healthcare, enterprise)
-   - [ ] Modern & Minimal (productivity, SaaS, tech)
-   - [ ] Playful & Friendly (consumer apps, social, gaming)
-   - [ ] Bold & Expressive (creative tools, media, entertainment)
-   - [ ] Clean & Elegant (luxury, design-focused, premium)
-
-2. **What's the primary use case?**
-   - [ ] Mobile-first consumer app
-   - [ ] Desktop productivity tool
-   - [ ] Cross-platform responsive web app
-   - [ ] Native mobile app (iOS/Android)
-
-3. **Reference inspirations** (optional):
-   - Provide URLs to apps/sites with similar desired aesthetic
-   - Will use Browser MCP to analyze visual patterns
+1. **Visual personality**: Professional / Modern & Minimal / Playful / Bold / Clean & Elegant
+2. **Primary use case**: Mobile-first / Desktop tool / Responsive web app
+3. **Reference inspirations** (optional): URLs to analyze with Browser MCP
 
 #### Color Direction
-4. **Primary brand color** (choose one):
-   - Provide hex code OR choose from: Blue (trust), Green (growth), Purple (creative), Red (energy), Orange (friendly), Neutral (minimal)
-
-5. **Color mood**:
-   - [ ] Vibrant & Saturated (high energy, bold)
-   - [ ] Soft & Muted (calm, sophisticated)
-   - [ ] Dark Mode First (dark backgrounds, light text)
-   - [ ] Light Mode First (light backgrounds, dark text)
+4. **Primary brand color**: Hex code OR Blue / Green / Purple / Red / Orange / Coral / Neutral
+5. **Color mood**: Vibrant / Soft & Muted / Dark Mode First / Light Mode First
 
 #### Visual Style
-6. **Border radius preference**:
-   - [ ] Sharp (0px - modern, minimal)
-   - [ ] Subtle (4px - balanced)
-   - [ ] Rounded (8-12px - friendly)
-   - [ ] Very Rounded (16px+ - playful)
-
-7. **Spacing density**:
-   - [ ] Compact (4px base unit - dense, data-heavy)
-   - [ ] Comfortable (8px base unit - balanced)
-   - [ ] Spacious (12px+ base unit - minimal, editorial)
-
-8. **Shadow/Elevation style**:
-   - [ ] Flat (no shadows - minimal, modern)
-   - [ ] Subtle (soft shadows - material design)
-   - [ ] Bold (prominent shadows - depth, layering)
+6. **Border radius**: Sharp (0px) / Subtle (4px) / Rounded (8-12px) / Very Rounded (16px+)
+7. **Spacing density**: Compact (4px) / Comfortable (8px) / Spacious (12px+)
+8. **Shadows**: Flat / Subtle / Bold
 
 #### Typography
-9. **Font personality**:
-   - [ ] Sans-serif Modern (clean, tech-forward)
-   - [ ] Sans-serif Geometric (precise, structured)
-   - [ ] Sans-serif Humanist (friendly, approachable)
-   - [ ] Serif (editorial, sophisticated)
-   - [ ] Monospace (technical, developer-focused)
+9. **Font personality**: Sans-serif Modern / Geometric / Humanist / Serif / Monospace
+10. **Type scale**: Tight (1.125) / Standard (1.25) / Expressive (1.333+)
 
-10. **Type scale**:
-    - [ ] Tight (1.125 ratio - subtle hierarchy)
-    - [ ] Standard (1.25 ratio - balanced)
-    - [ ] Expressive (1.333+ ratio - strong hierarchy)
+### Step 3: Generate Design Tokens File
 
-### Step 3: Generate Design System Files
-
-Create `.specify/design-system/` directory with:
-
-#### `foundation.md` - Core Design Tokens
+Create `.specify/design-system/tokens.md`:
 
 ```markdown
-# Design System Foundation
+# Centrid Design System Tokens
 
 **Version**: 1.0.0
 **Last Updated**: [DATE]
-**Status**: Active
 
-## Visual Personality
-
-[Selected personality with rationale]
-
-## Color Palette
+## Colors
 
 ### Brand Colors
-- **Primary**: `#[HEX]` - [Usage: main actions, brand moments]
-- **Primary Hover**: `#[HEX]` - [Interactive states]
-- **Primary Active**: `#[HEX]` - [Pressed states]
+- **Primary**: `#ff4d4d` (coral-600)
+- **Primary Hover**: `#e63946` (coral-700)
 
-### Semantic Colors
-- **Success**: `#[HEX]` - [Confirmations, success states]
-- **Warning**: `#[HEX]` - [Cautions, warnings]
-- **Error**: `#[HEX]` - [Errors, destructive actions]
-- **Info**: `#[HEX]` - [Informational messages]
+### System Colors
+- **Success**: `#34c759` (green-500)
+- **Warning**: `#ff9f0a` (orange-500)
+- **Error**: `#ff3b30` (red-500)
 
-### Neutrals
-- **Gray 50**: `#[HEX]` - [Backgrounds, subtle fills]
-- **Gray 100**: `#[HEX]` - [Hover states, borders]
-- **Gray 200**: `#[HEX]` - [Disabled states]
-- **Gray 300**: `#[HEX]` - [Borders, dividers]
-- **Gray 400**: `#[HEX]` - [Placeholder text]
-- **Gray 500**: `#[HEX]` - [Secondary text]
-- **Gray 600**: `#[HEX]` - [Primary text]
-- **Gray 700**: `#[HEX]` - [Headings]
-- **Gray 800**: `#[HEX]` - [High emphasis text]
-- **Gray 900**: `#[HEX]` - [Maximum contrast]
+### Neutral Colors
+- Gray scale: 50-900 (Tailwind defaults)
 
-### Dark Mode Variants (if applicable)
-[Mirror palette for dark backgrounds]
-
-## Typography Scale
+## Typography
 
 ### Font Families
-- **Display/Heading**: [Font name, fallback stack]
-- **Body**: [Font name, fallback stack]
-- **Monospace**: [Font name, fallback stack]
+- **Sans**: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', system-ui, sans-serif
+- **Mono**: 'JetBrains Mono', 'Menlo', 'Monaco', monospace
 
-### Type Scale ([ratio])
-- **Heading 1**: [size]px / [line-height] - [weight] - [usage]
-- **Heading 2**: [size]px / [line-height] - [weight] - [usage]
-- **Heading 3**: [size]px / [line-height] - [weight] - [usage]
-- **Heading 4**: [size]px / [line-height] - [weight] - [usage]
-- **Body Large**: [size]px / [line-height] - [weight] - [usage]
-- **Body**: [size]px / [line-height] - [weight] - [usage]
-- **Body Small**: [size]px / [line-height] - [weight] - [usage]
-- **Caption**: [size]px / [line-height] - [weight] - [usage]
+### Font Sizes (Tailwind)
+- text-xs: 12px
+- text-sm: 14px
+- text-base: 16px (body default)
+- text-lg: 18px
+- text-xl: 20px
+- text-2xl: 24px (H3)
+- text-3xl: 30px (H2)
+- text-4xl: 36px (H1)
 
-## Spacing System
-
-**Base Unit**: [4px/8px/12px]
-
-### Scale
-- **xs**: [value]px - [usage: tight gaps, icon padding]
-- **sm**: [value]px - [usage: compact spacing]
-- **md**: [value]px - [usage: default spacing]
-- **lg**: [value]px - [usage: section spacing]
-- **xl**: [value]px - [usage: major section breaks]
-- **2xl**: [value]px - [usage: page-level spacing]
+## Spacing (4px grid)
+- 1 = 4px
+- 2 = 8px
+- 4 = 16px
+- 6 = 24px (card padding)
+- 8 = 32px (section spacing)
 
 ## Border Radius
+- rounded-md: 6px (inputs, buttons)
+- rounded-lg: 8px (cards)
+- rounded-full: 9999px (badges, avatars)
 
-- **None**: 0px - [usage]
-- **Small**: [value]px - [usage: buttons, inputs]
-- **Medium**: [value]px - [usage: cards, modals]
-- **Large**: [value]px - [usage: prominent containers]
-- **Full**: 9999px - [usage: pills, avatars]
+## Shadows
+- shadow-sm: Subtle - Cards at rest
+- shadow: Default - Elevated cards
+- shadow-md: Medium - Dropdowns
+- shadow-lg: Large - Modals
 
-## Shadows/Elevation
+## Component Patterns
 
-- **Level 1**: [CSS shadow] - [usage: cards, hover states]
-- **Level 2**: [CSS shadow] - [usage: dropdowns, popovers]
-- **Level 3**: [CSS shadow] - [usage: modals, drawers]
-- **Level 4**: [CSS shadow] - [usage: notifications, toasts]
+### Buttons
+- Variants: default (primary), secondary, ghost, destructive, outline
+- Sizes: sm, default, lg, icon
 
-## Animation
+### Cards
+- Border: border-gray-200
+- Background: bg-white (dark: bg-gray-800)
+- Padding: p-6
+- Radius: rounded-lg
 
-### Timing
-- **Fast**: 150ms - [usage: micro-interactions]
-- **Normal**: 250ms - [usage: standard transitions]
-- **Slow**: 400ms - [usage: page transitions]
-
-### Easing
-- **Standard**: cubic-bezier(0.4, 0.0, 0.2, 1) - [usage: most transitions]
-- **Decelerate**: cubic-bezier(0.0, 0.0, 0.2, 1) - [usage: entering elements]
-- **Accelerate**: cubic-bezier(0.4, 0.0, 1, 1) - [usage: exiting elements]
+### Inputs
+- Height: h-10
+- Padding: px-3 py-2
+- Focus: ring-2 ring-primary-500
 ```
 
-#### `components.md` - Component Specifications
+### Step 4: Update Centralized Color System
 
-Document each primitive component with:
-- Visual description
-- All variants (sizes, colors, states)
-- States (default, hover, focus, active, disabled, loading, error)
-- Anatomy (parts breakdown)
-- Usage rules
-- Code example
-
-Components to define:
-- Button (primary, secondary, ghost, danger - all states)
-- Input (text, textarea, select - all states)
-- Checkbox & Radio
-- Card (elevated, outlined, interactive)
-- Badge/Tag
-- Avatar
-- Loading indicators (spinner, skeleton, progress)
-- Tooltip
-- Dropdown/Menu
-- Modal/Dialog
-- Toast/Notification
-
-#### `patterns.md` - Layout Patterns
-
-Document:
-- Grid system (columns, gutters, breakpoints)
-- Container widths (mobile, tablet, desktop)
-- Navigation patterns (mobile bottom nav, desktop sidebar)
-- Form layouts
-- List/table patterns
-- Empty states template
-- Error states template
-- Loading states template
-
-### Step 4: Generate Tailwind Config
-
-Create `.specify/design-system/tailwind.config.js`:
+Update `packages/ui/colors.config.js` (single source of truth for all apps):
 
 ```javascript
+// packages/ui/colors.config.js
 module.exports = {
-  theme: {
-    extend: {
-      colors: {
-        primary: {
-          DEFAULT: '#[HEX]',
-          hover: '#[HEX]',
-          active: '#[HEX]',
-        },
-        // ... all colors from foundation.md
-      },
-      fontFamily: {
-        display: ['[Font]', 'sans-serif'],
-        body: ['[Font]', 'sans-serif'],
-        mono: ['[Font]', 'monospace'],
-      },
-      fontSize: {
-        // ... type scale
-      },
-      spacing: {
-        // ... spacing scale
-      },
-      borderRadius: {
-        // ... border radius
-      },
-      boxShadow: {
-        // ... shadows
-      },
-      transitionDuration: {
-        // ... timing
-      },
-      transitionTimingFunction: {
-        // ... easing
-      },
+  colors: {
+    primary: {
+      50: '#fff5f5',
+      100: '#ffe3e3',
+      200: '#ffc9c9',
+      300: '#ffa8a8',
+      400: '#ff8787',
+      500: '#ff6d6d',
+      600: '#ff4d4d', // Main brand color
+      700: '#e63946', // Hover/dark
+      800: '#cc2936',
+      900: '#b31f2a',
     },
+    success: {
+      50: '#f0fdf4',
+      500: '#34c759',
+      900: '#14532d',
+    },
+    warning: {
+      50: '#fff9e6',
+      500: '#ff9f0a',
+      900: '#4d3100',
+    },
+    error: {
+      50: '#fff5f5',
+      500: '#ff3b30',
+      900: '#661310',
+    },
+    gray: {
+      50: '#f8f9fa',
+      100: '#e9ecef',
+      300: '#adb5bd',
+      500: '#6c757d',
+      700: '#495057',
+      900: '#1a1a1a',
+    },
+  },
+  agentColors: {
+    create: '#ff4d4d',
+    edit: '#ff6d6d',
+    research: '#ff7060',
   },
 };
 ```
 
-### Step 5: Generate Component Starter Code
+**Note**: This file is imported by:
+- `packages/ui/tailwind.preset.js` (used by all apps)
+- `packages/ui/styles/globals.css` (CSS variables)
 
-For each primitive component in `components.md`, generate:
+### Step 5: Verify Centralized Configs
 
-`.specify/design-system/components/[ComponentName].tsx`
+Ensure these files exist and are correct:
 
-```tsx
-// Example: Button component with all variants and states
-import React from 'react';
+**packages/ui/tailwind.preset.js** - Shared Tailwind configuration:
+```javascript
+const { colors, agentColors } = require('./colors.config.js');
 
-interface ButtonProps {
-  variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
-  size?: 'sm' | 'md' | 'lg';
-  disabled?: boolean;
-  loading?: boolean;
-  children: React.ReactNode;
-  onClick?: () => void;
-}
-
-export const Button: React.FC<ButtonProps> = ({
-  variant = 'primary',
-  size = 'md',
-  disabled = false,
-  loading = false,
-  children,
-  onClick,
-}) => {
-  // Implementation with Tailwind classes from design system
+module.exports = {
+  darkMode: ["class"],
+  theme: {
+    extend: {
+      colors: {
+        primary: {
+          ...colors.primary,
+          DEFAULT: 'hsl(var(--primary))',
+          foreground: 'hsl(var(--primary-foreground))'
+        },
+        // ... other colors
+      },
+      // ... fonts, spacing, animations
+    },
+  },
+  plugins: [require('tailwindcss-animate')],
 };
 ```
 
-### Step 6: Visual Validation with Browser MCP
+**packages/ui/styles/globals.css** - Shared global styles:
+```css
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-**IF Browser MCP is available:**
-
-1. Create temporary preview file: `.specify/design-system/preview.html`
-2. Render each component in isolation with all variants
-3. Use Browser MCP to take screenshots
-4. Present screenshots to user: "Does this match your vision?"
-5. Iterate on foundation.md values based on feedback
-6. Regenerate Tailwind config and components
-7. Repeat until approved
-
-**Screenshot Grid Layout**:
-```
-Button Variants:
-[Primary] [Secondary] [Ghost] [Danger]
-[Primary Hover] [Secondary Hover] [Ghost Hover] [Danger Hover]
-[Primary Disabled] [Loading State]
-
-Color Palette:
-[Primary] [Success] [Warning] [Error] [Info]
-[Gray Scale: 50-900]
-
-Typography:
-[H1 Sample] [H2 Sample] [H3 Sample]
-[Body Large] [Body] [Body Small] [Caption]
-
-Cards:
-[Elevated Card] [Outlined Card] [Interactive Card]
+@layer base {
+  :root {
+    /* shadcn/ui semantic colors */
+    --primary: 0 100% 65%; /* Coral */
+    --foreground: 240 10% 3.9%;
+    /* ... other CSS vars */
+  }
+  
+  .dark {
+    /* Dark mode overrides */
+  }
+}
 ```
 
-### Step 7: Output Summary
+**Both apps import these**:
+- `apps/design-system/tailwind.config.js` → `require('@centrid/ui/tailwind.preset')`
+- `apps/web/tailwind.config.js` → `require('@centrid/ui/tailwind.preset')`
+- `apps/design-system/pages/_app.tsx` → `import '@centrid/ui/styles'`
+- `apps/web/src/pages/_app.tsx` → `import '@centrid/ui/styles'`
 
-Report:
-- ✅ Design system created at `.specify/design-system/`
-- ✅ Core tokens defined in `foundation.md`
-- ✅ Component library specified in `components.md`
-- ✅ Tailwind config generated
-- ✅ Component starter code created
-- 📸 Visual previews (if Browser MCP used)
+### Step 6: Verify Design System Showcase
 
-**Next Steps**:
-- Run `/speckit.specify` to start your first feature
-- Run `/speckit.design` on that feature to create feature-specific UI
-- Components will automatically use design system tokens
+**Check available components using shadcn MCP**:
+1. Use `mcp__shadcn__get_project_registries` to get configured registries
+2. Use `mcp__shadcn__list_items_in_registries` to see all available shadcn components
+3. Compare with `packages/ui/src/components/index.ts` to see what's already installed
+
+Check that `apps/design-system/pages/index.tsx` displays all design system elements:
+
+Required sections:
+- ✅ Color Palette
+- ✅ Button Variants (all 5 variants, all sizes)
+- ✅ Input States (default, disabled, error)
+- ✅ Card Layouts
+- ✅ Badge Variants
+- ✅ Typography Scale
+- ✅ Spacing Scale
+- ✅ Data Visualization (charts)
+- ✅ Illustrations/Icons
+
+If missing sections, add them to showcase.
+
+**If missing components needed for showcase**:
+- Use `./scripts/add-component.sh <component>` to add from shadcn registry
+- Export from `packages/ui/src/components/index.ts`
+- Add to showcase page
+
+### Step 7: Visual Review with Browser MCP
+
+**Start design sandbox**:
+```bash
+npm run design:dev  # localhost:3001
+```
+
+**Screenshot showcase**:
+1. Navigate to `http://localhost:3001`
+2. Screenshot full page (desktop 1440×900)
+3. Screenshot full page (mobile 375×812)
+4. Screenshot individual sections (colors, buttons, typography, charts)
+5. Save to `.specify/design-system/screenshots/`
+
+**Present to user**:
+```markdown
+## Design System Preview
+
+### Desktop View
+[Screenshot of full showcase]
+
+### Mobile View
+[Screenshot of mobile showcase]
+
+### Color Palette
+[Screenshot of colors section]
+
+### Component Samples
+- Buttons: 5 variants × 3 sizes
+- Inputs: 4 states
+- Cards: 3 layouts
+- Typography: 8 scale levels
+- Charts: Bar + Line examples
+
+**Review questions**:
+1. Do the colors feel on-brand?
+2. Is the spacing comfortable to read/use?
+3. Do the components look cohesive?
+4. Any adjustments needed?
+```
+
+**Iteration loop**:
+1. User feedback (e.g., "Make primary color darker")
+2. Update `packages/ui/colors.config.js`
+3. Restart dev server (`npm run design:dev`)
+4. Re-screenshot showcase
+5. Present delta
+6. Repeat until approved
+
+**Approval**:
+- User approves design system
+- Lock `tokens.md` with approval date
+- Design system is now the source of truth
+
+### Step 8: Create Design System README
+
+Create `.specify/design-system/README.md`:
+
+```markdown
+# Centrid Design System
+
+Quick reference for using the centralized design system.
+
+## Architecture
+
+### Centralized in packages/ui/
+- **colors.config.js** - Color definitions (single source of truth)
+- **tailwind.preset.js** - Shared Tailwind config
+- **styles/globals.css** - Shared global CSS with CSS variables
+- **src/components/** - Shared shadcn/ui components
+
+### Apps consume from @centrid/ui
+- `apps/design-system/` - Design iteration sandbox (localhost:3001)
+- `apps/web/` - Production app (localhost:3000)
+
+Both apps:
+- Import `@centrid/ui/tailwind.preset` in tailwind.config.js
+- Import `@centrid/ui/styles` in _app.tsx
+- Import components from `@centrid/ui/components`
+
+## Quick Links
+- [Design Tokens](./tokens.md) - Colors, typography, spacing
+- [Live Showcase](http://localhost:3001) - Run `npm run design:dev`
+
+## Using Design Tokens
+
+### Colors
+```tsx
+<div className="bg-primary-600 text-white">Primary</div>
+<div className="text-error-500">Error message</div>
+```
+
+### Spacing
+```tsx
+<div className="p-6 gap-4">Card with standard padding</div>
+```
+
+### Typography
+```tsx
+<h1 className="text-4xl font-bold">Heading</h1>
+<p className="text-base">Body text</p>
+```
+
+## Component Usage
+
+### From Centralized UI Package
+```tsx
+// Always use this import pattern:
+import { Button, Card, Input } from '@centrid/ui/components';
+
+<Button variant="default">Primary Action</Button>
+```
+
+## Design Iteration Workflow
+
+1. Start design system: `npm run design:dev`
+2. Visit: `http://localhost:3001`
+3. View all components and tokens
+4. Design new features in `apps/design-system/pages/` or `apps/design-system/components/`
+5. Screenshot with Playwright MCP for feedback
+6. Add new shadcn components:
+   ```bash
+   ./scripts/add-component.sh [component]
+   ```
+   - Script runs shadcn CLI in apps/design-system
+   - Moves components to packages/ui/src/components
+   - Fixes imports automatically
+7. Export from `packages/ui/src/components/index.ts`
+
+## Token Updates
+
+1. Edit `.specify/design-system/tokens.md` (documentation)
+2. Update `packages/ui/colors.config.js` (implementation)
+3. Restart both dev servers
+4. Review at localhost:3001 (design system) and localhost:3000 (web app)
+```
+
+### Step 9: Output Summary
+
+Report to user:
+
+```
+✅ Centralized design system established:
+   - Tokens: .specify/design-system/tokens.md
+   - README: .specify/design-system/README.md
+   - Screenshots: .specify/design-system/screenshots/
+   - Showcase: http://localhost:3001
+
+🏗️ Architecture:
+   - Colors: packages/ui/colors.config.js (single source of truth)
+   - Tailwind: packages/ui/tailwind.preset.js (shared by all apps)
+   - CSS: packages/ui/styles/globals.css (shared global styles)
+   - Components: packages/ui/src/components/ (shadcn/ui)
+
+🎨 Design Decisions:
+   - Primary Color: [color name + hex]
+   - Brand Personality: [personality choices]
+   - Spacing: [density] (Xpx base unit)
+   - Border Radius: [style]
+   - Typography: [font choice]
+
+📦 Components Available:
+   - Button (5 variants, 4 sizes)
+   - Input (with validation states)
+   - Card (structured sections)
+   - Badge (6 variants)
+   - Charts (Bar, Line with recharts)
+
+📸 Screenshots Captured:
+   - Desktop: [count] screenshots
+   - Mobile: [count] screenshots
+   - Status: Approved ([DATE])
+
+Next steps:
+   → Design system is ready for feature development
+   → Run /speckit.design to design specific features
+   → All features will use these centralized tokens
+```
 
 ---
 
-## Update Existing Design System
+## shadcn MCP Quick Reference
 
-If updating, ask user:
-1. What's changing? (colors, typography, spacing, components)
-2. Is this a breaking change?
-3. Version bump (major, minor, patch)
-
-Update relevant files and regenerate dependent files (Tailwind config, component code).
+**List all**: `mcp__shadcn__list_items_in_registries` (registries: ['@shadcn'])
+**Search**: `mcp__shadcn__search_items_in_registries` (query: "button", "input", "card")
+**View examples**: `mcp__shadcn__get_item_examples_from_registries` (query: "button-demo")
+**Add**: `./scripts/add-component.sh <component>` (then export from index.ts)
 
 ---
 
-## Browser MCP Integration Notes
+## Design System Updates
 
-**Required capabilities**:
-- `playwright://localhost:3000` - Navigate to local dev server
-- Screenshot capability - Capture component renders
-- Wait for idle - Ensure animations/loads complete before screenshot
+To update the design system later:
 
-**Workflow enhancement**:
-```
-1. Generate design system code
-2. Start Next.js dev server on random port
-3. Mount isolated component viewer
-4. For each component:
-   - Render all variants in grid
-   - Screenshot with Browser MCP
-   - Add to preview gallery
-5. Present gallery to user
-6. Collect feedback
-7. Update foundation.md
-8. Regenerate + re-screenshot
-```
+1. Run `/speckit.design-system` again
+2. Choose "Update existing"
+3. Answer questionnaire with new values
+4. Update `packages/ui/colors.config.js`
+5. Review screenshots of changes
+6. Approve updates
+7. Increment version in `tokens.md`
 
-**Fallback without Browser MCP**:
-- Generate code only
-- User manually runs `npm run dev`
-- User manually reviews in browser
-- User provides text feedback
-- Update and regenerate
+---
+
+## Integration with Feature Design
+
+When running `/speckit.design` for a feature:
+- Features load tokens from `.specify/design-system/tokens.md`
+- Features use components from `packages/ui/src/components`
+- Features follow same visual patterns
+- Consistency is automatic via shared centralized configs
+
+---
+
+## Tips
+
+### Centralization Benefits
+- Change colors once in `packages/ui/colors.config.js` → applies everywhere
+- Update global styles once in `packages/ui/styles/globals.css` → all apps get it
+- Add component once in `packages/ui/src/components` → available to all apps
+
+### Component Discovery with shadcn MCP
+- Use `mcp__shadcn__search_items_in_registries` to find components by keyword
+- Use `mcp__shadcn__get_item_examples_from_registries` to view usage examples
+- Check `packages/ui/src/components/index.ts` to see what's already installed
+- Always use `./scripts/add-component.sh <component>` to add new components
+
+### Start Simple
+- Use Tailwind defaults where possible
+- Only customize what's truly brand-specific
+- Fewer custom values = easier maintenance
+
+### Adding shadcn Components
+- NEVER run `shadcn add` directly - always use the script
+- Script workflow: `./scripts/add-component.sh <component>`
+  1. Runs `shadcn add` in `apps/design-system`
+  2. Moves files to `packages/ui/src/components`
+  3. Fixes import paths automatically
+- Remember to export from `packages/ui/src/components/index.ts`
+
+### Test Both Modes
+- Always screenshot light AND dark mode
+- Ensure contrast ratios are good in both
+- Dark mode CSS vars in globals.css
+
+### Document Decisions
+- Capture WHY you chose specific values in tokens.md
+- Reference inspirations
+- Makes future updates easier

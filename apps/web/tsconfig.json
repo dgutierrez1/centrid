@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "paths": {
+      "@/*": ["./src/*"],
+      "@centrid/ui": ["../../packages/ui/src"],
+      "@centrid/ui/*": ["../../packages/ui/src/*"],
+      "@centrid/shared": ["../../packages/shared/src"],
+      "@centrid/shared/*": ["../../packages/shared/src/*"]
+    }
+  },
+  "include": ["next-env.d.ts", "src/**/*"],
+  "exclude": ["node_modules"]
+}

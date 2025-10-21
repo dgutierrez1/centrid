@@ -1,14 +1,26 @@
 <!--
 Sync Impact Report:
-- Version: Initial template → 1.0.0
-- Rationale: First ratification of Centrid project constitution
-- Principles: 8 technical principles established (Component Architecture, Mobile-First, Context-First, Supabase-First, Type Safety, Real-Time First, Agent-First File System, Security by Default)
-- Added sections: Technology Stack Constraints, Key Architectural Decisions, Success Metrics, Anti-Patterns
+- Version: 1.3.0 → 1.4.0
+- Rationale: MINOR bump - Added apps/api for self-contained backend application. All server logic (business logic, Edge Functions, migrations) now lives in one place instead of split across packages/ and supabase/.
+- Modified principles:
+  - Principle X (Monorepo Architecture): Added apps/api structure, removed packages/server, clarified all server logic placement
+  - Technology Stack Constraints: Updated package structure (2 packages + 3 apps)
+  - Key Architectural Decisions: Updated #13, #15, #19 for apps/api structure
+  - Anti-Patterns: Added rules against splitting backend code and placing functions at root
+- Added sections:
+  - apps/api/ self-contained backend application structure
+  - Backend Structure diagram showing apps/api/ organization
+  - Server Logic Placement (ALL in apps/api/)
+  - Deployment instructions for apps/api
+- Removed sections:
+  - packages/server (replaced by apps/api)
+  - Root supabase/ folder references (moved to apps/api/supabase)
 - Templates status:
-  ✅ plan-template.md - Constitution Check section present, compatible
-  ✅ spec-template.md - Requirements aligned with principles
-  ✅ tasks-template.md - Task organization supports principle-driven development
-- Follow-up TODOs: None - all placeholders filled
+  ✅ All templates remain compatible
+- Follow-up TODOs:
+  - Add to CLAUDE.md: Monorepo structure with apps/api and server logic placement rules
+  - Create apps/api/package.json and directory structure
+  - Configure apps/api/supabase/config.toml to point to src/functions/
 -->
 
 # Centrid Constitution
@@ -37,7 +49,7 @@ All features MUST be designed mobile-first with PWA as MVP delivery. Backend MUS
 
 Document context MUST be global and persistent across ALL user chats. Vector embeddings (pgvector 1536-dim) MUST be generated for all document chunks. RAG context retrieval MUST happen before every AI request using semantic similarity search. Citation tracking MUST record which document chunks informed each response via message_context_chunks table. Context window MUST be limited to 6000 tokens with relevance-ranked chunks.
 
-**Rationale**: Core value proposition - users shouldn't re-upload or re-contextualize documents for each conversation. Single source of truth for all knowledge enables consistent AI responses with transparent sourcing. This is the "ChatGPT meets Obsidian" innovation.
+**Rationale**: Core value proposition - solves the critical context loss problem in ChatGPT and other AI products. When users dive into subtopics across different threads, traditional AI chat loses track of the optimal context. Centrid maintains a persistent knowledge graph so users never have to re-upload or re-contextualize documents. Each conversation, regardless of thread depth or topic shift, has access to the full knowledge base with automatic relevance ranking. This is the "ChatGPT meets Obsidian" innovation - single source of truth for all knowledge enables consistent AI responses with transparent sourcing, eliminating the context degradation problem that plagues traditional chat interfaces.
 
 ### IV. Managed Backend Stack
 
@@ -79,6 +91,76 @@ All database tables with user data MUST have Row Level Security (RLS) enabled. R
 
 **Rationale**: Database-level security cannot be bypassed - more secure than application-level checks. RLS automatically filters all queries. Even direct database access respects policies. Security is enforced, not just checked. Critical for user trust and data privacy.
 
+### IX. MVP-First Discipline
+
+**Ruthless Scope Management**
+
+All features MUST target the minimal viable implementation that validates the core hypothesis. Each feature MUST answer: "What is the simplest version that proves this works?" Features MUST be scoped to deliver value in days, not weeks. All architectural decisions MUST favor shipping speed over theoretical perfection. Complex abstractions MUST be deferred until patterns emerge from real usage (Rule of Three: abstract only after third occurrence). "Nice to have" features MUST be explicitly marked and deferred post-MVP.
+
+**Rationale**: Centrid aims to solve the context loss problem for AI workflows - MVP validates this hypothesis as fast as possible. Over-engineering delays validation and wastes effort on features users may not need. Shipping early enables real user feedback which trumps theoretical architecture. The constitution author acknowledges a tendency to over-engineer; this principle provides explicit guardrails. Time-to-market is competitive advantage - complex solutions can be refactored after product-market fit is proven, but over-engineered MVPs never ship.
+
+### X. Monorepo Architecture
+
+**Enforced Package Boundaries**
+
+Codebase MUST be organized as a monorepo using npm workspaces with the following structure:
+
+**Packages** (shared libraries):
+- `packages/ui` (@centrid/ui) - Pure presentational UI components with ZERO server dependencies (no Supabase, no state management, no providers)
+- `packages/shared` (@centrid/shared) - Shared utilities, types, and validation schemas (Zod) used across ALL apps (frontend and backend)
+
+**Apps** (deployable applications):
+- `apps/web` - Main Next.js frontend application (MAY import from packages/ui, packages/shared)
+- `apps/design-system` - Design iteration sandbox (MUST ONLY import from packages/ui, packages/shared)
+- `apps/api` - Self-contained backend application with ALL server logic (MAY import from packages/shared only)
+
+**Backend Structure** (`apps/api/`):
+```
+apps/api/
+├── package.json           # Workspace package
+├── src/
+│   ├── services/          # Business logic (RAG, document processing, AI orchestration)
+│   ├── utils/             # Backend utilities (response formatting, error handling)
+│   ├── lib/               # Shared backend libraries (Supabase client config, etc)
+│   └── functions/         # Supabase Edge Functions
+│       ├── process-document/
+│       ├── execute-ai-agent/
+│       └── handle-webhook/
+└── supabase/
+    ├── config.toml        # Supabase config (points to src/functions/)
+    └── migrations/        # Database schema and migrations
+```
+
+**Import Rules**:
+- `apps/web` → MAY import from `packages/ui`, `packages/shared`
+- `apps/design-system` → ONLY imports from `packages/ui`, `packages/shared` (enforced by package.json)
+- `apps/api` → MAY import from `packages/shared` only
+- `packages/ui` → MAY import from `packages/shared` only
+- `packages/shared` → NO imports from other packages (foundation layer)
+
+**Server Logic Placement** (ALL in `apps/api/`):
+- Business logic shared across Edge Functions → `apps/api/src/services/`
+- API utilities (response formatting, error handling) → `apps/api/src/utils/`
+- Supabase client configuration → `apps/api/src/lib/supabase.ts`
+- Edge Function implementations → `apps/api/src/functions/[function-name]/index.ts`
+- Database migrations → `apps/api/supabase/migrations/`
+- Supabase configuration → `apps/api/supabase/config.toml`
+
+**Deployment**:
+- `apps/web` → Vercel (frontend)
+- `apps/api/src/functions/` → Supabase Edge Functions (via `supabase functions deploy` from apps/api/)
+- `apps/api/supabase/migrations/` → Supabase (via `supabase db push` from apps/api/)
+
+**Rationale**: Self-contained backend in `apps/api` keeps ALL server logic in one place - no splitting between packages and supabase folders. This improves discoverability, makes refactoring easier, and enforces clear app boundaries. Business logic naturally lives alongside the Edge Functions that use it. Package boundaries enforce separation at module level - TypeScript prevents UI code from importing server code. Design sandbox iterates on UI without server dependencies. `packages/shared` enables sharing ONLY types/utils between frontend and backend without coupling. Monorepo provides single-repo convenience with multi-app discipline. Turborepo enables incremental builds and caching. This architecture scales from MVP to multi-platform without rewrites.
+
+### XI. Visual Design System
+
+**Design-First UI Development**
+
+All features MUST be visually designed in `apps/design-system` before implementation in `apps/web`. Design MUST follow a two-layer approach: (1) Global design system established once with `/speckit.design-system`, (2) Feature-specific designs created per feature with `/speckit.design`. All designs MUST be screenshot-validated using Playwright MCP (mobile + desktop viewports). Design feedback MUST use the 10 Design Levers framework (Visual Hierarchy, Consistency, Information Density, Color with Purpose, Typography Hierarchy, Spacing Rhythm, Feedback & Affordance, Mobile-First Responsive, Accessibility, States). Components MUST be approved visually before implementation begins. Design tokens MUST be centralized in `packages/ui` (colors.config.js, tailwind.preset.js).
+
+**Rationale**: Visual-first iteration prevents costly implementation rewrites. Seeing high-fidelity mockups before coding validates UX decisions early. Playwright MCP automation enables rapid design iteration without manual dev server management. 10 Design Levers provide structured feedback language for consistent quality. Centralized design tokens ensure visual consistency across all apps. Design approval gates ensure implementation builds exactly what was approved, reducing back-and-forth during development.
+
 ## Technology Stack Constraints
 
 ### Frontend & UI
@@ -88,7 +170,7 @@ All database tables with user data MUST have Row Level Security (RLS) enabled. R
 - **CSS Framework**: TailwindCSS 3.4+ (utility-first, mobile-first)
 - **Component Library**: shadcn/ui (copy-paste components, not dependency)
 - **UI Primitives**: Radix UI (via shadcn/ui - accessible, touch-friendly)
-- **Design Tokens**: Centralized in tailwind.config.js (colors, spacing, typography)
+- **Styling**: Tailwind config and color system centralized in `packages/ui`
 
 ### Backend & Infrastructure
 
@@ -104,9 +186,25 @@ All database tables with user data MUST have Row Level Security (RLS) enabled. R
 - **Design Tool**: v0.dev by Vercel (optional, for high-fidelity UI mockups)
 - **Icons**: Heroicons or Lucide (tree-shakeable, consistent)
 
+### Design Workflow
+
+- **Design Sandbox**: `apps/design-system` (localhost:3001)
+- **Screenshot Tool**: Playwright MCP (automated viewport testing)
+- **Design Iteration**: `/speckit.design-system` (global), `/speckit.design` (feature-specific)
+- **Design Levers**: 10-point framework for structured feedback
+- **Viewports**: Mobile (375×812), Desktop (1440×900)
+
 ### Billing & Payments
 
 - **Payment Processor**: Mercado Pago (Colombia market focus)
+
+### Tooling & Build
+
+- **Monorepo**: npm workspaces (workspace protocol for package linking)
+- **Build System**: Turborepo (incremental builds, caching)
+- **TypeScript**: Strict mode with shared base config
+- **Component Management**: Custom script (`scripts/add-component.sh`) for shadcn components
+- **Package Structure**: 2 packages (ui, shared) + 3 apps (web, design-system, api)
 
 ## Key Architectural Decisions
 
@@ -123,7 +221,17 @@ These decisions are locked and MUST be followed:
 9. TailwindCSS + shadcn/ui for rapid UI development with full customization control
 10. shadcn MCP + Claude for AI-powered component generation (30min vs 10hr development cycles)
 11. Mobile-first component design with 44px minimum touch targets
-12. Design tokens centralized in Tailwind config for consistent theming
+12. Tailwind configuration and color system centralized in packages/ui
+13. **Monorepo structure with npm workspaces: packages/ui, packages/shared, apps/web, apps/design-system, apps/api**
+14. **Pure UI components in packages/ui - zero server dependencies (enforced by package.json)**
+15. **All server logic self-contained in apps/api - business logic, Edge Functions, and migrations together**
+16. **Design system (apps/design-system) isolated from server code - only imports from packages/ui and packages/shared**
+17. **Smart components in apps/web/src/components/ handle data fetching, state, and business logic**
+18. **Component workflow: shadcn CLI in design-system, auto-moved to packages/ui via script**
+19. **Backend structure: apps/api/src/services (business logic), apps/api/src/functions (Edge Functions), apps/api/supabase (migrations)**
+20. **Design iteration workflow: apps/design-system → Playwright MCP screenshots → approval → apps/web implementation**
+21. **Two-layer design approach: Global design system (once) → Feature designs (per feature)**
+22. **10 Design Levers framework for structured design feedback**
 
 ## Success Metrics
 
@@ -137,10 +245,15 @@ Performance and quality targets that MUST be met:
 - Context retrieval accuracy >85% (measured by user feedback on AI responses)
 - Zero unauthorized data access (enforced by RLS)
 - Real-time updates propagate to all devices within 100ms
-- UI feature development: 30-45 minutes with shadcn MCP vs 6-8 hours manual
-- Component generation: <5 minutes from description to working code
+- UI feature development: 30-45 minutes with shadcn workflow vs 6-8 hours manual
+- Component generation: <5 minutes from shadcn add to packages/ui export
 - Mobile touch targets: 100% compliance with 44x44px minimum
-- Design consistency: All components use centralized Tailwind tokens
+- Design consistency: All components use shared Tailwind config from packages/ui
+- **Time-to-MVP: Core features (document upload + RAG chat + context persistence) functional within 7 days**
+- **Iteration speed: Feature hypothesis → deployed validation in <3 days**
+- **Package isolation: Zero accidental imports from apps/web to packages/ (TypeScript enforced)**
+- **Design iteration: <3 rounds from initial design to approval per feature**
+- **Design feedback quality: 80%+ of feedback uses Design Levers framework terminology**
 
 ## Anti-Patterns to Avoid
 
@@ -166,6 +279,22 @@ These patterns are FORBIDDEN:
 - ❌ Desktop hover states on mobile (use active states for touch feedback)
 - ❌ Touch targets smaller than 44x44px (iOS/Android accessibility requirement)
 - ❌ Inline styles or CSS-in-JS (use Tailwind utilities for consistency)
+- ❌ **Premature abstraction (abstract only after Rule of Three: third occurrence)**
+- ❌ **Building features "for the future" that aren't needed for MVP**
+- ❌ **Perfect architecture over working software (ship first, refactor later)**
+- ❌ **Scope creep: Adding "while we're at it" features mid-implementation**
+- ❌ **Analysis paralysis: Debating architecture instead of building and testing**
+- ❌ **Server dependencies in packages/ui (Supabase, Valtio, providers)**
+- ❌ **Design system (apps/design-system) importing from apps/web (breaks isolation)**
+- ❌ **Hard-coded values in UI components (use Tailwind classes from shared config)**
+- ❌ **Running shadcn CLI directly in packages/ui (use script workflow instead)**
+- ❌ **Implementing before visual design approval (design-first workflow)**
+- ❌ **Vague design feedback (use 10 Design Levers framework)**
+- ❌ **Skipping mobile viewport testing (both viewports required)**
+- ❌ **Duplicating business logic across Edge Functions (centralize in apps/api/src/services)**
+- ❌ **Splitting backend code across packages/ and apps/api (keep all server logic in apps/api)**
+- ❌ **apps/api importing from packages/ui (violates boundaries - use packages/shared only)**
+- ❌ **Placing Edge Functions in root supabase/ folder (use apps/api/src/functions)**
 
 ## Governance
 
@@ -190,7 +319,10 @@ Constitution amendments require:
 - Validate new features against principles before implementation
 - Automated checks where possible (TypeScript strict mode, linting, RLS policies)
 - Constitution review every quarter or when major technical pivots occur
+- **MVP Scope Gate: All features MUST justify necessity for MVP before implementation begins**
+- **Package Boundary Check: TypeScript MUST prevent server code imports in packages/ui**
+- **Design Approval Gate: Visual designs MUST be approved before implementation begins**
 
 All PRs/reviews MUST verify compliance with principles. Complexity introduced that violates principles MUST be justified with clear rationale and documented in plan.md Complexity Tracking section. Use [CLAUDE.md](../../CLAUDE.md) for runtime development guidance.
 
-**Version**: 1.0.0 | **Ratified**: 2025-01-15 | **Last Amended**: 2025-01-15
+**Version**: 1.4.0 | **Ratified**: 2025-01-15 | **Last Amended**: 2025-10-21
