@@ -50,6 +50,9 @@ You **MUST** consider the user input before proceeding (if not empty).
    - **IF EXISTS**: Read contracts/ for API specifications and test requirements
    - **IF EXISTS**: Read research.md for technical decisions and constraints
    - **IF EXISTS**: Read quickstart.md for integration scenarios
+   - **IF EXISTS**: Read design.md for UI specifications and approved component designs
+   - **IF EXISTS**: Read design component source at `apps/design-system/components/[FeatureName].tsx` for reference implementation
+   - **IF EXISTS**: Reference screenshots at `apps/design-system/public/screenshots/[feature-name]/` for visual verification
 
 4. **Project Setup Verification**:
    - **REQUIRED**: Create/verify ignore files based on actual project setup:
@@ -107,6 +110,13 @@ You **MUST** consider the user input before proceeding (if not empty).
    - **Setup first**: Initialize project structure, dependencies, configuration
    - **Tests before code**: If you need to write tests for contracts, entities, and integration scenarios
    - **Core development**: Implement models, services, CLI commands, endpoints
+   - **UI implementation** (if design.md exists):
+     * Use approved component designs from `apps/design-system/components/[FeatureName].tsx` as reference
+     * Implement UI components in `apps/web/src/components/` following the approved design
+     * Import primitives from `@centrid/ui/components` as specified in design.md
+     * Match visual structure, styling, and states from design screenshots
+     * Map design-system routes to production routes (e.g., `/account-foundation/profile` → `/profile`)
+     * Preserve component composition patterns from the design sandbox
    - **Integration work**: Database connections, middleware, logging, external services
    - **Polish and validation**: Unit tests, performance optimization, documentation
 

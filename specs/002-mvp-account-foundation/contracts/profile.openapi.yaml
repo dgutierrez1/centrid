@@ -1,0 +1,437 @@
+openapi: 3.1.0
+info:
+  title: MVP Account Foundation - Profile API
+  description: User profile management (view, update, delete)
+  version: 1.0.0
+  contact:
+    name: Centrid API Team
+
+servers:
+  - url: https://{project_id}.supabase.co/functions/v1
+    description: Supabase Edge Functions (Production)
+    variables:
+      project_id:
+        default: xxx
+        description: Supabase project ID
+  - url: http://localhost:54321/functions/v1
+    description: Local Development
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Profile
+    description: User profile operations (view, update)
+  - name: Account
+    description: Account management (deletion)
+
+paths:
+  /profile:
+    get:
+      tags:
+        - Profile
+      summary: Get current user profile
+      description: |
+        Retrieve the authenticated user's profile.
+
+        **Security**:
+        - RLS enforces user can only view own profile
+        - JWT required (Bearer token)
+      operationId: getProfile
+      responses:
+        '200':
+          description: Profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+              examples:
+                success:
+                  summary: Profile with full name
+                  value:
+                    id: "456e7890-e89b-12d3-a456-426614174000"
+                    user_id: "123e4567-e89b-12d3-a456-426614174000"
+                    firstName: "John"
+                    lastName: "Doe"
+                    plan_type: "free"
+                    usage_count: 42
+                    subscription_status: "active"
+                    created_at: "2025-01-21T10:00:00Z"
+                    updated_at: "2025-01-21T15:30:00Z"
+                minimal:
+                  summary: Profile without name
+                  value:
+                    id: "456e7890-e89b-12d3-a456-426614174000"
+                    user_id: "123e4567-e89b-12d3-a456-426614174000"
+                    firstName: null
+                    lastName: null
+                    plan_type: "free"
+                    usage_count: 0
+                    subscription_status: "active"
+                    created_at: "2025-01-21T10:00:00Z"
+                    updated_at: "2025-01-21T10:00:00Z"
+        '401':
+          description: Unauthorized (invalid or missing JWT)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Profile not found (shouldn't happen if auth is valid)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /update-profile:
+    post:
+      tags:
+        - Profile
+      summary: Update user profile
+      description: |
+        Update the authenticated user's first and/or last name.
+
+        **Business Rules**:
+        - Both fields optional (can update one or both) (FR-022)
+        - Each name field must be 1-100 characters if provided
+        - Only valid characters allowed (letters, spaces, hyphens, apostrophes)
+        - Names cannot be only whitespace
+        - Server-side validation required (FR-022)
+
+        **Security**:
+        - RLS enforces user can only update own profile
+        - JWT required (Bearer token)
+      operationId: updateProfile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                firstName:
+                  type: string
+                  description: User's first name
+                  minLength: 1
+                  maxLength: 100
+                  pattern: ^[a-zA-Z\s'-]+$
+                  example: "Jane"
+                lastName:
+                  type: string
+                  description: User's last name
+                  minLength: 1
+                  maxLength: 100
+                  pattern: ^[a-zA-Z\s'-]+$
+                  example: "Smith"
+            examples:
+              both:
+                summary: Update both names
+                value:
+                  firstName: "Jane"
+                  lastName: "Smith"
+              firstOnly:
+                summary: Update first name only
+                value:
+                  firstName: "Jane"
+              lastOnly:
+                summary: Update last name only
+                value:
+                  lastName: "Smith"
+              withHyphen:
+                summary: Hyphenated last name
+                value:
+                  firstName: "Mary"
+                  lastName: "Jones-Watson"
+              withApostrophe:
+                summary: Name with apostrophe
+                value:
+                  firstName: "Sean"
+                  lastName: "O'Brien"
+      responses:
+        '200':
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - profile
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  profile:
+                    $ref: '#/components/schemas/UserProfile'
+              examples:
+                success:
+                  summary: Name updated
+                  value:
+                    success: true
+                    profile:
+                      id: "456e7890-e89b-12d3-a456-426614174000"
+                      user_id: "123e4567-e89b-12d3-a456-426614174000"
+                      firstName: "Jane"
+                      lastName: "Smith"
+                      plan_type: "free"
+                      usage_count: 42
+                      subscription_status: "active"
+                      created_at: "2025-01-21T10:00:00Z"
+                      updated_at: "2025-01-21T16:00:00Z"
+        '400':
+          description: Invalid input (validation failed)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                emptyName:
+                  summary: Empty name
+                  value:
+                    error: "Name cannot be empty"
+                    code: "VALIDATION_ERROR"
+                tooLong:
+                  summary: Name too long
+                  value:
+                    error: "Name must be less than 100 characters"
+                    code: "VALIDATION_ERROR"
+                invalidChars:
+                  summary: Invalid characters
+                  value:
+                    error: "Name contains invalid characters"
+                    code: "VALIDATION_ERROR"
+        '401':
+          description: Unauthorized (invalid or missing JWT)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /delete-account:
+    post:
+      tags:
+        - Account
+      summary: Delete user account
+      description: |
+        Permanently delete the authenticated user's account and ALL associated data.
+
+        **Business Rules**:
+        - Requires explicit confirmation (FR-025)
+        - Deletes ALL user data (FR-026):
+          - Auth account (auth.users)
+          - Profile (user_profiles)
+          - Documents (documents)
+          - Document chunks (document_chunks)
+          - Agent requests (agent_requests)
+          - Agent sessions (agent_sessions)
+          - Usage events (usage_events)
+        - Cascade delete ensures zero orphaned records (FR-027)
+        - User is logged out after deletion (FR-028)
+
+        **Security**:
+        - JWT required (Bearer token)
+        - Confirmation phrase required ("DELETE")
+        - Irreversible operation
+
+        **WARNING**: This operation is permanent and cannot be undone!
+      operationId: deleteAccount
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - confirmation
+              properties:
+                confirmation:
+                  type: string
+                  description: Confirmation phrase (must be "DELETE")
+                  enum: ["DELETE"]
+                  example: "DELETE"
+            examples:
+              valid:
+                summary: Valid deletion request
+                value:
+                  confirmation: "DELETE"
+      responses:
+        '200':
+          description: Account deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - message
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Account deleted successfully. You have been logged out."
+              examples:
+                success:
+                  summary: Account deleted
+                  value:
+                    success: true
+                    message: "Account deleted successfully. You have been logged out."
+        '400':
+          description: Invalid confirmation phrase
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                invalidConfirmation:
+                  summary: Incorrect confirmation
+                  value:
+                    error: "Confirmation phrase must be 'DELETE'"
+                    code: "INVALID_CONFIRMATION"
+        '401':
+          description: Unauthorized (invalid or missing JWT)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Deletion failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                deletionFailed:
+                  summary: Database error
+                  value:
+                    error: "Account deletion failed. Please contact support."
+                    code: "DELETION_FAILED"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Supabase JWT token (obtained from signup/login)
+
+  schemas:
+    UserProfile:
+      type: object
+      description: User profile (from user_profiles table)
+      required:
+        - id
+        - user_id
+        - plan_type
+        - usage_count
+        - subscription_status
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Profile ID
+          example: "456e7890-e89b-12d3-a456-426614174000"
+        user_id:
+          type: string
+          format: uuid
+          description: Reference to auth.users
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        firstName:
+          type: string
+          nullable: true
+          description: User's first name (optional)
+          minLength: 1
+          maxLength: 100
+          example: "John"
+        lastName:
+          type: string
+          nullable: true
+          description: User's last name (optional)
+          minLength: 1
+          maxLength: 100
+          example: "Doe"
+        plan_type:
+          type: string
+          enum: [free, pro, enterprise]
+          description: User's plan type
+          example: "free"
+        usage_count:
+          type: integer
+          description: Usage counter for billing
+          minimum: 0
+          example: 42
+        subscription_status:
+          type: string
+          enum: [active, inactive, cancelled]
+          description: Subscription status
+          example: "active"
+        created_at:
+          type: string
+          format: date-time
+          description: Profile creation timestamp
+          example: "2025-01-21T10:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: Last update timestamp (auto-updated via database trigger)
+          example: "2025-01-21T15:30:00Z"
+
+    Error:
+      type: object
+      description: Standard error response
+      required:
+        - error
+        - code
+      properties:
+        error:
+          type: string
+          description: Human-readable error message
+          example: "Invalid input"
+        code:
+          type: string
+          description: Machine-readable error code
+          example: "VALIDATION_ERROR"
+        details:
+          type: object
+          description: Additional error details
+          additionalProperties: true
+
+x-business-rules:
+  profile:
+    - id: FR-021
+      description: Users can update their display name
+    - id: FR-022
+      description: Name updates validated server-side (1-100 chars, valid characters)
+    - id: FR-023
+      description: Name updates persist immediately and reflect across UI
+
+  account:
+    - id: FR-024
+      description: Users can request account deletion
+    - id: FR-025
+      description: Explicit confirmation required (type "DELETE")
+    - id: FR-026
+      description: All user data deleted (auth, profile, documents, agents, usage)
+    - id: FR-027
+      description: Cascade delete ensures zero orphaned records
+    - id: FR-028
+      description: User logged out after deletion
+
+x-rls-policies:
+  user_profiles:
+    select: auth.uid() = user_id
+    update: auth.uid() = user_id
+  # All related tables have similar policies (enforced at database level)
+
+x-cascade-delete:
+  description: Deleting auth.users triggers cascade delete of all related data
+  tables:
+    - user_profiles
+    - documents
+    - document_chunks (via documents)
+    - agent_requests
+    - agent_sessions
+    - usage_events

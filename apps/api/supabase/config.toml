@@ -1,7 +1,6 @@
 # Supabase Configuration for Centrid API
 # https://supabase.com/docs/guides/cli/config
 
-[project]
 # A string used to distinguish different Supabase projects on the same host. Defaults to the
 # working directory name when running `supabase init`.
 project_id = "centrid"
@@ -26,7 +25,7 @@ port = 54322
 shadow_port = 54320
 # The database major version to use. This has to be the same as your remote database's. Run `SHOW
 # server_version;` on the remote database to check.
-major_version = 15
+major_version = 17
 
 [db.pooler]
 enabled = false
@@ -108,9 +107,18 @@ url = ""
 [analytics]
 enabled = false
 
-[functions]
-# Points to the Edge Functions directory
-# All functions should be in apps/api/src/functions/
-# Each function has its own directory with index.ts
+[edge_runtime]
 enabled = true
-verify_jwt = true
+# Configure the policy for handling edge function request exceptions
+# Allowed values: "per_worker", "oneshot"
+policy = "per_worker"
+
+# Edge Functions - All source code in src/functions/ (monorepo structure)
+[functions.create-account]
+entrypoint = '../src/functions/create-account/index.ts'
+
+[functions.update-profile]
+entrypoint = '../src/functions/update-profile/index.ts'
+
+[functions.delete-account]
+entrypoint = '../src/functions/delete-account/index.ts'

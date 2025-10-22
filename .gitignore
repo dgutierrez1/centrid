@@ -5,6 +5,11 @@ node_modules/
 /build
 /coverage
 
+# Next.js
+.next/
+out/
+*.tsbuildinfo
+
 # OS
 .DS_Store
 Thumbs.db
@@ -21,9 +26,13 @@ apps/api/.env.local
 
 # Supabase
 .supabase/
+apps/api/supabase/migrations/
+apps/api/supabase/functions/
+apps/api/supabase/.temp/
+apps/api/supabase/.branches/
 
-# Drizzle (migrations are committed, but generated files can be ignored)
-# apps/api/drizzle/migrations/ - DO NOT IGNORE, these should be committed
+# Drizzle (not using migrations folder - using src/db/push.ts instead)
+apps/api/drizzle/
 
 # IDE
 .vscode/

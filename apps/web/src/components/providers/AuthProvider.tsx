@@ -1,134 +1,110 @@
 // Centrid AI Filesystem - Authentication Provider
-// Version: 3.1 - Supabase Plus MVP Architecture
-// TODO: Re-enable auth when Supabase is set up
+// Version: 4.0 - MVP Account Foundation (Updated)
 
-import { ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
+import { useRouter } from 'next/router'
+import { createClient } from '@/lib/supabase/client'
+import type { User } from '@supabase/supabase-js'
 
 interface AuthProviderProps {
-  children: ReactNode;
+  children: ReactNode
 }
 
-export default function AuthProvider({ children }: AuthProviderProps) {
-  // Auth disabled for now - just pass through children
-  return <>{children}</>;
+/**
+ * Auth Context Type
+ */
+interface AuthContextType {
+  user: User | null
+  loading: boolean
+  signOut: () => Promise<void>
+  isAuthenticated: boolean
 }
 
-/* AUTH CODE - RE-ENABLE WHEN SUPABASE IS SET UP
-import { useEffect } from 'react';
-import { useSession, useUser } from '@supabase/auth-helpers-nextjs';
-import { useSnapshot } from 'valtio';
-import { appState, actions } from '@/lib/state';
-import { supabase } from '@/lib/supabase';
-import type { User } from '@supabase/supabase-js';
+/**
+ * Auth Context
+ * Provides auth state to all components via React Context
+ */
+const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-// Original auth logic:
+/**
+ * AuthProvider Component
+ *
+ * Wraps the application and provides authentication state to all child components.
+ * Automatically handles session initialization and auth state changes.
+ */
 export default function AuthProvider({ children }: AuthProviderProps) {
-  const session = useSession();
-  const user = useUser();
-  const state = useSnapshot(appState);
+  const [user, setUser] = useState<User | null>(null)
+  const [loading, setLoading] = useState(true)
+  const router = useRouter()
+  const supabase = createClient()
 
   useEffect(() => {
-    const handleAuthChange = async (user: User | null) => {
-      actions.setUser(user);
-      
-      if (user) {
-        // Fetch user profile
-        try {
-          const { data: profile, error } = await supabase
-            .from('user_profiles')
-            .select('*')
-            .eq('id', user.id)
-            .single();
-
-          if (error && error.code !== 'PGRST116') {
-            // Profile doesn't exist, this is handled by the database trigger
-            console.warn('Error fetching user profile:', error);
-          } else if (profile) {
-            actions.setUserProfile(profile);
-          }
-        } catch (error) {
-          console.error('Error handling auth change:', error);
-          actions.setError('Failed to load user profile');
-        }
-      } else {
-        // Clear user data on sign out
-        actions.setUserProfile(null);
-        actions.setDocuments([]);
-        actions.setAgentRequests([]);
-        actions.setAgentSessions([]);
-        actions.setSelectedDocument(null);
-        actions.setCurrentSession(null);
+    // Get initial session
+    const getInitialSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        setUser(session?.user ?? null)
+      } catch (error) {
+        console.error('Error getting initial session:', error)
+        setUser(null)
+      } finally {
+        setLoading(false)
       }
-    };
-
-    // Handle initial session
-    if (user) {
-      handleAuthChange(user);
-    } else {
-      actions.setUser(null);
-      actions.setAuthLoading(false);
     }
 
-    // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('Auth state changed:', event, session?.user?.id);
-        
-        switch (event) {
-          case 'SIGNED_IN':
-            if (session?.user) {
-              await handleAuthChange(session.user);
-            }
-            break;
-            
-          case 'SIGNED_OUT':
-            await handleAuthChange(null);
-            break;
-            
-          case 'TOKEN_REFRESHED':
-            if (session?.user && session.user.id === state.user?.id) {
-              // Token refreshed for the same user, no need to reload profile
-              actions.setUser(session.user);
-            }
-            break;
-            
-          case 'USER_UPDATED':
-            if (session?.user) {
-              actions.setUser(session.user);
-              // Re-fetch profile in case metadata changed
-              await handleAuthChange(session.user);
-            }
-            break;
-            
-          default:
-            break;
-        }
+    getInitialSession()
+
+    // Listen for auth state changes (login, logout, token refresh)
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      setUser(session?.user ?? null)
+      setLoading(false)
+
+      // Refresh the page to update server-side props if auth state changed
+      if (_event === 'SIGNED_IN' || _event === 'SIGNED_OUT') {
+        router.replace(router.asPath)
       }
-    );
+    })
 
     return () => {
-      subscription.unsubscribe();
-    };
-  }, [user]);
+      subscription.unsubscribe()
+    }
+  }, [supabase, router])
 
-  // Auto-refresh session periodically
-  useEffect(() => {
-    if (!session) return;
+  // Sign out helper
+  const signOut = async () => {
+    try {
+      await supabase.auth.signOut()
+      await router.push('/login')
+    } catch (error) {
+      console.error('Error signing out:', error)
+    }
+  }
 
-    const refreshInterval = setInterval(async () => {
-      try {
-        const { data, error } = await supabase.auth.refreshSession();
-        if (error) {
-          console.warn('Failed to refresh session:', error.message);
-        }
-      } catch (error) {
-        console.warn('Session refresh error:', error);
-      }
-    }, 30 * 60 * 1000); // Refresh every 30 minutes
+  const value: AuthContextType = {
+    user,
+    loading,
+    signOut,
+    isAuthenticated: !!user,
+  }
 
-    return () => clearInterval(refreshInterval);
-  }, [session]);
-
-  return <>{children}</>;
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
-*/
+
+/**
+ * useAuthContext Hook
+ *
+ * Access auth context from any component wrapped in AuthProvider.
+ * Throws error if used outside AuthProvider.
+ *
+ * Usage:
+ *   const { user, loading, signOut, isAuthenticated } = useAuthContext()
+ */
+export const useAuthContext = () => {
+  const context = useContext(AuthContext)
+  if (context === undefined) {
+    throw new Error('useAuthContext must be used within an AuthProvider')
+  }
+  return context
+}
