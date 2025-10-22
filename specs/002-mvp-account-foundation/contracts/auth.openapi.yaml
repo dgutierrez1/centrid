@@ -1,0 +1,309 @@
+openapi: 3.1.0
+info:
+  title: MVP Account Foundation - Authentication API
+  description: Server-side authentication operations for MVP account foundation
+  version: 1.0.0
+  contact:
+    name: Centrid API Team
+
+servers:
+  - url: https://{project_id}.supabase.co/functions/v1
+    description: Supabase Edge Functions (Production)
+    variables:
+      project_id:
+        default: xxx
+        description: Supabase project ID
+  - url: http://localhost:54321/functions/v1
+    description: Local Development
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Authentication
+    description: User authentication operations (signup, login, logout, password reset)
+
+paths:
+  /create-account:
+    post:
+      tags:
+        - Authentication
+      summary: Create new user account
+      description: |
+        Server-side account creation with atomic auth+profile creation.
+
+        **Business Rules**:
+        - Email must be unique (FR-004)
+        - Password minimum 6 characters (FR-003)
+        - Email format validated (FR-002)
+        - Profile auto-created with free plan (FR-007)
+        - Atomic operation with rollback on failure (FR-005, FR-006)
+
+        **Security**:
+        - All validation server-side (FR-001)
+        - No frontend bypass possible
+        - RLS policies auto-applied to profile
+      operationId: createAccount
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: User email address (unique identifier)
+                  example: user@example.com
+                  minLength: 3
+                  maxLength: 255
+                password:
+                  type: string
+                  format: password
+                  description: User password (min 6 characters, stored securely by Supabase Auth)
+                  minLength: 6
+                  maxLength: 255
+                  example: "secure123"
+                firstName:
+                  type: string
+                  description: Optional first name
+                  minLength: 1
+                  maxLength: 100
+                  pattern: ^[a-zA-Z\s'-]+$
+                  example: "John"
+                lastName:
+                  type: string
+                  description: Optional last name
+                  minLength: 1
+                  maxLength: 100
+                  pattern: ^[a-zA-Z\s'-]+$
+                  example: "Doe"
+            examples:
+              full:
+                summary: Signup with full name
+                value:
+                  email: john@example.com
+                  password: securepass123
+                  firstName: John
+                  lastName: Doe
+              firstNameOnly:
+                summary: Signup with first name only
+                value:
+                  email: jane@example.com
+                  password: securepass123
+                  firstName: Jane
+              minimal:
+                summary: Minimal signup (no name)
+                value:
+                  email: bob@example.com
+                  password: pass123
+      responses:
+        '201':
+          description: Account created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - user
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  user:
+                    $ref: '#/components/schemas/User'
+              examples:
+                success:
+                  summary: Successful account creation
+                  value:
+                    success: true
+                    user:
+                      id: "123e4567-e89b-12d3-a456-426614174000"
+                      email: "john@example.com"
+                      created_at: "2025-01-21T10:00:00Z"
+        '400':
+          description: Invalid input (validation failed)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                invalidEmail:
+                  summary: Invalid email format
+                  value:
+                    error: "Invalid email address format"
+                    code: "VALIDATION_ERROR"
+                shortPassword:
+                  summary: Password too short
+                  value:
+                    error: "Password must be at least 6 characters"
+                    code: "VALIDATION_ERROR"
+        '409':
+          description: Email already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                duplicate:
+                  summary: Duplicate email
+                  value:
+                    error: "An account with this email already exists"
+                    code: "DUPLICATE_EMAIL"
+        '500':
+          description: Server error (profile creation failed, auth rolled back)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                profileFailed:
+                  summary: Profile creation failed
+                  value:
+                    error: "Profile creation failed. Please try again."
+                    code: "PROFILE_CREATION_FAILED"
+        '503':
+          description: Authentication service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                serviceDown:
+                  summary: Service temporarily unavailable
+                  value:
+                    error: "Service temporarily unavailable. Please try again."
+                    code: "SERVICE_UNAVAILABLE"
+                    retryable: true
+
+  /auth/callback:
+    get:
+      tags:
+        - Authentication
+      summary: OAuth callback handler
+      description: |
+        Handles OAuth redirects from Supabase Auth (e.g., password reset links).
+        Exchanges auth code for session token.
+      operationId: authCallback
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Authorization code from Supabase
+          example: "xxx-auth-code-xxx"
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [recovery, signup]
+          description: Type of auth operation
+          example: recovery
+      responses:
+        '302':
+          description: Redirect to dashboard after successful authentication
+          headers:
+            Location:
+              schema:
+                type: string
+                example: /dashboard
+        '400':
+          description: Invalid or expired auth code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Supabase JWT token (obtained from signup/login)
+
+  schemas:
+    User:
+      type: object
+      description: User account (from auth.users)
+      required:
+        - id
+        - email
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique user identifier
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        email:
+          type: string
+          format: email
+          description: User email address
+          example: "user@example.com"
+        created_at:
+          type: string
+          format: date-time
+          description: Account creation timestamp
+          example: "2025-01-21T10:00:00Z"
+        last_sign_in_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Last login timestamp
+          example: "2025-01-21T15:30:00Z"
+
+    Error:
+      type: object
+      description: Standard error response
+      required:
+        - error
+        - code
+      properties:
+        error:
+          type: string
+          description: Human-readable error message
+          example: "Invalid email address format"
+        code:
+          type: string
+          description: Machine-readable error code
+          example: "VALIDATION_ERROR"
+        retryable:
+          type: boolean
+          description: Whether the operation can be retried
+          example: true
+        details:
+          type: object
+          description: Additional error details (validation errors, etc.)
+          additionalProperties: true
+
+x-business-rules:
+  - id: FR-001
+    description: Server-side validation only (no frontend bypass)
+  - id: FR-002
+    description: Email must be valid format (RFC 5322)
+  - id: FR-003
+    description: Password minimum 6 characters
+  - id: FR-004
+    description: Email must be unique
+  - id: FR-005
+    description: Account and profile created atomically
+  - id: FR-006
+    description: Auth account rolled back if profile creation fails
+  - id: FR-007
+    description: New profiles default to 'free' plan
+  - id: FR-008
+    description: Usage counter initialized to 0
+
+x-supabase-auth:
+  email_provider: true
+  email_confirmation: false  # Disabled for MVP
+  session_duration: 604800   # 7 days (FR-014)
+  password_requirements:
+    min_length: 6

@@ -1,6 +1,6 @@
 import dynamic from 'next/dynamic';
 import { Button, Input, Textarea, Label, Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter, Badge, Alert, AlertTitle, AlertDescription, Separator } from '@centrid/ui/components';
-import { PageHeader, FeatureCard, BrandLogo, StatCard, EmptyState, SectionHeader, PatternShowcase, GlassCard, ColorSwatch, FeatureGrid, ColorPalette } from '@centrid/ui/features';
+import { PageHeader, BrandLogo, StatCard, EmptyState, SectionHeader, PatternShowcase, FeatureGrid, ColorPalette } from '@centrid/ui/features';
 import { ExampleLoginScreen } from '../components/ExampleLoginScreen';
 
 // Dynamic imports with SSR disabled to prevent hydration errors
@@ -1046,6 +1046,37 @@ export default function DesignShowcase() {
           </p>
           <div className="border border-gray-300 dark:border-gray-700 rounded-lg overflow-hidden">
             <ExampleLoginScreen />
+          </div>
+        </section>
+
+        {/* MVP Account Foundation Feature */}
+        <section>
+          <h2 className="text-2xl font-semibold mb-6 text-gray-900 dark:text-white">
+            Feature Designs
+          </h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+            Complete feature flows with multiple screens and states.
+          </p>
+
+          <div className="grid gap-4">
+            <a href="/account-foundation" className="block">
+              <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+                <CardHeader>
+                  <CardTitle className="text-xl">MVP Account Foundation</CardTitle>
+                  <CardDescription>
+                    Complete authentication and account management flow (7 screens)
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Signup, Login, Password Reset, Dashboard, Profile Settings, Account Deletion
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">
+                    Feature: 002-mvp-account-foundation
+                  </p>
+                </CardContent>
+              </Card>
+            </a>
           </div>
         </section>
       </div>

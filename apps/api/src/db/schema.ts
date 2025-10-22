@@ -1,5 +1,4 @@
 import { pgTable, uuid, text, integer, timestamp, real, jsonb, index, unique } from 'drizzle-orm/pg-core';
-import { sql } from 'drizzle-orm';
 
 /**
  * Database Schema for Centrid MVP
@@ -19,8 +18,9 @@ import { sql } from 'drizzle-orm';
 
 export const userProfiles = pgTable('user_profiles', {
   id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id').notNull().unique(),
-  name: text('name'),
+  userId: uuid('user_id').notNull().unique(), // FK to auth.users(id) ON DELETE CASCADE - see cascadeDeleteSQL below
+  firstName: text('first_name').notNull(), // Required: user must provide during signup for personalization
+  lastName: text('last_name').notNull(), // Required: user must provide during signup for personalization
   planType: text('plan_type').notNull().default('free'),
   usageCount: integer('usage_count').notNull().default(0),
   subscriptionStatus: text('subscription_status').notNull().default('active'),
@@ -36,7 +36,7 @@ export const userProfiles = pgTable('user_profiles', {
 
 export const documents = pgTable('documents', {
   id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id').notNull(),
+  userId: uuid('user_id').notNull(), // FK to auth.users(id) ON DELETE CASCADE - see cascadeDeleteSQL below
   filename: text('filename').notNull(),
   fileType: text('file_type').notNull(),
   fileSize: integer('file_size').notNull(),
@@ -59,7 +59,7 @@ export const documents = pgTable('documents', {
 
 export const documentChunks = pgTable('document_chunks', {
   id: uuid('id').primaryKey().defaultRandom(),
-  documentId: uuid('document_id').notNull(),
+  documentId: uuid('document_id').notNull(), // FK to documents(id) ON DELETE CASCADE - see cascadeDeleteSQL below
   chunkIndex: integer('chunk_index').notNull(),
   content: text('content').notNull(),
   sectionTitle: text('section_title'),
@@ -77,7 +77,7 @@ export const documentChunks = pgTable('document_chunks', {
 
 export const agentRequests = pgTable('agent_requests', {
   id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id').notNull(),
+  userId: uuid('user_id').notNull(), // FK to auth.users(id) ON DELETE CASCADE - see cascadeDeleteSQL below
   agentType: text('agent_type').notNull(),
   content: text('content').notNull(),
   status: text('status').notNull().default('pending'),
@@ -98,7 +98,7 @@ export const agentRequests = pgTable('agent_requests', {
 
 export const agentSessions = pgTable('agent_sessions', {
   id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id').notNull(),
+  userId: uuid('user_id').notNull(), // FK to auth.users(id) ON DELETE CASCADE - see cascadeDeleteSQL below
   requestChain: jsonb('request_chain').notNull().default([]),
   contextState: jsonb('context_state'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
@@ -114,7 +114,7 @@ export const agentSessions = pgTable('agent_sessions', {
 
 export const usageEvents = pgTable('usage_events', {
   id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id').notNull(),
+  userId: uuid('user_id').notNull(), // FK to auth.users(id) ON DELETE CASCADE - see cascadeDeleteSQL below
   eventType: text('event_type').notNull(),
   tokensUsed: integer('tokens_used'),
   cost: real('cost'),
@@ -134,7 +134,7 @@ export const usageEvents = pgTable('usage_events', {
 // Drizzle ORM doesn't have native RLS support, so we define these separately
 
 export const rlsPolicies = {
-  userProfiles: sql`
+  userProfiles: `
     -- Enable RLS on user_profiles
     ALTER TABLE user_profiles ENABLE ROW LEVEL SECURITY;
 
@@ -149,7 +149,7 @@ export const rlsPolicies = {
       USING (auth.uid() = user_id);
   `,
 
-  documents: sql`
+  documents: `
     -- Enable RLS on documents
     ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
 
@@ -174,7 +174,7 @@ export const rlsPolicies = {
       USING (auth.uid() = user_id);
   `,
 
-  documentChunks: sql`
+  documentChunks: `
     -- Enable RLS on document_chunks
     ALTER TABLE document_chunks ENABLE ROW LEVEL SECURITY;
 
@@ -215,7 +215,7 @@ export const rlsPolicies = {
       ));
   `,
 
-  agentRequests: sql`
+  agentRequests: `
     -- Enable RLS on agent_requests
     ALTER TABLE agent_requests ENABLE ROW LEVEL SECURITY;
 
@@ -240,7 +240,7 @@ export const rlsPolicies = {
       USING (auth.uid() = user_id);
   `,
 
-  agentSessions: sql`
+  agentSessions: `
     -- Enable RLS on agent_sessions
     ALTER TABLE agent_sessions ENABLE ROW LEVEL SECURITY;
 
@@ -265,7 +265,7 @@ export const rlsPolicies = {
       USING (auth.uid() = user_id);
   `,
 
-  usageEvents: sql`
+  usageEvents: `
     -- Enable RLS on usage_events
     ALTER TABLE usage_events ENABLE ROW LEVEL SECURITY;
 
@@ -289,7 +289,7 @@ export const rlsPolicies = {
 
 export const triggers = {
   // Automatic updated_at timestamp update
-  updateUpdatedAt: sql`
+  updateUpdatedAt: `
     CREATE OR REPLACE FUNCTION update_updated_at_column()
     RETURNS TRIGGER AS $$
     BEGIN
@@ -321,26 +321,34 @@ export const triggers = {
   `,
 
   // Auto-create user profile on auth.users insert
-  autoCreateProfile: sql`
-    CREATE OR REPLACE FUNCTION create_user_profile()
-    RETURNS TRIGGER AS $$
-    BEGIN
-      INSERT INTO user_profiles (user_id, name)
-      VALUES (NEW.id, NEW.raw_user_meta_data->>'name');
-      RETURN NEW;
-    END;
-    $$ LANGUAGE plpgsql;
+  // NOTE: For MVP account foundation, Edge Function handles profile creation explicitly
+  // with atomic rollback logic (research.md). This trigger is DISABLED to avoid conflicts.
+  // Re-enable post-MVP if Edge Function approach is replaced.
+  autoCreateProfile: `
+    -- DISABLED: Edge Function handles profile creation with rollback
+    -- CREATE OR REPLACE FUNCTION create_user_profile()
+    -- RETURNS TRIGGER AS $$
+    -- BEGIN
+    --   INSERT INTO user_profiles (user_id, first_name, last_name)
+    --   VALUES (
+    --     NEW.id,
+    --     NEW.raw_user_meta_data->>'first_name',
+    --     NEW.raw_user_meta_data->>'last_name'
+    --   );
+    --   RETURN NEW;
+    -- END;
+    -- $$ LANGUAGE plpgsql;
 
-    CREATE TRIGGER on_auth_user_created
-      AFTER INSERT ON auth.users
-      FOR EACH ROW
-      EXECUTE FUNCTION create_user_profile();
+    -- CREATE TRIGGER on_auth_user_created
+    --   AFTER INSERT ON auth.users
+    --   FOR EACH ROW
+    --   EXECUTE FUNCTION create_user_profile();
   `,
 
   // Full-text search vector generation (requires tsvector type)
   // NOTE: Drizzle doesn't support tsvector natively yet
   // This will be handled in a custom migration
-  searchVectors: sql`
+  searchVectors: `
     -- Add tsvector columns if not exists (handled by Drizzle schema)
     -- ALTER TABLE documents ADD COLUMN IF NOT EXISTS search_vector tsvector;
     -- ALTER TABLE document_chunks ADD COLUMN IF NOT EXISTS search_vector tsvector;
@@ -361,3 +369,65 @@ export const triggers = {
       EXECUTE FUNCTION tsvector_update_trigger(search_vector, 'pg_catalog.english', content);
   `,
 };
+
+// ============================================================================
+// CASCADE DELETE FOREIGN KEYS
+// ============================================================================
+// These foreign keys to auth.users must be added separately since auth schema
+// is not managed by Drizzle. Apply this SQL after pushing schema with drizzle-kit.
+// Usage: Run cascadeDeleteSQL via database client or Supabase Dashboard SQL Editor
+
+export const cascadeDeleteSQL = `
+-- Add CASCADE DELETE foreign keys for GDPR compliance
+
+-- User Profiles
+ALTER TABLE user_profiles
+  DROP CONSTRAINT IF EXISTS user_profiles_user_id_fkey;
+ALTER TABLE user_profiles
+  ADD CONSTRAINT user_profiles_user_id_fkey
+  FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+-- Documents
+ALTER TABLE documents
+  DROP CONSTRAINT IF EXISTS documents_user_id_fkey;
+ALTER TABLE documents
+  ADD CONSTRAINT documents_user_id_fkey
+  FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+-- Document Chunks (cascade from documents)
+ALTER TABLE document_chunks
+  DROP CONSTRAINT IF EXISTS document_chunks_document_id_fkey;
+ALTER TABLE document_chunks
+  ADD CONSTRAINT document_chunks_document_id_fkey
+  FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE;
+
+-- Agent Requests
+ALTER TABLE agent_requests
+  DROP CONSTRAINT IF EXISTS agent_requests_user_id_fkey;
+ALTER TABLE agent_requests
+  ADD CONSTRAINT agent_requests_user_id_fkey
+  FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+-- Agent Sessions
+ALTER TABLE agent_sessions
+  DROP CONSTRAINT IF EXISTS agent_sessions_user_id_fkey;
+ALTER TABLE agent_sessions
+  ADD CONSTRAINT agent_sessions_user_id_fkey
+  FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+-- Usage Events
+ALTER TABLE usage_events
+  DROP CONSTRAINT IF EXISTS usage_events_user_id_fkey;
+ALTER TABLE usage_events
+  ADD CONSTRAINT usage_events_user_id_fkey
+  FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+-- Verify CASCADE constraints
+SELECT
+  conname AS constraint_name,
+  conrelid::regclass AS table_name,
+  confrelid::regclass AS references_table
+FROM pg_constraint
+WHERE confdeltype = 'c'  -- 'c' = CASCADE
+ORDER BY conname;
+`;

@@ -97,7 +97,11 @@ All database tables with user data MUST have Row Level Security (RLS) enabled. R
 
 All features MUST target the minimal viable implementation that validates the core hypothesis. Each feature MUST answer: "What is the simplest version that proves this works?" Features MUST be scoped to deliver value in days, not weeks. All architectural decisions MUST favor shipping speed over theoretical perfection. Complex abstractions MUST be deferred until patterns emerge from real usage (Rule of Three: abstract only after third occurrence). "Nice to have" features MUST be explicitly marked and deferred post-MVP.
 
-**Rationale**: Centrid aims to solve the context loss problem for AI workflows - MVP validates this hypothesis as fast as possible. Over-engineering delays validation and wastes effort on features users may not need. Shipping early enables real user feedback which trumps theoretical architecture. The constitution author acknowledges a tendency to over-engineer; this principle provides explicit guardrails. Time-to-market is competitive advantage - complex solutions can be refactored after product-market fit is proven, but over-engineered MVPs never ship.
+**Database Schema Iteration (MVP Phase)**
+
+For MVP, schema MUST be iterated in `apps/api/src/db/schema.ts` using Drizzle ORM. Schema changes MUST be pushed directly to remote database using `drizzle-kit push` (safe to drop/recreate). Migrations MUST be deferred until schema is stable post-MVP. All database operations MUST target remote Supabase (not local). Reusable deploy scripts MUST be created with migration support for future use.
+
+**Rationale**: Centrid aims to solve the context loss problem for AI workflows - MVP validates this hypothesis as fast as possible. Over-engineering delays validation and wastes effort on features users may not need. Shipping early enables real user feedback which trumps theoretical architecture. Schema migrations add complexity during rapid iteration - direct push enables faster changes. The constitution author acknowledges a tendency to over-engineer; this principle provides explicit guardrails. Time-to-market is competitive advantage - complex solutions can be refactored after product-market fit is proven, but over-engineered MVPs never ship.
 
 ### X. Monorepo Architecture
 
@@ -122,13 +126,39 @@ apps/api/
 │   ├── services/          # Business logic (RAG, document processing, AI orchestration)
 │   ├── utils/             # Backend utilities (response formatting, error handling)
 │   ├── lib/               # Shared backend libraries (Supabase client config, etc)
-│   └── functions/         # Supabase Edge Functions
+│   ├── db/                # Database utilities (push, drop, schema)
+│   └── functions/         # Supabase Edge Functions (SINGLE SOURCE OF TRUTH)
+│       ├── create-account/
+│       │   └── index.ts
+│       ├── update-profile/
+│       │   └── index.ts
+│       ├── delete-account/
+│       │   └── index.ts
 │       ├── process-document/
+│       │   └── index.ts
 │       ├── execute-ai-agent/
+│       │   └── index.ts
 │       └── handle-webhook/
+│           └── index.ts
 └── supabase/
-    ├── config.toml        # Supabase config (points to src/functions/)
+    ├── config.toml        # Supabase config with custom entrypoints → ../src/functions/
     └── migrations/        # Database schema and migrations
+```
+
+**Edge Functions Deployment Structure**:
+- **Source Location**: All Edge Function code MUST live in `apps/api/src/functions/[name]/index.ts` (single source of truth)
+- **No Duplication**: There MUST NOT be a `apps/api/supabase/functions/` directory
+- **Custom Entrypoints**: Each function MUST be declared in `apps/api/supabase/config.toml` with custom entrypoint pointing to `../src/functions/[name]/index.ts`
+- **No Auto-Discovery**: Supabase does not support auto-discovery - each function must be explicitly declared in config.toml
+- **Deployment Command**: `npm run deploy:functions` from `apps/api/` deploys all functions to remote Supabase
+
+**Example config.toml function declaration**:
+```toml
+[functions.create-account]
+entrypoint = '../src/functions/create-account/index.ts'
+
+[functions.update-profile]
+entrypoint = '../src/functions/update-profile/index.ts'
 ```
 
 **Import Rules**:
@@ -295,6 +325,8 @@ These patterns are FORBIDDEN:
 - ❌ **Splitting backend code across packages/ and apps/api (keep all server logic in apps/api)**
 - ❌ **apps/api importing from packages/ui (violates boundaries - use packages/shared only)**
 - ❌ **Placing Edge Functions in root supabase/ folder (use apps/api/src/functions)**
+- ❌ **Creating supabase/functions/ directory (duplicates src/functions/ - use custom entrypoints instead)**
+- ❌ **Assuming Supabase auto-discovers functions (must explicitly declare each in config.toml)**
 
 ## Governance
 

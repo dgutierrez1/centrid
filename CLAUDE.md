@@ -92,12 +92,34 @@ supabase gen types typescript # Generate types → ../../packages/shared/src/typ
 
 ### Edge Functions
 
+**Structure**: All Edge Function code lives in `apps/api/src/functions/` (single source of truth). Each function must be declared in `apps/api/supabase/config.toml` with a custom entrypoint pointing to the source.
+
+**Important**: There is NO `apps/api/supabase/functions/` directory. Supabase CLI deploys functions from `src/functions/` using custom entrypoint configuration.
+
 All Edge Function commands run from `apps/api/`:
 
 ```bash
 cd apps/api
-supabase functions deploy <function-name>  # Deploy specific function
-supabase functions serve                    # Serve functions locally
+npm run deploy:functions              # Deploy all functions to remote
+supabase functions serve               # Serve functions locally
+```
+
+**Configuration** (`apps/api/supabase/config.toml`):
+
+```toml
+[edge_runtime]
+enabled = true
+policy = "per_worker"
+
+# Each function must be declared with custom entrypoint
+[functions.create-account]
+entrypoint = '../src/functions/create-account/index.ts'
+
+[functions.update-profile]
+entrypoint = '../src/functions/update-profile/index.ts'
+
+[functions.delete-account]
+entrypoint = '../src/functions/delete-account/index.ts'
 ```
 
 **Creating new Edge Functions**:
@@ -106,7 +128,14 @@ supabase functions serve                    # Serve functions locally
 2. Create `index.ts` with Deno.serve handler
 3. Import shared logic from `apps/api/src/services/`
 4. Import types from `@centrid/shared` (via npm: specifier in Deno)
-5. Update `apps/api/supabase/config.toml` if needed
+5. Add function declaration to `apps/api/supabase/config.toml` with custom entrypoint:
+   ```toml
+   [functions.my-function]
+   entrypoint = '../src/functions/my-function/index.ts'
+   ```
+6. Deploy with `npm run deploy:functions`
+
+**Note**: Supabase does not support auto-discovery of functions. Each function must be explicitly declared in config.toml.
 
 ### /speckit Workflow Commands
 
@@ -127,20 +156,18 @@ See [.specify/design-system/SETUP.md](.specify/design-system/SETUP.md) for desig
 
 ### Backend Environment (`apps/api/.env`)
 
-**Required** for backend/database:
-- `DATABASE_URL` - PostgreSQL connection string from Supabase
-  - Get from: Dashboard → Settings → Database → Connection String
-  - **Port 5432 (Session Mode)**: Use for migrations and local development
-  - **Port 6543 (Transaction Mode)**: Use for Edge Functions in production (set via Supabase Secrets)
+**Required** for backend/database (Remote Supabase):
+- `DATABASE_URL` - PostgreSQL connection string from Supabase Dashboard → Settings → Database
+  - **Port 5432 (Session Mode)**: Use for Drizzle schema push and development
+  - **Port 6543 (Transaction Mode)**: Use for Edge Functions in production (set via Supabase Dashboard → Secrets)
   - **IMPORTANT**: URL-encode special characters in password (! = %21, @ = %40, # = %23, etc.)
 
-**Port Usage Guide**:
 ```bash
-# Development & Migrations (apps/api/.env)
-DATABASE_URL="postgresql://...pooler.supabase.com:5432/postgres"
+# Local .env (apps/api/.env) - for db:push
+DATABASE_URL="postgresql://postgres.PROJECT_REF:PASSWORD@aws-X-XX-X.pooler.supabase.com:5432/postgres"
 
-# Production Edge Functions (set in Supabase Dashboard → Secrets)
-DATABASE_URL="postgresql://...pooler.supabase.com:6543/postgres"
+# Edge Functions Secrets (Supabase Dashboard) - for functions
+DATABASE_URL="postgresql://postgres.PROJECT_REF:PASSWORD@aws-X-XX-X.pooler.supabase.com:6543/postgres"
 ```
 
 ### Frontend Environment (`apps/web/.env`)
@@ -184,14 +211,21 @@ Defined in `apps/api/src/db/schema.ts` using **Drizzle ORM**:
 - Auto user profile creation on signup
 - Migrations in `apps/api/drizzle/migrations/`
 
-**Database Commands**:
+**Database Commands (MVP - Remote Only)**:
 
 ```bash
 cd apps/api
-npx drizzle-kit generate  # Generate migrations from schema
-tsx src/db/migrate.ts      # Run migrations
-npx drizzle-kit push       # Push schema directly (dev only)
+npm run db:drop            # Drop all tables (MVP iteration only)
+npm run db:push            # Push schema to remote DB (auto-approve with --force)
+npm run deploy:functions   # Deploy all Edge Functions to remote
 ```
+
+**MVP Approach**: Schema lives in `apps/api/src/db/schema.ts`. Changes are pushed directly to remote Supabase using Drizzle (`drizzle-kit push --force`). The `--force` flag auto-approves data-loss statements for non-interactive deployment. Safe to drop/recreate during MVP iteration. Migrations deferred until schema is stable post-MVP. Always target remote database (not local).
+
+**Workflow** (clean schema recreation):
+1. `npm run db:drop` - Drop all existing tables with CASCADE
+2. `npm run db:push` - Push new schema and apply CASCADE DELETE foreign keys
+3. `npm run deploy:functions` - Deploy Edge Functions
 
 **AI Agents**:
 
