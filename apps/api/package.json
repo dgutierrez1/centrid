@@ -16,10 +16,15 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@centrid/shared": "workspace:*"
+    "@centrid/shared": "file:../../packages/shared",
+    "drizzle-orm": "^0.44.6",
+    "postgres": "^3.4.7"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
+    "dotenv": "^17.2.3",
+    "drizzle-kit": "^0.31.5",
+    "tsx": "^4.20.6",
     "typescript": "^5.3.0"
   }
 }
