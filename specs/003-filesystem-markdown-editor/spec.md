@@ -44,18 +44,18 @@ A user has multiple documents and wants to organize them into folders. They crea
 
 ### User Story 3 - Three-Panel Desktop Workspace (Priority: P1)
 
-A user working on a desktop computer sees a three-panel layout: file tree on the left, document editor in the center, and AI chat on the right. This layout provides immediate access to all core features without requiring navigation between screens.
+A user working on a desktop computer sees a three-panel layout: file tree on the left, document editor in the center, and AI chat on the right. This layout provides immediate access to all core features without requiring navigation between screens. Smooth transitions between states provide visual feedback without overwhelming the user.
 
 **Why this priority**: The three-panel layout is the core UX paradigm that enables the AI-enhanced workflow. It allows users to reference their files while chatting with AI, creating a seamless context-aware experience. This is the visual foundation for all future AI features.
 
-**Independent Test**: Can be fully tested by opening the application on a desktop browser, verifying all three panels are visible, resizing panels, and confirming each panel functions independently. Delivers the complete workspace foundation.
+**Independent Test**: Can be fully tested by opening the application on a desktop browser, verifying all three panels are visible with fixed proportions, and confirming each panel functions independently. Delivers the complete workspace foundation.
 
 **Acceptance Scenarios**:
 
-1. **Given** a user opens the application on a desktop browser (width > 1024px), **When** the app loads, **Then** three panels are visible: file tree (left, 20% width), editor (center, 50% width), chat (right, 30% width)
-2. **Given** a user viewing the three-panel layout, **When** they drag the divider between panels, **Then** panels resize fluidly with minimum width constraints to prevent collapse
-3. **Given** a user with a document open in the center panel, **When** they type in the AI chat on the right, **Then** both panels remain visible and functional simultaneously
-4. **Given** a user with no document selected, **When** they view the center panel, **Then** they see an empty state with prompts to create or open a document
+1. **Given** a user opens the application on a desktop browser (width > 1024px), **When** the app loads, **Then** three panels are visible with fixed proportions: file tree (left, 20% width), editor (center, 50% width), chat (right, 30% width)
+2. **Given** a user with a document open in the center panel, **When** they type in the AI chat on the right, **Then** both panels remain visible and functional simultaneously
+3. **Given** a user with no document selected, **When** they view the center panel, **Then** they see an empty state with prompts to create or open a document
+4. **Given** a user clicks to open a document, **When** the document loads in the editor, **Then** a subtle fade-in animation provides smooth visual feedback
 
 ---
 
@@ -93,7 +93,25 @@ When a user creates or updates a document, the system automatically processes th
 
 ---
 
-### User Story 6 - Full-Text Search Across Documents (Priority: P3)
+### User Story 6 - Upload Existing Documents (Priority: P2)
+
+A user has existing markdown or text files on their computer and wants to import them into Centrid. They drag and drop files or use a file picker to upload multiple documents, which are then processed and made available in their file tree.
+
+**Why this priority**: Many users will have existing notes, documentation, or content they want to bring into Centrid. This enables migration from other tools and provides immediate value by populating their knowledge base. Essential for adoption.
+
+**Independent Test**: Can be fully tested by preparing markdown/text files locally, uploading them via drag-and-drop or file picker, and verifying they appear in the file tree and are searchable. Delivers complete document import capability.
+
+**Acceptance Scenarios**:
+
+1. **Given** a user viewing the file tree, **When** they click "Upload Documents", **Then** a file picker opens allowing selection of .md and .txt files
+2. **Given** a user has files selected in the picker, **When** they confirm the upload, **Then** files are uploaded with a progress indicator and appear in the file tree upon completion
+3. **Given** a user drags files from their desktop, **When** they drop files onto the file tree or editor area, **Then** files are uploaded and a subtle progress animation shows upload status
+4. **Given** a user uploads a file with a name that already exists, **When** the upload completes, **Then** the system appends a number (e.g., "Document (1)") to avoid conflicts
+5. **Given** uploaded documents contain content, **When** the upload completes, **Then** documents are automatically queued for indexing within 5 seconds
+
+---
+
+### User Story 7 - Full-Text Search Across Documents (Priority: P3)
 
 A user with many documents wants to find specific information. They use the search feature to query across all their documents and receive ranked results with highlighted matches, allowing them to quickly locate relevant content.
 
@@ -113,13 +131,16 @@ A user with many documents wants to find specific information. They use the sear
 ### Edge Cases
 
 - **What happens when a user loses network connection while editing?** Changes continue to queue locally and sync when connection is restored, with conflict resolution if document was modified elsewhere
-- **How does system handle very large files (>10MB)?** System warns users and either prevents upload or implements progressive loading for performance
+- **How does system handle very large files (>10MB)?** System warns users before upload and either prevents upload or implements progressive loading for performance
 - **What happens when a user tries to create a file/folder with duplicate names?** System appends a number (e.g., "Document (1)") or prompts user to choose a different name
 - **How does system handle special characters in file names?** System sanitizes names to prevent filesystem conflicts (e.g., replaces `/` with `-`)
 - **What happens when document indexing fails?** System retries up to 3 times with exponential backoff, then logs error and notifies user via UI message
 - **How does system handle concurrent edits to the same document?** Last-write-wins for MVP, with future consideration for operational transforms or CRDTs
-- **What happens when a user's storage quota is exceeded?** System prevents new document creation and displays quota warning with upgrade prompt
+- **What happens when a user's storage quota is exceeded?** System prevents new document creation/upload and displays quota warning with upgrade prompt
 - **How does system handle markdown rendering errors?** Displays sanitized content with error indicator, preventing XSS while maintaining usability
+- **What happens when a user uploads unsupported file types?** System shows error message indicating only .md and .txt files are supported in MVP
+- **How does system handle bulk uploads of many files?** Files are queued and uploaded sequentially with overall progress indicator, preventing server overload
+- **What happens when upload fails mid-transfer?** User sees error notification with retry option, partial uploads are cleaned up automatically
 
 ## Requirements
 
@@ -133,7 +154,7 @@ A user with many documents wants to find specific information. They use the sear
 - **FR-006**: System MUST persist all file system changes (create, read, update, delete) to the backend immediately
 - **FR-007**: System MUST render markdown content with proper styling (headers, emphasis, code blocks, lists, blockquotes)
 - **FR-008**: System MUST display a file tree view with expand/collapse controls for folders
-- **FR-009**: System MUST support three-panel layout on desktop (file tree, editor, chat) with resizable dividers
+- **FR-009**: System MUST support three-panel layout on desktop (file tree, editor, chat) with fixed proportions
 - **FR-010**: System MUST support single-panel mobile layout with toggle between document and chat views
 - **FR-011**: System MUST sanitize markdown content to prevent XSS attacks while preserving formatting
 - **FR-012**: System MUST process document content for full-text search indexing on creation and updates
@@ -145,6 +166,11 @@ A user with many documents wants to find specific information. They use the sear
 - **FR-018**: System MUST provide visual feedback for save status (saving, saved, error)
 - **FR-019**: System MUST support keyboard shortcuts for common actions (new file: Cmd/Ctrl+N, save: Cmd/Ctrl+S, search: Cmd/Ctrl+F)
 - **FR-020**: System MUST store markdown files with `.md` extension and MIME type `text/markdown`
+- **FR-021**: System MUST allow users to upload markdown (.md) and text (.txt) files from their local filesystem
+- **FR-022**: System MUST support drag-and-drop file upload onto the file tree or editor area
+- **FR-023**: System MUST display upload progress with visual indicators during file transfer
+- **FR-024**: System MUST validate file types and reject unsupported formats with clear error messages
+- **FR-025**: System MUST apply fast, minimal animations to key transitions (document open, folder expand/collapse, view switching) without overwhelming the interface
 
 ### Key Entities
 
@@ -157,34 +183,52 @@ A user with many documents wants to find specific information. They use the sear
 
 #### Screens/Views Needed
 
-- **Main Workspace (Desktop)**: Three-panel layout with persistent visibility of file tree, editor, and chat
+- **Main Workspace (Desktop)**: Three-panel layout with fixed proportions and persistent visibility of file tree, editor, and chat
 - **Main Workspace (Mobile)**: Single-panel focus view with bottom navigation to toggle between document and chat
-- **File Tree Panel**: Hierarchical tree view with expand/collapse, context menus, and drag-and-drop support
+- **File Tree Panel**: Hierarchical tree view with expand/collapse, context menus, drag-and-drop support, and upload button
 - **Document Editor Panel**: Markdown editor with formatting toolbar, preview mode toggle, and save status indicator
-- **Empty State (Editor)**: Welcoming message with "Create New Document" and "Open Existing Document" prompts when no document is selected
-- **Empty State (File Tree)**: Guidance for new users to create their first document or folder
+- **Upload Interface**: File picker dialog and drag-and-drop zone with upload progress indicators
+- **Empty State (Editor)**: Welcoming message with "Create New Document", "Open Existing Document", and "Upload Files" prompts when no document is selected
+- **Empty State (File Tree)**: Guidance for new users to create their first document, folder, or upload existing files
 - **Search Results View**: Modal or slide-out panel showing ranked search results with highlighted matches
 
 #### Key Interactive Elements
 
 - **Formatting Toolbar**: Buttons for bold, italic, headers (H1-H6), bullet lists, numbered lists, code blocks, links, images - each toggles markdown syntax
-- **File Tree Node**: Clickable folder/file items with expand/collapse arrows for folders, context menu on right-click, drag handle for reordering
-- **Context Menu**: Right-click menu with options: New File, New Folder, Rename, Delete, Move To - adapts based on selected node type
-- **Panel Dividers**: Draggable resize handles between panels with snap-to-minimum-width behavior
+- **File Tree Node**: Clickable folder/file items with expand/collapse arrows for folders (with smooth rotation animation), context menu on right-click, drag handle for reordering
+- **Context Menu**: Right-click menu with options: New File, New Folder, Upload Files, Rename, Delete, Move To - adapts based on selected node type
+- **Upload Button**: Primary action button in file tree toolbar that opens file picker for .md and .txt files
+- **Drag-and-Drop Zone**: Visual feedback when dragging files over file tree or editor (highlight drop zone with subtle border animation)
+- **Upload Progress Indicator**: Linear progress bar or percentage indicator showing upload status for individual or batch uploads
 - **Save Indicator**: Icon in editor toolbar showing status (cloud with checkmark = saved, animated cloud = saving, exclamation = error)
-- **Mobile Toggle**: Bottom navigation bar with icons for Document and Chat views, highlighting active view
+- **Mobile Toggle**: Bottom navigation bar with icons for Document and Chat views, highlighting active view with smooth transition
 
 #### Responsive Requirements
 
 - **Mobile Priority**: Focus on single-task views (either editing OR chatting), prioritize file tree as overlay to maximize content space, ensure touch targets are minimum 44x44px
-- **Desktop Enhancements**: Multi-panel simultaneous visibility, keyboard shortcuts, drag-and-drop between panels, panel resize for user preference
+- **Desktop Enhancements**: Multi-panel simultaneous visibility with fixed proportions, keyboard shortcuts, drag-and-drop between panels and for file uploads
+
+#### Animation Guidelines
+
+- **Principle**: Fast, fluid, minimal - animations enhance usability without overwhelming users
+- **Duration**: 150-250ms for most transitions (quick enough to feel instant, slow enough to provide visual feedback)
+- **Key Transitions**:
+  - Document open/close: Subtle fade-in (200ms) when document loads in editor
+  - Folder expand/collapse: Arrow rotation (150ms) and content slide-down (200ms)
+  - View switching (mobile): Slide transition (250ms) when toggling between document and chat
+  - File tree updates: Fade-in (150ms) for newly created/uploaded items
+  - Save status: Icon morph animation (200ms) when state changes
+  - Drag-and-drop: Drop zone border pulse (continuous during drag, 150ms completion)
+- **No Animation**: Static text rendering, toolbar interactions, scroll behavior
+- **Reduced Motion**: System respects user's prefers-reduced-motion setting by disabling non-essential animations
 
 #### Critical States
 
-- **Loading**: Skeleton screens for file tree while loading structure, spinner in editor when opening large documents, progress indicator for search queries
-- **Error**: Inline error messages in editor for save failures with retry action, toast notifications for file operation errors with undo option
-- **Empty**: Welcoming empty states with clear call-to-action buttons and helpful guidance for new users
-- **Success**: Subtle toast notifications for successful operations (document created, file moved), green checkmark in save indicator
+- **Loading**: Skeleton screens for file tree while loading structure, spinner in editor when opening large documents, progress indicator for search queries and file uploads
+- **Error**: Inline error messages in editor for save failures with retry action, toast notifications for file operation errors (including upload failures) with undo/retry options
+- **Empty**: Welcoming empty states with clear call-to-action buttons (Create, Upload, Open) and helpful guidance for new users
+- **Success**: Subtle toast notifications for successful operations (document created, file moved, upload completed), green checkmark in save indicator
+- **Uploading**: Progress bar or percentage indicator for active uploads, ability to continue working while upload happens in background
 
 #### Accessibility Priorities
 
@@ -198,19 +242,22 @@ A user with many documents wants to find specific information. They use the sear
 
 - **SC-001**: Users can create a new document and begin editing within 3 seconds of clicking "New Document"
 - **SC-002**: Auto-save successfully persists changes with 99%+ reliability, preventing data loss
-- **SC-003**: File tree operations (create, rename, delete, move) complete within 1 second of user action
+- **SC-003**: File tree operations (create, rename, delete, move) complete within 1 second of user action with smooth visual feedback
 - **SC-004**: Document search returns relevant results in under 1 second for document collections up to 1000 files
-- **SC-005**: Three-panel desktop layout maintains usability at screen widths from 1024px to 2560px without horizontal scrolling
+- **SC-005**: Three-panel desktop layout with fixed proportions maintains usability at screen widths from 1024px to 2560px without horizontal scrolling
 - **SC-006**: Mobile interface remains functional and usable on devices from 320px to 768px width
 - **SC-007**: Users can edit documents offline and changes sync automatically when connection is restored
 - **SC-008**: Markdown rendering displays correctly for all standard markdown syntax (headers, emphasis, lists, code, links, blockquotes)
 - **SC-009**: 90% of users successfully create, organize, and edit documents without encountering errors in their first session
 - **SC-010**: Document indexing completes within 60 seconds for 50-page documents, enabling immediate search availability
+- **SC-011**: File uploads complete within 5 seconds for typical markdown files (<1MB) with clear progress indication
+- **SC-012**: Users can upload multiple files simultaneously and continue working while upload happens in background
+- **SC-013**: All animations complete within 150-250ms, providing visual feedback without feeling sluggish or overwhelming
 
 ## Assumptions
 
-- Users will primarily create text-based markdown documents, not large binary files
-- Maximum individual document size will be reasonable (<10MB) for in-browser editing
+- Users will primarily create or upload text-based markdown documents, not large binary files
+- Maximum individual document size will be reasonable (<10MB) for in-browser editing and upload
 - Users understand basic markdown syntax or will learn through the formatting toolbar
 - Network latency for API requests will be <500ms under normal conditions
 - Users will organize documents into folders rather than maintaining flat structure
@@ -219,16 +266,21 @@ A user with many documents wants to find specific information. They use the sear
 - Mobile users will tolerate single-panel focus view rather than attempting multi-panel complexity
 - Document content will be primarily English for MVP (affects search stemming and language detection)
 - Users will not require real-time collaborative editing in MVP (deferred to future versions)
+- Fixed panel proportions (20/50/30) will work for most users in MVP, customization can be added post-MVP
+- Subtle animations (150-250ms) will enhance UX without causing motion sickness or distraction
+- Most uploaded files will be .md or .txt format, with larger file type support deferred to post-MVP
 
 ## Dependencies
 
 - Authentication system must be operational to enforce user isolation and document ownership
 - Backend storage system must support hierarchical folder structures
 - Backend must provide endpoints for CRUD operations on documents and folders
+- Backend must provide file upload endpoint with multipart form data support
 - Full-text search indexing requires background job processing capability
-- Real-time updates may require websocket or polling infrastructure for save status
+- Real-time updates may require websocket or polling infrastructure for save status and upload progress
 - Markdown rendering library must sanitize content to prevent XSS
 - Rich text editor component must support extensibility for future diff/merge UI
+- File storage service must handle .md and .txt files with proper MIME type validation
 
 ## Out of Scope (Post-MVP)
 
@@ -242,6 +294,7 @@ A user with many documents wants to find specific information. They use the sear
 - Document tagging and advanced metadata
 - Bulk operations (move multiple files, batch delete)
 - Trash/recycle bin with recovery
-- File upload from local filesystem (copy-paste, drag-drop of external files)
+- Resizable panel widths (fixed proportions for MVP, customization deferred)
 - Custom themes and editor preferences
 - Syntax highlighting for code blocks in editor mode
+- Upload of file types beyond .md and .txt (PDF, DOCX processing deferred)
