@@ -1,6 +1,43 @@
+# Dependencies
 /node_modules
+node_modules/
 /dist
 /build
 /coverage
 
+# OS
 .DS_Store
+Thumbs.db
+
+# Environment variables (contains secrets)
+# Frontend
+apps/web/.env
+apps/web/.env.local
+apps/web/.env*.local
+
+# Backend
+apps/api/.env
+apps/api/.env.local
+
+# Supabase
+.supabase/
+
+# Drizzle (migrations are committed, but generated files can be ignored)
+# apps/api/drizzle/migrations/ - DO NOT IGNORE, these should be committed
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Temporary files
+*.tmp
+.cache/

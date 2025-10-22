@@ -125,24 +125,46 @@ See [.specify/design-system/SETUP.md](.specify/design-system/SETUP.md) for desig
 
 ## Environment Configuration
 
-Copy `env.example` to `.env.local`:
+### Backend Environment (`apps/api/.env`)
 
-**Required**:
+**Required** for backend/database:
+- `DATABASE_URL` - PostgreSQL connection string from Supabase
+  - Get from: Dashboard → Settings → Database → Connection String
+  - **Port 5432 (Session Mode)**: Use for migrations and local development
+  - **Port 6543 (Transaction Mode)**: Use for Edge Functions in production (set via Supabase Secrets)
+  - **IMPORTANT**: URL-encode special characters in password (! = %21, @ = %40, # = %23, etc.)
 
+**Port Usage Guide**:
+```bash
+# Development & Migrations (apps/api/.env)
+DATABASE_URL="postgresql://...pooler.supabase.com:5432/postgres"
+
+# Production Edge Functions (set in Supabase Dashboard → Secrets)
+DATABASE_URL="postgresql://...pooler.supabase.com:6543/postgres"
+```
+
+### Frontend Environment (`apps/web/.env`)
+
+**Required** for frontend:
 - `NEXT_PUBLIC_SUPABASE_URL` - Supabase project URL
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Anon key
 - `SUPABASE_SERVICE_ROLE_KEY` - Service role (server-side only)
+
+**Optional** (for AI features):
 - `OPENAI_API_KEY` - For Create/Edit agents
 - `ANTHROPIC_API_KEY` - For Research agent
 
 **Optional** (for payments):
-
 - `MERCADO_PAGO_ACCESS_TOKEN`
 - `MERCADO_PAGO_WEBHOOK_SECRET`
 
+**Note**: Next.js loads .env files in this order (later files override earlier):
+1. `apps/web/.env` (all environments)
+2. `apps/web/.env.local` (local overrides, not committed)
+
 ## Database Schema
 
-Defined in `apps/api/supabase/migrations/`:
+Defined in `apps/api/src/db/schema.ts` using **Drizzle ORM**:
 
 **Core Tables**:
 
@@ -155,10 +177,21 @@ Defined in `apps/api/supabase/migrations/`:
 
 **Features**:
 
+- Type-safe schema definitions with Drizzle ORM
 - Automatic `tsvector` generation for full-text search
 - Row Level Security (RLS) enforces user isolation
 - Automatic `updated_at` triggers
 - Auto user profile creation on signup
+- Migrations in `apps/api/drizzle/migrations/`
+
+**Database Commands**:
+
+```bash
+cd apps/api
+npx drizzle-kit generate  # Generate migrations from schema
+tsx src/db/migrate.ts      # Run migrations
+npx drizzle-kit push       # Push schema directly (dev only)
+```
 
 **AI Agents**:
 

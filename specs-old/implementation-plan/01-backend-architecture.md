@@ -153,47 +153,6 @@ Define the **simplified MVP backend architecture** needed to fulfill core system
 4. **State Synchronization**: Valtio state updates trigger UI re-renders
 5. **Conflict Resolution**: Last-write-wins with timestamp-based resolution
 
-## 📁 **PROJECT STRUCTURE**
-
-### **Backend/Edge Functions Structure**
-
-```
-supabase/
-├── functions/
-│   ├── process-document/         # File processing & text indexing
-│   ├── execute-ai-agent/         # AI agent orchestration
-│   ├── text-search/              # Full-text search operations
-│   ├── billing-webhook/          # Mercado Pago webhook handling
-│   └── sync-operations/          # Cross-device synchronization
-├── migrations/
-│   ├── 20240115000001_init_schema.sql
-│   ├── 20240115000002_create_rls_policies.sql
-│   └── 20240115000003_create_indexes.sql
-└── config.toml                  # Supabase configuration
-```
-
-### **Frontend Application Structure**
-
-```
-src/
-├── lib/
-│   ├── supabase.ts              # Supabase client setup
-│   ├── validation.ts            # Zod schemas
-│   ├── state.ts                 # Valtio global state
-│   └── queries.ts               # Enhanced query functions
-├── components/
-│   ├── agents/                  # AI agent interfaces
-│   ├── documents/               # Document management
-│   └── ui/                      # Shared UI components
-├── pages/
-│   ├── api/                     # API route handlers (if needed)
-│   ├── auth/                    # Authentication pages
-│   ├── dashboard/               # Main application
-│   └── settings/                # User preferences
-└── types/
-    └── database.types.ts        # Auto-generated from Supabase
-```
-
 ## 🚀 **DEPLOYMENT ARCHITECTURE**
 
 ### **Development Environment**
@@ -247,8 +206,6 @@ src/
 
 - **Supabase Analytics**: Built-in database and function monitoring
 - **Vercel Analytics**: Frontend performance and user behavior
-- **Sentry**: Error tracking and performance monitoring
-- **Custom Metrics**: Business KPIs, conversion tracking, agent success rates
 
 ## 📊 **TECHNICAL REQUIREMENTS**
 
@@ -266,11 +223,10 @@ src/
 - **Edge Functions**: Auto-scaling Deno runtime across global regions
 - **Storage**: Supabase Storage with CDN for global file delivery
 - **Connection Pooling**: Built-in Supabase connection management
-- **Caching**: Multi-level caching (browser, CDN, database query cache)
 
 ### **Security Requirements**
 
-- **Authentication**: Supabase Auth with social logins + email/password
+- **Authentication**: Supabase Auth
 - **Authorization**: Database-level Row Level Security (RLS) policies
 - **Data Protection**: AES-256 encryption at rest, TLS 1.3 in transit
 - **Input Validation**: Zod schemas for runtime type safety
@@ -292,7 +248,6 @@ src/
 
 - **Database**: PostgreSQL with built-in full-text search for fast document queries
 - **Real-time**: Built-in subscriptions eliminate WebSocket server management
-- **Authentication**: Zero-configuration social logins and session management
 - **Edge Functions**: Unlimited execution time for complex AI operations
 - **Global Distribution**: Automatic worldwide deployment without configuration
 
@@ -300,50 +255,14 @@ src/
 
 - **Type Safety**: Auto-generated types + Zod runtime validation prevent bugs
 - **State Management**: Valtio provides reactive state with minimal boilerplate
-- **Query Enhancement**: postgres.js enables complex operations when needed
 - **Bundle Optimization**: ~120KB total vs 400KB+ traditional stacks
 
 #### **AI Integration Architecture**
 
-- **Multi-Model**: GPT-4o for general tasks, Claude for analysis, GPT-4o-mini for speed
-- **Context Management**: 6000 token limit with intelligent relevance filtering
-- **Real-time Progress**: Sub-second updates for long-running operations
-- **Cost Optimization**: Model selection based on complexity and user preferences
+- claude agent sdk
 
 ### **Scalability Strategy**
 
 - **MVP**: Single Supabase instance handles 1,000+ concurrent users
 - **Growth**: Built-in auto-scaling, connection pooling, global edge deployment
 - **Enterprise**: No rewrites needed - all tools scale naturally
-- **Migration Path**: Enhanced tooling layers on top of Supabase foundation
-
----
-
-## 📊 **SUCCESS CRITERIA**
-
-### **Technical Performance**
-
-- **API Response Time**: <300ms for standard queries, <10s for AI operations
-- **Text Search Performance**: <300ms for full-text queries across 10,000+ documents
-- **Real-time Latency**: <100ms for live progress updates
-- **Uptime**: 99.5% availability with automatic failover
-- **Scalability**: Support 1,000+ concurrent users without performance degradation
-
-### **Business Requirements Fulfillment**
-
-- **Agent Execution**: Support all agent types (Create, Edit, Research) with 85%+ user approval
-- **Document Processing**: Handle all required formats (Markdown, Text, PDF) up to 10MB
-- **Multi-format Support**: Process and search across all document types seamlessly
-- **Real-time Updates**: Live progress for all long-running operations
-- **Cross-platform**: 90% code sharing between web and mobile platforms
-
-### **Security & Compliance**
-
-- **Data Protection**: AES-256 encryption, GDPR compliance, secure file handling
-- **Authentication**: Support all required methods (Google, Apple, GitHub, email/password)
-- **Authorization**: Database-level access control with Row Level Security
-- **Usage Control**: Real-time quota enforcement and billing integration
-
----
-
-**This backend architecture provides the foundation to fulfill all system requirements for Centrid - delivering a mobile-first AI agent workspace with enterprise-grade security and performance.**
