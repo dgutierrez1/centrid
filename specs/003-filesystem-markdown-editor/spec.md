@@ -211,15 +211,18 @@ A user with many documents wants to find specific information. They use the sear
 #### Animation Guidelines
 
 - **Principle**: Fast, fluid, minimal - animations enhance usability without overwhelming users
-- **Duration**: 150-250ms for most transitions (quick enough to feel instant, slow enough to provide visual feedback)
+- **Desktop Duration**: 150-250ms for most transitions (quick enough to feel instant, slow enough to provide visual feedback)
+- **Mobile Duration**: 100-150ms for all transitions (very fast and snappy to match native app expectations)
 - **Key Transitions**:
-  - Document open/close: Subtle fade-in (200ms) when document loads in editor
-  - Folder expand/collapse: Arrow rotation (150ms) and content slide-down (200ms)
-  - View switching (mobile): Slide transition (250ms) when toggling between document and chat
-  - File tree updates: Fade-in (150ms) for newly created/uploaded items
-  - Save status: Icon morph animation (200ms) when state changes
-  - Drag-and-drop: Drop zone border pulse (continuous during drag, 150ms completion)
+  - Document open/close: Subtle fade-in (200ms desktop, 120ms mobile) when document loads in editor
+  - Folder expand/collapse: Arrow rotation (150ms desktop, 100ms mobile) and content slide-down (200ms desktop, 120ms mobile)
+  - View switching (mobile): Slide transition (150ms) when toggling between document and chat - must feel instant
+  - File tree updates: Fade-in (150ms desktop, 100ms mobile) for newly created/uploaded items
+  - Save status: Icon morph animation (200ms desktop, 120ms mobile) when state changes
+  - Drag-and-drop: Drop zone border pulse (continuous during drag, 150ms desktop / 100ms mobile completion)
+  - Mobile overlay: File tree slide-in/out (150ms) with slight easing for smooth feel
 - **No Animation**: Static text rendering, toolbar interactions, scroll behavior
+- **Mobile Optimization**: All mobile animations prioritize speed over smoothness to feel native and responsive
 - **Reduced Motion**: System respects user's prefers-reduced-motion setting by disabling non-essential animations
 
 #### Critical States
@@ -252,7 +255,8 @@ A user with many documents wants to find specific information. They use the sear
 - **SC-010**: Document indexing completes within 60 seconds for 50-page documents, enabling immediate search availability
 - **SC-011**: File uploads complete within 5 seconds for typical markdown files (<1MB) with clear progress indication
 - **SC-012**: Users can upload multiple files simultaneously and continue working while upload happens in background
-- **SC-013**: All animations complete within 150-250ms, providing visual feedback without feeling sluggish or overwhelming
+- **SC-013**: Desktop animations complete within 150-250ms, providing visual feedback without feeling sluggish
+- **SC-014**: Mobile animations complete within 100-150ms, feeling instant and snappy like native mobile apps
 
 ## Assumptions
 
@@ -267,7 +271,8 @@ A user with many documents wants to find specific information. They use the sear
 - Document content will be primarily English for MVP (affects search stemming and language detection)
 - Users will not require real-time collaborative editing in MVP (deferred to future versions)
 - Fixed panel proportions (20/50/30) will work for most users in MVP, customization can be added post-MVP
-- Subtle animations (150-250ms) will enhance UX without causing motion sickness or distraction
+- Desktop animations (150-250ms) will enhance UX without causing motion sickness or distraction
+- Mobile animations (100-150ms) will feel native and responsive, matching user expectations from mobile apps
 - Most uploaded files will be .md or .txt format, with larger file type support deferred to post-MVP
 
 ## Dependencies

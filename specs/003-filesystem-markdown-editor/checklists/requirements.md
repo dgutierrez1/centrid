@@ -34,13 +34,13 @@
 **Validation Notes**:
 - No [NEEDS CLARIFICATION] markers present - all requirements use reasonable defaults
 - All 25 functional requirements are testable with clear acceptance criteria (added FR-021 through FR-025 for uploads and animations)
-- Success criteria include specific metrics (13 total, including upload performance and animation timing)
+- Success criteria include specific metrics (14 total, including upload performance and platform-specific animation timing)
 - Success criteria avoid implementation details (focused on user-facing outcomes)
 - All 7 user stories have detailed acceptance scenarios (added upload story as P2)
 - 11 edge cases identified with resolution strategies (added upload-specific cases)
 - Out of Scope section clearly bounds what's excluded from MVP (including resizable panels)
 - Dependencies section lists 9 required capabilities (added upload and storage dependencies)
-- Assumptions section documents 13 reasonable defaults (added animation and upload assumptions)
+- Assumptions section documents 14 reasonable defaults (added animation and upload assumptions, including mobile-specific performance)
 
 ---
 
@@ -54,9 +54,9 @@
 **Validation Notes**:
 - Each of the 7 user stories maps to multiple functional requirements
 - Primary flows covered: document creation/editing (P1), file organization (P1), workspace layout (P1), upload (P2), mobile adaptation (P2), indexing (P2), search (P3)
-- 13 success criteria align with functional requirements
+- 14 success criteria align with functional requirements
 - Spec maintains technology-agnostic language throughout
-- Animation guidelines provide clear constraints (150-250ms) without dictating implementation
+- Animation guidelines provide clear platform-specific constraints (150-250ms desktop, 100-150ms mobile) without dictating implementation
 
 ---
 
@@ -78,9 +78,10 @@
 **Recent Changes (2025-10-22)**:
 - Added User Story 6: Upload Existing Documents (P2)
 - Added 5 new functional requirements (FR-021 to FR-025) for upload and animations
-- Added 3 new success criteria (SC-011 to SC-013) for upload performance and animation timing
+- Added 4 new success criteria (SC-011 to SC-014) for upload performance and platform-specific animation timing
 - Added 3 new edge cases for upload failure scenarios
-- Added Animation Guidelines subsection with timing specifications
+- Added Animation Guidelines subsection with platform-specific timing specifications (desktop: 150-250ms, mobile: 100-150ms)
+- Specified mobile animations as "very fast and snappy" (100-150ms) to match native app expectations
 - Removed resizable panels from MVP (moved to Out of Scope)
 - Updated UI/UX requirements to include upload interface and animation details
 
@@ -88,4 +89,5 @@
 - Consider breaking P1 stories into separate implementation phases (editor first, then file tree, then layout)
 - Document indexing (P2) and upload (P2) can run in parallel with UI development
 - Mobile interface (P2) can be deferred until desktop MVP is validated
-- Animation timing (150-250ms) should be consistent across all transitions for coherent UX
+- Animation timing should be platform-specific: desktop (150-250ms) for smooth feedback, mobile (100-150ms) for native-like snappiness
+- Mobile animation performance is critical for user satisfaction - must feel instant, not sluggish
