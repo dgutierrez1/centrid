@@ -1,28 +1,29 @@
 <!--
 Sync Impact Report:
-- Version: 1.4.0 → 1.5.0
-- Rationale: MINOR bump - Added Principle XII (Defense-in-Depth Security) and Principle XIII (Clean Code & Maintainability). Expanded security guidelines with frontend/backend boundaries, input validation, and secure-by-default patterns. Added code quality standards covering clean architecture, reusability, and maintainability best practices.
+- Version: 1.5.0 → 1.6.0
+- Rationale: MINOR bump - Added Principle XIV (RESTful API Design) and Principle XV (Principle of Least Privilege). Enhanced API design standards with REST constraints, HTTP semantics, and resource modeling. Added access control principle with minimal permissions, time-bounded access, and privilege escalation controls.
 - Modified principles:
-  - Principle VIII (Zero-Trust Data Access via RLS): Enhanced with frontend security boundaries and attack surface minimization
-  - Anti-Patterns: Added security and code quality anti-patterns
-  - Success Metrics: Added security audit and code quality metrics
-  - Compliance Review: Added security audit and code review checkpoints
+  - Principle VIII (Zero-Trust Data Access via RLS): Cross-referenced with new Least Privilege principle for complementary security layers
+  - Principle XII (Defense-in-Depth Security): Cross-referenced with Least Privilege for access control depth
+  - Anti-Patterns: Added RESTful API anti-patterns and least privilege violations
+  - Success Metrics: Added API design metrics and access control audit metrics
+  - Compliance Review: Added API design review and access control audit checkpoints
 - Added sections:
-  - Principle XII: Defense-in-Depth Security (comprehensive security layers)
-  - Principle XIII: Clean Code & Maintainability (architecture and quality standards)
-  - Security anti-patterns (15+ new patterns)
-  - Code quality anti-patterns (12+ new patterns)
-  - Security metrics (audit frequency, vulnerability response)
-  - Code quality metrics (cyclomatic complexity, test coverage guidance)
+  - Principle XIV: RESTful API Design (HTTP semantics, resource modeling, stateless design)
+  - Principle XV: Principle of Least Privilege (minimal access, time-bounded permissions, privilege escalation controls)
+  - RESTful API anti-patterns (10+ new patterns)
+  - Least privilege anti-patterns (8+ new patterns)
+  - API design metrics (endpoint compliance, HTTP status correctness)
+  - Access control metrics (privilege review frequency, escalation tracking)
 - Removed sections: None
 - Templates status:
   ✅ plan-template.md: Constitution Check section compatible (gates apply to new principles)
-  ✅ spec-template.md: Requirements sections support security and quality requirements
-  ✅ tasks-template.md: Task structure supports security and quality verification tasks
+  ✅ spec-template.md: Requirements sections support API design and security requirements
+  ✅ tasks-template.md: Task structure supports API design and access control verification tasks
 - Follow-up TODOs:
-  - Add security audit checklist template if comprehensive security reviews are needed
-  - Consider ESLint/Prettier configuration documentation for code quality enforcement
-  - Update CLAUDE.md with security best practices if runtime guidance needed
+  - Consider API design checklist for OpenAPI spec validation
+  - Consider access control audit template for privilege review process
+  - Update CLAUDE.md with RESTful API best practices if runtime guidance needed
 -->
 
 # Centrid Constitution
@@ -95,7 +96,7 @@ All database tables with user data MUST have Row Level Security (RLS) enabled. R
 
 Frontend code MUST assume it is untrusted and hostile. Frontend MUST NOT contain sensitive business logic that could be bypassed. Frontend validation MUST be for UX only (instant feedback) - backend MUST re-validate all inputs. Frontend MUST NOT have access to SERVICE_ROLE_KEY or admin credentials. Frontend MUST use ANON_KEY which enforces RLS policies. API keys in frontend MUST be public-safe keys only (NEXT_PUBLIC_SUPABASE_ANON_KEY). Sensitive operations (payments, admin actions, cross-user operations) MUST be implemented in Edge Functions, never in frontend.
 
-**Rationale**: Database-level security cannot be bypassed - more secure than application-level checks. RLS automatically filters all queries. Even direct database access respects policies. Security is enforced, not just checked. Frontend is inherently untrusted - any logic in frontend JavaScript can be read, modified, or bypassed by users. Defense-in-depth means frontend provides convenience, backend enforces security. Critical for user trust and data privacy.
+**Rationale**: Database-level security cannot be bypassed - more secure than application-level checks. RLS automatically filters all queries. Even direct database access respects policies. Security is enforced, not just checked. Frontend is inherently untrusted - any logic in frontend JavaScript can be read, modified, or bypassed by users. Defense-in-depth means frontend provides convenience, backend enforces security. Critical for user trust and data privacy. Works in conjunction with Principle XV (Least Privilege) to minimize access at all layers.
 
 ### IX. MVP-First Discipline
 
@@ -211,7 +212,7 @@ All external inputs MUST be validated before processing. User-provided content M
 
 Public APIs MUST require authentication unless explicitly designed as public endpoints. Error messages MUST NOT leak sensitive information (stack traces, database details, file paths). CORS policies MUST be restrictive (allow only known origins). Dependencies MUST be regularly updated for security patches. Third-party code MUST be reviewed before integration. Debug/development features MUST be disabled in production. Environment-specific secrets MUST be isolated (dev vs production keys).
 
-**Rationale**: Single-layer security is fragile - one bypass compromises the entire system. Defense-in-depth ensures that breaching one layer doesn't grant full access. Frontend is the most vulnerable layer (fully client-controlled), so it must only provide convenience. Database RLS is the most reliable layer since it cannot be bypassed even with direct database access. Proper input validation prevents injection attacks, XSS, and data corruption. Minimizing attack surface reduces the number of potential vulnerability points. Security is everyone's responsibility but must be enforced architecturally, not just culturally.
+**Rationale**: Single-layer security is fragile - one bypass compromises the entire system. Defense-in-depth ensures that breaching one layer doesn't grant full access. Frontend is the most vulnerable layer (fully client-controlled), so it must only provide convenience. Database RLS is the most reliable layer since it cannot be bypassed even with direct database access. Proper input validation prevents injection attacks, XSS, and data corruption. Minimizing attack surface reduces the number of potential vulnerability points. Security is everyone's responsibility but must be enforced architecturally, not just culturally. Works in conjunction with Principle XV (Least Privilege) to create comprehensive security posture.
 
 ### XIII. Clean Code & Maintainability
 
@@ -232,6 +233,46 @@ File organization MUST follow consistent patterns (feature-based or layer-based,
 Shared utilities MUST live in `packages/shared/utils/`. Shared types MUST live in `packages/shared/types/`. Shared UI components MUST live in `packages/ui/components/`. Business logic used by multiple Edge Functions MUST live in `apps/api/src/services/`. Helper functions MUST be extracted when used 3+ times (Rule of Three). Generic solutions MUST be preferred over specific ones when complexity is similar. Reusable code MUST have clear, documented contracts (JSDoc for complex functions).
 
 **Rationale**: Clean code reduces cognitive load, making the codebase easier to understand and modify. Maintainability determines long-term velocity - messy code slows development over time. Clear architecture prevents accidental coupling and makes refactoring safe. Reusability reduces duplication, bugs, and inconsistency. Following these practices pays dividends as the codebase grows. MVP-first doesn't mean messy code - it means simple, clear solutions over complex, "clever" ones. Good code is code that's easy to delete and replace when requirements change.
+
+### XIV. RESTful API Design
+
+**HTTP Semantics & Resource Modeling**
+
+All Edge Functions that expose APIs MUST follow RESTful principles. Resources MUST be modeled as nouns (e.g., `/documents`, `/chats`, `/users`) not verbs. HTTP methods MUST be used correctly: GET (read), POST (create), PUT/PATCH (update), DELETE (remove). GET requests MUST be idempotent and safe (no side effects). POST/PUT/DELETE operations MUST be idempotent where possible. HTTP status codes MUST be used correctly: 200 (success), 201 (created), 204 (no content), 400 (client error), 401 (unauthorized), 403 (forbidden), 404 (not found), 422 (validation error), 500 (server error). Response bodies MUST use consistent JSON structure with clear success/error formats.
+
+**Stateless Design**
+
+API endpoints MUST be stateless - all necessary information MUST be included in each request. Server-side session state MUST NOT be relied upon for API calls. Authentication MUST use stateless JWT tokens. Request context MUST be self-contained (headers, query params, body). Pagination state MUST be cursor-based or offset-based, not server-stored session. This enables horizontal scaling and simplifies caching.
+
+**API Contracts & Documentation**
+
+All API endpoints MUST be documented with OpenAPI/Swagger specifications in `specs/[feature]/contracts/`. Request/response schemas MUST be defined using Zod and auto-generate TypeScript types. Breaking changes MUST be versioned (e.g., `/v1/documents`, `/v2/documents`). Backward compatibility MUST be maintained within a major version. Error responses MUST include machine-readable error codes and human-readable messages. API examples MUST be provided in documentation.
+
+**Resource Hierarchy & Relationships**
+
+Nested resources MUST follow logical hierarchies (e.g., `/users/{userId}/documents/{documentId}`). Sub-resources MUST be accessible both through parent (`/users/{id}/documents`) and independently (`/documents` with filtering). Relationships MUST be expressed through links (HATEOAS where beneficial). Collection endpoints MUST support filtering, sorting, and pagination. Query parameters MUST use consistent naming (e.g., `?sort=created_at&order=desc&limit=20`).
+
+**Rationale**: RESTful design provides predictable, discoverable APIs that are easy to consume from web, mobile, and third-party clients. Correct HTTP semantics leverage existing infrastructure (caching, load balancing, monitoring). Stateless design enables horizontal scaling and reduces server complexity. Clear contracts reduce integration errors and enable automated testing. Consistent patterns reduce cognitive load for API consumers. Well-designed APIs are self-documenting and reduce support burden. This principle complements mobile-first strategy (Principle II) by ensuring APIs work seamlessly across all platforms.
+
+### XV. Principle of Least Privilege
+
+**Minimal Access by Default**
+
+All code, services, and users MUST be granted the minimum permissions necessary to perform their function, and nothing more. Edge Functions MUST use ANON_KEY (RLS-enforced) by default and SERVICE_ROLE_KEY only when absolutely necessary with explicit justification. Database roles MUST be scoped to minimum required tables and operations (SELECT vs INSERT vs UPDATE vs DELETE). API keys MUST be scoped to specific operations (read-only, write-only, admin). User permissions MUST follow role-based access control (RBAC) with clearly defined roles (user, admin, service). Service accounts MUST have narrowly scoped credentials specific to their function.
+
+**Time-Bounded Access**
+
+Elevated permissions MUST be time-bounded wherever possible. JWT tokens MUST have appropriate expiration times (access token: 1 hour, refresh token: 30 days). Temporary admin access MUST expire automatically. Service role keys used in development MUST be rotated regularly. Session tokens MUST be invalidated on logout. One-time access tokens MUST be single-use and expire after short duration (e.g., password reset links: 1 hour).
+
+**Privilege Escalation Controls**
+
+Privilege escalation MUST require explicit approval flows. Admin operations MUST require re-authentication (password confirmation) even for logged-in users. Sensitive operations (account deletion, payment changes, data export) MUST have additional verification steps. Cross-user operations MUST be explicitly forbidden at RLS policy level. Service-to-service calls MUST use scoped service tokens, not user tokens. Audit logs MUST record all privilege escalations with context (who, what, when, why).
+
+**Default Deny**
+
+Access control MUST follow "default deny" - explicitly grant permissions rather than explicitly deny. RLS policies MUST be restrictive by default (no policy = no access). New Edge Functions MUST require authentication unless explicitly designed as public. New database tables MUST have RLS enabled from creation. API endpoints MUST require authentication by default. Frontend features MUST be hidden/disabled for unauthorized users (defense-in-depth with backend enforcement).
+
+**Rationale**: Least privilege minimizes damage from compromised credentials, buggy code, or malicious insiders. Reducing permission scope limits blast radius of security incidents. Time-bounded access ensures credentials don't remain valid indefinitely after compromise. Privilege escalation controls prevent unauthorized elevation of access. Default deny prevents accidental exposure of sensitive data. This principle complements Zero-Trust Data Access (Principle VIII) and Defense-in-Depth Security (Principle XII) to create comprehensive access control. Least privilege is foundational security hygiene that prevents entire classes of vulnerabilities.
 
 ## Technology Stack Constraints
 
@@ -307,6 +348,8 @@ These decisions are locked and MUST be followed:
 23. **Defense-in-depth security: Frontend (UX) → Edge Functions (enforcement) → Database (RLS) → Infrastructure (Auth)**
 24. **Input validation at all layers: Frontend (UX), Backend (enforcement), Database (constraints)**
 25. **Clean architecture: Dependencies flow inward, business logic isolated from infrastructure**
+26. **RESTful API design: Resource-based URLs, correct HTTP methods/status codes, stateless endpoints**
+27. **Least privilege access: Minimal permissions by default, time-bounded access, explicit privilege escalation**
 
 ## Success Metrics
 
@@ -332,6 +375,11 @@ Performance and quality targets that MUST be met:
 - **Security audits: Quarterly security reviews with vulnerability remediation within 7 days for critical, 30 days for high severity**
 - **Code quality: Average cyclomatic complexity <8, function length <50 lines for 90%+ of functions**
 - **Test coverage guidance: Critical paths (auth, payments, data access) must have integration tests, not a strict % target**
+- **RESTful API compliance: 100% of API endpoints use correct HTTP methods and status codes**
+- **API documentation: 100% of endpoints documented in OpenAPI spec with request/response schemas**
+- **Least privilege compliance: 90%+ of Edge Functions use ANON_KEY, SERVICE_ROLE_KEY usage explicitly justified**
+- **Access audit frequency: Monthly review of service account permissions, quarterly review of user role permissions**
+- **Token expiration compliance: 100% of access tokens expire within 1 hour, refresh tokens within 30 days**
 
 ## Anti-Patterns to Avoid
 
@@ -412,6 +460,28 @@ These patterns are FORBIDDEN:
 - ❌ **Large rewrites instead of incremental refactoring**
 - ❌ **Missing JSDoc for complex/reusable functions**
 
+### RESTful API Design
+- ❌ **Using verbs in resource URLs (e.g., `/getDocuments`, `/createUser`)**
+- ❌ **Using GET requests for operations with side effects (use POST/PUT/DELETE)**
+- ❌ **Using POST for everything (RESTful APIs should use appropriate HTTP methods)**
+- ❌ **Incorrect HTTP status codes (e.g., returning 200 for errors, 404 for validation failures)**
+- ❌ **Inconsistent response formats across endpoints**
+- ❌ **Server-side session state for API calls (must be stateless)**
+- ❌ **Undocumented API endpoints (all must have OpenAPI specs)**
+- ❌ **Breaking API changes without versioning**
+- ❌ **Missing pagination on collection endpoints**
+- ❌ **Returning entire collections without filtering/limiting (resource exhaustion)**
+
+### Least Privilege Violations
+- ❌ **Using SERVICE_ROLE_KEY by default (use ANON_KEY with RLS enforcement)**
+- ❌ **Granting broad permissions when narrow scope would suffice**
+- ❌ **Using admin credentials for regular operations**
+- ❌ **Long-lived or non-expiring access tokens**
+- ❌ **Sharing service account credentials across multiple services**
+- ❌ **Granting write access when read-only would suffice**
+- ❌ **Missing re-authentication for sensitive operations**
+- ❌ **Allowing privilege escalation without audit logging**
+
 ## Governance
 
 ### Amendment Procedure
@@ -440,7 +510,9 @@ Constitution amendments require:
 - **Design Approval Gate: Visual designs MUST be approved before implementation begins**
 - **Security Audit Gate: Quarterly security reviews MUST be completed with documented findings**
 - **Code Review Gate: All PRs MUST be reviewed for code quality, security, and maintainability**
+- **API Design Review: All new Edge Functions MUST be reviewed for RESTful compliance**
+- **Least Privilege Audit: Monthly review of SERVICE_ROLE_KEY usage, quarterly review of all service account permissions**
 
 All PRs/reviews MUST verify compliance with principles. Complexity introduced that violates principles MUST be justified with clear rationale and documented in plan.md Complexity Tracking section. Use [CLAUDE.md](../../CLAUDE.md) for runtime development guidance.
 
-**Version**: 1.5.0 | **Ratified**: 2025-01-15 | **Last Amended**: 2025-10-22
+**Version**: 1.6.0 | **Ratified**: 2025-01-15 | **Last Amended**: 2025-10-22
