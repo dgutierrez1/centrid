@@ -5,6 +5,16 @@
 **Status**: Draft
 **Input**: User description: "we need to implement next feature for the file processing and filesystem setup and management. we will target a bigger scope, we need the full file system setup. so users need to be able to CRUD their file system and files. the ui needs to be setup so we can build on top of it later, even though we are only focusing on the filesystem. the ui for desktop will have three panels, on the left we have the file system with tree view, on the center we have the document currently opened (maybe none are opned), on the right we have the ai chat. for mobile is trickier, the main focus screen could either be a chat or a document, the user will be able to change between one another when they select a chat or a document. the files would be ideally in markdown so they can be render correctly and good looking in the UI, users should be able to edit the files in the ui with styling and editing tools. can we implement automatic saving and updates to prevent users to have to manually save the files and loose data potentially. the visualization tool we use on the ui should allow later on to integrate diffs from the ai agent changes/suggestions, so keep in mind the ui tool will need to be extended in the future. we also need to setup things to work with the ai agents for search, optimal context, indexing, etc, so we need to focus on the core problem we want to adress about context fragmentation and enabling agents to do context optimal worflows."
 
+## Clarifications
+
+### Session 2025-10-22
+
+- Q: How should the folder hierarchy be implemented in the data model (separate tables vs single table with type discriminator)? → A: Separate `folders` and `documents` tables for cleaner domain separation and type safety
+- Q: Which markdown editor component should be used for implementation with extensibility for future diff/merge UI? → A: TipTap (ProseMirror-based) for its extensibility, TypeScript support, and capability for custom diff extensions
+- Q: Where should the actual markdown file content be stored in the backend architecture? → A: Supabase Storage (object storage) with metadata in `documents` table and storage path reference
+- Q: When and how should document content be indexed for search and AI context retrieval? → A: Database trigger on `documents` table changes automatically queues indexing job
+- Q: Which React component library should be used for the hierarchical file tree view with drag-and-drop? → A: react-arborist for its virtualization, built-in drag-and-drop, keyboard navigation, and TypeScript support
+
 ## User Scenarios & Testing
 
 ### User Story 1 - Create and Edit Markdown Documents (Priority: P1)
@@ -86,10 +96,10 @@ When a user creates or updates a document, the system automatically processes th
 
 **Acceptance Scenarios**:
 
-1. **Given** a user creates a new document with content, **When** the auto-save triggers, **Then** the document is queued for background indexing within 5 seconds
-2. **Given** a document is queued for indexing, **When** the background processor runs, **Then** the content is chunked into searchable segments and stored for retrieval
-3. **Given** a user updates an existing document, **When** the changes are saved, **Then** the document's search index is updated to reflect the new content
-4. **Given** a user deletes a document, **When** the deletion is confirmed, **Then** all associated index data is removed from the search system
+1. **Given** a user creates a new document with content, **When** the auto-save triggers and updates the `documents` table, **Then** a database trigger automatically queues the document for background indexing
+2. **Given** a document is queued for indexing via trigger, **When** the background indexing job runs, **Then** file content is fetched from Supabase Storage, chunked into searchable segments (400-500 tokens), and stored in `document_chunks` table with embeddings
+3. **Given** a user updates an existing document, **When** the changes are saved to Supabase Storage and the `documents` table is updated, **Then** the database trigger re-queues the document and the indexing job updates all associated chunks
+4. **Given** a user deletes a document, **When** the deletion is confirmed, **Then** cascade delete removes all associated `document_chunks` records and the file is removed from Supabase Storage
 
 ---
 
@@ -134,7 +144,7 @@ A user with many documents wants to find specific information. They use the sear
 - **How does system handle very large files (>10MB)?** System warns users before upload and either prevents upload or implements progressive loading for performance
 - **What happens when a user tries to create a file/folder with duplicate names?** System appends a number (e.g., "Document (1)") or prompts user to choose a different name
 - **How does system handle special characters in file names?** System sanitizes names to prevent filesystem conflicts (e.g., replaces `/` with `-`)
-- **What happens when document indexing fails?** System retries up to 3 times with exponential backoff, then logs error and notifies user via UI message
+- **What happens when document indexing fails?** Background indexing job retries up to 3 times with exponential backoff, then logs error and marks document with indexing_failed status (user can manually retry via UI if needed)
 - **How does system handle concurrent edits to the same document?** Last-write-wins for MVP, with future consideration for operational transforms or CRDTs
 - **What happens when a user's storage quota is exceeded?** System prevents new document creation/upload and displays quota warning with upgrade prompt
 - **How does system handle markdown rendering errors?** Displays sanitized content with error indicator, preventing XSS while maintaining usability
@@ -174,10 +184,24 @@ A user with many documents wants to find specific information. They use the sear
 
 ### Key Entities
 
-- **Document**: Represents a user's markdown file with content, metadata (name, created/updated timestamps, path), and relationships to user and folder
-- **Folder**: Represents a container for documents and nested folders, with name, path, parent folder reference, and user ownership
+**Database Schema (separate tables for folders and documents):**
+
+- **Folder**: Represents a container for documents and nested folders
+  - Fields: `id` (uuid), `user_id` (uuid), `name` (text), `parent_folder_id` (uuid, nullable), `path` (text), `created_at`, `updated_at`
+  - Relationships: Self-referential parent-child hierarchy, owned by user
+  - Constraints: User isolation via RLS, unique name within parent scope
+
+- **Document**: Represents a user's markdown file with metadata (content stored in Supabase Storage)
+  - Fields: `id` (uuid), `user_id` (uuid), `folder_id` (uuid, nullable), `name` (text), `storage_path` (text), `file_size` (integer), `mime_type` (text), `path` (text), `created_at`, `updated_at`
+  - Relationships: Belongs to folder (nullable for root), owned by user
+  - Storage: Actual file content stored in Supabase Storage bucket with path referenced in `storage_path` field
+  - Constraints: User isolation via RLS on both database and storage bucket, unique name within folder scope
+
 - **DocumentChunk**: Represents a searchable segment of document content with text, position in document, language, and search vector for full-text retrieval
-- **FileSystemNode**: Abstract representation of file tree structure with type (file/folder), name, path, parent/children relationships for UI rendering
+  - Fields: `id` (uuid), `document_id` (uuid), `content` (text), `position` (integer), `embedding` (vector), `created_at`, `updated_at`
+  - Relationships: Belongs to document (cascade delete)
+
+- **FileSystemNode** (Frontend abstraction): Abstract representation of file tree structure with type (file/folder), name, path, parent/children relationships for UI rendering (not a database table, computed from folders + documents)
 
 ### UI/UX Requirements
 
@@ -278,14 +302,18 @@ A user with many documents wants to find specific information. They use the sear
 ## Dependencies
 
 - Authentication system must be operational to enforce user isolation and document ownership
-- Backend storage system must support hierarchical folder structures
+- Backend storage system must support hierarchical folder structures with separate `folders` and `documents` tables
+- Supabase Storage must be configured with user-isolated buckets and RLS policies for file access control
 - Backend must provide endpoints for CRUD operations on documents and folders
-- Backend must provide file upload endpoint with multipart form data support
-- Full-text search indexing requires background job processing capability
+- Backend must provide file upload endpoint with multipart form data support and Supabase Storage integration
+- Database trigger on `documents` table (INSERT/UPDATE) must automatically queue indexing jobs
+- Background indexing job (Edge Function or pg_cron) must fetch content from Supabase Storage, chunk it, generate embeddings, and store in `document_chunks` table
+- Document deletion must cascade to remove associated chunks and storage files
 - Real-time updates may require websocket or polling infrastructure for save status and upload progress
-- Markdown rendering library must sanitize content to prevent XSS
-- Rich text editor component must support extensibility for future diff/merge UI
-- File storage service must handle .md and .txt files with proper MIME type validation
+- TipTap editor library (ProseMirror-based) with markdown extensions for rich text editing
+- TipTap must be configured with XSS-safe markdown serialization/deserialization
+- react-arborist library for file tree component with virtualization, drag-and-drop, and keyboard navigation
+- File content must be retrieved from Supabase Storage via signed URLs or direct download for editor loading
 
 ## Out of Scope (Post-MVP)
 
