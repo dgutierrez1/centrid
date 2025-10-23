@@ -1,26 +1,28 @@
 <!--
 Sync Impact Report:
-- Version: 1.3.0 → 1.4.0
-- Rationale: MINOR bump - Added apps/api for self-contained backend application. All server logic (business logic, Edge Functions, migrations) now lives in one place instead of split across packages/ and supabase/.
+- Version: 1.4.0 → 1.5.0
+- Rationale: MINOR bump - Added Principle XII (Defense-in-Depth Security) and Principle XIII (Clean Code & Maintainability). Expanded security guidelines with frontend/backend boundaries, input validation, and secure-by-default patterns. Added code quality standards covering clean architecture, reusability, and maintainability best practices.
 - Modified principles:
-  - Principle X (Monorepo Architecture): Added apps/api structure, removed packages/server, clarified all server logic placement
-  - Technology Stack Constraints: Updated package structure (2 packages + 3 apps)
-  - Key Architectural Decisions: Updated #13, #15, #19 for apps/api structure
-  - Anti-Patterns: Added rules against splitting backend code and placing functions at root
+  - Principle VIII (Zero-Trust Data Access via RLS): Enhanced with frontend security boundaries and attack surface minimization
+  - Anti-Patterns: Added security and code quality anti-patterns
+  - Success Metrics: Added security audit and code quality metrics
+  - Compliance Review: Added security audit and code review checkpoints
 - Added sections:
-  - apps/api/ self-contained backend application structure
-  - Backend Structure diagram showing apps/api/ organization
-  - Server Logic Placement (ALL in apps/api/)
-  - Deployment instructions for apps/api
-- Removed sections:
-  - packages/server (replaced by apps/api)
-  - Root supabase/ folder references (moved to apps/api/supabase)
+  - Principle XII: Defense-in-Depth Security (comprehensive security layers)
+  - Principle XIII: Clean Code & Maintainability (architecture and quality standards)
+  - Security anti-patterns (15+ new patterns)
+  - Code quality anti-patterns (12+ new patterns)
+  - Security metrics (audit frequency, vulnerability response)
+  - Code quality metrics (cyclomatic complexity, test coverage guidance)
+- Removed sections: None
 - Templates status:
-  ✅ All templates remain compatible
+  ✅ plan-template.md: Constitution Check section compatible (gates apply to new principles)
+  ✅ spec-template.md: Requirements sections support security and quality requirements
+  ✅ tasks-template.md: Task structure supports security and quality verification tasks
 - Follow-up TODOs:
-  - Add to CLAUDE.md: Monorepo structure with apps/api and server logic placement rules
-  - Create apps/api/package.json and directory structure
-  - Configure apps/api/supabase/config.toml to point to src/functions/
+  - Add security audit checklist template if comprehensive security reviews are needed
+  - Consider ESLint/Prettier configuration documentation for code quality enforcement
+  - Update CLAUDE.md with security best practices if runtime guidance needed
 -->
 
 # Centrid Constitution
@@ -89,7 +91,11 @@ Claude Agent SDK MUST access documents via MCP (Model Context Protocol) tools. A
 
 All database tables with user data MUST have Row Level Security (RLS) enabled. RLS policies MUST enforce auth.uid() = user_id for all operations. All file uploads MUST be validated (type, size, content). Storage policies MUST check folder path includes user_id. Authentication MUST be required for all user data access. Edge Functions MUST use ANON_KEY (respects RLS) for user operations, SERVICE_ROLE_KEY ONLY when necessary with manual ownership validation. JWT tokens MUST be validated by Supabase (signature verification).
 
-**Rationale**: Database-level security cannot be bypassed - more secure than application-level checks. RLS automatically filters all queries. Even direct database access respects policies. Security is enforced, not just checked. Critical for user trust and data privacy.
+**Frontend Security Boundaries**
+
+Frontend code MUST assume it is untrusted and hostile. Frontend MUST NOT contain sensitive business logic that could be bypassed. Frontend validation MUST be for UX only (instant feedback) - backend MUST re-validate all inputs. Frontend MUST NOT have access to SERVICE_ROLE_KEY or admin credentials. Frontend MUST use ANON_KEY which enforces RLS policies. API keys in frontend MUST be public-safe keys only (NEXT_PUBLIC_SUPABASE_ANON_KEY). Sensitive operations (payments, admin actions, cross-user operations) MUST be implemented in Edge Functions, never in frontend.
+
+**Rationale**: Database-level security cannot be bypassed - more secure than application-level checks. RLS automatically filters all queries. Even direct database access respects policies. Security is enforced, not just checked. Frontend is inherently untrusted - any logic in frontend JavaScript can be read, modified, or bypassed by users. Defense-in-depth means frontend provides convenience, backend enforces security. Critical for user trust and data privacy.
 
 ### IX. MVP-First Discipline
 
@@ -191,6 +197,42 @@ All features MUST be visually designed in `apps/design-system` before implementa
 
 **Rationale**: Visual-first iteration prevents costly implementation rewrites. Seeing high-fidelity mockups before coding validates UX decisions early. Playwright MCP automation enables rapid design iteration without manual dev server management. 10 Design Levers provide structured feedback language for consistent quality. Centralized design tokens ensure visual consistency across all apps. Design approval gates ensure implementation builds exactly what was approved, reducing back-and-forth during development.
 
+### XII. Defense-in-Depth Security
+
+**Layered Security Architecture**
+
+Security MUST be implemented in multiple layers - frontend (UX convenience), Edge Functions (business logic enforcement), database (RLS policies), and infrastructure (Supabase Auth). Each layer MUST assume the outer layer can be compromised. Frontend validation MUST be duplicated in backend with same or stricter rules. Database policies MUST be the ultimate authority - all other layers are advisory. Secrets MUST never be exposed to frontend (use environment variables with NEXT_PUBLIC_ prefix only for public keys). Rate limiting MUST be implemented for sensitive operations. Authentication tokens MUST have appropriate expiration (JWT refresh flow). Audit logging MUST capture security-relevant events (auth, data access, admin actions).
+
+**Input Validation & Sanitization**
+
+All external inputs MUST be validated before processing. User-provided content MUST be sanitized before storage and display (XSS prevention). File uploads MUST validate file type (magic bytes, not extension), size limits, and content scanning. SQL injection MUST be prevented via parameterized queries (Supabase client handles this automatically). Command injection MUST be prevented by avoiding shell execution with user input. Path traversal MUST be prevented by validating file paths stay within allowed directories. Zod schemas MUST define strict validation rules for all API inputs.
+
+**Attack Surface Minimization**
+
+Public APIs MUST require authentication unless explicitly designed as public endpoints. Error messages MUST NOT leak sensitive information (stack traces, database details, file paths). CORS policies MUST be restrictive (allow only known origins). Dependencies MUST be regularly updated for security patches. Third-party code MUST be reviewed before integration. Debug/development features MUST be disabled in production. Environment-specific secrets MUST be isolated (dev vs production keys).
+
+**Rationale**: Single-layer security is fragile - one bypass compromises the entire system. Defense-in-depth ensures that breaching one layer doesn't grant full access. Frontend is the most vulnerable layer (fully client-controlled), so it must only provide convenience. Database RLS is the most reliable layer since it cannot be bypassed even with direct database access. Proper input validation prevents injection attacks, XSS, and data corruption. Minimizing attack surface reduces the number of potential vulnerability points. Security is everyone's responsibility but must be enforced architecturally, not just culturally.
+
+### XIII. Clean Code & Maintainability
+
+**Code Quality Standards**
+
+Code MUST be self-documenting through clear naming and structure. Functions MUST do one thing well (Single Responsibility Principle). Functions MUST be small (prefer <50 lines, max 100 lines). Cyclomatic complexity MUST be kept low (prefer <10 branches per function). Magic numbers and strings MUST be replaced with named constants. Comments MUST explain "why", not "what" (code explains "what"). Dead code MUST be removed immediately. Duplication MUST be eliminated after third occurrence (Rule of Three).
+
+**Clean Architecture Principles**
+
+Dependencies MUST flow inward (UI → Services → Data, never reverse). Business logic MUST be isolated from infrastructure (database, APIs, frameworks). Services MUST have clear contracts (interfaces/types) independent of implementation. Shared logic MUST live in reusable functions/modules, not copy-pasted. Configuration MUST be externalized (environment variables, config files). Hard-coded values MUST be avoided in business logic. Error handling MUST be consistent and predictable across the codebase.
+
+**Maintainability Practices**
+
+File organization MUST follow consistent patterns (feature-based or layer-based, but not mixed). Import statements MUST use path aliases (@/ or @centrid/*) for clarity. Naming conventions MUST be consistent (camelCase for functions/variables, PascalCase for components/types). TypeScript strict mode MUST be enabled with no 'any' types without justification. ESLint and Prettier MUST enforce consistent code style. Code reviews MUST check for clarity, simplicity, and maintainability. Refactoring MUST be done incrementally, not as large rewrites.
+
+**Reusability First**
+
+Shared utilities MUST live in `packages/shared/utils/`. Shared types MUST live in `packages/shared/types/`. Shared UI components MUST live in `packages/ui/components/`. Business logic used by multiple Edge Functions MUST live in `apps/api/src/services/`. Helper functions MUST be extracted when used 3+ times (Rule of Three). Generic solutions MUST be preferred over specific ones when complexity is similar. Reusable code MUST have clear, documented contracts (JSDoc for complex functions).
+
+**Rationale**: Clean code reduces cognitive load, making the codebase easier to understand and modify. Maintainability determines long-term velocity - messy code slows development over time. Clear architecture prevents accidental coupling and makes refactoring safe. Reusability reduces duplication, bugs, and inconsistency. Following these practices pays dividends as the codebase grows. MVP-first doesn't mean messy code - it means simple, clear solutions over complex, "clever" ones. Good code is code that's easy to delete and replace when requirements change.
+
 ## Technology Stack Constraints
 
 ### Frontend & UI
@@ -262,6 +304,9 @@ These decisions are locked and MUST be followed:
 20. **Design iteration workflow: apps/design-system → Playwright MCP screenshots → approval → apps/web implementation**
 21. **Two-layer design approach: Global design system (once) → Feature designs (per feature)**
 22. **10 Design Levers framework for structured design feedback**
+23. **Defense-in-depth security: Frontend (UX) → Edge Functions (enforcement) → Database (RLS) → Infrastructure (Auth)**
+24. **Input validation at all layers: Frontend (UX), Backend (enforcement), Database (constraints)**
+25. **Clean architecture: Dependencies flow inward, business logic isolated from infrastructure**
 
 ## Success Metrics
 
@@ -284,11 +329,15 @@ Performance and quality targets that MUST be met:
 - **Package isolation: Zero accidental imports from apps/web to packages/ (TypeScript enforced)**
 - **Design iteration: <3 rounds from initial design to approval per feature**
 - **Design feedback quality: 80%+ of feedback uses Design Levers framework terminology**
+- **Security audits: Quarterly security reviews with vulnerability remediation within 7 days for critical, 30 days for high severity**
+- **Code quality: Average cyclomatic complexity <8, function length <50 lines for 90%+ of functions**
+- **Test coverage guidance: Critical paths (auth, payments, data access) must have integration tests, not a strict % target**
 
 ## Anti-Patterns to Avoid
 
 These patterns are FORBIDDEN:
 
+### Architecture & Design
 - ❌ Logic in presentational components
 - ❌ Direct Supabase calls in UI components (use container layer)
 - ❌ Untyped API responses or database queries
@@ -309,11 +358,15 @@ These patterns are FORBIDDEN:
 - ❌ Desktop hover states on mobile (use active states for touch feedback)
 - ❌ Touch targets smaller than 44x44px (iOS/Android accessibility requirement)
 - ❌ Inline styles or CSS-in-JS (use Tailwind utilities for consistency)
+
+### MVP & Scope
 - ❌ **Premature abstraction (abstract only after Rule of Three: third occurrence)**
 - ❌ **Building features "for the future" that aren't needed for MVP**
 - ❌ **Perfect architecture over working software (ship first, refactor later)**
 - ❌ **Scope creep: Adding "while we're at it" features mid-implementation**
 - ❌ **Analysis paralysis: Debating architecture instead of building and testing**
+
+### Monorepo & Boundaries
 - ❌ **Server dependencies in packages/ui (Supabase, Valtio, providers)**
 - ❌ **Design system (apps/design-system) importing from apps/web (breaks isolation)**
 - ❌ **Hard-coded values in UI components (use Tailwind classes from shared config)**
@@ -327,6 +380,37 @@ These patterns are FORBIDDEN:
 - ❌ **Placing Edge Functions in root supabase/ folder (use apps/api/src/functions)**
 - ❌ **Creating supabase/functions/ directory (duplicates src/functions/ - use custom entrypoints instead)**
 - ❌ **Assuming Supabase auto-discovers functions (must explicitly declare each in config.toml)**
+
+### Security
+- ❌ **Trusting frontend validation alone (backend MUST re-validate)**
+- ❌ **Exposing SERVICE_ROLE_KEY or sensitive secrets to frontend**
+- ❌ **Implementing authorization logic in frontend (backend MUST enforce)**
+- ❌ **Storing sensitive data in localStorage/sessionStorage without encryption**
+- ❌ **Using user-provided input in SQL queries without parameterization**
+- ❌ **Accepting file uploads without type/size/content validation**
+- ❌ **Returning detailed error messages to users (leak stack traces, DB details)**
+- ❌ **Permissive CORS policies (allow * in production)**
+- ❌ **Missing rate limiting on sensitive operations (auth, payments)**
+- ❌ **Hard-coding secrets in code (use environment variables)**
+- ❌ **Skipping security audits (quarterly reviews required)**
+- ❌ **Validating file type by extension only (check magic bytes)**
+- ❌ **Building authentication from scratch (use Supabase Auth)**
+- ❌ **Bypassing RLS by using SERVICE_ROLE_KEY for user operations**
+- ❌ **Missing audit logs for security-relevant operations**
+
+### Code Quality & Maintainability
+- ❌ **Functions longer than 100 lines (prefer <50)**
+- ❌ **High cyclomatic complexity (>10 branches per function)**
+- ❌ **Magic numbers and strings (use named constants)**
+- ❌ **Copy-pasted code (extract reusable functions after 3rd occurrence)**
+- ❌ **Using 'any' type without justification**
+- ❌ **Mixing feature-based and layer-based organization**
+- ❌ **Comments explaining "what" instead of "why" (code should explain "what")**
+- ❌ **Dead code or commented-out code in commits**
+- ❌ **Inconsistent naming conventions**
+- ❌ **Business logic coupled to framework/infrastructure details**
+- ❌ **Large rewrites instead of incremental refactoring**
+- ❌ **Missing JSDoc for complex/reusable functions**
 
 ## Governance
 
@@ -354,7 +438,9 @@ Constitution amendments require:
 - **MVP Scope Gate: All features MUST justify necessity for MVP before implementation begins**
 - **Package Boundary Check: TypeScript MUST prevent server code imports in packages/ui**
 - **Design Approval Gate: Visual designs MUST be approved before implementation begins**
+- **Security Audit Gate: Quarterly security reviews MUST be completed with documented findings**
+- **Code Review Gate: All PRs MUST be reviewed for code quality, security, and maintainability**
 
 All PRs/reviews MUST verify compliance with principles. Complexity introduced that violates principles MUST be justified with clear rationale and documented in plan.md Complexity Tracking section. Use [CLAUDE.md](../../CLAUDE.md) for runtime development guidance.
 
-**Version**: 1.4.0 | **Ratified**: 2025-01-15 | **Last Amended**: 2025-10-21
+**Version**: 1.5.0 | **Ratified**: 2025-01-15 | **Last Amended**: 2025-10-22

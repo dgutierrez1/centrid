@@ -89,26 +89,57 @@ For each screen/view in the feature:
 4. Manually export the new component from `packages/ui/src/components/index.ts`
 5. Component is now available via `import { Component } from '@centrid/ui/components'`
 
-### Step 4: Create Feature Component in Design Sandbox
+### Step 4: Create Reusable Feature Components in UI Package
 
-**Location**: `apps/design-system/components/[FeatureName].tsx`
+**IMPORTANT**: Create components in `packages/ui/src/features/[feature-name]/` so they're reusable across all apps.
 
-Export all screen components from a single file:
+**Step 4a: Create feature directory structure**
+
+```bash
+mkdir -p packages/ui/src/features/[feature-name]
+```
+
+**Step 4b: Create screen components**
+
+**Location**: `packages/ui/src/features/[feature-name]/Screen1.tsx`
+
+Each screen is a separate file for better modularity:
 
 ```tsx
 /**
- * Feature Design: [Feature Name]
+ * Feature: [Feature Name] - Screen 1
  *
+ * Pure presentational component - reusable across apps
  * Created during /speckit.design workflow
  * Status: Draft / Approved
  * Approved Date: [if approved]
  */
 
 import { useState } from 'react';
-import { Button, Input, Card, CardHeader, CardTitle, CardContent, Badge } from '@centrid/ui/components';
+import { Button, Input, Card, CardHeader, CardTitle, CardContent } from '../../components';
 
-export function Screen1() {
-  const [state, setState] = useState<'default' | 'loading' | 'error'>('default');
+export interface Screen1Props {
+  // Business data via props
+  initialValue?: string;
+  onSubmit?: (value: string) => void;
+  isLoading?: boolean;
+  error?: string | null;
+}
+
+export function Screen1({
+  initialValue = '',
+  onSubmit,
+  isLoading = false,
+  error = null
+}: Screen1Props) {
+  // ✅ Local UI state - input value before submission
+  const [value, setValue] = useState(initialValue);
+
+  const handleSubmit = () => {
+    if (onSubmit) {
+      onSubmit(value);
+    }
+  };
 
   return (
     <div className="min-h-screen p-4 bg-gray-50">
@@ -122,46 +153,77 @@ export function Screen1() {
             type="text"
             placeholder="Example input..."
             className="w-full h-11"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
           />
 
           <Button
             className="w-full h-11 bg-primary-600"
-            disabled={state === 'loading'}
+            disabled={isLoading}
+            onClick={handleSubmit}
           >
-            {state === 'loading' ? 'Processing...' : 'Primary Action'}
+            {isLoading ? 'Processing...' : 'Primary Action'}
           </Button>
+
+          {error && (
+            <p className="text-sm text-error-500">{error}</p>
+          )}
         </CardContent>
       </Card>
-
-      {/* State controls for design review */}
-      <div className="fixed bottom-4 right-4 bg-white/90 backdrop-blur p-4 rounded-lg shadow-lg">
-        <p className="text-xs font-semibold mb-2">State Controls</p>
-        <div className="flex gap-2">
-          <button onClick={() => setState('default')} className="px-2 py-1 text-xs bg-gray-200 rounded">Default</button>
-          <button onClick={() => setState('loading')} className="px-2 py-1 text-xs bg-gray-200 rounded">Loading</button>
-          <button onClick={() => setState('error')} className="px-2 py-1 text-xs bg-gray-200 rounded">Error</button>
-        </div>
-      </div>
     </div>
   );
 }
+```
 
-// Export additional screens as needed
-export function Screen2() { /* ... */ }
-export function Screen3() { /* ... */ }
+Create additional screen files: `Screen2.tsx`, `Screen3.tsx`, etc.
+
+**State Management Guide**:
+- ✅ **Local UI state** (useState): Input values, dropdown open/closed, accordion expanded
+- ✅ **Props for business data**: isLoading, error, data from server
+- ✅ **Props for events**: onSubmit, onChange, onDelete callbacks
+- ❌ **NO data fetching**: useEffect for API calls (should be in container)
+- ❌ **NO global state**: Valtio, Zustand, Redux (should be in container)
+
+**Step 4c: Create feature index file**
+
+**Location**: `packages/ui/src/features/[feature-name]/index.ts`
+
+```tsx
+// Export all screen components and their types
+export { Screen1, type Screen1Props } from './Screen1';
+export { Screen2, type Screen2Props } from './Screen2';
+export { Screen3, type Screen3Props } from './Screen3';
+```
+
+**Step 4d: Update main features index**
+
+**Location**: `packages/ui/src/features/index.ts`
+
+Add exports for the new feature:
+
+```typescript
+// [Feature Name] components
+export { Screen1, Screen2, Screen3 } from './[feature-name]';
+export type { Screen1Props, Screen2Props, Screen3Props } from './[feature-name]';
 ```
 
 **Key principles**:
-- ✅ Import from `@centrid/ui/components` (centralized package)
+- ✅ Create in `packages/ui/src/features/[feature-name]/` (reusable across all apps)
+- ✅ Import from relative paths (`../../components`) within packages/ui
 - ✅ Use Tailwind classes with design tokens (e.g., `bg-primary-600`, `p-6`, `gap-4`)
-- ✅ Pure presentational component - all data via props, all events via callbacks
-- ✅ Include state controls for design review (toggle loading, error, success states)
-- ❌ NO server imports (Supabase, state management, providers)
+- ✅ Pure presentational components - business data via props, events via callbacks
+- ✅ Export TypeScript types for all props interfaces
+- ✅ One component per file for better modularity
+- ✅ Local UI state is OK (dropdown open/closed, input values, accordion expanded, hover state)
+- ❌ NO server imports (Supabase, state management libraries, providers)
 - ❌ NO hard-coded values (use Tailwind tokens from centralized config)
+- ❌ NO data fetching or business logic (should come via props)
 
-### Step 5: Create Feature Directory with Routes
+### Step 5: Create Design System Showcase Pages
 
-Create a feature directory with individual page routes for each screen:
+**IMPORTANT**: Design system pages import from `@centrid/ui/features` to showcase the reusable components.
+
+**Purpose**: The design-system app demonstrates the reusable components with state controls and mock data for visual iteration.
 
 **1. Create feature directory**: `apps/design-system/pages/[feature-name]/`
 
@@ -210,27 +272,108 @@ export default function FeatureIndex() {
 }
 ```
 
-**3. Create individual screen pages**: `apps/design-system/pages/[feature-name]/screen-1.tsx`
+**3. Define screens list**: Create a shared screens list for navigation
+
+**Location**: `apps/design-system/pages/[feature-name]/screens.ts`
 
 ```tsx
-import Link from 'next/link';
-import { Screen1 } from '../../components/[FeatureName]';
+export const screens = [
+  { name: '1. Screen Name', href: '/[feature-name]/screen-1' },
+  { name: '2. Screen Name', href: '/[feature-name]/screen-2' },
+  { name: '3. Screen Name', href: '/[feature-name]/screen-3' },
+  // ... add all screens
+];
+```
+
+**4. Create individual screen showcase pages**: `apps/design-system/pages/[feature-name]/screen-1.tsx`
+
+```tsx
+'use client';
+import { useState } from 'react';
+import { Screen1 } from '@centrid/ui/features'; // Import from UI package!
+import { DesignSystemFrame } from '../../components/DesignSystemFrame';
+import { screens } from './screens';
 
 export default function Screen1Page() {
+  // Add state controls for design iteration
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = (value: string) => {
+    console.log('Submitted:', value);
+    setIsLoading(true);
+    setTimeout(() => {
+      setIsLoading(false);
+    }, 2000);
+  };
+
   return (
-    <div>
-      <div className="absolute top-4 left-4 z-10 bg-white/90 backdrop-blur px-3 py-1 rounded">
-        <Link href="/[feature-name]" className="text-sm text-primary-600 hover:underline">
-          ← Back to [Feature Name]
-        </Link>
+    <DesignSystemFrame
+      featureName="[Feature Name]"
+      featureId="[feature-id]"
+      screens={screens}
+    >
+      {/* Render reusable component from UI package */}
+      <Screen1
+        onSubmit={handleSubmit}
+        isLoading={isLoading}
+        error={error}
+      />
+
+      {/* State controls for design review */}
+      <div className="fixed bottom-4 right-4 bg-white/90 backdrop-blur p-4 rounded-lg shadow-lg z-50">
+        <p className="text-xs font-semibold mb-2">Design Controls</p>
+        <div className="flex flex-col gap-2">
+          <button
+            onClick={() => setIsLoading(!isLoading)}
+            className="px-3 py-1.5 text-xs bg-gray-200 rounded hover:bg-gray-300"
+          >
+            Toggle Loading
+          </button>
+          <button
+            onClick={() => setError(error ? null : 'Example error message')}
+            className="px-3 py-1.5 text-xs bg-gray-200 rounded hover:bg-gray-300"
+          >
+            Toggle Error
+          </button>
+        </div>
       </div>
-      <Screen1 />
-    </div>
+    </DesignSystemFrame>
   );
 }
 ```
 
 Repeat for all screens (screen-2.tsx, screen-3.tsx, etc.)
+
+**Benefits of DesignSystemFrame**:
+- Provides consistent navigation chrome across all screens
+- Screen dropdown allows quick navigation between designs
+- Shows feature name and ID context
+- Separates design system UI from actual feature UI
+- Back link to main design system
+
+**Architecture**:
+```
+packages/ui/src/features/[feature-name]/
+├── Screen1.tsx           # Pure presentational component (SOURCE OF TRUTH)
+├── Screen2.tsx
+├── Screen3.tsx
+└── index.ts              # Re-exports all screens + types
+
+apps/design-system/
+├── components/
+│   └── DesignSystemFrame.tsx  # Navigation chrome wrapper
+└── pages/[feature-name]/
+    ├── index.tsx         # Feature overview
+    ├── screens.ts        # Shared screens list for navigation
+    ├── screen-1.tsx      # Showcase with DesignSystemFrame + state controls
+    ├── screen-2.tsx      # Imports from @centrid/ui/features
+    └── screen-3.tsx
+
+apps/web/
+└── src/components/[feature]/
+    └── Screen1Container.tsx  # Wraps Screen1 with data fetching/business logic
+```
 
 **4. Update main design system index**: Edit `apps/design-system/pages/index.tsx`
 
@@ -334,24 +477,53 @@ Create `specs/[FEATURE]/design.md`:
 
 [Brief description of the feature and design approach]
 
-## Design System Structure
+## Architecture
 
-### File Organization
+### Reusable Components (Source of Truth)
+
+**Location**: `packages/ui/src/features/[feature-name]/`
+
+These are pure presentational components that can be used in any app:
+
+\`\`\`
+packages/ui/src/features/[feature-name]/
+├── Screen1.tsx           # Pure presentational component
+├── Screen2.tsx
+├── Screen3.tsx
+└── index.ts              # Re-exports all screens + types
+\`\`\`
+
+**Exported from**: `packages/ui/src/features/index.ts`
+**Used by**: `apps/design-system`, `apps/web` (via `@centrid/ui/features`)
+
+### Design System Showcase (For Iteration)
+
+**Location**: `apps/design-system/pages/[feature-name]/`
+
+These pages demonstrate the reusable components with state controls:
 
 \`\`\`
 apps/design-system/
 ├── components/
-│   └── [FeatureName].tsx       # All screen components
+│   └── DesignSystemFrame.tsx   # Navigation chrome wrapper (reusable)
 ├── pages/
 │   └── [feature-name]/
-│       ├── index.tsx           # Feature index/overview
-│       ├── screen-1.tsx        # Individual screen pages
-│       ├── screen-2.tsx
+│       ├── index.tsx           # Feature overview
+│       ├── screens.ts          # Shared screens list for navigation
+│       ├── screen-1.tsx        # Showcase with DesignSystemFrame + state controls
+│       ├── screen-2.tsx        # Uses DesignSystemFrame wrapper
 │       └── ...
 └── public/
     └── screenshots/
         └── [feature-name]/     # Desktop & mobile screenshots
 \`\`\`
+
+**DesignSystemFrame Usage**:
+All screen showcase pages use `DesignSystemFrame` to provide consistent navigation:
+- Back link to main design system
+- Feature name and ID display
+- Dropdown for quick screen navigation
+- Separates design system chrome from actual feature UI
 
 ### Navigation
 
@@ -365,6 +537,30 @@ apps/design-system/
 - `/[feature-name]/screen-1` - [Screen description]
 - `/[feature-name]/screen-2` - [Screen description]
 - ...
+
+### Production Implementation
+
+**Location**: `apps/web/src/components/[feature-name]/`
+
+Production wrappers add business logic around the presentational components:
+
+\`\`\`tsx
+// apps/web/src/components/[feature-name]/Screen1Container.tsx
+import { Screen1 } from '@centrid/ui/features';
+import { useFeatureLogic } from '@/hooks/useFeatureLogic';
+
+export function Screen1Container() {
+  const { data, isLoading, error, handleSubmit } = useFeatureLogic();
+
+  return (
+    <Screen1
+      onSubmit={handleSubmit}
+      isLoading={isLoading}
+      error={error}
+    />
+  );
+}
+\`\`\`
 
 ## Screens Designed
 
@@ -443,27 +639,48 @@ Generate `specs/[FEATURE]/design-checklist.md`:
 ```markdown
 # Design Implementation Checklist: [Feature Name]
 
-## File Structure
-- [ ] Component file created: `apps/design-system/components/[FeatureName].tsx`
+## Reusable Components (packages/ui)
+- [ ] Feature directory created: `packages/ui/src/features/[feature-name]/`
+- [ ] Screen components created as separate files (Screen1.tsx, Screen2.tsx, etc.)
+- [ ] Feature index created: `packages/ui/src/features/[feature-name]/index.ts`
+- [ ] Main features index updated: `packages/ui/src/features/index.ts`
+- [ ] All components are pure presentational (props-only, with local UI state allowed)
+- [ ] TypeScript types exported for all props interfaces
+- [ ] Components import from relative paths (`../../components`)
+
+## Design System Showcase (apps/design-system)
 - [ ] Feature directory created: `apps/design-system/pages/[feature-name]/`
 - [ ] Feature index created: `apps/design-system/pages/[feature-name]/index.tsx`
-- [ ] Individual screen pages created (one per screen)
-- [ ] Main index updated with feature link card
+- [ ] Screens list created: `apps/design-system/pages/[feature-name]/screens.ts`
+- [ ] Individual screen showcase pages created (one per screen)
+- [ ] Showcase pages import from `@centrid/ui/features`
+- [ ] DesignSystemFrame wrapper used on all screen pages
+- [ ] State controls added to showcase pages for design iteration
+- [ ] Main design system index updated with feature link card
 - [ ] Screenshots saved to `apps/design-system/public/screenshots/[feature-name]/`
 
 ## Visual Consistency
 - [ ] All colors use centralized tokens (packages/ui/colors.config.js)
 - [ ] All spacing uses Tailwind scale (no arbitrary px)
 - [ ] All typography uses design tokens
-- [ ] All components from @centrid/ui/components
+- [ ] All primitives from @centrid/ui/components
 - [ ] 44px minimum height for interactive elements (h-11)
+
+## Component Quality
+- [ ] Pure presentational - business data and logic via props
+- [ ] All event handlers via callback props
+- [ ] No server imports (Supabase, state management libraries, providers)
+- [ ] No hard-coded values (use Tailwind tokens)
+- [ ] Local UI state is acceptable (dropdown open, input value, accordion expanded)
+- [ ] No data fetching or business logic (should come via props)
+- [ ] TypeScript types for all props
 
 ## Component States
 - [ ] All interactive elements have hover state
 - [ ] All interactive elements have focus state (accessibility)
-- [ ] All async actions have loading state
-- [ ] All forms have error state
-- [ ] State controls added for design review
+- [ ] Loading state handled via props
+- [ ] Error state handled via props
+- [ ] State controls in showcase pages for toggling states
 
 ## Responsive Design
 - [ ] Mobile layout (375px) tested and screenshotted
@@ -480,21 +697,24 @@ Generate `specs/[FEATURE]/design-checklist.md`:
 
 ## Navigation & Routing
 - [ ] Feature index shows all screens with descriptions
-- [ ] Each screen has its own dedicated route
+- [ ] Each screen has its own dedicated showcase route
 - [ ] Back navigation links work correctly
-- [ ] Routes documented in design.md (both design system + production)
+- [ ] Routes documented in design.md (design system + production)
 
 ## Documentation
 - [ ] Design.md created with complete specification
+- [ ] Architecture section documents both packages/ui and apps/design-system
 - [ ] Each screen documented with route, layout, components, states
 - [ ] Design tokens usage documented
 - [ ] Accessibility features documented
 - [ ] Screenshots referenced in documentation
+- [ ] Production implementation pattern documented
 
 ## Implementation Ready
 - [ ] Design approved by user
 - [ ] All screens visible at http://localhost:3001/[feature-name]
-- [ ] Component uses only @centrid/ui/components (no server deps)
+- [ ] Components available via `@centrid/ui/features`
+- [ ] Ready for production implementation in apps/web
 - [ ] Ready for /speckit.tasks to generate implementation tasks
 ```
 
@@ -503,14 +723,22 @@ Generate `specs/[FEATURE]/design-checklist.md`:
 Report to user:
 
 ```
-✅ Design created and approved:
-   - Component: apps/design-system/components/[FeatureName].tsx
-   - Feature directory: apps/design-system/pages/[feature-name]/
+✅ Reusable components created (packages/ui):
+   - Location: packages/ui/src/features/[feature-name]/
+   - Components: [Screen1, Screen2, Screen3, ...]
+   - Exported from: @centrid/ui/features
+   - Available to: All apps (design-system, web, future apps)
+
+✅ Design system showcase created (apps/design-system):
    - Feature index: http://localhost:3001/[feature-name]
-   - Individual routes: [N] screens with dedicated pages
-   - Spec: specs/[FEATURE]/design.md
+   - Individual routes: [N] screens with dedicated showcase pages
+   - State controls: Toggle loading, error, and other states
    - Screenshots: apps/design-system/public/screenshots/[feature-name]/
+
+✅ Documentation created:
+   - Spec: specs/[FEATURE]/design.md
    - Checklist: specs/[FEATURE]/design-checklist.md
+   - Architecture documented (packages/ui + apps/design-system)
 
 📸 Visual previews:
    - [Count] screenshots ([N] desktop + [N] mobile)
@@ -523,9 +751,10 @@ Report to user:
    - Typography: [list with sizes]
    - Spacing: [list with px values]
 
-📦 Components used (from @centrid/ui/components):
-   - Existing: [Button, Input, Card, ...]
-   - New compositions: [FeatureCard, ...] (if any)
+📦 Components architecture:
+   - Primitives: Button, Input, Card from @centrid/ui/components
+   - Features: [Screen1, Screen2] from @centrid/ui/features
+   - Showcase: apps/design-system/pages/[feature-name]
 
 🧭 Navigation structure:
    - Feature index: /[feature-name]
@@ -533,9 +762,10 @@ Report to user:
    - Each screen has back navigation to feature index
 
 Next steps:
+   → Components ready to use via import { Screen1 } from '@centrid/ui/features'
    → Run /speckit.tasks to generate implementation tasks
-   → Tasks will reference this design for UI development
-   → Components ready to be implemented in apps/web
+   → Implement in apps/web by wrapping with business logic containers
+   → Example: Screen1Container wraps Screen1 with data fetching
 ```
 
 ---
@@ -605,15 +835,54 @@ apps/design-system/public/screenshots/
 
 ## Tips
 
+### Component Architecture Philosophy
+
+**Three-Layer Pattern**:
+1. **Primitives** (`packages/ui/src/components/`) - shadcn base components (Button, Input, Card)
+2. **Features** (`packages/ui/src/features/[feature-name]/`) - Presentational screens (Screen1, Screen2)
+3. **Containers** (`apps/web/src/components/[feature-name]/`) - Business logic wrappers
+
+**When to use local state in features**:
+- ✅ Dropdown open/closed
+- ✅ Accordion expanded/collapsed
+- ✅ Input field values (controlled inputs)
+- ✅ Form validation state
+- ✅ Hover/focus tracking
+- ❌ Data fetching (loading, error)
+- ❌ Server data
+- ❌ Business logic
+
+**Example - Good presentational component**:
+```tsx
+// packages/ui/src/features/document-editor/Editor.tsx
+export function Editor({ content, onSave }: EditorProps) {
+  const [text, setText] = useState(content); // ✅ Local UI state
+  const [isExpanded, setIsExpanded] = useState(false); // ✅ Local UI state
+
+  return (
+    <Card>
+      <Input value={text} onChange={(e) => setText(e.target.value)} />
+      <Button onClick={() => onSave(text)}>Save</Button>
+    </Card>
+  );
+}
+```
+
 ### Leverage Centralization
-- Check `packages/ui/src/components/index.ts` for available components
+- Check `packages/ui/src/components/index.ts` for available primitives
+- Check `packages/ui/src/features/index.ts` for available feature components
 - Use shadcn MCP to discover and search available components
-- Use `@centrid/ui/components` imports (never relative paths)
+- Import pattern:
+  - From apps: `import { Button } from '@centrid/ui/components'`
+  - From apps: `import { Screen1 } from '@centrid/ui/features'`
+  - Within packages/ui: `import { Button } from '../../components'`
+  - Design-system pages: `import { DesignSystemFrame } from '../../components/DesignSystemFrame'`
 - Colors auto-sync from `colors.config.js` to all apps
 
 ### Component Composition
 - Build complex UIs from simple primitives
 - Use shadcn MCP to view component examples before composing
+- Create feature-specific compositions in `packages/ui/src/features/`
 - Avoid creating new base components unless necessary
 - Use Tailwind utilities for layout/spacing
 
@@ -624,6 +893,13 @@ apps/design-system/public/screenshots/
 - Remember to export from `packages/ui/src/components/index.ts`
 
 ### Design Iteration Speed
-- Hot reload shows changes instantly
+- Edit components in `packages/ui/src/features/`
+- Hot reload shows changes instantly in design-system app
 - Screenshot only changed sections
 - Present visual diffs to user
+
+### Reusability Benefits
+- Design once in packages/ui → use everywhere
+- Component available to all apps via `@centrid/ui/features`
+- No duplication between design-system and production
+- Single source of truth for feature UI

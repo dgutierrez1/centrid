@@ -1,0 +1,331 @@
+openapi: 3.0.3
+info:
+  title: File System & Markdown Editor - Edge Functions API
+  description: Custom Supabase Edge Functions for document upload, indexing, search, and storage management
+  version: 1.0.0
+  contact:
+    name: Centrid Development Team
+
+servers:
+  - url: https://{project-ref}.supabase.co/functions/v1
+    description: Supabase Edge Functions
+    variables:
+      project-ref:
+        default: project-ref
+        description: Supabase project reference ID
+
+security:
+  - BearerAuth: []
+
+paths:
+  /upload-document:
+    post:
+      summary: Upload document file to Supabase Storage
+      description: |
+        Handles multipart file upload with validation (file type, size), uploads to Supabase Storage,
+        creates metadata record in documents table, and queues background indexing.
+      operationId: uploadDocument
+      tags:
+        - Documents
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Markdown or text file to upload (.md or .txt)
+                folder_id:
+                  type: string
+                  format: uuid
+                  nullable: true
+                  description: Parent folder ID (null for root-level document)
+      responses:
+        '201':
+          description: Document uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  document_id:
+                    type: string
+                    format: uuid
+                  storage_path:
+                    type: string
+                    example: documents/a1b2c3d4-..../e5f6g7h8-..../project-spec.md
+                  indexing_status:
+                    type: string
+                    enum: [pending]
+                  message:
+                    type: string
+                    example: Document uploaded successfully and queued for indexing
+        '400':
+          description: Invalid file type or size
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Invalid file type
+                message: Only .md and .txt files are supported
+        '401':
+          description: Unauthorized (missing or invalid JWT)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '413':
+          description: File too large (>10MB)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: File too large
+                message: Maximum file size is 10MB
+
+  /index-document:
+    post:
+      summary: Background indexing job for document
+      description: |
+        Fetches document content from Storage, chunks into 400-500 token segments,
+        generates embeddings via OpenAI, and stores chunks in document_chunks table.
+        Invoked asynchronously by database trigger on document INSERT/UPDATE.
+      operationId: indexDocument
+      tags:
+        - Indexing
+      security:
+        - ServiceRoleAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - document_id
+              properties:
+                document_id:
+                  type: string
+                  format: uuid
+                  description: Document ID to index
+      responses:
+        '200':
+          description: Indexing completed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  document_id:
+                    type: string
+                    format: uuid
+                  chunks_created:
+                    type: integer
+                    example: 12
+                  indexing_status:
+                    type: string
+                    enum: [completed]
+                  message:
+                    type: string
+                    example: Document indexed successfully
+        '404':
+          description: Document not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Indexing failed (retries exhausted)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Indexing failed
+                message: Failed to generate embeddings after 3 retries
+
+  /search-documents:
+    post:
+      summary: Full-text and semantic search across user documents
+      description: |
+        Performs hybrid search combining PostgreSQL full-text search (tsvector)
+        and pgvector semantic search. Returns ranked results with highlighted matches.
+      operationId: searchDocuments
+      tags:
+        - Search
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - query
+              properties:
+                query:
+                  type: string
+                  description: Search query text
+                  example: user authentication implementation
+                search_type:
+                  type: string
+                  enum: [fulltext, semantic, hybrid]
+                  default: hybrid
+                  description: Type of search to perform
+                limit:
+                  type: integer
+                  default: 50
+                  minimum: 1
+                  maximum: 100
+                  description: Maximum number of results to return
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SearchResult'
+                  total_count:
+                    type: integer
+                    example: 15
+        '400':
+          description: Invalid query
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /delete-storage-file:
+    post:
+      summary: Delete file from Supabase Storage
+      description: |
+        Removes file from Supabase Storage bucket. Invoked by database trigger
+        when document row is deleted. Uses SERVICE_ROLE_KEY for access.
+      operationId: deleteStorageFile
+      tags:
+        - Storage
+      security:
+        - ServiceRoleAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - storage_path
+              properties:
+                storage_path:
+                  type: string
+                  example: documents/a1b2c3d4-..../e5f6g7h8-..../project-spec.md
+                  description: Path to file in Supabase Storage
+      responses:
+        '200':
+          description: File deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Storage file deleted successfully
+        '404':
+          description: File not found in Storage
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Storage deletion failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Supabase JWT token (anon key or user session token)
+    ServiceRoleAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Supabase service role key (for internal operations only)
+
+  schemas:
+    Error:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error code or type
+        message:
+          type: string
+          description: Human-readable error message
+        details:
+          type: object
+          additionalProperties: true
+          description: Additional error context
+
+    SearchResult:
+      type: object
+      properties:
+        document_id:
+          type: string
+          format: uuid
+        document_name:
+          type: string
+          example: project-spec.md
+        document_path:
+          type: string
+          example: /Projects/MVP/project-spec.md
+        matched_content:
+          type: string
+          description: Content snippet with highlighted matches
+          example: "User <mark>authentication</mark> flow using JWT tokens"
+        relevance_score:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          example: 0.87
+          description: Relevance ranking (0-1, higher is more relevant)
+        chunk_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Matched chunk ID (for semantic search results)
+        folder_id:
+          type: string
+          format: uuid
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
