@@ -61,10 +61,9 @@ export default function AuthProvider({ children }: AuthProviderProps) {
       setUser(session?.user ?? null)
       setLoading(false)
 
-      // Refresh the page to update server-side props if auth state changed
-      if (_event === 'SIGNED_IN' || _event === 'SIGNED_OUT') {
-        router.replace(router.asPath)
-      }
+      // Note: No need to refresh/replace route in a CSR app
+      // Auth state updates via setUser() automatically trigger re-renders
+      // Explicit redirects (like signOut -> /login) are handled separately
     })
 
     return () => {

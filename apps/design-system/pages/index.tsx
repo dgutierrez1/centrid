@@ -1077,6 +1077,25 @@ export default function DesignShowcase() {
                 </CardContent>
               </Card>
             </a>
+
+            <a href="/filesystem-markdown-editor" className="block">
+              <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+                <CardHeader>
+                  <CardTitle className="text-xl">File System & Markdown Editor</CardTitle>
+                  <CardDescription>
+                    Complete workspace with file management, markdown editing, and AI chat (7 screens)
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Three-panel desktop workspace, mobile views, file upload, empty states, context menu, search
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">
+                    Feature: 003-filesystem-markdown-editor
+                  </p>
+                </CardContent>
+              </Card>
+            </a>
           </div>
         </section>
       </div>

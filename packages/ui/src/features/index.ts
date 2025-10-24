@@ -10,3 +10,7 @@ export { GlassCard, type GlassCardProps } from './GlassCard';
 export { ColorSwatch, type ColorSwatchProps } from './ColorSwatch';
 export { FeatureGrid, type FeatureGridProps } from './FeatureGrid';
 export { ColorPalette, type ColorPaletteProps } from './ColorPalette';
+export { EmptyState as FileSystemEmptyState, type EmptyStateProps as FileSystemEmptyStateProps } from './empty-state';
+
+// Filesystem & Markdown Editor Feature
+export * from './filesystem-markdown-editor';

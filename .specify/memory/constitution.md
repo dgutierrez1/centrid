@@ -1,26 +1,26 @@
 <!--
 Sync Impact Report:
-- Version: 1.3.0 → 1.4.0
-- Rationale: MINOR bump - Added apps/api for self-contained backend application. All server logic (business logic, Edge Functions, migrations) now lives in one place instead of split across packages/ and supabase/.
+- Version: 1.7.0 → 1.8.0
+- Rationale: MINOR bump - Added Principle XVII (Backend Service Architecture). Establishes three-layer backend architecture (Edge Functions → Services → Repositories) with clear separation of concerns. Forbids business logic in Edge Functions, enforces reusable data access patterns, and prevents query duplication.
 - Modified principles:
-  - Principle X (Monorepo Architecture): Added apps/api structure, removed packages/server, clarified all server logic placement
-  - Technology Stack Constraints: Updated package structure (2 packages + 3 apps)
-  - Key Architectural Decisions: Updated #13, #15, #19 for apps/api structure
-  - Anti-Patterns: Added rules against splitting backend code and placing functions at root
+  - Principle X (Monorepo Architecture): Cross-referenced with Principle XVII for backend layer organization
+  - Principle XIII (Clean Code & Maintainability): Cross-referenced with Principle XVII for reusability patterns
+  - Key Architectural Decisions: Added decision #31 for backend three-layer architecture
+  - Anti-Patterns: Added "Backend Architecture" section (5 new anti-patterns) forbidding inline queries, business logic in Edge Functions, and duplicated data access
+  - Success Metrics: Added 3 new metrics for repository pattern adoption, service layer coverage, and query reusability
 - Added sections:
-  - apps/api/ self-contained backend application structure
-  - Backend Structure diagram showing apps/api/ organization
-  - Server Logic Placement (ALL in apps/api/)
-  - Deployment instructions for apps/api
-- Removed sections:
-  - packages/server (replaced by apps/api)
-  - Root supabase/ folder references (moved to apps/api/supabase)
+  - Principle XVII: Backend Service Architecture (three-layer backend, repository pattern, service layer, middleware)
+  - Backend Architecture anti-patterns (5 patterns including inline queries and mixed concerns)
+  - Backend architecture metrics (repository adoption, service coverage, query reuse)
+- Removed sections: None
 - Templates status:
-  ✅ All templates remain compatible
+  ✅ plan-template.md: Constitution Check section compatible (gates apply to new principle)
+  ✅ spec-template.md: Requirements sections support backend architecture requirements
+  ✅ tasks-template.md: Task structure supports repository and service implementation tasks
 - Follow-up TODOs:
-  - Add to CLAUDE.md: Monorepo structure with apps/api and server logic placement rules
-  - Create apps/api/package.json and directory structure
-  - Configure apps/api/supabase/config.toml to point to src/functions/
+  ✅ Update CLAUDE.md with summarized backend architecture guidance (2025-10-23)
+  ⬜ Create example repository + service implementation in .analysis/ for reference
+  ⬜ Consider scaffolding script for new Edge Functions with boilerplate
 -->
 
 # Centrid Constitution
@@ -89,7 +89,11 @@ Claude Agent SDK MUST access documents via MCP (Model Context Protocol) tools. A
 
 All database tables with user data MUST have Row Level Security (RLS) enabled. RLS policies MUST enforce auth.uid() = user_id for all operations. All file uploads MUST be validated (type, size, content). Storage policies MUST check folder path includes user_id. Authentication MUST be required for all user data access. Edge Functions MUST use ANON_KEY (respects RLS) for user operations, SERVICE_ROLE_KEY ONLY when necessary with manual ownership validation. JWT tokens MUST be validated by Supabase (signature verification).
 
-**Rationale**: Database-level security cannot be bypassed - more secure than application-level checks. RLS automatically filters all queries. Even direct database access respects policies. Security is enforced, not just checked. Critical for user trust and data privacy.
+**Frontend Security Boundaries**
+
+Frontend code MUST assume it is untrusted and hostile. Frontend MUST NOT contain sensitive business logic that could be bypassed. Frontend validation MUST be for UX only (instant feedback) - backend MUST re-validate all inputs. Frontend MUST NOT have access to SERVICE_ROLE_KEY or admin credentials. Frontend MUST use ANON_KEY which enforces RLS policies. API keys in frontend MUST be public-safe keys only (NEXT_PUBLIC_SUPABASE_ANON_KEY). Sensitive operations (payments, admin actions, cross-user operations) MUST be implemented in Edge Functions, never in frontend.
+
+**Rationale**: Database-level security cannot be bypassed - more secure than application-level checks. RLS automatically filters all queries. Even direct database access respects policies. Security is enforced, not just checked. Frontend is inherently untrusted - any logic in frontend JavaScript can be read, modified, or bypassed by users. Defense-in-depth means frontend provides convenience, backend enforces security. Critical for user trust and data privacy. Works in conjunction with Principle XV (Least Privilege) to minimize access at all layers.
 
 ### IX. MVP-First Discipline
 
@@ -123,7 +127,9 @@ Codebase MUST be organized as a monorepo using npm workspaces with the following
 apps/api/
 ├── package.json           # Workspace package
 ├── src/
+│   ├── repositories/      # Data access layer (database queries, type-safe wrappers)
 │   ├── services/          # Business logic (RAG, document processing, AI orchestration)
+│   ├── middleware/        # Reusable middleware (auth, validation, error handling)
 │   ├── utils/             # Backend utilities (response formatting, error handling)
 │   ├── lib/               # Shared backend libraries (Supabase client config, etc)
 │   ├── db/                # Database utilities (push, drop, schema)
@@ -169,7 +175,9 @@ entrypoint = '../src/functions/update-profile/index.ts'
 - `packages/shared` → NO imports from other packages (foundation layer)
 
 **Server Logic Placement** (ALL in `apps/api/`):
+- Data access layer (database queries) → `apps/api/src/repositories/`
 - Business logic shared across Edge Functions → `apps/api/src/services/`
+- Reusable middleware (auth, validation) → `apps/api/src/middleware/`
 - API utilities (response formatting, error handling) → `apps/api/src/utils/`
 - Supabase client configuration → `apps/api/src/lib/supabase.ts`
 - Edge Function implementations → `apps/api/src/functions/[function-name]/index.ts`
@@ -190,6 +198,122 @@ entrypoint = '../src/functions/update-profile/index.ts'
 All features MUST be visually designed in `apps/design-system` before implementation in `apps/web`. Design MUST follow a two-layer approach: (1) Global design system established once with `/speckit.design-system`, (2) Feature-specific designs created per feature with `/speckit.design`. All designs MUST be screenshot-validated using Playwright MCP (mobile + desktop viewports). Design feedback MUST use the 10 Design Levers framework (Visual Hierarchy, Consistency, Information Density, Color with Purpose, Typography Hierarchy, Spacing Rhythm, Feedback & Affordance, Mobile-First Responsive, Accessibility, States). Components MUST be approved visually before implementation begins. Design tokens MUST be centralized in `packages/ui` (colors.config.js, tailwind.preset.js).
 
 **Rationale**: Visual-first iteration prevents costly implementation rewrites. Seeing high-fidelity mockups before coding validates UX decisions early. Playwright MCP automation enables rapid design iteration without manual dev server management. 10 Design Levers provide structured feedback language for consistent quality. Centralized design tokens ensure visual consistency across all apps. Design approval gates ensure implementation builds exactly what was approved, reducing back-and-forth during development.
+
+### XII. Defense-in-Depth Security
+
+**Layered Security Architecture**
+
+Security MUST be implemented in multiple layers - frontend (UX convenience), Edge Functions (business logic enforcement), database (RLS policies), and infrastructure (Supabase Auth). Each layer MUST assume the outer layer can be compromised. Frontend validation MUST be duplicated in backend with same or stricter rules. Database policies MUST be the ultimate authority - all other layers are advisory. Secrets MUST never be exposed to frontend (use environment variables with NEXT_PUBLIC_ prefix only for public keys). Rate limiting MUST be implemented for sensitive operations. Authentication tokens MUST have appropriate expiration (JWT refresh flow). Audit logging MUST capture security-relevant events (auth, data access, admin actions).
+
+**Input Validation & Sanitization**
+
+All external inputs MUST be validated before processing. User-provided content MUST be sanitized before storage and display (XSS prevention). File uploads MUST validate file type (magic bytes, not extension), size limits, and content scanning. SQL injection MUST be prevented via parameterized queries (Supabase client handles this automatically). Command injection MUST be prevented by avoiding shell execution with user input. Path traversal MUST be prevented by validating file paths stay within allowed directories. Zod schemas MUST define strict validation rules for all API inputs.
+
+**Attack Surface Minimization**
+
+Public APIs MUST require authentication unless explicitly designed as public endpoints. Error messages MUST NOT leak sensitive information (stack traces, database details, file paths). CORS policies MUST be restrictive (allow only known origins). Dependencies MUST be regularly updated for security patches. Third-party code MUST be reviewed before integration. Debug/development features MUST be disabled in production. Environment-specific secrets MUST be isolated (dev vs production keys).
+
+**Rationale**: Single-layer security is fragile - one bypass compromises the entire system. Defense-in-depth ensures that breaching one layer doesn't grant full access. Frontend is the most vulnerable layer (fully client-controlled), so it must only provide convenience. Database RLS is the most reliable layer since it cannot be bypassed even with direct database access. Proper input validation prevents injection attacks, XSS, and data corruption. Minimizing attack surface reduces the number of potential vulnerability points. Security is everyone's responsibility but must be enforced architecturally, not just culturally. Works in conjunction with Principle XV (Least Privilege) to create comprehensive security posture.
+
+### XIII. Clean Code & Maintainability
+
+**Code Quality Standards**
+
+Code MUST be self-documenting through clear naming and structure. Functions MUST do one thing well (Single Responsibility Principle). Functions MUST be small (prefer <50 lines, max 100 lines). Cyclomatic complexity MUST be kept low (prefer <10 branches per function). Magic numbers and strings MUST be replaced with named constants. Comments MUST explain "why", not "what" (code explains "what"). Dead code MUST be removed immediately. Duplication MUST be eliminated after third occurrence (Rule of Three).
+
+**Clean Architecture Principles**
+
+Dependencies MUST flow inward (UI → Services → Data, never reverse). Business logic MUST be isolated from infrastructure (database, APIs, frameworks). Services MUST have clear contracts (interfaces/types) independent of implementation. Shared logic MUST live in reusable functions/modules, not copy-pasted. Configuration MUST be externalized (environment variables, config files). Hard-coded values MUST be avoided in business logic. Error handling MUST be consistent and predictable across the codebase.
+
+**Maintainability Practices**
+
+File organization MUST follow consistent patterns (feature-based or layer-based, but not mixed). Import statements MUST use path aliases (@/ or @centrid/*) for clarity. Naming conventions MUST be consistent (camelCase for functions/variables, PascalCase for components/types). TypeScript strict mode MUST be enabled with no 'any' types without justification. ESLint and Prettier MUST enforce consistent code style. Code reviews MUST check for clarity, simplicity, and maintainability. Refactoring MUST be done incrementally, not as large rewrites.
+
+**Reusability First**
+
+Shared utilities MUST live in `packages/shared/utils/`. Shared types MUST live in `packages/shared/types/`. Shared UI components MUST live in `packages/ui/components/`. Business logic used by multiple Edge Functions MUST live in `apps/api/src/services/`. Data access logic used by multiple services MUST live in `apps/api/src/repositories/`. Helper functions MUST be extracted when used 3+ times (Rule of Three). Generic solutions MUST be preferred over specific ones when complexity is similar. Reusable code MUST have clear, documented contracts (JSDoc for complex functions).
+
+**Rationale**: Clean code reduces cognitive load, making the codebase easier to understand and modify. Maintainability determines long-term velocity - messy code slows development over time. Clear architecture prevents accidental coupling and makes refactoring safe. Reusability reduces duplication, bugs, and inconsistency. Following these practices pays dividends as the codebase grows. MVP-first doesn't mean messy code - it means simple, clear solutions over complex, "clever" ones. Good code is code that's easy to delete and replace when requirements change.
+
+### XIV. RESTful API Design
+
+**HTTP Semantics & Resource Modeling**
+
+All Edge Functions that expose APIs MUST follow RESTful principles. Resources MUST be modeled as nouns (e.g., `/documents`, `/chats`, `/users`) not verbs. HTTP methods MUST be used correctly: GET (read), POST (create), PUT/PATCH (update), DELETE (remove). GET requests MUST be idempotent and safe (no side effects). POST/PUT/DELETE operations MUST be idempotent where possible. HTTP status codes MUST be used correctly: 200 (success), 201 (created), 204 (no content), 400 (client error), 401 (unauthorized), 403 (forbidden), 404 (not found), 422 (validation error), 500 (server error). Response bodies MUST use consistent JSON structure with clear success/error formats.
+
+**Stateless Design**
+
+API endpoints MUST be stateless - all necessary information MUST be included in each request. Server-side session state MUST NOT be relied upon for API calls. Authentication MUST use stateless JWT tokens. Request context MUST be self-contained (headers, query params, body). Pagination state MUST be cursor-based or offset-based, not server-stored session. This enables horizontal scaling and simplifies caching.
+
+**API Contracts & Documentation**
+
+All API endpoints MUST be documented with OpenAPI/Swagger specifications in `specs/[feature]/contracts/`. Request/response schemas MUST be defined using Zod and auto-generate TypeScript types. Breaking changes MUST be versioned (e.g., `/v1/documents`, `/v2/documents`). Backward compatibility MUST be maintained within a major version. Error responses MUST include machine-readable error codes and human-readable messages. API examples MUST be provided in documentation.
+
+**Resource Hierarchy & Relationships**
+
+Nested resources MUST follow logical hierarchies (e.g., `/users/{userId}/documents/{documentId}`). Sub-resources MUST be accessible both through parent (`/users/{id}/documents`) and independently (`/documents` with filtering). Relationships MUST be expressed through links (HATEOAS where beneficial). Collection endpoints MUST support filtering, sorting, and pagination. Query parameters MUST use consistent naming (e.g., `?sort=created_at&order=desc&limit=20`).
+
+**Rationale**: RESTful design provides predictable, discoverable APIs that are easy to consume from web, mobile, and third-party clients. Correct HTTP semantics leverage existing infrastructure (caching, load balancing, monitoring). Stateless design enables horizontal scaling and reduces server complexity. Clear contracts reduce integration errors and enable automated testing. Consistent patterns reduce cognitive load for API consumers. Well-designed APIs are self-documenting and reduce support burden. This principle complements mobile-first strategy (Principle II) by ensuring APIs work seamlessly across all platforms.
+
+### XV. Principle of Least Privilege
+
+**Minimal Access by Default**
+
+All code, services, and users MUST be granted the minimum permissions necessary to perform their function, and nothing more. Edge Functions MUST use ANON_KEY (RLS-enforced) by default and SERVICE_ROLE_KEY only when absolutely necessary with explicit justification. Database roles MUST be scoped to minimum required tables and operations (SELECT vs INSERT vs UPDATE vs DELETE). API keys MUST be scoped to specific operations (read-only, write-only, admin). User permissions MUST follow role-based access control (RBAC) with clearly defined roles (user, admin, service). Service accounts MUST have narrowly scoped credentials specific to their function.
+
+**Time-Bounded Access**
+
+Elevated permissions MUST be time-bounded wherever possible. JWT tokens MUST have appropriate expiration times (access token: 1 hour, refresh token: 30 days). Temporary admin access MUST expire automatically. Service role keys used in development MUST be rotated regularly. Session tokens MUST be invalidated on logout. One-time access tokens MUST be single-use and expire after short duration (e.g., password reset links: 1 hour).
+
+**Privilege Escalation Controls**
+
+Privilege escalation MUST require explicit approval flows. Admin operations MUST require re-authentication (password confirmation) even for logged-in users. Sensitive operations (account deletion, payment changes, data export) MUST have additional verification steps. Cross-user operations MUST be explicitly forbidden at RLS policy level. Service-to-service calls MUST use scoped service tokens, not user tokens. Audit logs MUST record all privilege escalations with context (who, what, when, why).
+
+**Default Deny**
+
+Access control MUST follow "default deny" - explicitly grant permissions rather than explicitly deny. RLS policies MUST be restrictive by default (no policy = no access). New Edge Functions MUST require authentication unless explicitly designed as public. New database tables MUST have RLS enabled from creation. API endpoints MUST require authentication by default. Frontend features MUST be hidden/disabled for unauthorized users (defense-in-depth with backend enforcement).
+
+**Rationale**: Least privilege minimizes damage from compromised credentials, buggy code, or malicious insiders. Reducing permission scope limits blast radius of security incidents. Time-bounded access ensures credentials don't remain valid indefinitely after compromise. Privilege escalation controls prevent unauthorized elevation of access. Default deny prevents accidental exposure of sensitive data. This principle complements Zero-Trust Data Access (Principle VIII) and Defense-in-Depth Security (Principle XII) to create comprehensive access control. Least privilege is foundational security hygiene that prevents entire classes of vulnerabilities.
+
+### XVI. Service Layer Architecture for Real-Time Apps
+
+**Three-Layer Frontend Integration**
+
+Frontend MUST use a three-layer architecture: (1) Service Layer (pure functions calling Edge Functions), (2) Custom Hooks (loading/error states, toast notifications, optimistic updates), (3) UI Components (presentational). Services MUST return `{ data?, error? }` with no UI concerns. Hooks MUST handle loading states, error toasts, and Valtio state updates. Components MUST receive data and callbacks via props with no direct API calls.
+
+**Real-Time State Synchronization**
+
+State management MUST use Valtio for reactive updates. Real-time subscriptions (FileSystemProvider, etc.) MUST listen to Supabase events and update Valtio state automatically. Custom hooks MUST perform optimistic updates to Valtio state for instant UI feedback, then replace with server response. Server-confirmed changes via real-time subscriptions MUST reconcile with optimistic updates. This ensures UI updates immediately (optimistic) and stays consistent (real-time).
+
+**No React Query / SWR**
+
+React Query and SWR MUST NOT be used in apps with real-time subscriptions. Caching libraries conflict with Supabase Realtime - they create dual state (cache + Valtio), cache invalidation complexity, and optimistic update synchronization issues. Real-time subscriptions handle data freshness automatically. Valtio is the single source of truth. Custom hooks provide loading/error states without caching overhead. This architecture is simpler, lighter, and purpose-built for real-time apps.
+
+**Error Handling & User Feedback**
+
+All API operations MUST show loading states during execution. Errors MUST display toast notifications (react-hot-toast) with actionable messages. Success operations MUST show confirmation toasts. Network errors MUST be retried automatically (configurable, typically 3 attempts with exponential backoff). Optimistic updates MUST rollback on error with user notification. This provides excellent UX without complex error boundaries or query retry logic.
+
+**Rationale**: Traditional data-fetching libraries (React Query, SWR) are designed for RESTful APIs without real-time. Centrid uses Supabase Realtime for instant updates - caching conflicts with this model. Three-layer architecture separates concerns: services handle API calls, hooks handle UI states, components handle presentation. Optimistic updates + real-time sync gives instant feedback with guaranteed consistency. Custom hooks are lightweight, testable, and integrate perfectly with Valtio. This pattern is proven for real-time apps and avoids state duplication. See `.analysis/frontend-backend-architecture.md` for detailed comparison.
+
+### XVII. Backend Service Architecture
+
+**Three-Layer Backend Architecture**
+
+Backend MUST use a three-layer architecture: (1) Edge Functions (HTTP routing, auth verification, request/response handling), (2) Service Layer (business logic, orchestration, validation), (3) Repository Layer (data access, database queries). Edge Functions MUST be thin - only handle HTTP concerns and delegate to services. Services MUST contain business logic and orchestrate multiple repositories. Repositories MUST encapsulate all database queries with type-safe interfaces. This separation enables testability, reusability, and maintainability.
+
+**Repository Pattern for Data Access**
+
+All database queries MUST be encapsulated in repository modules (`apps/api/src/repositories/`). Each repository MUST correspond to a database table or logical data entity (documents, folders, users). Repositories MUST provide reusable query methods (findById, findByUser, create, update, delete). Repositories MUST use Drizzle ORM for type-safe queries. Repositories MUST return typed results with consistent error handling. NO raw SQL queries in Edge Functions or services - all data access goes through repositories.
+
+**Service Layer for Business Logic**
+
+Business logic shared across multiple Edge Functions MUST live in service modules (`apps/api/src/services/`). Services MUST orchestrate multiple repositories and apply business rules. Services MUST handle validation, transformation, and complex operations. Services MUST be pure functions when possible (no side effects except database/API calls). Services MUST have clear, documented contracts with input/output types. Edge Functions MUST call services, NOT repositories directly (except for simple CRUD cases).
+
+**Reusable Middleware**
+
+Common Edge Function concerns MUST be extracted to middleware (`apps/api/src/middleware/`): auth verification, request validation, error handling, CORS. Middleware MUST be composable and reusable across Edge Functions. Auth middleware MUST extract user from JWT and verify ownership. Validation middleware MUST use Zod schemas from `@centrid/shared`. Error middleware MUST provide consistent error response formatting. This eliminates duplication and ensures consistency.
+
+**Rationale**: Three-layer backend prevents mixing HTTP concerns with business logic and data access. Repository pattern eliminates query duplication - write once, use everywhere. Services enable complex business logic to be tested independently of HTTP layer. Middleware eliminates boilerplate code in Edge Functions. Clear separation makes code easier to understand, test, and refactor. This architecture scales from MVP (simple CRUD) to complex features (multi-step workflows, transactions) without rewrites. See Principle XIII (Clean Code) for reusability patterns and Principle X (Monorepo Architecture) for file organization.
 
 ## Technology Stack Constraints
 
@@ -262,6 +386,15 @@ These decisions are locked and MUST be followed:
 20. **Design iteration workflow: apps/design-system → Playwright MCP screenshots → approval → apps/web implementation**
 21. **Two-layer design approach: Global design system (once) → Feature designs (per feature)**
 22. **10 Design Levers framework for structured design feedback**
+23. **Defense-in-depth security: Frontend (UX) → Edge Functions (enforcement) → Database (RLS) → Infrastructure (Auth)**
+24. **Input validation at all layers: Frontend (UX), Backend (enforcement), Database (constraints)**
+25. **Clean architecture: Dependencies flow inward, business logic isolated from infrastructure**
+26. **RESTful API design: Resource-based URLs, correct HTTP methods/status codes, stateless endpoints**
+27. **Least privilege access: Minimal permissions by default, time-bounded access, explicit privilege escalation**
+28. **Three-layer frontend: Service Layer (pure API calls) → Custom Hooks (loading/error/optimistic) → UI Components (presentational)**
+29. **Real-time state sync: Valtio + Supabase Realtime, optimistic updates with server reconciliation, NO React Query/SWR**
+30. **User feedback: Toast notifications (react-hot-toast), loading states, error rollback, automatic retries**
+31. **Three-layer backend: Edge Functions (HTTP routing) → Services (business logic) → Repositories (data access)**
 
 ## Success Metrics
 
@@ -284,11 +417,27 @@ Performance and quality targets that MUST be met:
 - **Package isolation: Zero accidental imports from apps/web to packages/ (TypeScript enforced)**
 - **Design iteration: <3 rounds from initial design to approval per feature**
 - **Design feedback quality: 80%+ of feedback uses Design Levers framework terminology**
+- **Security audits: Quarterly security reviews with vulnerability remediation within 7 days for critical, 30 days for high severity**
+- **Code quality: Average cyclomatic complexity <8, function length <50 lines for 90%+ of functions**
+- **Test coverage guidance: Critical paths (auth, payments, data access) must have integration tests, not a strict % target**
+- **RESTful API compliance: 100% of API endpoints use correct HTTP methods and status codes**
+- **API documentation: 100% of endpoints documented in OpenAPI spec with request/response schemas**
+- **Least privilege compliance: 90%+ of Edge Functions use ANON_KEY, SERVICE_ROLE_KEY usage explicitly justified**
+- **Access audit frequency: Monthly review of service account permissions, quarterly review of user role permissions**
+- **Token expiration compliance: 100% of access tokens expire within 1 hour, refresh tokens within 30 days**
+- **Service layer compliance: 100% of API calls go through service layer (no direct fetch in components)**
+- **Loading state coverage: 100% of async operations show loading indicators**
+- **Error toast coverage: 100% of failed operations show user-friendly error messages**
+- **Optimistic update usage: 90%+ of mutations use optimistic updates for instant feedback**
+- **Repository pattern adoption: 90%+ of database queries go through repository layer (no inline queries in Edge Functions)**
+- **Service layer coverage: 80%+ of complex business logic lives in services (not Edge Functions)**
+- **Query reusability: 70%+ of database queries are used by multiple Edge Functions (via repositories)**
 
 ## Anti-Patterns to Avoid
 
 These patterns are FORBIDDEN:
 
+### Architecture & Design
 - ❌ Logic in presentational components
 - ❌ Direct Supabase calls in UI components (use container layer)
 - ❌ Untyped API responses or database queries
@@ -309,11 +458,15 @@ These patterns are FORBIDDEN:
 - ❌ Desktop hover states on mobile (use active states for touch feedback)
 - ❌ Touch targets smaller than 44x44px (iOS/Android accessibility requirement)
 - ❌ Inline styles or CSS-in-JS (use Tailwind utilities for consistency)
+
+### MVP & Scope
 - ❌ **Premature abstraction (abstract only after Rule of Three: third occurrence)**
 - ❌ **Building features "for the future" that aren't needed for MVP**
 - ❌ **Perfect architecture over working software (ship first, refactor later)**
 - ❌ **Scope creep: Adding "while we're at it" features mid-implementation**
 - ❌ **Analysis paralysis: Debating architecture instead of building and testing**
+
+### Monorepo & Boundaries
 - ❌ **Server dependencies in packages/ui (Supabase, Valtio, providers)**
 - ❌ **Design system (apps/design-system) importing from apps/web (breaks isolation)**
 - ❌ **Hard-coded values in UI components (use Tailwind classes from shared config)**
@@ -327,6 +480,76 @@ These patterns are FORBIDDEN:
 - ❌ **Placing Edge Functions in root supabase/ folder (use apps/api/src/functions)**
 - ❌ **Creating supabase/functions/ directory (duplicates src/functions/ - use custom entrypoints instead)**
 - ❌ **Assuming Supabase auto-discovers functions (must explicitly declare each in config.toml)**
+
+### Security
+- ❌ **Trusting frontend validation alone (backend MUST re-validate)**
+- ❌ **Exposing SERVICE_ROLE_KEY or sensitive secrets to frontend**
+- ❌ **Implementing authorization logic in frontend (backend MUST enforce)**
+- ❌ **Storing sensitive data in localStorage/sessionStorage without encryption**
+- ❌ **Using user-provided input in SQL queries without parameterization**
+- ❌ **Accepting file uploads without type/size/content validation**
+- ❌ **Returning detailed error messages to users (leak stack traces, DB details)**
+- ❌ **Permissive CORS policies (allow * in production)**
+- ❌ **Missing rate limiting on sensitive operations (auth, payments)**
+- ❌ **Hard-coding secrets in code (use environment variables)**
+- ❌ **Skipping security audits (quarterly reviews required)**
+- ❌ **Validating file type by extension only (check magic bytes)**
+- ❌ **Building authentication from scratch (use Supabase Auth)**
+- ❌ **Bypassing RLS by using SERVICE_ROLE_KEY for user operations**
+- ❌ **Missing audit logs for security-relevant operations**
+
+### Code Quality & Maintainability
+- ❌ **Functions longer than 100 lines (prefer <50)**
+- ❌ **High cyclomatic complexity (>10 branches per function)**
+- ❌ **Magic numbers and strings (use named constants)**
+- ❌ **Copy-pasted code (extract reusable functions after 3rd occurrence)**
+- ❌ **Using 'any' type without justification**
+- ❌ **Mixing feature-based and layer-based organization**
+- ❌ **Comments explaining "what" instead of "why" (code should explain "what")**
+- ❌ **Dead code or commented-out code in commits**
+- ❌ **Inconsistent naming conventions**
+- ❌ **Business logic coupled to framework/infrastructure details**
+- ❌ **Large rewrites instead of incremental refactoring**
+- ❌ **Missing JSDoc for complex/reusable functions**
+
+### RESTful API Design
+- ❌ **Using verbs in resource URLs (e.g., `/getDocuments`, `/createUser`)**
+- ❌ **Using GET requests for operations with side effects (use POST/PUT/DELETE)**
+- ❌ **Using POST for everything (RESTful APIs should use appropriate HTTP methods)**
+- ❌ **Incorrect HTTP status codes (e.g., returning 200 for errors, 404 for validation failures)**
+- ❌ **Inconsistent response formats across endpoints**
+- ❌ **Server-side session state for API calls (must be stateless)**
+- ❌ **Undocumented API endpoints (all must have OpenAPI specs)**
+- ❌ **Breaking API changes without versioning**
+- ❌ **Missing pagination on collection endpoints**
+- ❌ **Returning entire collections without filtering/limiting (resource exhaustion)**
+
+### Least Privilege Violations
+- ❌ **Using SERVICE_ROLE_KEY by default (use ANON_KEY with RLS enforcement)**
+- ❌ **Granting broad permissions when narrow scope would suffice**
+- ❌ **Using admin credentials for regular operations**
+- ❌ **Long-lived or non-expiring access tokens**
+- ❌ **Sharing service account credentials across multiple services**
+- ❌ **Granting write access when read-only would suffice**
+- ❌ **Missing re-authentication for sensitive operations**
+- ❌ **Allowing privilege escalation without audit logging**
+
+### Service Layer & Data Fetching
+- ❌ **Using React Query or SWR with Supabase Realtime (creates dual state + cache conflicts)**
+- ❌ **Direct fetch calls in UI components (must go through service layer)**
+- ❌ **Missing loading states for async operations**
+- ❌ **Missing error toast notifications for failures**
+- ❌ **No optimistic updates for user actions (poor perceived performance)**
+- ❌ **Mixing service logic with UI logic in hooks**
+- ❌ **Services handling UI concerns (toasts, loading states) instead of hooks**
+- ❌ **Components subscribing directly to real-time events (use providers)**
+
+### Backend Architecture
+- ❌ **Inline database queries in Edge Functions (use repository layer)**
+- ❌ **Business logic in Edge Functions (use service layer)**
+- ❌ **Duplicated database queries across Edge Functions (extract to repositories)**
+- ❌ **Auth/validation logic duplicated in every Edge Function (use middleware)**
+- ❌ **Edge Functions calling other Edge Functions (use shared services instead)**
 
 ## Governance
 
@@ -354,7 +577,12 @@ Constitution amendments require:
 - **MVP Scope Gate: All features MUST justify necessity for MVP before implementation begins**
 - **Package Boundary Check: TypeScript MUST prevent server code imports in packages/ui**
 - **Design Approval Gate: Visual designs MUST be approved before implementation begins**
+- **Security Audit Gate: Quarterly security reviews MUST be completed with documented findings**
+- **Code Review Gate: All PRs MUST be reviewed for code quality, security, and maintainability**
+- **API Design Review: All new Edge Functions MUST be reviewed for RESTful compliance**
+- **Least Privilege Audit: Monthly review of SERVICE_ROLE_KEY usage, quarterly review of all service account permissions**
+- **Architecture Review: All new Edge Functions MUST be reviewed for proper layering (repositories → services → functions)**
 
 All PRs/reviews MUST verify compliance with principles. Complexity introduced that violates principles MUST be justified with clear rationale and documented in plan.md Complexity Tracking section. Use [CLAUDE.md](../../CLAUDE.md) for runtime development guidance.
 
-**Version**: 1.4.0 | **Ratified**: 2025-01-15 | **Last Amended**: 2025-10-21
+**Version**: 1.8.0 | **Ratified**: 2025-01-15 | **Last Amended**: 2025-10-23
