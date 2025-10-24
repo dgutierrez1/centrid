@@ -16,8 +16,69 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 2. **Load design documents**: Read from FEATURE_DIR:
    - **Required**: plan.md (tech stack, libraries, structure), spec.md (user stories with priorities)
-   - **Optional**: data-model.md (entities), contracts/ (API endpoints), research.md (decisions), quickstart.md (test scenarios)
+   - **Optional**:
+     - data-model.md (entities)
+     - contracts/ (API endpoints)
+     - research.md (decisions)
+     - quickstart.md (test scenarios)
+     - **design.md (UI component architecture, designed components)** - If exists, extract:
+       - Component Architecture section (reusable components in packages/ui/src/features/)
+       - Screen-to-Component Mapping table (which components were designed)
+       - Implementation Guide (container pattern, import examples)
    - Note: Not all projects have all documents. Generate tasks based on what's available.
+
+2.5. **Verify Design Component Availability** (MANDATORY if design.md exists):
+
+**If AVAILABLE_DOCS includes design.md**:
+
+1. **Parse Screen-to-Component Mapping table** from design.md:
+   - Extract all component names (e.g., DesktopWorkspace, EmptyState, FileUploadModal)
+   - Extract documented file paths (should be `packages/ui/src/features/[feature-name]/ComponentName.tsx`)
+   - Build expected component list
+
+2. **Verify each designed component exists**:
+   - Check physical file exists at documented path
+   - Check component exported from `packages/ui/src/features/[feature-name]/index.ts`
+   - Check feature exported from `packages/ui/src/features/index.ts`
+
+3. **Build component availability map**:
+   ```json
+   {
+     "DesktopWorkspace": { "exists": true, "path": "packages/ui/src/features/filesystem-markdown-editor/DesktopWorkspace.tsx" },
+     "EmptyState": { "exists": true, "path": "packages/ui/src/features/filesystem-markdown-editor/EmptyState.tsx" },
+     "FileUploadModal": { "exists": false, "path": "packages/ui/src/features/filesystem-markdown-editor/FileUploadModal.tsx" }
+   }
+   ```
+
+4. **Report verification results**:
+   ```
+   Design Component Verification:
+
+   ✅ DesktopWorkspace      packages/ui/src/features/filesystem-markdown-editor/DesktopWorkspace.tsx
+   ✅ EmptyState            packages/ui/src/features/filesystem-markdown-editor/EmptyState.tsx
+   ❌ FileUploadModal       NOT FOUND (expected: packages/ui/src/features/filesystem-markdown-editor/FileUploadModal.tsx)
+
+   Status: 2/3 components available (66%)
+   ```
+
+**If ANY designed component is MISSING**:
+
+- **ERROR**: Design artifacts incomplete - designed components not accessible
+- **Report**: List missing components with expected paths
+- **Suggest**:
+  1. **Recommended**: Run `/speckit.design-iterate` to create missing components in correct location
+  2. OR: Update design.md to remove references to missing components (if they weren't actually designed)
+  3. OR: Manually move components from wrong location (check `apps/design-system/components/`) to `packages/ui/src/features/[feature-name]/`
+- **Ask user**: "Design components missing. Fix before continuing? (yes = stop now / no = continue without design integration)"
+- **If user says NO**: Generate tasks WITHOUT design integration (create UI from scratch)
+- **If user says YES**: STOP execution and exit
+
+**If ALL designed components verified ✅**:
+
+- Set flag: `DESIGN_INTEGRATION_ENABLED = true`
+- Use component availability map in Step 3 task generation
+- Generate "integrate existing" tasks (not "create from scratch")
+- Proceed to Step 3
 
 3. **Execute task generation workflow**:
    - Load plan.md and extract tech stack, libraries, project structure
@@ -25,6 +86,19 @@ You **MUST** consider the user input before proceeding (if not empty).
    - If data-model.md exists: Extract entities and map to user stories
    - If contracts/ exists: Map endpoints to user stories
    - If research.md exists: Extract decisions for setup tasks
+   - **If DESIGN_INTEGRATION_ENABLED = true** (set in Step 2.5):
+     - Use component availability map from Step 2.5
+     - For each available designed component: Generate "integrate existing" tasks
+       - Example: "Create WorkspaceContainer that wraps DesktopWorkspace from @centrid/ui/features in apps/web/src/components/workspace/"
+       - Example: "Import EmptyState from @centrid/ui/features and use in WorkspaceContainer when no document selected"
+     - Generate container components in `apps/web/src/components/[feature]/`
+     - Generate custom hooks in `apps/web/src/lib/hooks/`
+     - Generate state management in `apps/web/src/lib/state/`
+     - Generate API integration in `apps/api/src/functions/`
+     - **DO NOT generate tasks to create designed components** (they already exist)
+   - **If design.md missing OR DESIGN_INTEGRATION_ENABLED = false**:
+     - Generate tasks to create UI components from scratch in appropriate locations
+     - No design integration pattern
    - Generate tasks organized by user story (see Task Generation Rules below)
    - Generate dependency graph showing user story completion order
    - Create parallel execution examples per user story
@@ -44,12 +118,28 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Implementation strategy section (MVP first, incremental delivery)
 
 5. **Report**: Output path to generated tasks.md and summary:
-   - Total task count
-   - Task count per user story
-   - Parallel opportunities identified
+
+   **Design Integration Status**:
+   - If design.md exists:
+     - Design component verification: [N]/[M] components available
+     - Integration mode: ENABLED ✅ / DISABLED (missing components) ❌
+     - Available components: [list]
+     - Tasks generated: Integration tasks (wrapping existing components)
+   - If design.md missing:
+     - Integration mode: N/A (no design phase)
+     - Tasks generated: Create UI components from scratch
+
+   **Task Generation Summary**:
+   - Total task count: [N]
+   - Task count per user story: [breakdown]
+   - Parallel opportunities identified: [N] tasks marked [P]
    - Independent test criteria for each story
    - Suggested MVP scope (typically just User Story 1)
    - Format validation: Confirm ALL tasks follow the checklist format (checkbox, ID, labels, file paths)
+
+   **Ready for Implementation**:
+   - tasks.md created at: [FEATURE_DIR]/tasks.md
+   - Next step: Run `/speckit.implement` to execute tasks
 
 Context for task generation: $ARGUMENTS
 
@@ -117,6 +207,22 @@ Every task MUST strictly follow this format:
    - Shared infrastructure → Setup phase (Phase 1)
    - Foundational/blocking tasks → Foundational phase (Phase 2)
    - Story-specific setup → within that story's phase
+
+5. **From Design (design.md)** - IF EXISTS:
+   - **DO NOT create tasks to build UI components** (already done in packages/ui by /speckit.design)
+   - **DO create tasks to integrate designed components**:
+     - Container components that wrap designed components with business logic
+     - Custom hooks for state management (useFileSystem, useMarkdownEditor, etc.)
+     - State management setup (Valtio stores)
+     - API integration (Edge Functions, endpoints)
+     - Page/route setup using container components
+   - **Task examples when design.md exists**:
+     - ✅ "Create WorkspaceContainer wrapping DesktopWorkspace from @centrid/ui/features in apps/web/src/components/filesystem/"
+     - ✅ "Create useFileSystem hook for file CRUD operations in apps/web/src/hooks/"
+     - ✅ "Create filesystemState Valtio store in apps/web/src/lib/state/"
+     - ✅ "Create /workspace page using WorkspaceContainer in apps/web/src/pages/"
+     - ❌ "Create DesktopWorkspace component" (NO - already exists from design phase)
+     - ❌ "Build file tree UI" (NO - already exists as presentational component)
 
 ### Phase Structure
 

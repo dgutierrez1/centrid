@@ -114,11 +114,27 @@ enabled = true
 policy = "per_worker"
 
 # Edge Functions - All source code in src/functions/ (monorepo structure)
+# Import map allows Edge Functions to use @centrid/shared package
 [functions.create-account]
 entrypoint = '../src/functions/create-account/index.ts'
+import_map = '../import_map.json'
 
 [functions.update-profile]
 entrypoint = '../src/functions/update-profile/index.ts'
+import_map = '../import_map.json'
 
 [functions.delete-account]
 entrypoint = '../src/functions/delete-account/index.ts'
+import_map = '../import_map.json'
+
+[functions.documents]
+entrypoint = '../src/functions/documents/index.ts'
+import_map = '../import_map.json'
+
+[functions.folders]
+entrypoint = '../src/functions/folders/index.ts'
+import_map = '../import_map.json'
+
+[functions.index-document]
+entrypoint = '../src/functions/index-document/index.ts'
+import_map = '../import_map.json'

@@ -55,6 +55,15 @@ centrid/
 - **Edge Function implementations** → `apps/api/src/functions/[name]/`
 - When in doubt: If it's pure UI with no server deps, put it in `packages/ui`
 
+**Backend Architecture (Three-Layer)**:
+
+- **Edge Functions** (`apps/api/src/functions/`) - Thin HTTP handlers: auth verification, routing, request/response formatting
+- **Services** (`apps/api/src/services/`) - Business logic: orchestration, validation, complex operations
+- **Repositories** (`apps/api/src/repositories/`) - Data access: type-safe database queries (Drizzle ORM)
+- **Middleware** (`apps/api/src/middleware/`) - Reusable helpers: auth, validation (Zod), error handling, CORS
+
+**Rules**: Edge Functions MUST NOT contain business logic or inline queries. All database access MUST go through repositories. Services orchestrate repositories and apply business rules. Middleware eliminates boilerplate.
+
 ## Development Commands
 
 ### Local Development
@@ -92,7 +101,7 @@ supabase gen types typescript # Generate types → ../../packages/shared/src/typ
 
 ### Edge Functions
 
-**Structure**: All Edge Function code lives in `apps/api/src/functions/` (single source of truth). Each function must be declared in `apps/api/supabase/config.toml` with a custom entrypoint pointing to the source.
+**Structure**: All Edge Function code lives in `apps/api/src/functions/` (single source of truth). Each function must be declared in `apps/api/supabase/config.toml` with a custom entrypoint and import map configuration.
 
 **Important**: There is NO `apps/api/supabase/functions/` directory. Supabase CLI deploys functions from `src/functions/` using custom entrypoint configuration.
 
@@ -101,7 +110,24 @@ All Edge Function commands run from `apps/api/`:
 ```bash
 cd apps/api
 npm run deploy:functions              # Deploy all functions to remote
-supabase functions serve               # Serve functions locally
+npm run deploy:function <name>        # Deploy single function to remote
+supabase functions serve              # Serve functions locally
+```
+
+**Shared Package Access** (`apps/api/import_map.json`):
+
+Edge Functions can import from `@centrid/shared` using a Deno import map. This allows sharing types, schemas, and utilities between frontend and backend without npm publishing.
+
+```json
+{
+  "imports": {
+    "@centrid/shared": "../../packages/shared/src/index.ts",
+    "@centrid/shared/": "../../packages/shared/src/",
+    "@centrid/shared/types": "../../packages/shared/src/types/index.ts",
+    "@centrid/shared/utils": "../../packages/shared/src/utils/index.ts",
+    "@centrid/shared/schemas": "../../packages/shared/src/schemas/index.ts"
+  }
+}
 ```
 
 **Configuration** (`apps/api/supabase/config.toml`):
@@ -111,31 +137,41 @@ supabase functions serve               # Serve functions locally
 enabled = true
 policy = "per_worker"
 
-# Each function must be declared with custom entrypoint
+# Each function must be declared with custom entrypoint and import_map
 [functions.create-account]
 entrypoint = '../src/functions/create-account/index.ts'
+import_map = '../import_map.json'
 
 [functions.update-profile]
 entrypoint = '../src/functions/update-profile/index.ts'
+import_map = '../import_map.json'
 
 [functions.delete-account]
 entrypoint = '../src/functions/delete-account/index.ts'
+import_map = '../import_map.json'
 ```
 
 **Creating new Edge Functions**:
 
 1. Create function directory: `apps/api/src/functions/my-function/`
 2. Create `index.ts` with Deno.serve handler
-3. Import shared logic from `apps/api/src/services/`
-4. Import types from `@centrid/shared` (via npm: specifier in Deno)
-5. Add function declaration to `apps/api/supabase/config.toml` with custom entrypoint:
+3. Import shared logic from `@centrid/shared`:
+   ```typescript
+   import { updateProfileSchema } from '@centrid/shared/schemas'
+   import type { Document } from '@centrid/shared/types'
+   ```
+4. Add function declaration to `apps/api/supabase/config.toml` with custom entrypoint and import_map:
    ```toml
    [functions.my-function]
    entrypoint = '../src/functions/my-function/index.ts'
+   import_map = '../import_map.json'
    ```
-6. Deploy with `npm run deploy:functions`
+5. Deploy with `npm run deploy:function my-function`
 
-**Note**: Supabase does not support auto-discovery of functions. Each function must be explicitly declared in config.toml.
+**Note**:
+- Supabase does not support auto-discovery of functions. Each function must be explicitly declared in config.toml.
+- Import map is automatically used during deployment when specified in config.toml - no need for `--import-map` flag.
+- All Edge Functions have access to `@centrid/shared` types, schemas, and utilities via the import map.
 
 ### /speckit Workflow Commands
 
@@ -216,15 +252,21 @@ Defined in `apps/api/src/db/schema.ts` using **Drizzle ORM**:
 ```bash
 cd apps/api
 npm run db:drop            # Drop all tables (MVP iteration only)
-npm run db:push            # Push schema to remote DB (auto-approve with --force)
+npm run db:push            # Push schema + apply triggers/RLS/foreign keys (all-in-one)
 npm run deploy:functions   # Deploy all Edge Functions to remote
 ```
 
 **MVP Approach**: Schema lives in `apps/api/src/db/schema.ts`. Changes are pushed directly to remote Supabase using Drizzle (`drizzle-kit push --force`). The `--force` flag auto-approves data-loss statements for non-interactive deployment. Safe to drop/recreate during MVP iteration. Migrations deferred until schema is stable post-MVP. Always target remote database (not local).
 
+**Schema Features**:
+- Type-safe schema with Drizzle ORM
+- Custom `tsvector` type for full-text search (using Drizzle's `customType`)
+- All SQL (triggers, RLS policies, CASCADE foreign keys) defined in `schema.ts` exports
+- `db:push` automatically applies schema + all post-schema SQL in one command
+
 **Workflow** (clean schema recreation):
 1. `npm run db:drop` - Drop all existing tables with CASCADE
-2. `npm run db:push` - Push new schema and apply CASCADE DELETE foreign keys
+2. `npm run db:push` - Push schema + apply all SQL (triggers, RLS, foreign keys)
 3. `npm run deploy:functions` - Deploy Edge Functions
 
 **AI Agents**:
@@ -402,6 +444,18 @@ Use `apps/design-system` to design and iterate on UI before implementing in `app
 
 ## Key Implementation Patterns
 
+### Frontend-Backend Integration
+
+**Three-Layer Architecture**: UI Component → Custom Hook → Service Layer → Edge Function
+
+**Service Layer** (`apps/web/src/lib/services/`): Pure functions calling Edge Functions, return `{ data?, error? }`. No UI concerns (loading, toasts, state updates).
+
+**Custom Hooks** (`apps/web/src/lib/hooks/`): Wrap service calls, manage loading states (useState), show toast notifications (react-hot-toast), perform optimistic Valtio updates, reconcile with real-time subscriptions.
+
+**Why NO React Query/SWR**: Real-time subscriptions already keep data fresh. Adding caching libraries creates dual state (cache + Valtio), cache invalidation complexity, and optimistic update conflicts. Custom hooks are lighter and purpose-built for real-time apps.
+
+**Pattern**: Optimistic update → Service call → On error: rollback + toast | On success: replace temp data + toast. Real-time subscriptions confirm server state automatically.
+
 ### Real-time Subscriptions
 
 ```typescript
@@ -453,12 +507,36 @@ npm run dev                  # Start all dev servers
 
 ## Deployment
 
-- **Frontend**: Vercel (auto on git push) - `apps/web`
-- **Backend**: Supabase production
-- **Edge Functions**: From `apps/api/`: `supabase functions deploy <name> --project-ref <ref>`
-- **Migrations**: From `apps/api/`: `supabase db push --project-ref <ref>`
+### Frontend (apps/web)
+- **Platform**: Vercel (auto-deploy on git push)
+- **Shared Package**: `@centrid/shared` is automatically bundled via npm workspaces
+- **Configuration**: `next.config.js` includes `transpilePackages: ['@centrid/ui', '@centrid/shared']`
+- **No additional steps needed** - Vercel natively supports npm workspaces
 
-Always run `npm run type-check` before deploying!
+### Backend (apps/api)
+
+**Edge Functions**:
+```bash
+cd apps/api
+npm run deploy:functions        # Deploy all functions
+npm run deploy:function <name>  # Deploy single function
+```
+
+**Shared Package**: `@centrid/shared` is bundled via import map (`import_map.json`)
+- Import map is automatically used during deployment (configured in `config.toml`)
+- No npm publishing required for MVP
+- Types, schemas, and utilities are bundled with each function
+
+**Database**:
+```bash
+cd apps/api
+npm run db:push                 # Push schema changes to remote
+```
+
+**Prerequisites**:
+- Always run `npm run type-check` from project root before deploying
+- Ensure `apps/api/import_map.json` is committed to git
+- Verify all functions have `import_map = '../import_map.json'` in `config.toml`
 
 ## MVP Scope Guardrails
 
@@ -494,6 +572,13 @@ Before implementing any feature:
 - AI operations: <10s
 - Real-time propagation: <100ms
 - Document upload to chat: <60s
+
+## Known Issues & Patterns
+
+### Valtio State Management
+
+- **Map vs Object**: Valtio's `useSnapshot` doesn't track `Map.get()` calls. Use plain objects with bracket notation (`state.items[id]`) instead of Maps for reactive state.
+- **Rendering Intermediate States**: Fast async operations (<100ms) may complete before React renders intermediate states. Add 100ms delay before async ops when UI feedback (loading spinners, save indicators) is critical.
 
 ---
 

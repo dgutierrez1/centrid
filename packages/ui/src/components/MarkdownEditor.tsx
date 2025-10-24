@@ -105,8 +105,12 @@ export function MarkdownEditor({
   });
 
   React.useEffect(() => {
-    if (editor && content !== editor.getText()) {
-      editor.commands.setContent(content, { contentType: 'markdown' });
+    if (editor) {
+      const currentMarkdown = editor.getMarkdown();
+      // Only update if content prop differs from current markdown (avoids infinite loops)
+      if (content !== currentMarkdown) {
+        editor.commands.setContent(content, { contentType: 'markdown' });
+      }
     }
   }, [content, editor]);
 
@@ -118,7 +122,7 @@ export function MarkdownEditor({
     <div className={cn('flex flex-col h-full bg-white dark:bg-gray-800', className)}>
       {/* Formatting Toolbar */}
       {showToolbar && (
-        <div className="p-2 border-b border-gray-200 dark:border-gray-700 flex items-center gap-1 flex-shrink-0">
+        <div className="sticky top-0 z-10 p-2 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex items-center gap-1 flex-shrink-0">
           <ToolbarButton
             editor={editor}
             label="Bold"
@@ -187,6 +191,8 @@ export function MarkdownEditorMobile({
   placeholder = 'Start writing...',
   touchOptimized = true,
 }: MarkdownEditorMobileProps) {
+  const isLocalUpdateRef = React.useRef(false);
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -204,6 +210,7 @@ export function MarkdownEditorMobile({
     editable: !readOnly,
     immediatelyRender: false,
     onUpdate: ({ editor }) => {
+      isLocalUpdateRef.current = true;
       const markdown = editor.getMarkdown();
       onChange?.(markdown);
     },
@@ -215,9 +222,19 @@ export function MarkdownEditorMobile({
   });
 
   React.useEffect(() => {
-    if (editor && content !== editor.getText()) {
-      editor.commands.setContent(content, { contentType: 'markdown' });
+    if (editor && !isLocalUpdateRef.current) {
+      const currentMarkdown = editor.getMarkdown();
+      // Only update if content prop differs from current markdown AND it's from external source
+      if (content !== currentMarkdown) {
+        // Preserve cursor position when updating from external source
+        const { from } = editor.state.selection;
+        editor.commands.setContent(content, { contentType: 'markdown' });
+        // Try to restore cursor position (may not be exact if content structure changed)
+        editor.commands.setTextSelection(Math.min(from, editor.state.doc.content.size));
+      }
     }
+    // Reset flag after checking
+    isLocalUpdateRef.current = false;
   }, [content, editor]);
 
   if (!editor) {
@@ -228,7 +245,7 @@ export function MarkdownEditorMobile({
     <div className={cn('flex flex-col h-full bg-white dark:bg-gray-800', className)}>
       {/* Mobile Toolbar - Larger touch targets */}
       {showToolbar && (
-        <div className="p-2 border-b border-gray-200 dark:border-gray-700 flex items-center gap-1 overflow-x-auto">
+        <div className="sticky top-0 z-10 p-2 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex items-center gap-1 overflow-x-auto">
           <Button
             size="sm"
             variant={editor.isActive('bold') ? 'default' : 'ghost'}
@@ -237,7 +254,10 @@ export function MarkdownEditorMobile({
               touchOptimized ? 'h-11 min-w-[44px] px-3' : 'h-8 px-2',
               editor.isActive('bold') && 'bg-gray-200 dark:bg-gray-700'
             )}
-            onClick={() => editor.chain().focus().toggleBold().run()}
+            onClick={(e) => {
+              e.preventDefault();
+              editor.chain().toggleBold().run();
+            }}
             type="button"
           >
             B
@@ -250,7 +270,10 @@ export function MarkdownEditorMobile({
               touchOptimized ? 'h-11 min-w-[44px] px-3' : 'h-8 px-2',
               editor.isActive('italic') && 'bg-gray-200 dark:bg-gray-700'
             )}
-            onClick={() => editor.chain().focus().toggleItalic().run()}
+            onClick={(e) => {
+              e.preventDefault();
+              editor.chain().toggleItalic().run();
+            }}
             type="button"
           >
             I
@@ -263,7 +286,10 @@ export function MarkdownEditorMobile({
               touchOptimized ? 'h-11 min-w-[44px] px-3' : 'h-8 px-2',
               editor.isActive('heading', { level: 1 }) && 'bg-gray-200 dark:bg-gray-700'
             )}
-            onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+            onClick={(e) => {
+              e.preventDefault();
+              editor.chain().toggleHeading({ level: 1 }).run();
+            }}
             type="button"
           >
             H1
@@ -276,7 +302,10 @@ export function MarkdownEditorMobile({
               touchOptimized ? 'h-11 min-w-[44px] px-3' : 'h-8 px-2',
               editor.isActive('bulletList') && 'bg-gray-200 dark:bg-gray-700'
             )}
-            onClick={() => editor.chain().focus().toggleBulletList().run()}
+            onClick={(e) => {
+              e.preventDefault();
+              editor.chain().toggleBulletList().run();
+            }}
             type="button"
           >
             •
@@ -289,7 +318,10 @@ export function MarkdownEditorMobile({
               touchOptimized ? 'h-11 min-w-[44px] px-3' : 'h-8 px-2',
               editor.isActive('codeBlock') && 'bg-gray-200 dark:bg-gray-700'
             )}
-            onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+            onClick={(e) => {
+              e.preventDefault();
+              editor.chain().toggleCodeBlock().run();
+            }}
             type="button"
           >
             {'</>'}

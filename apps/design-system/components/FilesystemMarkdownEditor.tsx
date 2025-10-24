@@ -3,7 +3,8 @@
  *
  * Created during /speckit.design workflow
  * Feature: 003-filesystem-markdown-editor
- * Status: Draft
+ * Status: Approved
+ * Approved Date: 2025-10-22
  */
 
 import { useState } from 'react';

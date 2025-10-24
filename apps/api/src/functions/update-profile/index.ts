@@ -6,7 +6,7 @@
  *
  * Flow:
  * 1. Verify JWT from Authorization header
- * 2. Validate input with Zod schema
+ * 2. Validate input with shared Zod schema from @centrid/shared
  * 3. Update profile (RLS ensures user can only update their own)
  * 4. Return updated profile with auto-updated timestamp
  *
@@ -15,6 +15,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { updateProfileSchema } from '@centrid/shared/schemas'
 
 // CORS headers for browser requests
 const corsHeaders = {
@@ -70,76 +71,25 @@ serve(async (req) => {
       )
     }
 
-    // Parse and validate request body
+    // Parse and validate request body using shared schema
     const body = await req.json()
-    const { firstName, lastName } = body
 
-    // Basic validation (Zod validation would be done on frontend)
-    if (firstName !== undefined && firstName !== null) {
-      const trimmed = firstName.trim()
-      if (trimmed.length === 0) {
-        return new Response(
-          JSON.stringify({ error: 'First name cannot be empty' }),
-          {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          }
-        )
-      }
-      if (trimmed.length > 100) {
-        return new Response(
-          JSON.stringify({ error: 'First name must be less than 100 characters' }),
-          {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          }
-        )
-      }
-      if (!/^[a-zA-Z\s'-]+$/.test(trimmed)) {
-        return new Response(
-          JSON.stringify({
-            error: 'First name contains invalid characters',
-          }),
-          {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          }
-        )
-      }
+    // Validate with shared Zod schema
+    const validation = updateProfileSchema.safeParse(body)
+    if (!validation.success) {
+      return new Response(
+        JSON.stringify({
+          error: 'Validation failed',
+          details: validation.error.flatten().fieldErrors
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      )
     }
 
-    if (lastName !== undefined && lastName !== null) {
-      const trimmed = lastName.trim()
-      if (trimmed.length === 0) {
-        return new Response(
-          JSON.stringify({ error: 'Last name cannot be empty' }),
-          {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          }
-        )
-      }
-      if (trimmed.length > 100) {
-        return new Response(
-          JSON.stringify({ error: 'Last name must be less than 100 characters' }),
-          {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          }
-        )
-      }
-      if (!/^[a-zA-Z\s'-]+$/.test(trimmed)) {
-        return new Response(
-          JSON.stringify({
-            error: 'Last name contains invalid characters',
-          }),
-          {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          }
-        )
-      }
-    }
+    const { firstName, lastName } = validation.data
 
     // Build update object (only update fields that were provided)
     const updates: any = {}

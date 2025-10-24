@@ -16,12 +16,22 @@
 
 ## Workflow
 
-### Step 1: Check Existing Design System
+### Step 1: Setup & Validate Structure
 
-Check for `.specify/design-system/tokens.md`. If exists, ask user:
-- Update existing?
-- View current system?
-- Proceed with existing?
+**Validate monorepo structure** (run from repo root):
+- Verify `packages/ui/` exists (centralized UI package)
+- Verify `apps/design-system/` exists (design sandbox)
+- Verify `apps/web/` exists (production app)
+- Verify `.specify/design-system/` directory exists or create it
+- Ensure we're at repo root for all operations
+
+**Check existing design system**:
+- Check for `.specify/design-system/tokens.md`
+- If exists, ask user:
+  - Update existing?
+  - View current system?
+  - Proceed with existing?
+- If missing, proceed with new design system setup
 
 ### Step 2: Interactive Design Questionnaire
 

@@ -10,7 +10,7 @@
  */
 import 'dotenv/config';
 import postgres from 'postgres';
-import { cascadeDeleteSQL, rlsPolicies, triggers } from './schema.js';
+import { cascadeDeleteSQL, rlsPolicies, triggers, pgvectorSQL, realtimePublicationSQL } from './schema.js';
 import { execSync } from 'child_process';
 
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -40,19 +40,27 @@ function pushSchema() {
   execSync('npx drizzle-kit push --force', { stdio: 'inherit' });
 }
 
-// Step 2: Apply CASCADE DELETE constraints
+// Step 2: Apply pgvector extension
+async function applyPgVector(sql: postgres.Sql) {
+  console.log('\n🔄 Step 2: Setting up pgvector extension...');
+  await runSQL(sql, pgvectorSQL, 'pgvector extension');
+  console.log('✅ pgvector extension configured');
+}
+
+// Step 3: Apply CASCADE DELETE constraints
 async function applyCascadeDelete(sql: postgres.Sql) {
-  console.log('\n🔄 Step 2: Applying CASCADE DELETE foreign keys...');
+  console.log('\n🔄 Step 3: Applying CASCADE DELETE foreign keys...');
   await runSQL(sql, cascadeDeleteSQL, 'CASCADE DELETE constraints');
   console.log('✅ CASCADE DELETE constraints applied');
 }
 
-// Step 3: Apply RLS policies
+// Step 4: Apply RLS policies
 async function applyRLSPolicies(sql: postgres.Sql) {
-  console.log('\n🔄 Step 3: Applying RLS policies...');
+  console.log('\n🔄 Step 4: Applying RLS policies...');
 
   const policies = [
     { sql: rlsPolicies.userProfiles, name: 'user_profiles' },
+    { sql: rlsPolicies.folders, name: 'folders' },
     { sql: rlsPolicies.documents, name: 'documents' },
     { sql: rlsPolicies.documentChunks, name: 'document_chunks' },
     { sql: rlsPolicies.agentRequests, name: 'agent_requests' },
@@ -67,14 +75,21 @@ async function applyRLSPolicies(sql: postgres.Sql) {
   console.log('✅ RLS policies applied');
 }
 
-// Step 4: Apply database triggers
+// Step 5: Apply database triggers
 async function applyTriggers(sql: postgres.Sql) {
-  console.log('\n🔄 Step 4: Applying database triggers...');
+  console.log('\n🔄 Step 5: Applying database triggers...');
 
   await runSQL(sql, triggers.updateUpdatedAt, 'updated_at triggers');
   await runSQL(sql, triggers.searchVectors, 'search vector triggers');
 
   console.log('✅ Database triggers applied');
+}
+
+// Step 6: Enable realtime publication
+async function applyRealtimePublication(sql: postgres.Sql) {
+  console.log('\n🔄 Step 6: Enabling realtime publication...');
+  await runSQL(sql, realtimePublicationSQL, 'realtime publication');
+  console.log('✅ Realtime publication enabled');
 }
 
 // Main execution
@@ -83,9 +98,11 @@ async function main() {
 
   try {
     pushSchema();
+    await applyPgVector(sql);
     await applyCascadeDelete(sql);
     await applyRLSPolicies(sql);
     await applyTriggers(sql);
+    await applyRealtimePublication(sql);
 
     console.log('\n✅ Database schema fully deployed!\n');
   } catch (error) {

@@ -1,7 +1,7 @@
 // Centrid AI Filesystem - Supabase Client Configuration
 // Version: 3.1 - Supabase Plus MVP Architecture
 
-import { createClient } from "@supabase/supabase-js";
+import { createClient as createSupabaseJsClient } from "@supabase/supabase-js";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import type { Database } from "@/types/database.types";
 
@@ -16,9 +16,14 @@ if (!supabaseUrl || !supabaseAnonKey) {
 // Client-side Supabase client (for browser usage)
 export const supabase = createClientComponentClient<Database>();
 
+// Alias for compatibility with new code
+export const createClient = () => {
+  return createClientComponentClient<Database>();
+};
+
 // Alternative client for server-side rendering and API routes
 export const createSupabaseClient = () => {
-  return createClient<Database>(supabaseUrl, supabaseAnonKey);
+  return createSupabaseJsClient<Database>(supabaseUrl, supabaseAnonKey);
 };
 
 // Service role client for admin operations (server-side only)
@@ -27,7 +32,7 @@ export const createSupabaseServiceClient = () => {
   if (!serviceRoleKey) {
     throw new Error("Service role key not available");
   }
-  return createClient<Database>(supabaseUrl, serviceRoleKey);
+  return createSupabaseJsClient<Database>(supabaseUrl, serviceRoleKey);
 };
 
 // Real-time subscription helper

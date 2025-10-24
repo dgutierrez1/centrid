@@ -50,9 +50,128 @@ You **MUST** consider the user input before proceeding (if not empty).
    - **IF EXISTS**: Read contracts/ for API specifications and test requirements
    - **IF EXISTS**: Read research.md for technical decisions and constraints
    - **IF EXISTS**: Read quickstart.md for integration scenarios
-   - **IF EXISTS**: Read design.md for UI specifications and approved component designs
-   - **IF EXISTS**: Read design component source at `apps/design-system/components/[FeatureName].tsx` for reference implementation
+   - **IF EXISTS**: Read design.md for UI specifications and component architecture
+   - **IF EXISTS**: Read design component source at `packages/ui/src/features/[feature-name]/` for reusable presentational components
+   - **IF EXISTS**: Reference design showcase at `apps/design-system/pages/[feature-name]/` to see component usage
    - **IF EXISTS**: Reference screenshots at `apps/design-system/public/screenshots/[feature-name]/` for visual verification
+
+3.5. **Pre-Flight Design Component Verification** (MANDATORY if design.md exists):
+
+**If design.md exists in AVAILABLE_DOCS**:
+
+1. **Parse Component Architecture section** from design.md:
+   - Extract "Reusable Components (Source of Truth)" location (should be `packages/ui/src/features/[feature-name]/`)
+   - Parse Screen-to-Component Mapping table
+   - Build list of all designed components with their documented file paths
+
+2. **Verify each designed component is importable**:
+
+   For each component in mapping table:
+
+   a. **Check physical file exists**:
+      ```bash
+      # Verify component file at documented path
+      ls -la packages/ui/src/features/[feature-name]/ComponentName.tsx
+      ```
+
+   b. **Check component exported from feature index**:
+      ```bash
+      # Verify component in feature index.ts
+      grep "ComponentName" packages/ui/src/features/[feature-name]/index.ts
+      ```
+
+   c. **Check feature exported from global index**:
+      ```bash
+      # Verify feature in packages/ui/src/features/index.ts
+      grep "[feature-name]" packages/ui/src/features/index.ts
+      ```
+
+   d. **Verify TypeScript export chain** (read files, trace exports):
+      - Component exports from its .tsx file
+      - Feature index.ts re-exports component
+      - Global features index.ts exports feature
+      - Import path would work: `import { ComponentName } from '@centrid/ui/features'`
+
+3. **Build verification report**:
+
+   ```
+   Pre-Flight Design Component Verification:
+
+   ✅ DesktopWorkspace
+      File: packages/ui/src/features/filesystem-markdown-editor/DesktopWorkspace.tsx (exists)
+      Exported from: packages/ui/src/features/filesystem-markdown-editor/index.ts ✓
+      Available via: @centrid/ui/features ✓
+
+   ✅ EmptyState
+      File: packages/ui/src/features/filesystem-markdown-editor/EmptyState.tsx (exists)
+      Exported from: packages/ui/src/features/filesystem-markdown-editor/index.ts ✓
+      Available via: @centrid/ui/features ✓
+
+   ❌ FileUploadModal
+      File: packages/ui/src/features/filesystem-markdown-editor/FileUploadModal.tsx (NOT FOUND)
+      Expected location missing
+      Import will FAIL: import { FileUploadModal } from '@centrid/ui/features'
+
+   Status: 2/3 components verified (66%)
+   ```
+
+**If ANY component verification FAILS**:
+
+- **CRITICAL ERROR**: Design artifacts incomplete - cannot proceed with implementation
+- **Impact**: Import statements in tasks will fail, implementation will break
+- **Report**:
+  ```
+  ❌ DESIGN COMPONENT VERIFICATION FAILED
+
+  Missing components:
+  - FileUploadModal (expected: packages/ui/src/features/filesystem-markdown-editor/FileUploadModal.tsx)
+
+  These components are referenced in design.md and tasks.md but do not exist.
+  Implementation cannot proceed - imports will fail.
+  ```
+
+- **Suggest fixes**:
+  1. **Option A (Recommended)**: Run `/speckit.design-iterate` to create missing components
+     - Selects missing screens
+     - Creates components in correct location
+     - Updates design.md
+
+  2. **Option B**: Manually move components from wrong location
+     - Check if components in `apps/design-system/components/`
+     - Move to `packages/ui/src/features/[feature-name]/`
+     - Update exports in index.ts files
+     - Re-run verification
+
+  3. **Option C**: Update design.md and regenerate tasks
+     - Remove references to missing components from design.md
+     - Run `/speckit.tasks` to regenerate without missing components
+     - Implementation will create UI from scratch (loses design work)
+
+- **Action**: STOP execution immediately
+- **Do NOT proceed**: No silent fallbacks, no improvisation, no creating components on-the-fly
+- **Exit with error code**
+
+**If ALL components verified successfully ✅**:
+
+- **Report**:
+  ```
+  ✅ PRE-FLIGHT VERIFICATION PASSED
+
+  All designed components available:
+  - [N] components verified in packages/ui/src/features/[feature-name]/
+  - All components importable from @centrid/ui/features
+  - TypeScript export chain validated
+
+  Ready to proceed with implementation.
+  Implementation will import and integrate designed components.
+  ```
+
+- **Set flag**: `DESIGN_COMPONENTS_VERIFIED = true`
+- **Proceed to Step 4** with confidence that all imports will work
+
+**If design.md does NOT exist**:
+- Skip verification (no design integration)
+- Proceed to Step 4
 
 4. **Project Setup Verification**:
    - **REQUIRED**: Create/verify ignore files based on actual project setup:
@@ -110,13 +229,14 @@ You **MUST** consider the user input before proceeding (if not empty).
    - **Setup first**: Initialize project structure, dependencies, configuration
    - **Tests before code**: If you need to write tests for contracts, entities, and integration scenarios
    - **Core development**: Implement models, services, CLI commands, endpoints
-   - **UI implementation** (if design.md exists):
-     * Use approved component designs from `apps/design-system/components/[FeatureName].tsx` as reference
-     * Implement UI components in `apps/web/src/components/` following the approved design
-     * Import primitives from `@centrid/ui/components` as specified in design.md
-     * Match visual structure, styling, and states from design screenshots
-     * Map design-system routes to production routes (e.g., `/account-foundation/profile` → `/profile`)
-     * Preserve component composition patterns from the design sandbox
+   - **UI implementation** (if DESIGN_COMPONENTS_VERIFIED = true):
+     * Import ONLY verified components from `@centrid/ui/features`
+     * Create containers in `apps/web/src/components/[feature]/` that wrap designed components
+     * Add business logic (hooks, state, API calls) in containers
+     * Reference component props from `packages/ui/src/features/[feature-name]/`
+     * Match screenshots from `apps/design-system/public/screenshots/[feature-name]/`
+     * **NO fallbacks**: If import fails, STOP and report error (should be impossible after Step 3.5)
+     * **NO improvisation**: Do not create alternative components or minimal versions
    - **Integration work**: Database connections, middleware, logging, external services
    - **Polish and validation**: Unit tests, performance optimization, documentation
 
