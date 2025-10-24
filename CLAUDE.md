@@ -180,6 +180,7 @@ Claude Code has access to `/speckit` slash commands for feature development and 
 - `/speckit.specify` - Create/update feature specifications
 - `/speckit.plan` - Generate implementation plans
 - `/speckit.tasks` - Generate dependency-ordered task lists
+- `/speckit.verify-tasks` - Validate tasks before implementation (completeness, patterns, coverage)
 - `/speckit.implement` - Execute implementation from tasks.md
 - `/speckit.design` - Design feature UI in design-system app
 - `/speckit.design-system` - Create/update global design system

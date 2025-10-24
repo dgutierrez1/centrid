@@ -577,6 +577,7 @@ Constitution amendments require:
 - **MVP Scope Gate: All features MUST justify necessity for MVP before implementation begins**
 - **Package Boundary Check: TypeScript MUST prevent server code imports in packages/ui**
 - **Design Approval Gate: Visual designs MUST be approved before implementation begins**
+- **Task Validation Gate: All tasks.md MUST be validated via /speckit.verify-tasks before implementation begins to ensure completeness, pattern compliance, dependency order, and full requirement coverage**
 - **Security Audit Gate: Quarterly security reviews MUST be completed with documented findings**
 - **Code Review Gate: All PRs MUST be reviewed for code quality, security, and maintainability**
 - **API Design Review: All new Edge Functions MUST be reviewed for RESTful compliance**

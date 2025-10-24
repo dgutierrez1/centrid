@@ -5,6 +5,44 @@
 **Status**: Draft (Updated with Filesystem Architecture)
 **Input**: User description: "AI Agent Execution System with Claude Sonnet - filesystem-based collaborative editing with advanced context optimization"
 
+## Clarifications
+
+### Session 2025-10-24
+
+- Q: When AI agent creates content, does it create a "document" in the 003 sense (with embedding chunks) or just a "file"? How do markdown editor features integrate with AI-generated content? → A: Agent-created content follows the same path as user-created content with identical embedding flow. MVP will include `last_edit_by` field to track whether user or agent made the last edit. Agent-generated content is treated identically to user-generated content in the editor.
+
+- Q: How does TipTap editor handle AI-proposed changes? Does diff view work within TipTap or separately? Can user continue editing in TipTap while AI processes changes? → A: No diffs in MVP. Agent changes are applied directly to the editor like normal user edits. Approval prompts specify what the agent wants approval for (edit/create/delete/move/rename). If user edits file being modified by agent, conflict modal appears for user to choose between canceling agent request or discarding user changes.
+
+- Q: If user is typing and AI agent is invoked, does the 3-second timer reset? What happens if user keeps typing continuously? → A: User cannot type and trigger request simultaneously. If user starts typing after request begins, conflict modal appears when request determines involved entities. Modal is blocking and cannot be dismissed until user decides; autosave pauses until decision. User can edit files unrelated to the request. System differentiates read-only vs write access - read-only requests proceed without conflict, write requests trigger modal if user has pending changes.
+
+- Q: Are document chunks and shadow filesystem the same system or two different indexing layers? Do both coexist? Which takes precedence for context retrieval? → A: Same indexing layer. Document chunks should work toward being the shadow filesystem - unified system, not separate layers.
+
+- Q: When user uploads files via 003 interface, how does 004 shadow filesystem sync? Is there a delay before uploaded files appear in AI chat context? → A: Upload succeeds immediately. File tree UI shows "indexing" icon instead of file icon while embedding generation is in progress. File status is bound to UI with real-time updates.
+
+- Q: Are the three-panel layout from 003 and split view from 004 the same layout or different modes? Can user resize panels? Does chat always occupy right 30% or can it be full-screen? → A: Desktop only has three-panel layout. Chat always shows on right 30% panel. None of the panels can be resized. Fixed proportions for MVP.
+
+- Q: When user opens a document in 003 editor, does it automatically become a context pill in 004 chat? Or are these separate selection mechanisms? → A: Chat creation context depends on how chat was created: (1) Chat from file/folder → initial context is that file/folder, (2) Chat from "New chat" with document open → "all filesystem" + currently opened document as pills, (3) Chat from "New chat" with no document open → "all filesystem" only. User can close editor to show empty state. Pills evolve as user adds/removes context.
+
+- Q: If two users view same file in their own chat sessions and AI modifies it for user A, does user B see updates in real-time via 003's filesystem sync? → A: No multi-user file/folder sharing. Same user across different browser sessions or devices receives real-time updates via broadcast. Same user editing from multiple sessions simultaneously triggers conflict resolution flow.
+
+- Q: Are semantic search and full-text search unified into one search interface or separate? Which search is used when user types in search box? → A: Main search defaults to semantic search via embeddings. (Note: Clarify if semantic search already covers full-text search needs or if both are required.)
+
+- Q: Do storage limits from 004 apply to 003's document uploads? What counts toward limit - only indexed files or all files including binaries? → A: 10MB upload limit per file. Free tier: 50MB total, Pro tier: 1GB total, Enterprise: not in MVP. All user data counts toward limit: files, embeddings, indexes, everything. No binary file support.
+
+- Q: Should 003 spec explicitly state text/markdown restriction is for AI agent integration scope? → A: Only MD and text files are supported across the entire system.
+
+- Q: Does snippet context menu exist in 003's TipTap editor? Or only in a separate read-only file viewer? → A: Use same TipTap editor for all editing. If TipTap doesn't support custom right-click options, extend the reusable right-click pattern from file system UI to TipTap.
+
+- Q: If user deletes file manually via 003 UI while it's in a 004 chat context pill, what happens immediately? Does pill update in real-time? → A: Yes, real-time updates. When entity is deleted, all references update (chats, other entities). Database triggers client UI updates when references are updated/deleted.
+
+- Q: Are markdown sanitization (003) and LLM input sanitization (004) the same layer or different? Does AI-generated content also go through markdown sanitizer? → A: Same sanitization. AI-generated content is sanitized identically to user content.
+
+- Q: If user long-presses on file name in mobile tree view vs file content in editor, do different menus appear? Could this be confusing? → A: Long-press on mobile behaves the same as right-click. Same menu appears regardless of location.
+
+- Q: When user first logs in with no files, should they see 003's empty state (create file first) or 004's empty state (start chat)? What's the intended flow? → A: New user: empty state on file tree + document viewer (create/upload), empty state on chat panel (starting chat creates first chat immediately). Returning user with chats: chat list shown on chat panel. When user selects chat, add URL param for chat ID so page reload preserves selected chat.
+
+- Q: Does cost tracking include storage costs from 003's uploaded files? Or only AI-related costs? → A: Track all costs across all entities per user: API costs, AI costs, storage costs, request costs, everything. No running total in MVP, but must be queryable per user in database.
+
 ## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Chat with Filesystem for Context-Aware Answers (Priority: P1)
@@ -131,7 +169,8 @@ A user on mobile wants to add text snippets or files to chat, navigate to specif
 - **FR-003a**: System MUST display indexing progress indicator in UI showing number of files indexed out of total (e.g., "Indexing: 45/120 files")
 - **FR-003b**: System MUST allow users to start chatting before indexing completes - indexed files are searchable immediately, unindexed files return on next sync
 - **FR-003c**: System MUST enforce file upload limits (maximum file count and total size per upload) to prevent performance degradation
-- **FR-003d**: System MUST enforce storage limits per user plan (Free: 100MB, Pro: 5GB, Enterprise: 50GB) and prompt upgrade when limit reached
+- **FR-003d**: System MUST enforce storage limits per user plan (Free: 50MB, Pro: 1GB, Enterprise: deferred post-MVP) and prompt upgrade when limit reached - all user data counts toward limit including files, embeddings, indexes, and all associated data
+- **FR-003e**: System MUST enforce 10MB maximum file size for individual file uploads
 - **FR-004**: System MUST support filesystem operations on text files (.txt) and markdown files (.md) only - other file types are out of scope for MVP
 - **FR-005**: System MUST index folder hierarchy and maintain parent-child relationships for context traversal
 - **FR-006**: System MUST detect file renames and moves to preserve chat context references
@@ -143,6 +182,9 @@ A user on mobile wants to add text snippets or files to chat, navigate to specif
 - **FR-007**: System MUST default to read-only access mode for all files - agent operations requiring write access MUST prompt user for permission before proceeding
 - **FR-007a**: System MUST check if target folder exists before file creation, creating parent directories automatically if needed
 - **FR-007b**: System MUST fail gracefully when encountering filesystem permission errors with user-friendly error messages
+- **FR-007c**: System MUST differentiate between read-only and write access requests - read-only requests proceed without conflict even if user is editing file, write requests trigger conflict modal if user has pending changes
+- **FR-007d**: System MUST track last_edit_by field for all files (user_id or 'agent' value) to indicate whether last modification was by user or agent
+- **FR-007e**: System MUST display "indexing" icon on file tree UI for files currently being embedded, replacing standard file icon until embedding generation completes with real-time status updates
 
 #### Security & Privacy
 
@@ -155,8 +197,10 @@ A user on mobile wants to add text snippets or files to chat, navigate to specif
 
 #### Chat Session Management
 
-- **FR-008**: System MUST support creating chats from three entry points: specific file, folder, or new chat with "All filesystem" context
+- **FR-008**: System MUST support creating chats from three entry points with distinct initial contexts: (1) Chat from file → initial context pill is that file, (2) Chat from folder → initial context pill is that folder, (3) Chat from "New chat" button → initial context depends on editor state
 - **FR-008a**: System MUST provide "Add to chat" action in file/folder context menu to add file or folder as context pill to current active chat without navigating away
+- **FR-008b**: System MUST set initial context pills when creating chat via "New chat" button: if document is open in editor, pills are "All filesystem" + currently opened document; if no document is open (empty editor state), pill is "All filesystem" only
+- **FR-008c**: System MUST allow users to close the editor to show empty state, independent of chat context
 - **FR-009**: System MUST maintain session-based "current chat" for "Add to chat" actions
 - **FR-010**: System MUST persist chat history across sessions with automatic save on each message
 - **FR-011**: System MUST support multiple concurrent chat sessions per user
@@ -168,9 +212,11 @@ A user on mobile wants to add text snippets or files to chat, navigate to specif
 - **FR-013d**: System SHOULD implement embedding queue for recovery from API failures (post-MVP enhancement)
 - **FR-014**: System MUST use chat direction embeddings to suggest relevant files when user asks ambiguous questions
 - **FR-015**: System MUST display chat titles (auto-generated from first user message or user-editable)
-- **FR-015a**: System MUST provide full-text search across all chats and files with filter options to search only chats or only files
+- **FR-015a**: System MUST provide semantic search via embeddings as the default search mechanism across all chats and files with filter options to search only chats or only files (Note: Clarify if semantic search covers full-text search needs or if dual implementation required)
 - **FR-015b**: System MUST include chat picker with title search capability for quick navigation between conversations
 - **FR-015c**: System MUST support chat branching - users can fork a conversation at any message to explore alternative approaches while preserving original chat
+- **FR-015d**: System MUST add chat ID as URL parameter when user selects a chat
+- **FR-015e**: System MUST reload and display the previously selected chat from URL parameter when page is reloaded, maintaining user's context across sessions
 
 #### Context Selection & Pills UI
 
@@ -258,9 +304,10 @@ A user on mobile wants to add text snippets or files to chat, navigate to specif
 
 - **FR-045d**: System MUST trigger autosave before processing any agent request to ensure agent works with current file state
 - **FR-045e**: System MUST detect when user makes additional edits to file/folder while agent is processing changes to that same file/folder
-- **FR-045f**: System MUST show modal when file/folder conflict detected: "Agent is making changes to [file/folder] you are working on" with two options: (1) Cancel agent request (keep user changes), (2) Apply agent changes (discard user changes and replace with agent's version)
-- **FR-045g**: System MUST coordinate autosave with agent requests - autosave completes before agent reads file context
+- **FR-045f**: System MUST show blocking modal when file/folder conflict detected: "Agent is making changes to [file/folder] you are working on" with two options: (1) Cancel agent request (keep user changes), (2) Apply agent changes (discard user changes and replace with agent's version) - modal cannot be dismissed until user makes a decision
+- **FR-045g**: System MUST coordinate autosave with agent requests - autosave completes before agent reads file context, and autosave is paused when conflict modal is displayed until user makes a decision
 - **FR-045h**: System MUST apply conflict resolution to all agent operations (file edits, folder moves, file renames, file deletions) - user has agreed to changes when approving, so agent changes take precedence unless user explicitly cancels
+- **FR-045i**: System MUST allow users to edit files unrelated to the current agent request while the request is processing - conflicts only occur for files involved in the specific request
 
 #### Orchestrator Agent (Intent Routing)
 
@@ -273,12 +320,13 @@ A user on mobile wants to add text snippets or files to chat, navigate to specif
 #### Collaborative Editing & Approvals
 
 - **FR-046**: System MUST detect when agent proposes file modifications and generate approval prompt
-- **FR-047**: System MUST show approval prompts listing: affected files, action type (edit/create/delete), summary of changes
-- **FR-048**: System MUST provide expandable diff preview for each affected file showing line-by-line changes
-- **FR-049**: System MUST allow bulk approval (all files) or individual file rejection
-- **FR-050**: System MUST apply approved changes to real filesystem and update shadow filesystem
+- **FR-047**: System MUST show approval prompts specifying: affected files/folders, specific action type (edit/create/delete/move/rename), high-level summary of what the agent wants to do
+- **FR-048**: REMOVED - No diff preview in MVP, changes are applied directly like normal user edits after approval
+- **FR-049**: System MUST allow bulk approval (all affected entities) or rejection of entire proposed operation
+- **FR-050**: System MUST apply approved changes directly to the filesystem and TipTap editor as if user made the changes, then update shadow filesystem with new embeddings
 - **FR-051**: System SHOULD create automatic backups before applying destructive changes (file deletion, major reorganizations) - deferred to post-MVP
-- **FR-052**: System MUST show success notification with links to modified files after successful application
+- **FR-052**: System MUST show success notification after changes are applied successfully
+- **FR-052a**: System MUST treat agent-generated content identically to user-generated content - same sanitization, same rendering, same editing capabilities in TipTap editor
 
 #### File & Folder Creation
 
@@ -343,9 +391,10 @@ A user on mobile wants to add text snippets or files to chat, navigate to specif
 #### Cost Tracking & Monitoring
 
 - **FR-117**: System MUST track and audit each request with detailed metrics: behavior (intent, actions taken), performance (latency, token usage), cost breakdown (LLM tokens, embeddings, storage, web search)
-- **FR-118**: System MUST calculate cost per user across all cost sources: embedding generation, vector storage, LLM API calls, web search API calls, file storage
-- **FR-119**: System MUST be able to calculate the total cost amount for each user
-- **FR-121**: System MUST break down costs by operation type (question, edit, create, refactor, search) to identify high-cost patterns
+- **FR-118**: System MUST calculate cost per user across ALL cost sources: embedding generation, vector storage, LLM API calls, web search API calls, file storage, and all other associated costs
+- **FR-119**: System MUST be able to calculate the total cost amount for each user via database query (no running total required in MVP, but all cost data must be queryable)
+- **FR-120**: System SHOULD expose cost analytics for business analysis - admin UI deferred to post-MVP
+- **FR-121**: System MUST break down costs by operation type (question, edit, create, refactor, search) to identify high-cost patterns and inform pricing decisions
 
 #### AI Model Integration
 
@@ -378,7 +427,7 @@ A user on mobile wants to add text snippets or files to chat, navigate to specif
 
 - **Context Pill**: Represents a discrete context element - includes pill ID, pill type (file/folder/snippet/web/pasted), display label, source reference (file path/URL/line range), content preview (100 chars), token count, added timestamp, removable flag
 
-- **Shadow Filesystem Node**: Represents a file or folder in shadow filesystem - includes node ID, path (absolute), node type (file/folder), file content (for text files), content embedding (768-dim vector), metadata (size, last modified, language), relationships (parent folder, sibling files, imported modules), embedding generation timestamp, sync status
+- **Shadow Filesystem Node**: Represents a file or folder in shadow filesystem - includes node ID, path (absolute), node type (file/folder), file content (for text files), content embedding (768-dim vector), metadata (size, last modified, language), relationships (parent folder, sibling files, imported modules), embedding generation timestamp, sync status, indexing status (indexed/indexing/pending), last_edit_by (user_id or 'agent' to track whether last modification was by user or AI agent)
 
 - **Agent Request**: Represents a single user message and agent response - includes request ID, user ID, chat ID, user message content, intent type (question/edit/create/refactor/search/delete), context pills at request time, web search triggered (boolean), proposed changes (for edit/create intents), approval status, agent response content, confidence score, tokens used, processing time, timestamp
 
@@ -589,7 +638,7 @@ User characterization raises questions:
 - **Typing Indicator** (Animated): Three-dot animation showing agent is thinking, progress text for long operations ("Searching filesystem...", "Generating code...", "Validating syntax...")
 - **Web Search Toggle** (Switch): Toggle button in chat input area, indicates when web search is active, shows "Web" badge on messages that used web search
 - **File Creation Preview** (Card): Shows proposed file path, estimated line count, language icon, expandable code preview with syntax highlighting, "Create File" button
-- **Diff Viewer** (Split View): Side-by-side comparison for edits (original left, proposed right), line numbers on both sides, color-coded additions (green) and deletions (red), unified view option for mobile
+- **Diff Viewer** (Deferred Post-MVP): Side-by-side comparison for edits (original left, proposed right), line numbers on both sides, color-coded additions (green) and deletions (red) - NOT in MVP, changes are applied directly after approval
 - **File Conflict Modal** (Dialog): Appears when user edits file/folder while agent is processing changes to same target, shows warning message "Agent is making changes to [file/folder] you are working on", two action buttons: "Cancel Agent Request" (keep user changes) and "Apply Agent Changes" (discard user edits), displays last save timestamp and pending changes count
 
 #### Responsive Requirements
@@ -600,22 +649,24 @@ User characterization raises questions:
   - Keyboard pushes content up when opened, pills remain visible on top of input (standard chat UI behavior)
   - Context pills horizontally scrollable with snap-to-pill behavior, collapsed pills (>3) show bottom sheet on tap with all pills (removable)
   - Chat picker as full-screen modal with smooth slide-up animation
-  - Approval prompts as bottom sheet (50% screen height, expandable to full)
-  - Single-column diff view (unified) instead of side-by-side
-  - Snippet addition via long-press context menu with vibration feedback
+  - Approval prompts as bottom sheet (50% screen height, expandable to full) showing action type and summary (no diff preview in MVP)
+  - Snippet addition via long-press context menu with vibration feedback - same behavior as right-click on desktop
   - Swipe gestures: swipe right on message to quote/reply, swipe left to delete (own messages)
   - Collapsible chat list (hamburger menu) to maximize chat view space
   - No offline mode support (requires network connection)
   - No battery-specific optimizations (standard mobile web app behavior)
+  - Long-press on file names in tree view or file content in editor triggers same context menu as right-click
 
 - **Desktop Enhancements**:
-  - Split-pane layout: file tree (left 20%), chat interface (center 50%), context panel (right 30%)
-  - Side-by-side diff view for approvals with synchronized scrolling
-  - Keyboard shortcuts: Cmd/Ctrl+K to open chat picker, Cmd/Ctrl+Enter to send message, Esc to close modals, Cmd/Ctrl+Shift+A to approve all changes
+  - Three-panel fixed layout: file tree (left 20%), document editor (center 50%), chat interface (right 30%) - NO panel resizing in MVP
+  - TipTap editor in center panel with right-click context menu support for snippet creation (extend file system UI context menu pattern if TipTap doesn't natively support custom right-click)
+  - Chat always visible on right 30% panel, cannot be full-screen or hidden
+  - Approval prompts show action type and summary (no diff preview, no side-by-side comparison in MVP)
+  - Keyboard shortcuts: Cmd/Ctrl+K to open chat picker, Cmd/Ctrl+Enter to send message, Esc to close modals
   - Drag-and-drop files from file tree directly into chat to add as context pill
   - Hover previews on context pills showing full file path and content preview
   - Multi-select in file tree to add multiple files as context at once
-  - Inline diff expansion (click line number to see surrounding context)
+  - Editor can be closed to show empty state, independent of chat panel
 
 #### Critical States
 
@@ -639,10 +690,17 @@ User characterization raises questions:
 
 - **Empty**:
 
-  - New chat empty state: Illustration of AI assistant, sample prompts ("Ask about your codebase", "Request code generation", "Search for patterns"), onboarding tooltip highlighting context pills
-  - No files in project: Empty state explaining how to add files, link to documentation, sample project import option
-  - No search results: "No relevant files found" message, suggestions to adjust query or broaden context (add "All filesystem" pill)
-  - Chat list empty: "Start your first chat" illustration with "+ New Chat" button
+  - **New User First Login** (no files, no chats):
+    - File tree panel: Empty state with "Create File" and "Upload Files" buttons, onboarding guidance
+    - Document editor panel: Empty state with "Create File", "Upload Files", "Open Document" prompts
+    - Chat panel: Empty state with "Start chatting" prompt - clicking immediately creates first chat with "All filesystem" context pill
+  - **Returning User** (has chats):
+    - Chat panel: Shows chat list with titles, last message previews, sorted by last activity
+    - When chat selected: URL param added with chat ID, reload preserves selected chat
+  - **No Files in Project**: Empty state on file tree and editor explaining how to add files, upload button prominent
+  - **No Search Results**: "No relevant files found" message, suggestions to adjust query or broaden context (add "All filesystem" pill)
+  - **Editor Closed**: Empty state on document editor panel when user closes the editor, independent of chat panel state
+  - **No Document Open + New Chat**: Creating new chat with no document in editor shows "All filesystem" pill only
 
 - **Success**:
   - Green checkmark animation on approval confirmation
@@ -776,7 +834,7 @@ User characterization raises questions:
 
 3. **User Characterization**: Analyzing 50+ files provides sufficient data to extract meaningful organizational preferences and documentation patterns - we assume users have established conventions visible in their content (requires privacy/legal review for compliance)
 
-4. **Context Token Budget**: 200,000 token context window with 20% summarization buffer (40k tokens) allows for comprehensive file analysis - we assume intelligent summarization handles repositories up to 5,000 files effectively, with larger filesystems deferred to post-MVP selective context features
+4. **Context Token Budget**: 200,000 token context window with 20% summarization buffer (40k tokens) allows for comprehensive file analysis - we assume intelligent summarization handles repositories up to 5,000 files effectively, with larger filesystems deferred to post-MVP selective context features. Storage limits (Free: 50MB, Pro: 1GB, 10MB per file) constrain repository sizes within practical ranges for MVP
 
 5. **Web Search Triggers**: LLM can reliably determine when filesystem context is insufficient - we assume the model knows when to search the web vs when local context suffices
 
@@ -822,31 +880,35 @@ User characterization raises questions:
 
 2. **Advanced Overseer Agent**: Full reasoning explanation, risk assessment, and audit trails - MVP uses simple approval prompts, overseer added later
 
-3. **Line-by-Line Diff Approval**: Granular approval of each changed line with accept/reject buttons - MVP shows full diff with bulk approve/reject, line-by-line added later based on user feedback
+3. **Diff Preview UI**: Side-by-side or unified diff viewer showing proposed changes before approval - MVP applies changes directly after approval prompt (no preview), diff UI deferred to post-MVP based on user feedback requesting change visibility before approval
 
-4. **Git Integration**: Automatic commits for agent changes, branch creation, PR generation - deferred to post-MVP (manual git workflows sufficient initially)
+4. **Line-by-Line Diff Approval**: Granular approval of each changed line with accept/reject buttons - deferred to post-MVP, MVP uses bulk approve/reject only
 
-5. **Custom Agent Types**: User-defined agents with custom prompts, temperature, and behavior - MVP includes predefined intent classification only
+5. **Git Integration**: Automatic commits for agent changes, branch creation, PR generation - deferred to post-MVP (manual git workflows sufficient initially)
 
-6. **Advanced Context Prioritization**: User-defined weights for context sources (explicit pills 80%, semantic search 20%, etc.) - MVP uses fixed allocation strategy
+6. **Custom Agent Types**: User-defined agents with custom prompts, temperature, and behavior - MVP includes predefined intent classification only
 
-7. **Multi-Language Support**: Content generation in languages other than English - deferred based on user demand
+7. **Advanced Context Prioritization**: User-defined weights for context sources (explicit pills 80%, semantic search 20%, etc.) - MVP uses fixed allocation strategy
 
-8. **Binary File Handling**: Opening, previewing, or analyzing images, PDFs, videos in chat context - MVP stores metadata only, no content analysis
+8. **Multi-Language Support**: Content generation in languages other than English - deferred based on user demand
 
-9. **Code Execution**: Running generated code in sandboxed environment to validate functionality - MVP relies on syntax validation only, no runtime testing
+9. **Binary File Handling**: Opening, previewing, or analyzing images, PDFs, videos in chat context - MVP stores metadata only, no content analysis
 
-10. **Advanced Web Search**: Filtering by date range, domain, source type - MVP uses basic keyword search with recency bias
+10. **Code Execution**: Running generated code in sandboxed environment to validate functionality - MVP relies on syntax validation only, no runtime testing
 
-11. **Voice Input**: Speech-to-text for chat messages on mobile - deferred to post-MVP based on mobile user demand
+11. **Advanced Web Search**: Filtering by date range, domain, source type - MVP uses basic keyword search with recency bias
 
-12. **Agent Marketplace**: Community-contributed agents, templates, or prompts - deferred until core agent system is proven
+12. **Voice Input**: Speech-to-text for chat messages on mobile - deferred to post-MVP based on mobile user demand
 
-13. **Offline Mode**: Chat functionality without internet connection using locally cached embeddings - requires significant architectural changes, post-MVP
+13. **Agent Marketplace**: Community-contributed agents, templates, or prompts - deferred until core agent system is proven
 
-14. **Cross-Repository Context**: Referencing files from multiple projects in single chat session - MVP focuses on single project/repository
+14. **Offline Mode**: Chat functionality without internet connection using locally cached embeddings - requires significant architectural changes, post-MVP
 
-15. **Advanced Analytics**: Detailed insights into agent performance, token efficiency trends, A/B testing of prompt strategies - basic analytics in MVP, advanced deferred
+15. **Cross-Repository Context**: Referencing files from multiple projects in single chat session - MVP focuses on single project/repository
+
+16. **Advanced Analytics**: Detailed insights into agent performance, token efficiency trends, A/B testing of prompt strategies - basic analytics in MVP, advanced deferred
+
+17. **Panel Resizing**: User-customizable panel widths for file tree, editor, and chat - MVP uses fixed proportions (20/50/30), resizing deferred to post-MVP based on user feedback
 
 ## Technical Architecture Decisions _(to be finalized during planning)_
 

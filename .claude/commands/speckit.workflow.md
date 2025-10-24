@@ -56,8 +56,12 @@ User describes feature
 /speckit.tasks          → specs/[feature]/tasks.md
         ↓               (Dependency-ordered implementation tasks)
         ↓
+/speckit.verify-tasks   → specs/[feature]/validation-report.md
+        ↓               (Validate completeness, patterns, dependencies, coverage)
+        ↓               (Gate: Ensures tasks fully deliver requirements)
+        ↓
 /speckit.implement      → Production code in apps/web, apps/api
-        ↓               (Execute tasks, integrate components)
+        ↓               (Execute validated tasks, integrate components)
         ↓
 /speckit.analyze        → Analysis report
         ↓               (Cross-artifact consistency check)
@@ -80,6 +84,7 @@ Feature complete ✅
 
 - `/speckit.design-iterate` - Refine existing feature designs
 - `/speckit.checklist` - Generate custom checklists for features
+- `/speckit.verify-tasks` - Validate tasks before implementation (recommended gate)
 
 ---
 
@@ -137,6 +142,8 @@ Each command does ONE thing well:
 - `/speckit.specify` - Captures requirements
 - `/speckit.design` - Creates UI/UX design
 - `/speckit.tasks` - Generates task list
+- `/speckit.verify-tasks` - Validates tasks (completeness, patterns, coverage)
+- `/speckit.implement` - Executes validated tasks
 
 **DON'T** mix concerns (e.g., design command shouldn't implement)
 
@@ -432,6 +439,27 @@ Step N: Report
 **Next Steps**:
 - Run `/speckit.[next]` to [action]
 - [Next command] will use [this output]
+```
+
+**Example**: Task Generation → Validation → Implementation
+
+```markdown
+# In /speckit.tasks
+**Next Steps**:
+- Run `/speckit.verify-tasks` to validate task quality
+- Verification ensures completeness, pattern compliance, coverage
+- After validation passes: Run `/speckit.implement`
+
+# In /speckit.verify-tasks
+**Next Steps**:
+- If READY: Run `/speckit.implement` to execute validated tasks
+- If BLOCKED: Fix tasks.md and re-run verification
+
+# In /speckit.implement
+**Prerequisites**:
+- Check for validation-report.md
+- If BLOCKED status: Stop and recommend fixing tasks
+- If READY status: Proceed with implementation
 ```
 
 ### Command → Codebase
