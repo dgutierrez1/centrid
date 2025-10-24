@@ -63,8 +63,6 @@ export function SaveIndicator({
   const [countdown, setCountdown] = useState<number | null>(null);
   const [startTime, setStartTime] = useState<number | null>(null);
 
-  console.log('[SaveIndicator] Render - status:', status, 'hasUnsavedChanges:', hasUnsavedChanges);
-
   // Document has never been saved if lastSavedAt is null
   const isNewDocument = lastSavedAt === null;
 
@@ -130,7 +128,6 @@ export function SaveIndicator({
   }
 
   const getIcon = () => {
-    console.log('[SaveIndicator] getIcon called, effectiveStatus:', effectiveStatus);
     switch (effectiveStatus) {
       case 'pending':
         // Subtle clock icon for pending saves
@@ -139,7 +136,6 @@ export function SaveIndicator({
         );
       case 'saving':
         // Brand spinner with Centrid coral color
-        console.log('[SaveIndicator] Returning brand spinner');
         return <BrandSpinner className="h-4 w-4 text-primary-600" size={16} />;
       case 'saved':
         // Green cloud for successfully saved documents
@@ -150,7 +146,6 @@ export function SaveIndicator({
       case 'offline':
         return <CloudOff className="h-4 w-4 text-gray-400" />;
       default:
-        console.log('[SaveIndicator] getIcon returning null for status:', effectiveStatus);
         return null;
     }
   };

@@ -54,7 +54,6 @@ export function useAutoSave({ documentId, onSave, debounceMs = 5000 }: UseAutoSa
       if (currentMetadata) {
         // Read version from Document (single source of truth)
         const currentVersion = getCurrentDocumentVersion(documentId);
-        console.log(`[AutoSave] Enqueueing save for ${documentId} v${currentVersion}`);
         onSave(documentId, snap.content, currentVersion);
       }
     }, debounceMs);

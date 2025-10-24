@@ -87,8 +87,6 @@ export function FileSystemProvider({ children }: FileSystemProviderProps) {
       const task = saveQueueRef.current[0]; // Peek at first task
       const { documentId, content, version } = task;
 
-      console.log(`[SaveQueue] Processing save for ${documentId} v${version}`);
-
       const saveStartTime = Date.now();
 
       try {
@@ -105,8 +103,6 @@ export function FileSystemProvider({ children }: FileSystemProviderProps) {
           }
         } else if (result.data) {
           const newVersion = result.data.version || version + 1;
-          const elapsed = Date.now() - saveStartTime;
-          console.log(`[SaveQueue] Save successful: ${documentId} v${version} -> v${newVersion} (took ${elapsed}ms)`);
 
           // Update Document state first (single source of truth for version)
           updateDocument(documentId, {
@@ -144,11 +140,8 @@ export function FileSystemProvider({ children }: FileSystemProviderProps) {
 
   // Enqueue document save
   const enqueueDocumentSave = useCallback((documentId: string, content: string, version: number) => {
-    console.log(`[SaveQueue] Enqueueing save for ${documentId} v${version}`);
-
     // Mark save started immediately
     markSaveStarted(documentId);
-    console.log(`[SaveQueue] Marked as saving, status should update`);
 
     // Add to queue
     saveQueueRef.current.push({ documentId, content, version });
@@ -157,7 +150,6 @@ export function FileSystemProvider({ children }: FileSystemProviderProps) {
     // 100ms ensures React + Valtio have enough time to propagate the 'saving' state
     // and update the UI before we start the HTTP request
     setTimeout(() => {
-      console.log(`[SaveQueue] Starting save processing after React render cycle`);
       processSaveQueue();
     }, 100);
   }, [processSaveQueue]);
@@ -227,7 +219,6 @@ export function FileSystemProvider({ children }: FileSystemProviderProps) {
           filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
-          console.log('Folder INSERT:', payload.new);
           addFolder(payload.new as Folder);
         }
       )
@@ -240,7 +231,6 @@ export function FileSystemProvider({ children }: FileSystemProviderProps) {
           filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
-          console.log('Folder UPDATE:', payload.new);
           updateFolder((payload.new as Folder).id, payload.new as Partial<Folder>);
         }
       )
@@ -253,23 +243,15 @@ export function FileSystemProvider({ children }: FileSystemProviderProps) {
           filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
-          console.log('[FileSystemContext] Folder DELETE event received:', {
-            old: payload.old,
-            timestamp: new Date().toISOString(),
-          });
           if (payload.old && typeof payload.old === 'object' && 'id' in payload.old) {
             const folderId = (payload.old as any).id;
-            console.log('[FileSystemContext] Removing folder:', folderId);
             removeFolder(folderId);
-            console.log('[FileSystemContext] Folder removed, folders count:', filesystemState.folders.length);
           } else {
             console.error('[FileSystemContext] DELETE payload missing id:', payload);
           }
         }
       )
-      .subscribe((status) => {
-        console.log('[FileSystemContext] Folders subscription status:', status);
-      });
+      .subscribe();
 
     // Subscribe to documents table changes
     const documentsChannel = supabase
@@ -283,16 +265,9 @@ export function FileSystemProvider({ children }: FileSystemProviderProps) {
           filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
-          console.log('[FileSystemContext] Document INSERT event received:', payload.new);
           const doc = payload.new as Document;
-          console.log('[FileSystemContext] Calling addDocument with:', {
-            id: doc.id,
-            name: doc.name,
-            folder_id: doc.folder_id,
-          });
           // addDocument automatically initializes metadata
           addDocument(doc);
-          console.log('[FileSystemContext] addDocument completed, documents count:', filesystemState.documents.length);
         }
       )
       .on(
@@ -304,7 +279,6 @@ export function FileSystemProvider({ children }: FileSystemProviderProps) {
           filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
-          console.log('Document UPDATE:', payload.new);
           updateDocument((payload.new as Document).id, payload.new as Partial<Document>);
         }
       )
@@ -317,32 +291,23 @@ export function FileSystemProvider({ children }: FileSystemProviderProps) {
           filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
-          console.log('[FileSystemContext] Document DELETE event received:', {
-            old: payload.old,
-            timestamp: new Date().toISOString(),
-          });
           if (payload.old && typeof payload.old === 'object' && 'id' in payload.old) {
             const docId = (payload.old as any).id;
-            console.log('[FileSystemContext] Removing document:', docId);
 
             // If the deleted document is currently open, clear the editor
             if (editorState.currentDocumentId === docId) {
-              console.log('[FileSystemContext] Deleted document was open in editor, clearing editor');
               clearEditor();
             }
 
             removeDocument(docId);
             // Clear metadata for deleted document
             clearDocumentMetadata(docId);
-            console.log('[FileSystemContext] Document removed, documents count:', filesystemState.documents.length);
           } else {
             console.error('[FileSystemContext] DELETE payload missing id:', payload);
           }
         }
       )
-      .subscribe((status) => {
-        console.log('[FileSystemContext] Documents subscription status:', status);
-      });
+      .subscribe();
 
     // Cleanup subscriptions on unmount
     return () => {
