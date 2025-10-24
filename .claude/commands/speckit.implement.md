@@ -41,7 +41,51 @@ You **MUST** consider the user input before proceeding (if not empty).
    
    - **If all checklists are complete**:
      * Display the table showing all checklists passed
-     * Automatically proceed to step 3
+     * Automatically proceed to step 2.5
+
+2.5. **Task Validation Check** (RECOMMENDED):
+
+   **Check if tasks.md has been validated**:
+   - Look for `$FEATURE_DIR/validation-report.md`
+   - If EXISTS: Read validation-report.md and check status
+   - If NOT EXISTS: Tasks have not been validated
+
+   **If validation-report.md exists**:
+   - Parse "Overall Status" from report
+   - If status is "READY FOR IMPLEMENTATION" ✅:
+     * Display: "✅ Tasks validated successfully - proceeding with implementation"
+     * Continue to Step 3
+   - If status is "PROCEED WITH CAUTION" ⚠️:
+     * Display: "⚠️  Tasks have warnings but can proceed"
+     * Ask: "Tasks validated with warnings. Continue anyway? (yes/no)"
+     * If yes: Continue to Step 3
+     * If no: STOP execution
+   - If status is "BLOCKED" ❌:
+     * Display: "❌ Tasks validation FAILED - critical issues found"
+     * Show summary of critical issues from report
+     * Recommend: "Fix issues in validation-report.md, then re-run /speckit.verify-tasks"
+     * STOP execution
+
+   **If validation-report.md does NOT exist**:
+   - Display warning:
+     ```
+     ⚠️  WARNING: Tasks have not been validated
+
+     It's recommended to run /speckit.verify-tasks before implementation to ensure:
+     - Tasks are detailed enough for autonomous execution
+     - Tasks follow project patterns (constitution, CLAUDE.md)
+     - Dependencies are correctly ordered
+     - No ambiguous tasks that require user input
+
+     Proceeding without validation may result in:
+     - Implementation blockers requiring clarification
+     - Pattern violations needing rework
+     - Incorrect dependency order causing errors
+     ```
+   - Ask: "Run /speckit.verify-tasks now? (yes/no/skip)"
+   - If "yes": Execute `/speckit.verify-tasks` and wait for completion, then proceed
+   - If "no": STOP execution (let user run verification manually)
+   - If "skip": Continue to Step 3 (user assumes risk)
 
 3. Load and analyze the implementation context:
    - **REQUIRED**: Read tasks.md for the complete task list and execution plan

@@ -137,9 +137,10 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Suggested MVP scope (typically just User Story 1)
    - Format validation: Confirm ALL tasks follow the checklist format (checkbox, ID, labels, file paths)
 
-   **Ready for Implementation**:
+   **Ready for Validation**:
    - tasks.md created at: [FEATURE_DIR]/tasks.md
-   - Next step: Run `/speckit.implement` to execute tasks
+   - **Next step**: Run `/speckit.verify-tasks` to validate task quality
+   - After validation passes: Run `/speckit.implement` to execute tasks
 
 Context for task generation: $ARGUMENTS
 
