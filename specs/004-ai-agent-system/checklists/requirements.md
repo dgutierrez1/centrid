@@ -593,9 +593,77 @@ Following comprehensive spec review identifying 36 gaps across 10 categories, al
 ✅ Mobile UX clarified (no offline, standard behavior)
 ✅ User preference tracking includes legal review note
 
+### Phase 5: Final Implementation Clarifications (2025-10-24)
+
+Following final review, critical implementation details were clarified:
+
+#### Snippet Management Refinement (3 FRs updated)
+
+- **FR-032c updated**: Auto-generated content created ONLY when source file changes invalidate line range (not preemptively)
+- **FR-032d updated**: Pill UI updates when snippet converted (remove line refs, show "(Source Changed)")
+- **FR-032e updated**: Clickable behavior: valid lines open source file at location; invalidated lines open read-only auto-gen content file
+- Resolves: Auto-gen content creation timing, pill UI reactivity, clickable behavior for edge cases
+
+#### File/Folder Lifecycle Management (5 NEW FRs: FR-006a to FR-006e)
+
+- **FR-006a**: Retrigger embedding generation on rename/move to maintain shadow filesystem accuracy
+- **FR-006b**: Update all chat context references (pills, artifacts) on rename/move with real-time pills UI reactivity
+- **FR-006c**: Clear embeddings, references, chat pills, and all related data on deletion
+- **FR-006d**: Agent requests continue when referenced file deleted - attempt retrieval, proceed if not found, notify user in response
+- **FR-006e updated**: Deleted file pills handled differently by location: (1) removed from active pill list at top, (2) preserved in chat message history with "File Deleted" indicator
+- Resolves: Rename/move triggering re-indexing, deletion cleanup, active pill list vs historical pills distinction, pills UI reactivity to file changes
+
+#### Cost Calculation Approach (FR-119 clarified, FR-120 updated)
+
+- **FR-119**: Cost calculated via database query (no real-time running total in MVP) - already reflected in spec as "System MUST be able to calculate the total cost amount for each user"
+- **FR-120**: Admin UI for cost analytics deferred to post-MVP (changed from MUST to SHOULD)
+- Resolves: Cost calculation implementation approach, MVP scope boundaries
+
+#### Request Cancellation (Confirmed)
+
+- **FR-045c, FR-070**: User can cancel in-progress requests - requirement already captured, this phase confirms critical importance
+
+#### Inline Reference Pills Display & Positioning (FR-019 updated, FR-019b added)
+
+- **FR-019 updated**: Any reference/pill mentioned inline in chat MUST display in the pill list **positioned above the chat input text box**
+- **FR-019b added**: Detect and add context pills for all inline reference types: @-mentions, file paths, folder paths, natural language references
+- Resolves: Ensures pills UI stays synchronized with all inline references mentioned in chat messages, explicit positioning above input box
+
+#### Summary of Phase 5 Updates
+
+- **Functional Requirements**: 133 → **139** (added 6 FRs: FR-006a to FR-006e, FR-019b)
+- **Updated FRs**: 6 (FR-006e, FR-019, FR-032c, FR-032d, FR-032e updated for clarity; FR-119 already correct; FR-120 deferred)
+- **Key Clarifications**: Active pill list vs historical pills distinction, inline reference pills display, snippet auto-gen timing (lazy creation), file lifecycle event handling, cost calculation approach
+
+### Validation Status (Phase 5)
+
+✅ All implementation clarifications captured with concrete FRs
+✅ Active pill list vs historical pills distinction specified (deleted files removed from active list, preserved in history)
+✅ Inline reference pills display fully specified (any inline reference appears in pill list positioned above chat input)
+✅ Snippet management behavior fully specified (lazy auto-gen creation only on invalidation)
+✅ File/folder lifecycle events comprehensive (rename/move retrigger embeddings, delete clears all data)
+✅ Cost calculation approach clarified (query-based calculation, no admin UI in MVP)
+✅ Pills UI reactivity to file system changes specified (rename/move/delete handling)
+✅ All 6 new FRs are testable and unambiguous
+✅ Request cancellation confirmed as critical feature (already specified)
+
 ## Notes
 
-All checklist items pass validation. The specification is **comprehensive, gap-free, and ready for `/speckit.plan`**.
+All checklist items pass validation. The specification is **complete, comprehensive, and ready for `/speckit.plan`**.
+
+**Final Statistics**:
+- **Functional Requirements**: **139** (across 17 subsystems)
+- **Success Criteria**: 47 (quantitative + qualitative)
+- **Key Entities**: 14 (including Audit Log, Cost Tracking, User Feedback)
+- **Edge Cases**: 21 scenarios
+- **Assumptions**: 11 (all validated or noted for research)
+
+**Updates Across All 5 Phases**:
+- Phase 1: Shadow filesystem initialization, large context window, chat management, autosave/conflict handling, streaming (added 26 FRs)
+- Phase 2: Full filesystem processing, file type scope, storage limits, proximity-based context (added 9 FRs)
+- Phase 3: Orchestrator completeness, auto-artifacts simplification, context window refinements (added 15 FRs)
+- Phase 4: Security & Privacy, context management, permissions, bulk operations, web search SDK, cost tracking (added 28 FRs)
+- Phase 5: Inline reference pills, snippet lifecycle, file/folder lifecycle events, cost calculation approach (added 6 FRs, updated 5 FRs)
 
 **Next Steps**:
 

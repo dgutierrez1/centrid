@@ -135,6 +135,11 @@ A user on mobile wants to add text snippets or files to chat, navigate to specif
 - **FR-004**: System MUST support filesystem operations on text files (.txt) and markdown files (.md) only - other file types are out of scope for MVP
 - **FR-005**: System MUST index folder hierarchy and maintain parent-child relationships for context traversal
 - **FR-006**: System MUST detect file renames and moves to preserve chat context references
+- **FR-006a**: System MUST retrigger embedding generation when files are renamed or moved to maintain accurate shadow filesystem
+- **FR-006b**: System MUST update all chat context references (pills, auto-gen artifacts) when files are renamed or moved, with pills UI reacting in real-time to path changes
+- **FR-006c**: System MUST clear embeddings, references, chat pills, and all related data when files/folders are deleted
+- **FR-006d**: System MUST allow agent requests to continue when referenced file/folder is deleted - attempt to retrieve entities but proceed if not found, notifying user in response that referenced file is no longer available
+- **FR-006e**: System MUST handle deleted file references differently based on location: (1) remove deleted file pills from active pill list at top of chat, (2) preserve deleted file pills in chat message history with "File Deleted" indicator where they were originally referenced
 - **FR-007**: System MUST default to read-only access mode for all files - agent operations requiring write access MUST prompt user for permission before proceeding
 - **FR-007a**: System MUST check if target folder exists before file creation, creating parent directories automatically if needed
 - **FR-007b**: System MUST fail gracefully when encountering filesystem permission errors with user-friendly error messages
@@ -172,8 +177,9 @@ A user on mobile wants to add text snippets or files to chat, navigate to specif
 - **FR-016**: System MUST display context pills for all active contexts (files, folders, snippets, web results, auto-generated artifacts)
 - **FR-017**: System MUST show default "All filesystem" pill that can coexist with specific file/folder pills (both active simultaneously with weighted priority)
 - **FR-018**: System MUST allow adding context through: file/folder selection, @-mentions (e.g., "@models/User.ts"), inline file paths (e.g., "use this template/api-doc.md"), snippet highlights, drag-and-drop, pasted external content
-- **FR-019**: System MUST parse inline file path references in user messages and automatically add matching files as context pills
+- **FR-019**: System MUST parse inline file path references in user messages and automatically add matching files as context pills - any reference/pill mentioned inline in chat MUST display in the pill list positioned above the chat input text box
 - **FR-019a**: System MUST show disambiguation picker when multiple files match the same path reference (e.g., "models/User.ts" matches "backend/models/User.ts" and "frontend/models/User.ts"), displaying full paths for user selection
+- **FR-019b**: System MUST detect and add context pills for all inline reference types: @-mentions ("@Button.tsx"), file paths ("models/User.ts"), folder paths ("src/components/"), and natural language references ("use the Button component file")
 - **FR-020**: System MUST support removing individual context pills with clear visual feedback
 - **FR-021**: System MUST make pills horizontally scrollable with overflow indicator showing count of hidden pills
 - **FR-022**: System MUST show pill metadata on hover/tap (file path, lines of code, last modified, token count, auto-generated flag)
@@ -204,12 +210,12 @@ A user on mobile wants to add text snippets or files to chat, navigate to specif
 
 - **FR-030**: System MUST allow highlighting text in viewer with right-click/long-press context menu
 - **FR-031**: System MUST provide two snippet actions: "Add to chat" (stays in viewer) and "Add and go to chat" (shows chat picker)
-- **FR-032**: System MUST create snippet pills showing source file name and line range (e.g., "Button.tsx lines 45-67") - snippets are pasted text from file at time of creation
+- **FR-032**: System MUST create snippet pills showing source file name and line range (e.g., "Button.tsx lines 45-67") - snippets reference pasted text from file at time of creation
 - **FR-032a**: System MUST ensure all files are saved before processing any agent request (no pending changes) - snippets always reference saved file state
 - **FR-032b**: System MUST detect when source file changes after snippet creation such that line range no longer matches original text (lines added/removed/modified)
-- **FR-032c**: System MUST convert snippet from line range reference to floating auto-generated content when source file changes invalidate line range. If the auto genrated artifact is content pasted from a file it should have a pill with the lines refs, if the source file changes the pill must change to remove the line references.
-- **FR-032d**: System MUST show visual indicator on converted snippets (e.g., "(Changed)") while preserving the pasted text content for agent context
-- **FR-032e**: System MUST make snippet pills clickable to open source file at correct location (original line range if valid, full file if converted to floating content)
+- **FR-032c**: System MUST convert snippet from line range reference to auto-generated content ONLY when source file changes invalidate line range (do NOT create auto-gen content preemptively)
+- **FR-032d**: System MUST update pill UI when snippet is converted: remove line references from pill label, show visual indicator "(Changed)"
+- **FR-032e**: System MUST make snippet pills clickable: if line range valid, open source file at correct location; if line range invalidated, open auto-generated content file (read-only, cannot be edited)
 - **FR-033**: System MUST preserve snippet formatting and syntax highlighting in pill preview
 - **FR-034**: System MUST support adding external snippets (pasted code) as context pills labeled "Pasted snippet"
 
