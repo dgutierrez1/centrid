@@ -438,49 +438,6 @@ export const triggers = {
       FOR EACH ROW
       EXECUTE FUNCTION tsvector_update_trigger(search_vector, 'pg_catalog.english', content);
   `,
-
-  // Document indexing trigger
-  // Queue background indexing job when document status changes to 'pending'
-  queueDocumentIndexing: `
-    -- Create function to queue document indexing via Edge Function
-    CREATE OR REPLACE FUNCTION queue_document_indexing()
-    RETURNS TRIGGER AS $$
-    DECLARE
-      supabase_url text;
-      service_role_key text;
-    BEGIN
-      -- Only trigger indexing when status changes to 'pending'
-      IF NEW.indexing_status = 'pending' AND (TG_OP = 'INSERT' OR OLD.indexing_status != 'pending') THEN
-        -- Get Supabase URL and service role key from environment
-        -- NOTE: These must be set as database configuration parameters
-        supabase_url := current_setting('app.supabase_url', true);
-        service_role_key := current_setting('app.service_role_key', true);
-
-        -- Queue indexing job via HTTP request to index-document Edge Function
-        -- Using pg_net extension for async HTTP requests (non-blocking)
-        PERFORM net.http_post(
-          url := supabase_url || '/functions/v1/index-document',
-          headers := jsonb_build_object(
-            'Content-Type', 'application/json',
-            'Authorization', 'Bearer ' || service_role_key
-          ),
-          body := jsonb_build_object('document_id', NEW.id)
-        );
-
-        RAISE NOTICE 'Queued indexing for document %', NEW.id;
-      END IF;
-
-      RETURN NEW;
-    END;
-    $$ LANGUAGE plpgsql;
-
-    -- Attach trigger to documents table
-    DROP TRIGGER IF EXISTS trigger_queue_document_indexing ON documents;
-    CREATE TRIGGER trigger_queue_document_indexing
-      AFTER INSERT OR UPDATE OF indexing_status ON documents
-      FOR EACH ROW
-      EXECUTE FUNCTION queue_document_indexing();
-  `,
 };
 
 // ============================================================================
@@ -599,7 +556,7 @@ ALTER PUBLICATION supabase_realtime SET TABLE folders, documents;
 -- CRITICAL: Set REPLICA IDENTITY to FULL for DELETE events
 -- Default behavior: DELETE events only include primary key (id)
 -- FULL behavior: DELETE events include all columns (including user_id)
--- Why needed: Subscription filter "user_id=eq.${user.id}" requires user_id in DELETE events
+-- Why needed: Subscription filter "user_id=eq.[user_id]" requires user_id in DELETE events
 ALTER TABLE folders REPLICA IDENTITY FULL;
 ALTER TABLE documents REPLICA IDENTITY FULL;
 `;

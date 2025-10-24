@@ -12,6 +12,38 @@ import { corsHeaders } from '../_shared/cors.ts';
  * - DELETE /documents/:id - Delete a document
  */
 
+/**
+ * Queue document for background indexing
+ * Calls index-document Edge Function asynchronously
+ */
+async function queueDocumentIndexing(documentId: string): Promise<void> {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    console.error('[documents] Cannot queue indexing: missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
+    return;
+  }
+
+  try {
+    // Call index-document Edge Function in background (don't await)
+    fetch(`${supabaseUrl}/functions/v1/index-document`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${serviceRoleKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ document_id: documentId }),
+    }).catch(error => {
+      console.error('[documents] Failed to queue indexing:', error);
+    });
+
+    console.log(`[documents] Queued indexing for document ${documentId}`);
+  } catch (error) {
+    console.error('[documents] Error queueing indexing:', error);
+  }
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -176,8 +208,8 @@ async function handleUpdateDocument(
       );
     }
 
-    // TODO: Sync to Supabase Storage (async, non-blocking)
-    // This can be done via a separate background job or database trigger
+    // Queue document for indexing in background
+    queueDocumentIndexing(documentId);
 
     return new Response(
       JSON.stringify(updatedDoc),
@@ -387,6 +419,9 @@ async function handleCreateDocument(
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    // Queue document for indexing in background
+    queueDocumentIndexing(newDocument.id);
 
     return new Response(
       JSON.stringify(newDocument),
@@ -663,6 +698,9 @@ async function handleFileUpload(
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    // Queue document for indexing in background
+    queueDocumentIndexing(newDocument.id);
 
     // Success: Return document metadata
     return new Response(
