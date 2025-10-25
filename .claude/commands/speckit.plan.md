@@ -75,14 +75,23 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Note any new compositions or feature-specific components needed
    - Include UI implementation tasks in plan structure
 
-4. **Agent context update**:
+4. **Component Architecture** (UI projects only - SKIP if API/CLI/library):
+   - **Screen Inventory**: Extract all screens from spec.md user stories (with routes, purpose)
+   - **Component Hierarchy**: For each screen, design component tree showing containers (apps/web) vs presenters (packages/ui)
+   - **Container/Presenter Mapping**: Document which components have business logic (containers) vs pure UI (presenters)
+   - **State Management Strategy**: Define global state (Valtio/Redux), component state (React), URL state (router), and update patterns
+   - **Data Flow Architecture**: Specify props down (IDs, not objects), callbacks up, lookups at container level
+   - **Composition Patterns**: Choose patterns (prop drilling vs context vs render props) with rationale
+   - Fill all 6 subsections in "Component Architecture" section of plan.md
+
+5. **Agent context update**:
    - Run `.specify/scripts/bash/update-agent-context.sh claude`
    - These scripts detect which AI agent is in use
    - Update the appropriate agent-specific context file
    - Add only new technology from current plan
    - Preserve manual additions between markers
 
-**Output**: data-model.md, /contracts/*, quickstart.md, agent-specific file
+**Output**: data-model.md, /contracts/*, quickstart.md, agent-specific file, Component Architecture (UI only)
 
 ## Key rules
 

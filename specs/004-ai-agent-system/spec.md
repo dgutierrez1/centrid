@@ -43,6 +43,16 @@
 
 - Q: Does cost tracking include storage costs from 003's uploaded files? Or only AI-related costs? → A: Track all costs across all entities per user: API costs, AI costs, storage costs, request costs, everything. No running total in MVP, but must be queryable per user in database.
 
+- Q: How should the system behave when users hit their usage quota limits (requests or storage)? Should there be overages, grace periods, or hard stops? → A: Hard stop at tier limits - block all requests when quota is reached until the next billing cycle. Prompt users to upgrade plan when quota exhausted.
+
+- Q: What observability strategy should be implemented for production monitoring to detect issues like slow embedding generation, failed web searches, or degraded agent response quality? → A: Structured logging + Sentry errors + key metrics dashboard (minimum viable observability for MVP). Track request latency, error rates, embedding generation success, web search failures, and quota utilization.
+
+- Q: What is the disaster recovery strategy if the database is corrupted, embeddings are lost, or a critical bug causes data loss? FR-051 defers automatic backups to post-MVP. → A: Supabase built-in backups only (daily snapshots with point-in-time recovery). Leverage Supabase's automatic daily backups for MVP without additional backup infrastructure. Application-level backups deferred to post-MVP.
+
+- Q: What embedding model should be used for shadow filesystem and chat direction tracking? Options include sentence-transformers (local), OpenAI text-embedding-3-small, OpenAI ada-002, or CodeBERT. → A: OpenAI text-embedding-3-small (768-dim, $0.02/1M tokens, cloud API). Provides excellent retrieval quality with reasonable cost and simple API integration without model hosting infrastructure.
+
+- Q: What vector database should be used for storing and querying embeddings? Options include Supabase pgvector (built-in), Pinecone (managed), or Weaviate (self-hosted/cloud). → A: Supabase pgvector (built-in, co-located with data, free within Supabase plan). Already part of stack, simpler queries with co-located data, zero additional vendor costs, sufficient performance for MVP scale (<5,000 files).
+
 ## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Chat with Filesystem for Context-Aware Answers (Priority: P1)
@@ -195,6 +205,19 @@ A user on mobile wants to add text snippets or files to chat, navigate to specif
 - **FR-100**: System MUST hide auto-generated artifacts from filesystem UI but allow visibility in chat pill when agent references the artifact content
 - **FR-100a**: Auto-generated artifacts MUST use same storage and security model as user files (no special encryption)
 
+#### Observability & Monitoring
+
+- **FR-122**: System MUST implement structured logging for all critical operations including: agent requests, embedding generation, file operations, web searches, errors, and performance metrics
+- **FR-123**: System MUST integrate Sentry for error tracking and alerting in production environment
+- **FR-124**: System MUST provide key metrics dashboard displaying: request latency (p50/p95/p99), error rates, embedding generation success rates, web search failures, active users, quota utilization per tier
+- **FR-125**: System MUST log performance degradation indicators including: slow embedding generation (>5s per file), failed web searches, agent response latency >10s, context summarization failures
+
+#### Data Reliability & Disaster Recovery
+
+- **FR-126**: System MUST rely on Supabase's built-in backup infrastructure (daily snapshots with point-in-time recovery) for disaster recovery in MVP
+- **FR-127**: System MUST NOT implement additional application-level backup mechanisms in MVP (deferred to post-MVP based on failure patterns)
+- **FR-128**: System SHOULD document recovery procedures for common failure scenarios (database corruption, embedding loss, file storage issues) in operational runbook
+
 #### Chat Session Management
 
 - **FR-008**: System MUST support creating chats from three entry points with distinct initial contexts: (1) Chat from file → initial context pill is that file, (2) Chat from folder → initial context pill is that folder, (3) Chat from "New chat" button → initial context depends on editor state
@@ -290,7 +313,7 @@ A user on mobile wants to add text snippets or files to chat, navigate to specif
 - **FR-042**: System MUST allow users to explicitly trigger web search with phrases like "search the web for" or clicking web search toggle
 - **FR-043**: System MUST validate all agent requests against schema (user ID, message 1-10000 chars, chat ID, context pills)
 - **FR-044**: System MUST estimate token usage before processing and warn if exceeding quota
-- **FR-045**: System MUST enforce usage quota limits based on user plan (Free: 100 requests/month, Pro: 1000/month, Enterprise: 10000/month)
+- **FR-045**: System MUST enforce usage quota limits based on user plan (Free: 100 requests/month, Pro: 1000/month, Enterprise: 10000/month) with hard stop enforcement - block all requests when quota is reached until next billing cycle
 - **FR-045a**: System MUST trigger autosave before processing agent request and wait for autosave completion to ensure agent works with current file state
 - **FR-045b**: System MUST stream agent responses token-by-token (like ChatGPT) for improved perceived performance
 - **FR-045c**: System MUST allow users to cancel requests
@@ -391,10 +414,19 @@ A user on mobile wants to add text snippets or files to chat, navigate to specif
 #### Cost Tracking & Monitoring
 
 - **FR-117**: System MUST track and audit each request with detailed metrics: behavior (intent, actions taken), performance (latency, token usage), cost breakdown (LLM tokens, embeddings, storage, web search)
-- **FR-118**: System MUST calculate cost per user across ALL cost sources: embedding generation, vector storage, LLM API calls, web search API calls, file storage, and all other associated costs
+- **FR-118**: System MUST calculate cost per user across ALL cost sources: embedding generation, vector storage, LLM API calls, web search API calls, file storage, bandwidth, and all other associated costs
 - **FR-119**: System MUST be able to calculate the total cost amount for each user via database query (no running total required in MVP, but all cost data must be queryable)
 - **FR-120**: System SHOULD expose cost analytics for business analysis - admin UI deferred to post-MVP
-- **FR-121**: System MUST break down costs by operation type (question, edit, create, refactor, search) to identify high-cost patterns and inform pricing decisions
+- **FR-121**: System MUST break down costs by operation type (question, edit, create, refactor, search, document_upload, embedding_generation, storage, bandwidth) to identify high-cost patterns and inform pricing decisions
+- **FR-122**: System MUST track all billable events in unified usage_events table including agent executions, document uploads, embedding generation, storage operations, and bandwidth usage
+
+#### Conflict Detection & Tool Call Tracking
+
+- **FR-123**: System MUST track all agent tool calls (read_document, update_document, create_document, delete_document, search_documents, web_search, list_directory) with input parameters, output results, and execution status in agent_interactions table
+- **FR-124**: System MUST link each tool call to the specific chat message that triggered it for complete audit trail and message-level traceability
+- **FR-125**: System MUST detect conflicts when multiple concurrent agent requests attempt to modify the same file by querying agent_interactions for pending file operations
+- **FR-126**: System MUST store web search results in agent_interactions.tool_output for audit trail, with option to create formatted artifacts in auto_gen_artifacts for substantial research
+- **FR-127**: System MUST sequence tool calls within each agent request using sequence_order field to maintain execution order and enable replay/debugging
 
 #### AI Model Integration
 
@@ -404,7 +436,7 @@ A user on mobile wants to add text snippets or files to chat, navigate to specif
 - **FR-084**: System MUST implement retry logic with exponential backoff (1s, 2s, 4s delays) for max 3 attempts on API failures
 - **FR-084a**: System MUST display toast notifications for error recovery attempts and failures
 - **FR-085**: System MUST handle rate limiting by queueing requests and showing queue position to user
-- **FR-085a**: System MUST prompt users to upgrade plan when quota exhausted (requests or storage limits)
+- **FR-085a**: System MUST block all new requests when quota exhausted (requests or storage limits) and display upgrade prompt with clear messaging that service resumes next billing cycle or immediately upon upgrade
 - **FR-085b**: System MUST support bulk file operations sequentially for MVP (e.g., "add header to all markdown files in docs/")
 - **FR-085c**: System MUST show progress indicator for bulk operations displaying "Processing X/Y files..." with current file name
 - **FR-085d**: System MUST allow cancellation of bulk operations mid-process
@@ -429,25 +461,23 @@ A user on mobile wants to add text snippets or files to chat, navigate to specif
 
 - **Shadow Filesystem Node**: Represents a file or folder in shadow filesystem - includes node ID, path (absolute), node type (file/folder), file content (for text files), content embedding (768-dim vector), metadata (size, last modified, language), relationships (parent folder, sibling files, imported modules), embedding generation timestamp, sync status, indexing status (indexed/indexing/pending), last_edit_by (user_id or 'agent' to track whether last modification was by user or AI agent)
 
-- **Agent Request**: Represents a single user message and agent response - includes request ID, user ID, chat ID, user message content, intent type (question/edit/create/refactor/search/delete), context pills at request time, web search triggered (boolean), proposed changes (for edit/create intents), approval status, agent response content, confidence score, tokens used, processing time, timestamp
+- **Agent Request**: Represents a single user message and agent response - includes request ID, user ID, chat ID, user message content, intent type (question/edit/create/refactor/search/delete), context pills at request time (snapshot), agent response content, confidence score, tokens used, processing time, timestamp
 
-- **File Change Proposal**: Represents proposed modifications - includes proposal ID, request ID, change type (edit/create/delete), target file path, original content (for edits), proposed content, diff preview, backup created flag, approval status, applied timestamp
+- **Agent Interaction**: Represents a single tool call made by the agent - includes interaction ID, request ID, message ID (optional link to specific message), tool name (read_document, update_document, create_document, delete_document, search_documents, web_search, list_directory), tool input (JSON parameters), tool output (JSON results), requires_confirmation flag (true for write operations), confirmation_status (pending/approved/rejected), status (pending/running/completed/failed/rejected), sequence_order (execution order within request), applied timestamp, error message (if failed)
 
 - **User Preference Profile**: Represents analyzed user preferences - includes profile ID, user ID, organizational preferences (folder structure, naming patterns), preferred content structure, documentation organization style, common formatting patterns (headings, lists, emphasis), last analysis timestamp, source files analyzed count (NOTE: requires privacy/legal review for user profiling compliance)
 
 - **Web Search Result**: Represents external search result - includes result ID, request ID, source URL, title, content snippet (500 chars), relevance score (0-1), publish date, domain authority, included in response flag
 
-- **Usage Event**: Represents tracking event - includes event ID, user ID, request ID, intent type, tokens used (input/output), web search triggered, files created/edited count, success status, confidence score, processing time, timestamp
+- **Usage Event**: Unified tracking for both usage limits and costs - includes event ID, user ID, request ID (nullable for non-agent events), event type (agent_execution/document_upload/embedding_generation/storage/bandwidth), operation subtype (for agent_execution: question/edit/create/refactor/search), tokens used (for AI operations), storage bytes (for storage operations), cost breakdown (LLM input/output, embeddings, vector storage, web search, file storage, bandwidth, other), total cost, event metadata (JSON), timestamp
 
-- **Auto-Generated Artifact**: Represents reference content created automatically by system - includes artifact ID, chat session ID, artifact type (web-source/pasted-code/inline-example), source reference (URL or "user-pasted"), content (full text or code), content embedding (768-dim vector for similarity search), creation timestamp - artifacts hidden from filesystem UI but visible in chat when agent references them, use same storage/security as user files, do NOT expire until post-MVP, cannot be promoted to permanent files in MVP
+- **Auto-Generated Artifact**: Represents reference content created automatically by system - includes artifact ID, chat session ID, artifact type (web-source/pasted-code/inline-example/invalidated-snippet), source reference (URL or "user-pasted"), source_interaction_id (links to agent_interactions for web search artifacts), content (full text or code), content embedding (768-dim vector for similarity search), creation timestamp - artifacts hidden from filesystem UI but visible in chat when agent references them, use same storage/security as user files, do NOT expire until post-MVP, cannot be promoted to permanent files in MVP
 
 - **Orchestrator Decision**: Represents agent routing decision (internal only, not visible to user) - includes decision ID, request ID, user message, detected intent type, confidence score (0-1), selected agent(s) (single or multiple for collaboration), routing reasoning (brief explanation for logging), approval rate for this routing pattern (historical success metric for improving accuracy over time)
 
 - **Chat Branch**: Represents a forked conversation - implemented as a new independent chat session that copies all context from the original chat at the branch point (context pills, conversation history up to branch point, chat direction embedding) and is primed for new direction - no special parent-child relationship in data model for MVP
 
 - **Audit Log Entry**: Represents logged system event - includes log ID, user ID, session ID, request ID, event type (request_start, file_read, write_permission_request, user_approval, user_rejection, file_modification, error, completion), event details (JSON), timestamp, related entity IDs (file paths, folder paths), success status
-
-- **Cost Tracking Record**: Represents cost incurred per operation - includes record ID, user ID, request ID, operation type (question/edit/create/refactor/search), cost breakdown (LLM input tokens cost, LLM output tokens cost, embedding generation cost, vector storage cost, web search API cost, file storage cost), total cost, timestamp
 
 - **User Feedback**: Represents user rating for agent message - includes feedback ID, request ID, message ID, user ID, rating type (thumbs_up/thumbs_down), timestamp, optional text feedback (post-MVP)
 
@@ -682,8 +712,8 @@ User characterization raises questions:
 
 - **Error**:
 
-  - Inline error banner above chat input with specific message: "Web search unavailable", "Quota exceeded (5 requests remaining)", "File sync failed"
-  - Suggested actions: "Retry", "Upgrade Plan", "Try without web search"
+  - Inline error banner above chat input with specific message: "Web search unavailable", "Quota exceeded - 0 requests remaining until [date]", "File sync failed"
+  - Suggested actions: "Retry", "Upgrade Plan" (when quota exhausted, chat input is disabled until upgrade or next billing cycle), "Try without web search"
   - Red error icon with shake animation for attention
   - Preserved user input for easy retry after fixing error
   - Detailed error logs accessible via "View details" link for debugging
@@ -846,7 +876,7 @@ User characterization raises questions:
 
 9. **Real-time Sync**: 2-second sync latency for shadow filesystem is acceptable - we assume users don't expect instant context updates after saving files
 
-10. **Embedding Model**: Using sentence-transformers (all-MiniLM-L6-v2) provides good enough accuracy for content retrieval - we assume general-purpose embeddings work for diverse content types
+10. **Embedding Model**: Using OpenAI text-embedding-3-small provides sufficient accuracy for content retrieval at reasonable cost ($0.02/1M tokens) - we assume general-purpose embeddings work for diverse content types without requiring domain-specific models
 
 11. **Cost Sustainability**: Comprehensive cost tracking per user (LLM tokens, embeddings, storage, web search) enables pricing validation - we're tracking all cost sources to feed into business decisions and validate that usage quotas (100/1000/10000 requests per month) align with profitable pricing tiers
 
@@ -854,9 +884,9 @@ User characterization raises questions:
 
 1. **Filesystem Access & Monitoring**: Requires filesystem watcher (fs.watch or chokidar) to detect file changes in real-time for shadow filesystem sync
 
-2. **Embedding Generation Service**: Requires embedding model (Sentence Transformers or OpenAI embeddings API) and infrastructure to generate 768-dim vectors at scale
+2. **Embedding Generation Service**: Requires OpenAI embeddings API (text-embedding-3-small) to generate 768-dim vectors for files and chat direction tracking
 
-3. **Vector Storage & Search**: Requires vector database (Supabase pgvector, Pinecone, or Weaviate) for storing embeddings and performing semantic similarity search
+3. **Vector Storage & Search**: Requires Supabase pgvector extension for storing embeddings and performing semantic similarity search with cosine distance
 
 4. **Web Search API**: Requires integration with web search provider (Tavily, SerpAPI, or Perplexity) for retrieving external search results
 
@@ -916,8 +946,8 @@ This section will be expanded during `/speckit.plan` based on research findings:
 
 ### Shadow Filesystem Implementation
 
-- **Embedding Model**: [TBD after prototyping - sentence-transformers vs OpenAI vs CodeBERT]
-- **Vector Database**: [TBD after cost analysis - pgvector vs Pinecone vs Weaviate]
+- **Embedding Model**: OpenAI text-embedding-3-small (768-dim vectors, $0.02/1M tokens) - excellent retrieval quality, simple cloud API integration, no hosting infrastructure required
+- **Vector Database**: Supabase pgvector - built-in PostgreSQL extension, co-located with application data, zero additional vendor costs, sufficient for MVP scale (<5,000 files per user)
 - **Sync Strategy**: [TBD after benchmarking - event-driven vs polling vs hybrid]
 - **Storage Format**: [TBD - raw vectors vs compressed vs quantized]
 

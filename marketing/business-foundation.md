@@ -186,10 +186,11 @@
 - Weaknesses: No persistent document context across conversations, each chat is isolated, constant re-explaining needed
 - Positioning: General-purpose AI chat
 
-**Notion AI (Indirect Competitor)**:
-- Strengths: Document integration, existing user base, workspace features
-- Weaknesses: Limited conversation capabilities, not designed for multiple AI threads, workspace-centric (not document-centric)
-- Positioning: Document editor with AI autocomplete
+**Notion AI (Closest Competitor - Different Problem)**:
+- Strengths: Q&A with workspace context, conversation history, searches across Notion pages and connected apps (Slack, Google Drive), GPT-4 + Claude powered
+- Weaknesses: **Single Q&A thread (not multiple independent conversations)**, workspace-centric (tied to Notion's page structure), expensive ($20/user/mo Business plan required as of 2025), weak mobile experience, ecosystem lock-in, doesn't support conversation branching for tangents
+- Positioning: Workspace productivity assistant (for teams already in Notion)
+- **Key Differentiation**: Notion AI has ONE persistent Q&A thread with history. Centrid enables UNLIMITED separate conversations that ALL share document context. Different architecture for different workflows: Notion = workspace management, Centrid = knowledge work thinking.
 
 **Cursor (Adjacent Competitor)**:
 - Strengths: AI + documents, excellent code integration
@@ -206,7 +207,7 @@
 - Weaknesses: Single-document focus, no multi-chat or knowledge work workflows, limited context
 - Positioning: PDF analysis tools
 
-**Our Advantage**: ONLY solution combining persistent document context + multiple independent chats + knowledge work focus (research, create, analyze, decide). Clear differentiation from all competitors.
+**Our Advantage**: ONLY solution enabling **multiple independent conversations with shared document context**. Notion AI has Q&A with workspace context but forces single conversation thread. ChatGPT/Claude have no persistent context. Centrid uniquely combines: (1) Unlimited separate chats, (2) All chats access same documents, (3) Conversation branching for tangents, (4) Mobile-first, (5) Platform-independent. Clear differentiation: we're a **knowledge work thinking tool**, not a workspace assistant.
 
 ---
 
@@ -376,7 +377,9 @@
 
 **Category**: AI workspace for knowledge work with persistent document context
 
-**Positioning Statement**: "ChatGPT forces you to re-explain context every conversation. Centrid: upload once, use across unlimited chats—never re-explain."
+**Positioning Statement**: "ChatGPT and Notion AI force you into single conversation threads. Centrid: Unlimited separate chats, all with access to your documents. Branch, explore, and come back—without losing context."
+
+**Alternative Positioning**: "Knowledge work isn't linear. Centrid: Manage multiple AI conversations with shared document context. One upload, unlimited branching conversations."
 
 **Market Role**:
 - Category creator (persistent context for knowledge work is new category)
@@ -770,29 +773,31 @@
 
 ### One-Line Pitch
 
-"Persistent AI context for knowledge workers that eliminates re-explaining documents across conversations."
+"Multiple AI conversations with shared document context—stop re-explaining, start thinking."
 
 ### 30-Second Pitch
 
-ChatGPT forces you to re-explain context every conversation. If you're a knowledge worker using AI 10+ times a day, you're spending 10-15 minutes per chat just setting up context—that's 2+ hours of wasted time daily.
+ChatGPT and Notion AI trap you in single conversation threads. When you're researching a complex topic, you need to branch—explore tangents, compare approaches, analyze from different angles—without losing your main thread.
 
-Centrid solves this: upload your documents once, start unlimited chats, and every conversation has full access to your knowledge base. No more re-uploading, no more re-explaining. Just AI that remembers your context across every conversation.
+Centrid: Upload your documents once, start unlimited separate chats, and every conversation automatically has access to your full knowledge base. Research in one chat, create in another, analyze in a third—all using the same documents. No re-uploading, no re-explaining, no context loss.
 
-$25/month. 7-day free trial. Used by consultants, researchers, and content creators who can't go back to ChatGPT.
+$25/month. 7-day free trial. Built for consultants, researchers, and content creators who think non-linearly.
 
 ### 60-Second Pitch
 
-The problem: Knowledge workers are hitting a wall with AI tools. ChatGPT and Claude are amazing, but every new conversation starts from zero. You spend 10-15 minutes per chat re-uploading documents, re-explaining context, and rebuilding what you already told the AI yesterday. If you're using AI 10+ times daily, that's 2+ hours of pure friction.
+The problem: Knowledge workers hit a wall with AI tools. ChatGPT forces you to re-explain context every conversation—10-15 minutes per chat re-uploading documents and rebuilding context. Notion AI has Q&A with workspace context, but traps you in a single conversation thread. When you need to explore tangents, compare approaches, or analyze from different angles, you lose your main thread or restart from zero.
 
-The solution: Centrid is an AI workspace with persistent document context. Upload your research notes, project docs, and knowledge base once—then start unlimited independent chats, and every conversation automatically has access to your full context. No re-uploading, no re-explaining, no context loss.
+The solution: Centrid enables multiple independent AI conversations with shared document context. Upload your documents once, then start unlimited separate chats—research in one, create in another, analyze in a third—all with automatic access to your full knowledge base. Knowledge work isn't linear, so your AI workspace shouldn't be either.
 
-The market: 2M+ ChatGPT Plus users and 500K Claude Pro users are already paying $20/month for better AI. They're our target—power users experiencing this pain daily and willing to pay for a better solution.
+The market: 2M+ ChatGPT Plus and 500K Claude Pro users already pay $20/month. Plus Notion AI now requires $20/user/month Business plan (up from $10/month), creating dissatisfaction. Our target: individual power users (consultants, researchers, content creators) who need multiple AI conversations, not workspace management.
 
-The business: $25/month SaaS with 7-day free trial. We're targeting 300 paying customers in Year 1 ($7,500 MRR), scaling to 2,000-5,000 customers in Year 3 ($600K-1.5M MRR). Unit economics are strong: <$50 CAC, $400+ LTV, 8:1 ratio.
+The business: $25/month standalone SaaS with 7-day free trial. Unit economics: <$50 CAC, $400+ LTV, 8:1 ratio. Year 1 target: 300 customers ($7,500 MRR). Year 3: 2,000-5,000 customers ($600K-1.5M MRR).
 
-Traction: 8-10 week MVP sprint. Beta launching Week 4, public launch Week 10. First 20-50 paying customers in 90 days to validate product-market fit.
+Differentiation: ChatGPT = no persistent context. Notion AI = single Q&A thread tied to Notion workspace. Centrid = unlimited separate conversations + shared documents + mobile-first + platform-independent. We're the only solution for non-linear knowledge work.
 
-The ask: We're looking for early adopters to validate persistent context for knowledge work, and strategic angels who understand the AI + productivity space.
+Traction: 8-10 week MVP sprint. Beta Week 4, public launch Week 10. First 20-50 paying customers in 90 days validates product-market fit.
+
+The ask: Early adopters to validate "multiple conversations with shared context" for knowledge work, and strategic angels who understand AI + productivity space.
 
 ---
 

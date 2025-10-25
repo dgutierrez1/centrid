@@ -1,0 +1,401 @@
+openapi: 3.0.3
+info:
+  title: AI Agent Execution API
+  description: |
+    Execute AI agent requests using Claude Agent SDK with built-in orchestration, web search, and context management.
+
+    The SDK automatically handles:
+    - Intent detection (question, edit, create, refactor, search, delete)
+    - Tool selection and execution (WebSearch, read_document, update_document, search_documents, create_document)
+    - Context summarization when approaching token limit
+    - Parallel subagent execution for complex tasks
+  version: 1.0.0
+  contact:
+    name: Centrid API Support
+servers:
+  - url: https://your-project.supabase.co/functions/v1
+    description: Production Supabase Edge Functions
+
+paths:
+  /chat-messages:
+    post:
+      summary: Send chat message and execute agent
+      description: |
+        **UNIFIED ENDPOINT**: Sending a message IS executing an agent. This single endpoint:
+        1. Creates chat_messages record
+        2. Creates linked agent_requests record
+        3. Validates all context references exist (RLS check)
+        4. Builds RAG context from references + chat history
+        5. Starts agent execution using Claude Agent SDK
+        6. Streams progress via SSE (returned sse_endpoint)
+        7. Writes tool calls to agent_interactions table (triggers Realtime for other sessions)
+        8. Returns message_id + request_id + SSE endpoint
+
+        **Cross-Session Visibility**: Primary session subscribes to SSE for lowest latency.
+        Secondary sessions (other tabs/devices) subscribe to agent_interactions table via Realtime.
+        Both see identical progress with same data structure.
+
+      security:
+        - supabaseAuth: []
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - chat_id
+                - text
+              properties:
+                chat_id:
+                  type: string
+                  format: uuid
+                  description: UUID of the chat session
+                  example: "123e4567-e89b-12d3-a456-426614174000"
+
+                text:
+                  type: string
+                  minLength: 1
+                  maxLength: 10000
+                  description: User's message text
+                  example: "what are the main themes in my research notes?"
+
+                context_references:
+                  type: array
+                  description: |
+                    Context references from local draft state (Valtio client state).
+                    Only persisted to database when message is sent.
+                    Array of reference objects with type, source, and optional snippet info.
+                  items:
+                    type: object
+                    required:
+                      - reference_type
+                    properties:
+                      reference_type:
+                        type: string
+                        enum: [file, folder, snippet, all_filesystem, pasted, web, auto_gen]
+                        description: Type of context reference
+                      source_reference:
+                        type: string
+                        description: File path, folder path, URL, or identifier
+                        example: "research/climate-notes.md"
+                      snippet_line_start:
+                        type: integer
+                        description: For snippet pills - starting line number
+                      snippet_line_end:
+                        type: integer
+                        description: For snippet pills - ending line number
+
+      responses:
+        '200':
+          description: Message sent and agent execution started
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - message_id
+                  - request_id
+                  - sse_endpoint
+                properties:
+                  message_id:
+                    type: string
+                    format: uuid
+                    description: UUID of the created chat_messages record
+                    example: "123e4567-e89b-12d3-a456-426614174000"
+
+                  request_id:
+                    type: string
+                    format: uuid
+                    description: UUID of the created agent_requests record (linked to message)
+                    example: "456e7890-e89b-12d3-a456-426614174001"
+
+                  sse_endpoint:
+                    type: string
+                    description: |
+                      Server-Sent Events endpoint for streaming agent progress.
+                      Primary session should subscribe to this for lowest latency.
+                      Secondary sessions can use same endpoint or subscribe to agent_interactions via Realtime.
+                    example: "/agent-requests/456e7890-e89b-12d3-a456-426614174001/stream"
+
+                  status:
+                    type: string
+                    enum: [pending, processing]
+                    description: Initial agent request status (will update via SSE/Realtime)
+                    example: "pending"
+
+        '400':
+          description: Bad request - validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Validation error"
+                message: "message must be between 1 and 10000 characters"
+                code: "VALIDATION_ERROR"
+
+        '401':
+          description: Unauthorized - invalid or missing auth token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Unauthorized"
+                message: "Invalid authentication token"
+                code: "UNAUTHORIZED"
+
+        '403':
+          description: Forbidden - quota exceeded or permission denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Quota exceeded"
+                message: "You have reached your monthly request limit (100/100). Upgrade to Pro for more requests."
+                code: "QUOTA_EXCEEDED"
+
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Internal server error"
+                message: "Agent execution failed: Claude API timeout"
+                code: "AGENT_EXECUTION_ERROR"
+
+  /agent-requests/{request_id}/stream:
+    get:
+      summary: Stream agent progress via Server-Sent Events
+      description: |
+        **SSE Endpoint**: Streams real-time agent progress updates.
+
+        **Event Types**:
+        - `tool_call` - Agent executing MCP tool (read_document, search_documents, etc.)
+        - `status_update` - Request status changed (pending → processing → completed)
+        - `completion` - Agent finished, final response available
+
+        **Primary Session**: Subscribe to this endpoint immediately after sending message
+        **Secondary Sessions**: Can use this endpoint OR subscribe to agent_interactions table via Realtime
+        **Replay**: If request already completed, replays all events from agent_interactions table
+
+        **Usage**:
+        ```javascript
+        const eventSource = new EventSource('/agent-requests/456e.../stream')
+        eventSource.onmessage = (event) => {
+          const data = JSON.parse(event.data)
+          // data: { type, tool_name, status, description, target_file, ... }
+        }
+        ```
+
+      security:
+        - supabaseAuth: []
+
+      parameters:
+        - name: request_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: UUID of the agent_requests record
+          example: "456e7890-e89b-12d3-a456-426614174001"
+
+      responses:
+        '200':
+          description: SSE stream established
+          content:
+            text/event-stream:
+              schema:
+                type: object
+                description: |
+                  Each SSE event contains JSON data with agent progress information.
+                  Events are streamed as they occur during agent execution.
+                properties:
+                  type:
+                    type: string
+                    enum: [tool_call, status_update, completion]
+                    description: Event type
+                  tool_name:
+                    type: string
+                    enum: [read_document, update_document, create_document, delete_document, search_documents, web_search, list_directory]
+                    description: MCP tool being executed (for tool_call events)
+                  status:
+                    type: string
+                    enum: [pending, running, completed, failed, awaiting_approval]
+                    description: Current operation status
+                  description:
+                    type: string
+                    description: Human-readable progress message
+                    example: "Reading /projects/spec.md..."
+                  target_file:
+                    type: string
+                    description: File path being operated on (for file operations)
+                    example: "/projects/spec.md"
+                  sequence_order:
+                    type: integer
+                    description: Execution order within request
+                  requires_confirmation:
+                    type: boolean
+                    description: Whether this operation requires user approval
+              example: |
+                data: {"type":"tool_call","tool_name":"read_document","status":"running","description":"Reading /projects/spec.md...","target_file":"/projects/spec.md","sequence_order":1}
+
+                data: {"type":"tool_call","tool_name":"search_documents","status":"running","description":"Searching for React patterns...","sequence_order":2}
+
+                data: {"type":"tool_call","tool_name":"create_document","status":"awaiting_approval","description":"Creating /drafts/summary.md...","target_file":"/drafts/summary.md","sequence_order":3,"requires_confirmation":true}
+
+                data: {"type":"status_update","status":"completed","final_response":"I've analyzed your spec..."}
+
+                data: {"type":"completion","status":"completed"}
+
+        '401':
+          description: Unauthorized - invalid or missing auth token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+        '404':
+          description: Agent request not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  securitySchemes:
+    supabaseAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Supabase JWT token (from auth.session().access_token)
+
+  schemas:
+    Error:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error type
+        message:
+          type: string
+          description: Human-readable error message
+        code:
+          type: string
+          description: Machine-readable error code
+        details:
+          type: object
+          description: Additional error details (optional)
+
+---
+
+# MCP Tools Contract
+
+The following custom MCP tools are available to the Claude Agent SDK:
+
+## read_document
+
+**Description**: Reads document content from PostgreSQL for fast access
+
+**Input Schema**:
+```typescript
+{
+  file_path: string;  // Absolute path to file
+}
+```
+
+**Output**:
+```typescript
+{
+  file_path: string;
+  content: string;
+  last_modified: string; // ISO 8601 timestamp
+  last_edit_by: 'user' | 'agent';
+}
+```
+
+**Error**: `{ error: string }` if file not found or unauthorized
+
+---
+
+## update_document
+
+**Description**: Updates document in database (triggers real-time), then Storage asynchronously
+
+**Input Schema**:
+```typescript
+{
+  file_path: string;
+  new_content: string;
+}
+```
+
+**Output**:
+```typescript
+{
+  success: boolean;
+  document_id: string;
+}
+```
+
+**Error**: `{ error: string, code: 'VERSION_CONFLICT' | 'UNAUTHORIZED' | 'NOT_FOUND' }`
+
+---
+
+## search_documents
+
+**Description**: Semantic search using pgvector embeddings
+
+**Input Schema**:
+```typescript
+{
+  query: string;
+  limit?: number; // Default: 10, Max: 50
+}
+```
+
+**Output**:
+```typescript
+Array<{
+  file_path: string;
+  snippet: string;     // First 200 chars
+  similarity: number;  // 0-1, cosine similarity
+}>
+```
+
+---
+
+## create_document
+
+**Description**: Creates new document with approval flow
+
+**Input Schema**:
+```typescript
+{
+  file_path: string;
+  content: string;
+}
+```
+
+**Output**:
+```typescript
+{
+  success: boolean;
+  document_id: string;
+}
+```
+
+**Error**: `{ error: string, suggested_path?: string }` if file exists
+
+---
+
+**Note**: All MCP tools enforce user authentication and ownership validation via RLS policies. Tools are executed within the agent's context and results are automatically injected back into the conversation by the Claude Agent SDK.

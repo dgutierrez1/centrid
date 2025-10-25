@@ -13,12 +13,12 @@ Implement a full file system with hierarchical folder/document structure, TipTap
 
 **Language/Version**: TypeScript (Next.js 14, React 18)
 **Primary Dependencies**: TipTap (ProseMirror-based markdown editor), react-arborist (file tree), Supabase (Storage + PostgreSQL + Edge Functions), Valtio (state), TailwindCSS, shadcn/ui
-**Storage**: PostgreSQL (metadata: folders, documents, document_chunks tables) + Supabase Storage (actual file content at documents/{user_id}/{document_id}/{filename})
+**Storage**: PostgreSQL (metadata: user_profiles, folders, documents, document_chunks tables) + Supabase Storage (actual file content at documents/{user_id}/{document_id}/{filename})
 **Testing**: NEEDS CLARIFICATION (likely Jest + React Testing Library for frontend, integration tests for Edge Functions)
 **Target Platform**: Web (desktop + mobile browsers), PWA
 **Project Type**: Web (monorepo with apps/web frontend, apps/api backend)
 **Performance Goals**: <300ms file tree operations, <1s search results for 1000 docs, <60s indexing for 50-page documents, <5s upload for <1MB files, auto-save after 3s inactivity
-**Constraints**: Auto-save reliability 99%+, offline editing with sync on reconnect, real-time updates <100ms propagation, mobile touch targets ≥44x44px, desktop animations 150-250ms, mobile animations 100-150ms
+**Constraints**: Auto-save reliability 99%+, offline editing with sync on reconnect, real-time updates <100ms propagation, mobile touch targets ≥44x44px, desktop animations 150-250ms, mobile animations 100-150ms, **storage quota limits** (10MB max per file, 50MB total for free tier, 1GB for pro tier), **AI integration ready** (right panel reserved for chat in desktop layout)
 **Scale/Scope**: MVP targets single user with up to 1000 documents, hierarchical folder structure (unlimited depth), markdown/text file support only (.md, .txt)
 
 ## Constitution Check
@@ -104,10 +104,10 @@ Based on security audit (specs/003-filesystem-markdown-editor/SECURITY-AUDIT.md)
 ### Edge Function Responsibilities (RESTful API)
 
 **Document Operations**:
-- `POST /documents`: Validate file → generate ID → upload to Storage → insert metadata → queue indexing
-- `PUT /documents/:id`: Validate content → update DB → sync Storage → re-queue indexing
+- `POST /documents`: Validate file → **check storage quota** → generate ID → upload to Storage → insert metadata (set `last_edit_by` to user_id) → **update user_profiles.storage_used_bytes** → queue indexing
+- `PUT /documents/:id`: Validate content → update DB (set `last_edit_by` to user_id or 'agent') → sync Storage → re-queue indexing
 - `PATCH /documents/:id`: Validate metadata changes (name/folder) → recompute path → update DB
-- `DELETE /documents/:id`: Validate ownership → delete Storage → delete DB row
+- `DELETE /documents/:id`: Validate ownership → delete Storage → delete DB row → **decrement user_profiles.storage_used_bytes**
 
 **Folder Operations**:
 - `POST /folders`: Validate name → set user_id from JWT → compute path → insert
@@ -155,7 +155,7 @@ packages/
 │       │   ├── file-tree.tsx          # react-arborist wrapper component
 │       │   ├── markdown-editor.tsx    # TipTap editor component
 │       │   ├── upload-button.tsx      # File upload trigger
-│       │   └── workspace-layout.tsx   # Three-panel/mobile layout primitives
+│       │   └── workspace-layout.tsx   # Three-panel layout: file tree (20%), editor (50%), chat placeholder (30%)
 │       └── features/
 │           ├── document-card.tsx      # Document preview card
 │           └── empty-state.tsx        # Empty state component
@@ -181,8 +181,8 @@ apps/
 │       │   │   ├── FileTreeContainer.tsx    # Smart file tree container
 │       │   │   └── FolderOperations.tsx     # CRUD operations for folders
 │       │   └── layout/
-│       │       ├── WorkspaceLayout.tsx      # Three-panel desktop layout
-│       │       └── MobileLayout.tsx         # Single-panel mobile layout
+│       │       ├── WorkspaceLayout.tsx      # Three-panel desktop layout (chat panel placeholder for 004)
+│       │       └── MobileLayout.tsx         # Single-panel mobile layout (chat toggle for 004)
 │       ├── lib/
 │       │   ├── state/
 │       │   │   ├── filesystem.ts            # Valtio state for file tree
@@ -207,7 +207,7 @@ apps/
     │   │   └── search-documents/
     │   │       └── index.ts                 # GET /search (full-text search)
     │   ├── db/
-    │   │   └── schema.ts                    # Drizzle schema (folders, documents, document_chunks)
+    │   │   └── schema.ts                    # Drizzle schema (user_profiles, folders, documents, document_chunks)
     │   └── lib/
     │       └── supabase.ts                  # Supabase client config
     └── supabase/

@@ -12,7 +12,62 @@ This data model supports hierarchical file organization with separate tables for
 
 ## Entity Definitions
 
-### 1. Folder
+### 1. UserProfile
+
+**Purpose**: Tracks user account metadata including storage usage and quotas for filesystem management.
+
+**Schema** (Drizzle ORM):
+```typescript
+export const user_profiles = pgTable('user_profiles', {
+  user_id: uuid('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  storage_used_bytes: bigint('storage_used_bytes').default(0).notNull(), // Total storage used by user's files
+  storage_limit_bytes: bigint('storage_limit_bytes').default(52428800).notNull(), // 50MB for free tier (50 * 1024 * 1024)
+  created_at: timestamp('created_at').defaultNow().notNull(),
+  updated_at: timestamp('updated_at').defaultNow().notNull(),
+});
+```
+
+**Indexes**:
+```typescript
+// Fast lookup by user
+user_profiles.index('idx_user_profiles_user_id').on(user_profiles.user_id);
+```
+
+**RLS Policies**:
+```sql
+-- Users can read their own profile
+CREATE POLICY "Users can read own profile"
+ON user_profiles FOR SELECT
+USING (auth.uid() = user_id);
+
+-- Users can update their own profile (for client-side quota checks)
+CREATE POLICY "Users can update own profile"
+ON user_profiles FOR UPDATE
+USING (auth.uid() = user_id);
+
+-- Profile created automatically on user signup (trigger)
+```
+
+**Constraints**:
+- `user_id` is primary key (one profile per user)
+- `storage_used_bytes` must be >= 0
+- `storage_limit_bytes` must be >= 0
+- Default limit: 50MB (52428800 bytes) for free tier
+- Pro tier: 1GB (1073741824 bytes) - set when user upgrades
+
+**State Transitions**:
+- **Create**: Auto-created via database trigger on user signup with default limits
+- **Update Storage**: Incremented/decremented via Edge Function when documents are created/deleted
+- **Update Limit**: Modified when user upgrades/downgrades plan
+
+**Validation Rules** (enforced in Edge Functions):
+- Document uploads fail when `storage_used_bytes + file_size > storage_limit_bytes`
+- Edge Function validates quota before uploading to Storage
+- Edge Function updates `storage_used_bytes` after successful upload/delete
+
+---
+
+### 2. Folder
 
 **Purpose**: Container for organizing documents and nested folders in a hierarchical tree structure.
 
@@ -88,7 +143,7 @@ USING (auth.uid() = user_id);
 
 ---
 
-### 2. Document
+### 3. Document
 
 **Purpose**: Represents a user's markdown file with metadata. Actual content stored in Supabase Storage.
 
@@ -106,6 +161,7 @@ export const documents = pgTable('documents', {
   path: text('path').notNull(), // Computed path for breadcrumbs (e.g., "/Projects/MVP/spec.md")
   version: integer('version').default(0).notNull(), // Optimistic locking for concurrent edits
   indexing_status: text('indexing_status').default('pending').notNull(), // 'pending', 'in_progress', 'completed', 'failed'
+  last_edit_by: text('last_edit_by').notNull(), // user_id or 'agent' - tracks last modifier (AI agent vs human)
   created_at: timestamp('created_at').defaultNow().notNull(),
   updated_at: timestamp('updated_at').defaultNow().notNull(),
 });
@@ -233,7 +289,7 @@ EXECUTE FUNCTION update_updated_at_column();
 
 ---
 
-### 3. DocumentChunk
+### 4. DocumentChunk
 
 **Purpose**: Searchable segment of document content with embeddings for semantic search and AI context retrieval.
 
@@ -301,6 +357,12 @@ USING (
 
 ## Relationships
 
+### User ↔ UserProfile
+- **Type**: One-to-One (user → profile)
+- **FK**: `user_profiles.user_id` → `users.id`
+- **Cascade**: DELETE (deleting user removes profile)
+- **Creation**: Auto-created via trigger on user signup
+
 ### Folder ↔ Folder (Self-Referential Hierarchy)
 - **Type**: One-to-Many (parent → children)
 - **FK**: `folders.parent_folder_id` → `folders.id`
@@ -354,6 +416,7 @@ interface FileSystemNode {
   mimeType?: string;       // document.mime_type
   version?: number;        // document.version
   indexingStatus?: string; // document.indexing_status
+  lastEditBy?: string;     // document.last_edit_by (user_id or 'agent')
   updatedAt?: string;      // document.updated_at
 }
 ```
@@ -382,6 +445,7 @@ function buildFileSystemTree(folders: Folder[], documents: Document[]): FileSyst
     mimeType: d.mime_type,
     version: d.version,
     indexingStatus: d.indexing_status,
+    lastEditBy: d.last_edit_by,
     updatedAt: d.updated_at,
   }));
 
@@ -644,7 +708,7 @@ $$ LANGUAGE plpgsql;
 
 ## Summary
 
-**Tables**: `folders`, `documents`, `document_chunks`
+**Tables**: `user_profiles`, `folders`, `documents`, `document_chunks`
 
 **Relationships**: User owns folders/documents, folders contain folders/documents (hierarchy), documents contain chunks
 
@@ -653,14 +717,20 @@ $$ LANGUAGE plpgsql;
 **Security Architecture**: ALL mutations go through Edge Functions (no direct client access to Storage or document creation)
 
 **Edge Functions** (RESTful API - security boundary):
-- `POST /documents`: Validate file, generate ID, upload to Storage, insert metadata, queue indexing
+- `POST /documents`: Validate file, **check storage quota**, generate ID, upload to Storage, insert metadata, **update user_profiles.storage_used_bytes**, queue indexing
 - `PUT /documents/:id`: Validate content, update DB, sync to Storage, re-queue indexing
 - `PATCH /documents/:id`: Validate metadata (name/folder), recompute path
-- `DELETE /documents/:id`: Validate ownership, delete Storage, delete metadata
+- `DELETE /documents/:id`: Validate ownership, delete Storage, delete metadata, **decrement user_profiles.storage_used_bytes**
 - `POST /folders`: Validate name, set user_id from JWT, compute path, insert
 - `PUT /folders/:id`: Validate changes (rename/move), check circular refs, recompute paths for descendants
 - `DELETE /folders/:id`: Validate ownership, delete (cascade via FK)
 - Background: `index-document` job to chunk content and generate embeddings
+
+**Storage Quota Enforcement**:
+- 10MB max per file (validated before upload)
+- 50MB total for free tier, 1GB for pro tier
+- Upload fails with quota error when `storage_used_bytes + file_size > storage_limit_bytes`
+- User profile updated atomically with document creation/deletion
 
 **Indexing Flow**: Edge Function (upload/update) sets `indexing_status='pending'` → queues `index-document` → generates embeddings → inserts `document_chunks`
 

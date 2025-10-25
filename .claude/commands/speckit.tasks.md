@@ -15,7 +15,7 @@ You **MUST** consider the user input before proceeding (if not empty).
 1. **Setup**: Run `.specify/scripts/bash/check-prerequisites.sh --json` from repo root and parse FEATURE_DIR and AVAILABLE_DOCS list. All paths must be absolute. For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
 
 2. **Load design documents**: Read from FEATURE_DIR:
-   - **Required**: plan.md (tech stack, libraries, structure), spec.md (user stories with priorities)
+   - **Required**: plan.md (tech stack, libraries, structure, component architecture), spec.md (user stories with priorities)
    - **Optional**:
      - data-model.md (entities)
      - contracts/ (API endpoints)
@@ -25,6 +25,13 @@ You **MUST** consider the user input before proceeding (if not empty).
        - Component Architecture section (reusable components in packages/ui/src/features/)
        - Screen-to-Component Mapping table (which components were designed)
        - Implementation Guide (container pattern, import examples)
+   - **From plan.md**: Extract Component Architecture section (if UI project) - all 6 subsections:
+     1. Screen Inventory (screens, routes, user stories)
+     2. Component Hierarchy (per screen component trees)
+     3. Container/Presenter Mapping (where each component lives)
+     4. State Management Strategy (global/component/URL state)
+     5. Data Flow Architecture (IDs down, callbacks up, lookups at container)
+     6. Composition Patterns (prop drilling vs context vs render props)
    - Note: Not all projects have all documents. Generate tasks based on what's available.
 
 2.5. **Verify Design Component Availability** (MANDATORY if design.md exists):
@@ -86,6 +93,13 @@ You **MUST** consider the user input before proceeding (if not empty).
    - If data-model.md exists: Extract entities and map to user stories
    - If contracts/ exists: Map endpoints to user stories
    - If research.md exists: Extract decisions for setup tasks
+   - **Use Component Architecture from plan.md** (if UI project) - apply all 6 subsections:
+     1. Screen Inventory: Generate tasks for each screen
+     2. Component Hierarchy: Follow tree structure (containers wrap presenters)
+     3. Container/Presenter Mapping: Place containers in apps/web, presenters in packages/ui
+     4. State Management Strategy: Generate state files in correct locations (global vs component)
+     5. Data Flow Architecture: Task descriptions specify IDs down, callbacks up patterns
+     6. Composition Patterns: Generate tasks respecting chosen patterns (prop drilling vs context)
    - **If DESIGN_INTEGRATION_ENABLED = true** (set in Step 2.5):
      - Use component availability map from Step 2.5
      - For each available designed component: Generate "integrate existing" tasks
@@ -98,7 +112,7 @@ You **MUST** consider the user input before proceeding (if not empty).
      - **DO NOT generate tasks to create designed components** (they already exist)
    - **If design.md missing OR DESIGN_INTEGRATION_ENABLED = false**:
      - Generate tasks to create UI components from scratch in appropriate locations
-     - No design integration pattern
+     - Follow component architecture from plan.md
    - Generate tasks organized by user story (see Task Generation Rules below)
    - Generate dependency graph showing user story completion order
    - Create parallel execution examples per user story

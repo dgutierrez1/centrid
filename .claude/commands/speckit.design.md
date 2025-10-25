@@ -1,8 +1,8 @@
 # Feature Design - Visual UI/UX Specification
 
-**Purpose**: Create reusable presentational components in `packages/ui`, showcase in `apps/design-system`, iterate visually until approved.
+**Purpose**: Create reusable presentational components in `packages/ui` following component architecture from plan.md, create mock containers with sample data in `apps/design-system`, iterate visually until approved.
 
-**Prerequisites**: spec.md, plan.md, global design system exists
+**Prerequisites**: spec.md, plan.md (with Component Architecture section for UI projects), global design system exists
 
 ---
 
@@ -16,12 +16,23 @@
 
 **Load feature context** from FEATURE_DIR:
 - **Required**: `spec.md` (user stories, requirements)
-- **Required**: `plan.md` (tech stack, architecture)
+- **Required**: `plan.md` (tech stack, architecture, component architecture)
 - **Optional**: `data-model.md` (if exists in AVAILABLE_DOCS)
 
 **Load design system context**:
 - Read `.specify/design-system/tokens.md` (design tokens)
 - Read `packages/ui/src/components/index.ts` (available primitives)
+
+**Load component architecture** (from plan.md):
+- Read "Component Architecture" section (all 6 subsections):
+  1. Screen Inventory (screens, routes, user stories)
+  2. Component Hierarchy (per screen trees)
+  3. Container/Presenter Mapping (where each component lives)
+  4. State Management Strategy (global/component/URL state)
+  5. Data Flow Architecture (props down, callbacks up)
+  6. Composition Patterns (prop drilling vs context, etc.)
+- If section missing: SKIP architecture-based steps (API/CLI project)
+- If section exists: Use all 6 subsections to guide component creation
 
 ### 2. Component Reusability Assessment
 
@@ -44,11 +55,18 @@
 
 ### 3. Create Components
 
+**Use component architecture** from plan.md (if exists):
+- Follow component hierarchy (containers vs presenters, nesting levels)
+- Follow container/presenter mapping (where to place each component)
+- Use state management strategy (define props interfaces to receive state)
+- Apply data flow patterns (IDs in props, callbacks for events)
+- Match composition patterns (how components nest/compose)
+
 **Common components** (if any) → `packages/ui/src/components/`:
 - Create `ComponentName.tsx` with generic, reusable props
 - Export from `packages/ui/src/components/index.ts`
 
-**Feature-specific components** → `packages/ui/src/features/[feature-name]/`:
+**Feature-specific presenters** → `packages/ui/src/features/[feature-name]/`:
 - Create separate files: `Screen1.tsx`, `Screen2.tsx`, etc.
 - Import from `@centrid/ui/components` (primitives + common components)
 - Pure presentational (props for data, callbacks for events)
@@ -67,13 +85,19 @@
 ### 4. Create Design System Showcase
 **Location**: `apps/design-system/pages/[feature-name]/`
 
-1. **Create shared screens list**: `screens.ts`
-2. **Create feature index**: `index.tsx` (overview with links to screens)
-3. **Create screen showcases**: `screen-1.tsx`, `screen-2.tsx`, etc.
-   - Import from `@centrid/ui/features`
+1. **Create mock containers** in `apps/design-system/components/[feature-name]/`:
+   - Barebones container components with mock data (NOT in packages/ui)
+   - Wrap presenters from `@centrid/ui/features` with sample props
+   - Example: `WorkspaceContainerMock.tsx` provides mock files/handlers to `DesktopWorkspace`
+   - NO business logic, NO real services - just hardcoded sample data for visual design
+
+2. **Create shared screens list**: `screens.ts`
+3. **Create feature index**: `index.tsx` (overview with links to screens)
+4. **Create screen showcases**: `screen-1.tsx`, `screen-2.tsx`, etc.
+   - Import mock containers from `apps/design-system/components/[feature-name]/`
    - Use `DesignSystemFrame` wrapper for navigation
    - Add state controls (toggle loading, error, etc.)
-4. **Update main index**: Add feature card to `apps/design-system/pages/index.tsx`
+5. **Update main index**: Add feature card to `apps/design-system/pages/index.tsx`
 
 ### 5. Visual Iteration & Interaction Documentation
 
@@ -233,7 +257,8 @@ Status: READY for design.md
 - Reusability categorization documented
 
 **Deliverables** ✅
-- Components: [N] common + [N] feature-specific
+- Presenters: [N] common + [N] feature-specific in `packages/ui`
+- Mock Containers: [N] in `apps/design-system/components/[feature-name]/` (with sample data)
 - Showcase: [N] screens at `apps/design-system/pages/[feature-name]/`
 - Screenshots: [N] desktop + [N] mobile
 - design.md: Architecture, User Flows, Screen Interactions, Mapping table
@@ -270,7 +295,12 @@ Status: READY for design.md
 - ✅ Document reusability (categorization table)
 
 **DON'T**:
-- ❌ Create in `apps/web` or `apps/design-system/components/`
+- ❌ Create presenters in `apps/web` or `apps/design-system/components/`
 - ❌ Duplicate existing components
-- ❌ Add data fetching, state management, or API calls
+- ❌ Add data fetching, state management, or API calls to presenters
 - ❌ Make feature-specific when pattern is reusable
+
+**Mock Containers** (design-system only):
+- ✅ Create in `apps/design-system/components/[feature-name]/` for visual showcase
+- ✅ Use hardcoded sample data (NO real services)
+- ✅ Wrap presenters to demonstrate high-fidelity designs
