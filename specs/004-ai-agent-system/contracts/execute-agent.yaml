@@ -17,19 +17,24 @@ servers:
     description: Production Supabase Edge Functions
 
 paths:
-  /chat-messages:
+  /chats/{chat_id}/messages:
     post:
       summary: Send chat message and execute agent
       description: |
         **UNIFIED ENDPOINT**: Sending a message IS executing an agent. This single endpoint:
-        1. Creates chat_messages record
-        2. Creates linked agent_requests record
-        3. Validates all context references exist (RLS check)
-        4. Builds RAG context from references + chat history
-        5. Starts agent execution using Claude Agent SDK
-        6. Streams progress via SSE (returned sse_endpoint)
-        7. Writes tool calls to agent_interactions table (triggers Realtime for other sessions)
-        8. Returns message_id + request_id + SSE endpoint
+        1. Creates user chat_messages record (role: 'user')
+        2. Validates all context references exist (RLS check)
+        3. Persists context_references to database (UPSERT with is_active = true)
+        4. Creates linked agent_requests record with context_references_snapshot
+        5. Builds RAG context from references + chat history
+        6. Starts agent execution using Claude Agent SDK
+        7. Streams progress via SSE (returned sse_endpoint)
+        8. Writes tool calls to agent_interactions table (triggers Realtime for other sessions)
+        9. Creates agent chat_messages record when complete (role: 'agent')
+        10. Returns message_id + request_id + SSE endpoint
+
+        **Context Persistence**: Context references are persisted to database on message send,
+        enabling cross-device sync via three-way merge when Realtime updates are received.
 
         **Cross-Session Visibility**: Primary session subscribes to SSE for lowest latency.
         Secondary sessions (other tabs/devices) subscribe to agent_interactions table via Realtime.
@@ -38,6 +43,16 @@ paths:
       security:
         - supabaseAuth: []
 
+      parameters:
+        - name: chat_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: UUID of the chat session
+          example: "123e4567-e89b-12d3-a456-426614174000"
+
       requestBody:
         required: true
         content:
@@ -45,15 +60,8 @@ paths:
             schema:
               type: object
               required:
-                - chat_id
                 - text
               properties:
-                chat_id:
-                  type: string
-                  format: uuid
-                  description: UUID of the chat session
-                  example: "123e4567-e89b-12d3-a456-426614174000"
-
                 text:
                   type: string
                   minLength: 1
@@ -133,7 +141,7 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 error: "Validation error"
-                message: "message must be between 1 and 10000 characters"
+                message: "text must be between 1 and 10000 characters"
                 code: "VALIDATION_ERROR"
 
         '401':
