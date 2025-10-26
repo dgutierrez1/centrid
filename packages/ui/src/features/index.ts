@@ -14,3 +14,6 @@ export { EmptyState as FileSystemEmptyState, type EmptyStateProps as FileSystemE
 
 // Filesystem & Markdown Editor Feature
 export * from './filesystem-markdown-editor';
+
+// AI Agent System Feature
+export * from './ai-agent-system';

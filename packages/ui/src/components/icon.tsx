@@ -29,45 +29,61 @@ export function Icon({ name, className = '', size }: IconProps) {
   return <LucideIcon className={className} size={size} />;
 }
 
-// Export commonly used icon names as constants for autocomplete
+// Export commonly used icons as components
 export const Icons = {
   // Actions
-  Zap: 'Zap' as IconName,
-  Lock: 'Lock' as IconName,
-  Upload: 'Upload' as IconName,
-  Download: 'Download' as IconName,
-  Search: 'Search' as IconName,
-  Settings: 'Settings' as IconName,
-  User: 'User' as IconName,
-  Bell: 'Bell' as IconName,
-  Check: 'Check' as IconName,
-  X: 'X' as IconName,
-  Plus: 'Plus' as IconName,
-  Minus: 'Minus' as IconName,
+  zap: LucideIcons.Zap,
+  lock: LucideIcons.Lock,
+  upload: LucideIcons.Upload,
+  download: LucideIcons.Download,
+  search: LucideIcons.Search,
+  settings: LucideIcons.Settings,
+  user: LucideIcons.User,
+  bell: LucideIcons.Bell,
+  check: LucideIcons.Check,
+  x: LucideIcons.X,
+  plus: LucideIcons.Plus,
+  minus: LucideIcons.Minus,
+  copy: LucideIcons.Copy,
+  send: LucideIcons.Send,
+  square: LucideIcons.Square,
+  loader2: LucideIcons.Loader2,
 
   // Status
-  AlertCircle: 'AlertCircle' as IconName,
-  CheckCircle: 'CheckCircle' as IconName,
-  XCircle: 'XCircle' as IconName,
-  Info: 'Info' as IconName,
-  AlertTriangle: 'AlertTriangle' as IconName,
+  alertCircle: LucideIcons.AlertCircle,
+  checkCircle: LucideIcons.CheckCircle,
+  xCircle: LucideIcons.XCircle,
+  info: LucideIcons.Info,
+  alertTriangle: LucideIcons.AlertTriangle,
 
   // Navigation
-  Home: 'Home' as IconName,
-  Menu: 'Menu' as IconName,
-  ChevronDown: 'ChevronDown' as IconName,
-  ChevronUp: 'ChevronUp' as IconName,
-  ChevronLeft: 'ChevronLeft' as IconName,
-  ChevronRight: 'ChevronRight' as IconName,
+  home: LucideIcons.Home,
+  menu: LucideIcons.Menu,
+  chevronDown: LucideIcons.ChevronDown,
+  chevronUp: LucideIcons.ChevronUp,
+  chevronLeft: LucideIcons.ChevronLeft,
+  chevronRight: LucideIcons.ChevronRight,
+  externalLink: LucideIcons.ExternalLink,
 
   // Files & Documents
-  File: 'File' as IconName,
-  FileText: 'FileText' as IconName,
-  Folder: 'Folder' as IconName,
-  Archive: 'Archive' as IconName,
+  file: LucideIcons.File,
+  fileText: LucideIcons.FileText,
+  fileEdit: LucideIcons.FileEdit,
+  filePlus: LucideIcons.FilePlus,
+  fileMove: LucideIcons.Move,
+  folder: LucideIcons.Folder,
+  archive: LucideIcons.Archive,
+  trash: LucideIcons.Trash,
+
+  // Chat & Agent
+  messageSquare: LucideIcons.MessageSquare,
+  bot: LucideIcons.Bot,
+  globe: LucideIcons.Globe,
+  code: LucideIcons.Code,
+  clipboard: LucideIcons.Clipboard,
 
   // Security
-  Shield: 'Shield' as IconName,
-  ShieldCheck: 'ShieldCheck' as IconName,
-  Key: 'Key' as IconName,
+  shield: LucideIcons.Shield,
+  shieldCheck: LucideIcons.ShieldCheck,
+  key: LucideIcons.Key,
 };

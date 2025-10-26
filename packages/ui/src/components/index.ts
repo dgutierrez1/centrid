@@ -144,3 +144,13 @@ export type { SlideOutMenuProps } from './slide-out-menu';
 // Indexing Status Components
 export { IndexingStatus, IndexingStatusIcon, IndexingStatusBadge } from './indexing-status';
 export type { IndexingStatusProps, IndexingStatus as IndexingStatusType } from './indexing-status';
+
+// Chat & Agent Components
+export { ChatMessage } from './chat-message';
+export type { ChatMessageProps, ToolCall, Citation } from './chat-message';
+
+export { TypingIndicator } from './typing-indicator';
+export type { TypingIndicatorProps } from './typing-indicator';
+
+export { FileAutocomplete } from './file-autocomplete';
+export type { FileAutocompleteProps, FileItem } from './file-autocomplete';
