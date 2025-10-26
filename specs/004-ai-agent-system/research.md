@@ -1,637 +1,1005 @@
-# Research: AI Agent Execution System
+# Research: AI-Powered Exploration Workspace
 
-**Feature**: 004-ai-agent-system
-**Date**: 2025-10-24
-**Status**: Complete
+**Feature**: `004-ai-agent-system`
+**Date**: 2025-10-26
+**Phase**: Phase 0 (Outline & Research)
+**Status**: Complete - Aligned with spec.md and arch.md
+
+---
 
 ## Purpose
 
-This document resolves all "NEEDS CLARIFICATION" items from Technical Context and Constitution Check Gate 7. Research findings inform technology choices, implementation patterns, and architectural decisions for Phase 1 design.
+This document resolves research questions identified during technical planning for the AI-Powered Exploration Workspace. Research findings inform technology choices, implementation patterns, and architectural decisions documented in arch.md (Key Architectural Decisions sections).
+
+**Research Scope**:
+1. Server-Sent Events (SSE) best practices for agent streaming
+2. pgvector performance optimization for shadow domain
+3. Context assembly algorithms across multiple domains
+4. User preference derivation from behavioral patterns
+5. Memory chunking strategies for long threads
+6. Supabase Realtime patterns with optimistic updates
+7. Claude 3.5 Sonnet streaming with tool approval flows
 
 ---
 
-## Research Item 1: Web Search Implementation
+## R1: Server-Sent Events (SSE) for Agent Streaming
 
 ### Question
-Should we use a third-party web search API (Tavily, SerpAPI, Perplexity) or leverage Claude Agent SDK's built-in web search?
+How should we stream agent responses (mixed text chunks + tool calls + approval prompts) to the frontend in real-time?
 
-### Discovery: Claude Agent SDK Has Built-in Web Search ✅
+### Options Considered
 
-**Key Finding**: Claude Agent SDK includes `WebFetch` and `WebSearch` tools as core built-in capabilities. No external API integration required.
+**Option 1: WebSocket (Bidirectional)**
+- Pros: Full duplex communication, low latency, can send approval responses back through same connection
+- Cons: More complex protocol, harder to debug, requires custom connection management, overkill for primarily one-way streaming
 
-**SDK Web Search Features**:
-1. **Native Integration**: WebSearch tool included in SDK's core tool ecosystem
-2. **Automatic Query Generation**: Claude generates targeted search queries when current information is needed
-3. **Result Analysis**: SDK extracts relevant information from search results
-4. **Citation Support**: Provides comprehensive responses with source citations
-5. **Zero Configuration**: Works out-of-the-box, no API keys or external setup needed
+**Option 2: Server-Sent Events (SSE)**
+- Pros: Native browser support (`EventSource` API), automatic reconnection, simpler HTTP-based protocol, unidirectional sufficient for our use case
+- Cons: One-way only (approval must be separate POST), slightly higher HTTP overhead
 
-### Decision: Use Claude Agent SDK Built-in Web Search
+**Option 3: Long Polling**
+- Pros: Simplest implementation, works everywhere
+- Cons: High latency (1-2s), inefficient (constant requests), poor UX for streaming
 
-**Rationale**:
-1. **Simplified Architecture**: No external API integration, no additional dependencies
-2. **Zero Additional Cost**: Web search included in Claude API usage (no separate billing)
-3. **Better Integration**: SDK handles search timing, relevance, and context injection automatically
-4. **Maintained by Anthropic**: Updates and improvements come with SDK updates
-5. **Consistent Tool Interface**: Same interface as other SDK tools (file operations, Bash, etc.)
+### Decision: Server-Sent Events (SSE)
 
-**Implementation**:
+**Rationale** (from arch.md Decision 2):
+- Agent streaming is inherently one-way (server → client) - bidirectional not needed
+- SSE reconnection is automatic via browser `EventSource` API
+- Simpler to implement and debug than WebSocket (standard HTTP, visible in DevTools)
+- Works with existing CDN/load balancer infrastructure without special WebSocket config
+- Claude API returns streaming responses that map naturally to SSE events
+- Tool call approvals handled via separate POST endpoint (acceptable UX trade-off)
+
+### Implementation Pattern
+
+**Edge Function (Deno)**:
 ```typescript
-// apps/api/src/services/agentOrchestrator.ts
-import { Agent } from '@anthropic-ai/agent-sdk';
+// apps/api/src/functions/execute-agent/index.ts
+export default async function handler(req: Request) {
+  const { threadId } = await req.json()
 
-export async function executeAgent(
-  message: string,
-  context_references: ContextReference[],
-  user_id: string
-) {
-  const agent = new Agent({
-    model: 'claude-sonnet-4-5-20250929',
-    // WebSearch tool is automatically available - no explicit registration needed
-    allowed_tools: ['WebSearch', 'WebFetch', 'custom_read_document', 'custom_search_documents'],
-  });
+  const stream = new ReadableStream({
+    async start(controller) {
+      // Keep-alive every 30s
+      const keepAlive = setInterval(() => {
+        controller.enqueue(`: ping\n\n`)
+      }, 30000)
 
-  // SDK automatically determines when to use web search based on user query
-  const response = await agent.run({
-    messages: [{ role: 'user', content: message }],
-    context: buildContextFromPills(context_references),
-  });
+      try {
+        // Stream Claude 3.5 Sonnet response
+        const claudeStream = await anthropic.messages.stream({
+          model: 'claude-3-5-sonnet-20241022',
+          max_tokens: 4096,
+          messages: [{ role: 'user', content: primeContext + userMessage }],
+          tools: mcpTools
+        })
 
-  return response;
-}
-```
+        for await (const chunk of claudeStream) {
+          if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
+            // Text chunk
+            controller.enqueue(`data: ${JSON.stringify({
+              type: 'text',
+              content: chunk.delta.text
+            })}\n\n`)
+          } else if (chunk.type === 'content_block_start' && chunk.content_block.type === 'tool_use') {
+            // Tool call - pause for approval
+            const tool = chunk.content_block
 
-**Cost**: Included in Claude API token usage (web search results count toward input tokens, no separate charge)
+            controller.enqueue(`data: ${JSON.stringify({
+              type: 'tool_call',
+              toolName: tool.name,
+              status: 'awaiting_approval',
+              input: tool.input
+            })}\n\n`)
 
-**Alternatives Rejected**:
-- **Tavily**: Would add $0.00025/search cost + integration complexity
-- **SerpAPI**: More expensive ($50/mo for 5000 searches)
-- **Perplexity**: Limited control, API in beta
+            // Wait for approval (blocks stream, FR-048a)
+            const approved = await waitForApproval(tool.id, { timeout: 600000 }) // 10min
 
----
+            if (!approved) {
+              controller.enqueue(`data: ${JSON.stringify({
+                type: 'error',
+                message: 'Approval timed out after 10 minutes'
+              })}\n\n`)
+              break
+            }
 
-## Research Item 2: Agent Orchestration & Intent Routing
-
-### Question
-Should we build a custom orchestrator agent to route requests to specialized agents (question, edit, create, refactor, search, delete), or does Claude Agent SDK handle this?
-
-### Discovery: Claude Agent SDK Has Built-in Orchestration ✅
-
-**Key Finding**: Claude Agent SDK includes built-in orchestration capabilities that eliminate the need for custom intent routing logic.
-
-**SDK Orchestration Features**:
-1. **Automatic Tool Selection**: SDK automatically determines which tools to use based on user intent
-2. **Subagents**: Can spin off parallel subagents with isolated context windows for complex tasks
-3. **Context Management**: Automatic context summarization when approaching token limits ("compact" feature)
-4. **Tool Control**: Fine-grained control via `allowed_tools` parameter to restrict agent capabilities
-5. **Multi-Step Reasoning**: SDK handles multi-turn tool calling and complex workflows automatically
-
-### Decision: Use Claude Agent SDK Built-in Orchestration
-
-**Rationale**:
-1. **No Custom Orchestrator Needed**: SDK handles intent detection and tool routing automatically
-2. **Parallel Execution**: Subagents can run multiple queries in parallel and return relevant excerpts
-3. **Automatic Context Management**: "compact" feature summarizes context automatically (no manual summarization logic)
-4. **Simpler Architecture**: Remove entire orchestrator service layer - SDK handles this
-5. **Better Performance**: Anthropic-optimized orchestration logic, continuously improved with SDK updates
-
-**Implementation**:
-```typescript
-// apps/api/src/services/agentService.ts
-import { Agent } from '@anthropic-ai/agent-sdk';
-
-export async function executeAgentRequest(
-  message: string,
-  context_references: ContextReference[],
-  user_id: string
-) {
-  // Build context from pills
-  const context = await buildContextFromPills(context_references, user_id);
-
-  // Create agent with custom MCP tools
-  const agent = new Agent({
-    model: 'claude-sonnet-4-5-20250929',
-
-    // Built-in tools (SDK handles automatically)
-    allowed_tools: [
-      'WebSearch',          // Web search (built-in)
-      'WebFetch',           // Fetch URLs (built-in)
-      'Bash',               // Shell commands (built-in, restricted for security)
-
-      // Custom MCP tools for document operations
-      'read_document',      // Read file from database
-      'update_document',    // Update file content
-      'search_documents',   // Semantic search via pgvector
-      'create_document',    // Create new file
-    ],
-
-    // Automatic context management
-    compact: true, // Enable automatic summarization when approaching token limit
-
-    // System prompt with user preferences
-    system: buildSystemPrompt(user_id), // Includes user preference profile
-  });
-
-  // SDK handles:
-  // - Intent detection (question vs edit vs create vs search)
-  // - Tool selection and orchestration
-  // - Multi-turn tool calling
-  // - Context summarization
-  // - Parallel subagent execution (if needed)
-  const response = await agent.run({
-    messages: [{ role: 'user', content: message }],
-    context: context,
-  });
-
-  return {
-    response: response.content,
-    confidence_score: response.metadata?.confidence || 0.8, // SDK may provide
-    tools_used: response.metadata?.tools_used || [],
-    web_search_triggered: response.metadata?.tools_used?.includes('WebSearch') || false,
-  };
-}
-```
-
-**Removed Components** (SDK handles these):
-- ❌ `orchestratorAgent.ts` - SDK routes intents automatically
-- ❌ `intentClassifier.ts` - SDK detects intent from user message
-- ❌ `contextSummarizer.ts` - SDK's compact feature handles this
-- ❌ Orchestrator Decision entity in database - not needed
-- ❌ Custom agent routing logic - SDK orchestrates tool use
-
-**Simplified Architecture**:
-```
-Before (Custom Orchestrator):
-User Message → Orchestrator Agent → Intent Classification → Route to Specialized Agent → Execute Tools → Response
-
-After (SDK Orchestration):
-User Message → Agent SDK → [Automatic: Intent Detection + Tool Selection + Execution] → Response
-```
-
----
-
-## Research Item 3: Claude Agent SDK with MCP Tools (Gate 7)
-
-### Question
-How should Claude Agent SDK access documents via MCP tools? What is the implementation strategy?
-
-### MCP (Model Context Protocol) Overview
-
-**MCP** is Anthropic's protocol for connecting LLMs to external tools and data sources. Claude Agent SDK uses MCP to:
-1. Expose tools (functions) to the agent (read_document, update_document, search_documents)
-2. Execute tools when agent requests them
-3. Return results to agent for context building
-
-### Implementation Strategy
-
-#### Option A: Database-First (RECOMMENDED)
-Agent reads documents from PostgreSQL `content_text` field for speed, writes update database first (triggers real-time), then Storage asynchronously.
-
-**Pros**:
-- **Faster reads**: PostgreSQL query ~10-50ms vs Storage fetch ~100-300ms
-- **Real-time updates**: Database writes trigger Supabase Realtime immediately
-- **Vector search**: Documents already in database for embedding queries
-- **Transactional**: Can update document + create chat message in single transaction
-
-**Cons**:
-- Storage becomes backup/source for re-processing (slight complexity)
-- Must keep database and Storage in sync (handled by triggers)
-
-#### Option B: Storage-First
-Agent reads/writes directly to Supabase Storage, database updates asynchronously.
-
-**Pros**:
-- Simpler data flow (Storage is single source of truth)
-- No sync complexity between database and Storage
-
-**Cons**:
-- **Slower**: Storage I/O is 3-5x slower than PostgreSQL
-- **No real-time**: Storage changes don't trigger Supabase Realtime
-- **No transactions**: Can't atomically update document + chat message
-- **Defeats pgvector**: Documents must be fetched from Storage for embedding generation
-
-### Decision: Database-First with Storage Backup
-
-**Rationale**: Constitution Principle VII explicitly states "Agent tools MUST read documents from PostgreSQL (content_text field) for speed. Agent write operations MUST update database first (triggering real-time notifications), then Storage asynchronously."
-
-### MCP Tool Implementation
-
-```typescript
-// apps/api/src/services/mcpTools.ts
-import { createClient } from '@supabase/supabase-js';
-import * as documentRepo from '../repositories/documentRepository';
-
-/**
- * MCP Tool: read_document
- * Reads document content from PostgreSQL for fast access
- */
-export async function read_document(file_path: string, user_id: string) {
-  const document = await documentRepo.findByPath(file_path, user_id);
-
-  if (!document) {
-    return { error: 'Document not found or unauthorized' };
-  }
-
-  return {
-    file_path: document.file_path,
-    content: document.content_text,
-    last_modified: document.updated_at,
-    last_edit_by: document.last_edit_by, // 'user' or 'agent'
-  };
-}
-
-/**
- * MCP Tool: update_document
- * Updates document in database (triggers real-time), then Storage asynchronously
- */
-export async function update_document(
-  file_path: string,
-  new_content: string,
-  user_id: string
-) {
-  // Update database first (triggers real-time notifications)
-  const updated = await documentRepo.update(file_path, user_id, {
-    content_text: new_content,
-    last_edit_by: 'agent',
-    version: document.version + 1, // Optimistic locking
-  });
-
-  // Trigger async Storage update (background job, non-blocking)
-  await triggerStorageSync(updated.document_id, new_content);
-
-  return { success: true, document_id: updated.document_id };
-}
-
-/**
- * MCP Tool: search_documents
- * Semantic search using pgvector embeddings
- */
-export async function search_documents(query: string, user_id: string, limit = 10) {
-  const results = await embeddingRepo.searchSimilar(query, user_id, limit);
-
-  return results.map(r => ({
-    file_path: r.file_path,
-    snippet: r.content.slice(0, 200), // Preview
-    similarity: r.similarity,
-  }));
-}
-
-/**
- * MCP Tool: create_document
- * Creates new document with approval flow
- */
-export async function create_document(
-  file_path: string,
-  content: string,
-  user_id: string
-) {
-  // Check if path exists
-  const existing = await documentRepo.findByPath(file_path, user_id);
-  if (existing) {
-    return { error: 'File already exists', suggested_path: `${file_path}.new` };
-  }
-
-  // Create in database
-  const document = await documentRepo.create({
-    user_id,
-    file_path,
-    content_text: content,
-    last_edit_by: 'agent',
-  });
-
-  // Trigger embedding generation + Storage upload
-  await triggerEmbeddingGeneration(document.document_id);
-  await triggerStorageSync(document.document_id, content);
-
-  return { success: true, document_id: document.document_id };
-}
-```
-
-### Claude Agent SDK Integration
-
-```typescript
-// apps/api/src/services/agentOrchestrator.ts
-import Anthropic from '@anthropic-ai/sdk';
-import { read_document, update_document, search_documents, create_document } from './mcpTools';
-
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
-
-export async function executeAgent(
-  message: string,
-  context_references: ContextReference[],
-  user_id: string
-) {
-  // Build context from pills + semantic search
-  const context = await buildContext(message, context_references, user_id);
-
-  // Execute agent with MCP tools
-  const response = await anthropic.messages.create({
-    model: 'claude-3-5-sonnet-20241022',
-    max_tokens: 4096,
-    temperature: 0.3, // Adjust per intent type
-    messages: [
-      {
-        role: 'user',
-        content: `${context}\n\nUser message: ${message}`,
-      },
-    ],
-    tools: [
-      {
-        name: 'read_document',
-        description: 'Read the content of a document from the filesystem',
-        input_schema: {
-          type: 'object',
-          properties: {
-            file_path: { type: 'string', description: 'Path to the document' },
-          },
-          required: ['file_path'],
-        },
-      },
-      {
-        name: 'search_documents',
-        description: 'Search for documents using semantic similarity',
-        input_schema: {
-          type: 'object',
-          properties: {
-            query: { type: 'string', description: 'Search query' },
-            limit: { type: 'number', description: 'Maximum results', default: 10 },
-          },
-          required: ['query'],
-        },
-      },
-      // ... update_document, create_document
-    ],
-  });
-
-  // Handle tool calls
-  if (response.stop_reason === 'tool_use') {
-    for (const content of response.content) {
-      if (content.type === 'tool_use') {
-        let tool_result;
-
-        switch (content.name) {
-          case 'read_document':
-            tool_result = await read_document(content.input.file_path, user_id);
-            break;
-          case 'search_documents':
-            tool_result = await search_documents(content.input.query, user_id, content.input.limit);
-            break;
-          // ... handle other tools
+            controller.enqueue(`data: ${JSON.stringify({
+              type: 'tool_call',
+              toolName: tool.name,
+              status: 'approved'
+            })}\n\n`)
+          }
         }
 
-        // Continue conversation with tool results
-        // (multi-turn tool calling pattern)
+        controller.enqueue(`data: ${JSON.stringify({ type: 'completion' })}\n\n`)
+      } finally {
+        clearInterval(keepAlive)
+        controller.close()
       }
+    }
+  })
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive'
+    }
+  })
+}
+```
+
+**Frontend (EventSource)**:
+```typescript
+// apps/web/src/lib/hooks/useStreamMessage.ts
+function useStreamMessage() {
+  const streamMessage = async (threadId: string, text: string) => {
+    // Create message, get SSE endpoint
+    const { sseEndpoint } = await threadService.sendMessage(threadId, text)
+
+    // Subscribe to SSE stream
+    const eventSource = new EventSource(sseEndpoint)
+
+    eventSource.onmessage = (event) => {
+      const data = JSON.parse(event.data)
+
+      if (data.type === 'text') {
+        // Append text chunk to streaming buffer
+        aiAgentState.streamingBuffer += data.content
+      } else if (data.type === 'tool_call' && data.status === 'awaiting_approval') {
+        // Show approval modal
+        aiAgentState.pendingApproval = data
+      } else if (data.type === 'completion') {
+        // Move buffer to final message
+        aiAgentState.messages.push({
+          role: 'assistant',
+          content: aiAgentState.streamingBuffer
+        })
+        aiAgentState.streamingBuffer = ''
+        eventSource.close()
+      }
+    }
+
+    eventSource.onerror = () => {
+      toast.error('Stream interrupted. Please retry.')
+      eventSource.close()
     }
   }
 
-  return response;
+  return { streamMessage }
 }
 ```
 
-### Alternatives Considered
+### Best Practices
 
-**Alternative 1: Custom REST API instead of MCP**
-- Rejected: MCP is Anthropic's recommended protocol for tool integration
-- MCP provides standardized tool calling, better error handling, streaming support
+1. **Keep-Alive**: Send comment lines (`: ping\n\n`) every 30s to prevent connection timeout
+2. **Event Format**: `data: {JSON}\n\n` with double newline terminator
+3. **Pause for Approval**: Block stream yield until approval received (FR-048a)
+4. **Timeout Handling**: Auto-reject after 10 minutes, release resources (FR-048b)
+5. **Error Recovery**: On disconnect, discard partial message, user retries from beginning (MVP simplicity per FR-053a)
+6. **Cross-Session Visibility**: Primary session uses SSE, secondary sessions use Supabase Realtime subscriptions to agent_tool_calls table
 
-**Alternative 2: Expose all files as context upfront**
-- Rejected: 200k token limit insufficient for large repositories (5000+ files)
-- Semantic search + tool calling enables selective, on-demand file access
+### Performance Targets
 
-**Alternative 3: Storage-first architecture**
-- Rejected: 3-5x slower than database reads, no real-time updates, no transactions
-- Violates Constitution Principle VII requirement for database-first reads
-
----
-
-## Research Item 4: IndexedDB Client-Side Cache
-
-### Question
-Is IndexedDB required for client-side caching, or is Valtio + Supabase Realtime sufficient?
-
-### Analysis
-
-**Current Architecture** (Valtio + Supabase Realtime):
-- Valtio stores chat state, context pills, agent request status in-memory
-- Supabase Realtime keeps state fresh via WebSocket subscriptions
-- State is lost on page refresh (re-fetched from database)
-
-**IndexedDB Benefits**:
-1. **Offline support**: Cache chat history, documents for offline reading (post-MVP feature)
-2. **Faster initial load**: Restore state from IndexedDB before API calls complete
-3. **Reduce bandwidth**: Cache unchanged data locally (especially for large documents)
-
-**IndexedDB Costs**:
-1. **Complexity**: Sync logic between IndexedDB, Valtio, and Supabase Realtime
-2. **Stale data risk**: Cache invalidation strategy required
-3. **Storage limits**: Browser quotas (50MB-5GB depending on browser)
-
-### Decision: Defer IndexedDB to Post-MVP
-
-**Rationale**:
-- **MVP-First Discipline** (Principle IX): IndexedDB adds complexity without proving core hypothesis
-- **Real-time sufficiency**: Supabase Realtime + Valtio provide acceptable UX for MVP (<500ms chat list load)
-- **Offline not required**: Spec does not mandate offline mode for MVP (deferred to Out of Scope)
-- **Premature optimization**: Wait for real usage data to determine if caching is necessary
-
-**Revisit Post-MVP If**:
-- Users report slow initial load times (>2 seconds for chat list)
-- Bandwidth costs become significant (users on mobile data report issues)
-- Offline mode becomes a requested feature (user feedback driven)
+- Chunk latency: <500ms between chunks
+- Approval wait: User has 10 minutes to approve/reject
+- Reconnection: Automatic via `EventSource`, but partial message is discarded
 
 ---
 
-## Research Item 5: Embedding Model Selection (Validation)
+## R2: pgvector Optimization for Shadow Domain
 
 ### Question
-Validate that OpenAI text-embedding-3-small is the best choice for shadow filesystem and chat direction embeddings.
+How should we optimize pgvector for semantic search across 1000+ shadow entities (files + threads + concepts)?
 
-### Options Compared
+### Background
 
-| Model | Dimensions | Cost | Quality | Latency | Verdict |
-|-------|-----------|------|---------|---------|---------|
-| **OpenAI text-embedding-3-small** | 768 | $0.02/1M tokens | Excellent | ~100ms | ✅ CONFIRMED |
-| OpenAI text-embedding-3-large | 3072 | $0.13/1M tokens | Best-in-class | ~150ms | ❌ Overkill for MVP |
-| OpenAI ada-002 (legacy) | 1536 | $0.10/1M tokens | Good | ~120ms | ❌ More expensive |
-| Cohere embed-english-v3.0 | 1024 | $0.10/1M tokens | Good | ~150ms | ❌ More expensive |
-| Local (sentence-transformers) | 384 | Free | Medium | ~200ms | ❌ Hosting complexity |
+Shadow domain (FR-010a to FR-010f) is a unified `shadow_entities` table containing:
+- `entity_id`: Reference to source entity (file_id, thread_id, or kg_node_id)
+- `entity_type`: Discriminator ('file' | 'thread' | 'kg_node')
+- `embedding`: 768-dim vector (OpenAI text-embedding-3-small)
+- `summary`: Auto-generated 2-3 sentence description
+- `structure_metadata`: JSONB (entity-specific: outline for files, topics for threads, relationships for KG nodes)
 
-### Decision: OpenAI text-embedding-3-small ✅ CONFIRMED
+### Index Options
 
-**Rationale**:
-1. **Best cost/quality ratio**: $0.02/1M tokens (cheapest) with excellent retrieval quality
-2. **Lower dimensionality**: 768-dim vs 1536-dim (ada-002) = 50% storage savings in pgvector
-3. **Fast API**: ~100ms latency, handles 3000 requests/min rate limit
-4. **No hosting**: Cloud API, no infrastructure management
-5. **Proven at scale**: Used by major applications, well-documented
+| Index Type | Build Time | Query Speed | Accuracy | Use Case |
+|-----------|------------|-------------|----------|----------|
+| **ivfflat** | Fast | Good | ~95% | <10K vectors (our scale) |
+| HNSW | Slow | Excellent | ~99% | >10K vectors, read-heavy |
+| None (seq scan) | N/A | Terrible | 100% | Development only |
 
-**Cost Analysis** (1000-file repository):
-- Initial embedding: 1000 files × 500 tokens/file × $0.00000002/token = **$0.01**
-- Incremental updates: 10 file changes/day × 500 tokens × $0.00000002 × 30 days = **$0.003/month**
-- Chat direction embeddings: 100 chats × 5 messages/chat × 100 tokens × $0.00000002 = **$0.001/month**
-- **Total**: ~$0.01 setup + $0.004/month ongoing = **negligible cost**
-
-**Storage Cost** (pgvector):
-- 768 dimensions × 4 bytes (float32) = 3KB per embedding
-- 1000 files + 100 chat directions = 1100 embeddings × 3KB = **3.3MB**
-- Supabase PostgreSQL storage: Free tier (10GB) easily accommodates MVP scale
-
----
-
-## Research Item 6: Context Management & Summarization
-
-### Question
-How should the system manage context when approaching the 200k token limit? Do we need custom summarization logic?
-
-### Discovery: Claude Agent SDK Has Automatic Context Management ✅
-
-**Key Finding**: Claude Agent SDK's "compact" feature automatically handles context summarization when approaching token limits. No custom summarization logic required.
-
-**SDK Context Management Features**:
-1. **Automatic Summarization**: "compact" mode summarizes previous messages when context limit approaches
-2. **Intelligent Compression**: Preserves key information while reducing token count
-3. **Zero Configuration**: Enable with `compact: true` in Agent constructor
-4. **Continuous Operation**: Agents won't run out of context - SDK manages it automatically
-5. **Optimized by Anthropic**: Summarization logic continuously improved with SDK updates
-
-### Decision: Use Claude Agent SDK's Compact Feature
+### Decision: ivfflat with 100 Lists
 
 **Rationale**:
-1. **No Custom Logic Needed**: SDK handles threshold detection and summarization automatically
-2. **Better Compression**: Anthropic-optimized summarization preserves more relevant information
-3. **Zero Maintenance**: Updates and improvements come with SDK releases
-4. **No Additional Cost**: Summarization happens within agent execution (no separate API calls)
-5. **Simpler Architecture**: Remove entire context optimization service layer
+- MVP scale: 1000+ entities per user (fits well with ivfflat sweet spot)
+- `lists = 100` optimal for 1000-10000 vectors (rule of thumb: sqrt of expected rows)
+- Build time: <1s for 1000 vectors (acceptable for async background job)
+- Query speed: <1s for top-10 results (meets FR-064 requirement)
 
-**Implementation**:
+### Implementation
+
+**Index Creation**:
+```sql
+-- Create ivfflat index for cosine similarity
+CREATE INDEX shadow_entities_embedding_idx
+ON shadow_entities
+USING ivfflat (embedding vector_cosine_ops)
+WITH (lists = 100);
+
+-- Analyze for query planner
+ANALYZE shadow_entities;
+```
+
+**Query Pattern**:
 ```typescript
-// apps/api/src/services/agentService.ts
-import { Agent } from '@anthropic-ai/agent-sdk';
-
-export async function executeAgentRequest(
-  message: string,
-  context_references: ContextReference[],
-  user_id: string
+// apps/api/src/repositories/shadowEntity.ts
+async function semanticSearch(
+  queryEmbedding: number[],
+  entityTypes: EntityType[],
+  userId: string,
+  limit: number = 10
 ) {
-  const agent = new Agent({
-    model: 'claude-sonnet-4-5-20250929',
-    compact: true, // Enable automatic context management ✅
-    allowed_tools: ['WebSearch', 'read_document', 'search_documents', ...],
-  });
+  const result = await db.execute(sql`
+    SELECT
+      entity_id,
+      entity_type,
+      summary,
+      structure_metadata,
+      1 - (embedding <=> ${queryEmbedding}::vector) AS similarity
+    FROM shadow_entities
+    WHERE entity_type = ANY(${entityTypes})
+      AND owner_user_id = ${userId}
+    ORDER BY embedding <=> ${queryEmbedding}::vector
+    LIMIT ${limit}
+  `)
 
-  // SDK automatically:
-  // - Monitors context token usage
-  // - Summarizes when approaching limit
-  // - Preserves recent messages and key information
-  // - Manages token budget across context sources
-
-  const response = await agent.run({
-    messages: buildChatHistory(chat_id), // Full chat history - SDK will compress if needed
-    context: buildContextFromPills(context_references), // All context pills - SDK optimizes
-  });
-
-  return response;
+  return result.rows
 }
 ```
 
-**Removed Components** (SDK handles these):
-- ❌ `contextOptimizer.ts` - SDK's compact feature handles this
-- ❌ Manual context budget allocation logic
-- ❌ Custom summarization with Claude Haiku
-- ❌ Fallback truncation strategies
-- ❌ Context usage monitoring (SDK does this internally)
+### Embedding Model: OpenAI text-embedding-3-small
 
-**User Experience**:
-- Transparent to users - SDK handles summarization seamlessly
-- No "Context optimized" notifications needed (unless SDK provides this)
-- Agents can handle arbitrarily long conversations without manual context pruning
+**Why 768-dim (not 1536-dim)**:
+- Cost: $0.02/1M tokens (cheapest option)
+- Storage: 768 × 4 bytes = 3KB per embedding (vs 6KB for 1536-dim)
+- Quality: Excellent retrieval performance for our use case
+- Speed: ~100ms API latency, 3000 req/min rate limit
 
-**Cost**: Included in agent execution - SDK optimizes within normal token usage, no additional summarization API calls
+**Cost Analysis** (1000 entities):
+- Initial: 1000 entities × 500 tokens × $0.00000002/token = **$0.01**
+- Daily updates: 10 changes × 500 tokens × $0.00000002 = **$0.0001/day**
+- Total: ~$0.01 setup + $0.003/month = **negligible**
+
+### Performance Targets
+
+- <1s for 1000 entities (FR-064) ✅
+- <500ms for <100 entities (FR-064) ✅
+- <300ms for unified cross-entity searches (FR-064a) ✅
+
+### Maintenance
+
+- **VACUUM**: Automatic via Supabase (removes dead tuples)
+- **ANALYZE**: Run after bulk inserts (updates query planner stats)
+- **Re-index**: If vector count grows >10K, consider HNSW or increase lists to sqrt(N)
+
+---
+
+## R3: Context Assembly Algorithms
+
+### Question
+How should we gather and prioritize context from 6 domains within 200K token budget in <1s?
+
+### Multi-Domain Architecture
+
+**6 Context Domains** (from arch.md):
+1. **Explicit Context** (1.0 weight) - Files/threads @-mentioned by user
+2. **Shadow Domain** (0.5 base weight) - Semantic matches via pgvector
+3. **Thread Tree** (0.7 weight) - Parent summary, inherited files, sibling threads
+4. **Memory Chunks** (0.6 weight) - Top-3 relevant chunks if thread >40 messages
+5. **User Preferences** (0.8 weight for always-include, filtering for excluded) - Derived from behavior
+6. **Knowledge Graph** (0.6 weight) - Related concepts (Phase 2+)
+
+### Algorithm (from arch.md Decision 4)
+
+**Step 1: Parallel Domain Queries** (target <1s total)
+```typescript
+// apps/api/src/services/contextAssembly.ts
+async function assembleContext(threadId: string, query: string, userId: string) {
+  // Execute ALL domains in parallel
+  const [explicit, semantic, tree, memory, preferences] = await Promise.all([
+    loadExplicitReferences(threadId), // Load full content
+    semanticSearchService.search(query, userId, threadId), // Top 10 with modifiers
+    loadThreadTree(threadId), // Parent summary + inherited files
+    loadMemoryChunks(threadId, query), // Top 3 if >40 messages
+    userPreferencesService.loadPreferences(userId) // Cached per request
+  ])
+
+  // ... (continue to Step 2)
+}
+```
+
+**Step 2: Apply Modifiers**
+- **Relationship modifiers** (based on thread tree position):
+  - Siblings: +0.10 to semantic matches from sibling branches (FR-022)
+  - Parent/Child: +0.15 to semantic matches from parent or child branches (FR-022)
+- **Temporal decay**: `1.0 - (months_since_last_interaction × 0.05)` with floor 0.3 (FR-023)
+- **Topic divergence filtering**: If branch summary similarity <0.3, only show semantic matches >0.9 (FR-021c)
+
+**Step 3: Apply User Preferences**
+```typescript
+// Filter OUT excluded patterns (reduces noise)
+const filteredSemantic = semantic.filter(item =>
+  !preferences.excluded_patterns.some(pattern =>
+    new RegExp(pattern).test(item.path)
+  ) &&
+  !preferences.blacklisted_branches.includes(item.source_thread_id)
+)
+
+// Add always-include files (learned from behavior)
+const alwaysInclude = preferences.always_include_files.map(path => ({
+  path,
+  weight: 0.8,
+  source: 'user_preference'
+}))
+```
+
+**Step 4: Prioritize and Fit Budget**
+```typescript
+// Merge all context sources
+const allContext = [
+  ...explicit.map(item => ({ ...item, weight: 1.0, group: 'explicit' })),
+  ...alwaysInclude.map(item => ({ ...item, group: 'frequently_used' })),
+  ...tree.map(item => ({ ...item, weight: 0.7, group: 'branch' })),
+  ...filteredSemantic.map(item => ({ ...item, group: 'semantic' })),
+  ...memory.map(item => ({ ...item, weight: 0.6, group: 'memory' }))
+]
+
+// Sort by final weight (base + modifiers)
+allContext.sort((a, b) => b.weight - a.weight)
+
+// Fit within 200K token budget
+const { included, excluded } = fitWithinBudget(allContext, 200000)
+
+return {
+  included: groupBy(included, 'group'), // 6 sections for UI
+  excluded // Show in "Excluded context" section for manual re-prime
+}
+```
+
+### SemanticSearchService (Separate, Reusable)
+
+**Why Separate** (arch.md Decision 4):
+- Used by: ContextAssemblyService, ConsolidationService, manual user search, memory chunk search
+- Clear separation: SemanticSearchService handles shadow domain queries, ContextAssemblyService orchestrates ALL domains
+- Easier to optimize and test independently
+
+```typescript
+// apps/api/src/services/semanticSearch.ts
+class SemanticSearchService {
+  async search(
+    query: string,
+    userId: string,
+    threadId: string,
+    entityTypes: EntityType[] = ['file', 'thread'],
+    limit: number = 10
+  ) {
+    // Generate query embedding
+    const queryEmbedding = await openai.createEmbedding(query)
+
+    // Get thread tree metadata for relationship modifiers
+    const threadMetadata = await threadRepository.getTreeMetadata(threadId)
+
+    // Semantic search across shadow domain
+    const results = await shadowEntityRepository.search(
+      queryEmbedding,
+      entityTypes,
+      userId,
+      limit * 2 // Get 20, filter to top 10 after modifiers
+    )
+
+    // Apply relationship modifiers
+    const withModifiers = results.map(result => {
+      let modifier = 0
+
+      if (threadMetadata.siblingIds.includes(result.source_thread_id)) {
+        modifier += 0.10 // Sibling boost
+      } else if (threadMetadata.parentId === result.source_thread_id ||
+                 threadMetadata.childIds.includes(result.source_thread_id)) {
+        modifier += 0.15 // Parent/child boost
+      }
+
+      return {
+        ...result,
+        finalScore: result.similarity + modifier
+      }
+    })
+
+    // Apply topic divergence filtering
+    const filtered = withModifiers.filter(result => {
+      const branchSimilarity = calculateBranchSimilarity(
+        threadMetadata.summary,
+        result.branch_summary
+      )
+
+      if (branchSimilarity < 0.3) {
+        // Topics diverged - high confidence only
+        return result.finalScore > 0.9
+      }
+
+      return true
+    })
+
+    // Return top 10
+    return filtered.sort((a, b) => b.finalScore - a.finalScore).slice(0, limit)
+  }
+}
+```
+
+### Performance Targets
+
+- Total assembly: <1s (FR-024c) ✅
+- Parallel domain queries: 6 queries execute concurrently
+- Semantic search: <500ms (leverages pgvector index)
+- Preference load: <50ms (cached in memory per request)
+
+---
+
+## R4: User Preference Derivation
+
+### Question
+Should user preferences be explicitly managed (UI settings) or derived from behavioral patterns?
+
+### Decision: Derived from Behavioral Patterns (arch.md Decision 6)
+
+**Rationale**:
+- **Zero-friction personalization**: Users get better context without configuration burden
+- **Behavior is truth**: What users actually do (files they @-mention, matches they dismiss) is more accurate than predictions
+- **AI-native UX**: System learns from user instead of user configuring system
+- **Improves over time**: More interactions → better preference model → more relevant context
+
+### Derivation Patterns (BR-011 to BR-014)
+
+**Always-Include Files** (0.8 weight):
+- Trigger: Files @-mentioned 3+ times in last 30 days
+- Result: Auto-included in future context assembly
+- UI: Shown in "Frequently used" section (transparent, not hidden)
+
+**Excluded Patterns** (filtering):
+- Trigger: Files dismissed 3+ times from semantic matches
+- Result: Filtered out BEFORE semantic search ranking
+- UI: Not visible (reduces noise silently)
+
+**Blacklisted Branches** (filtering):
+- Trigger: Branches manually hidden via "Hide from [Branch Name]" button
+- Result: Excluded from relationship modifiers and semantic matches
+- UI: View/remove in context settings (per-thread scope)
+
+### Implementation
+
+**Daily Background Job** (pg_cron):
+```sql
+-- Recompute user preferences from last 30 days
+UPDATE user_preferences SET
+  always_include_files = ARRAY(
+    SELECT DISTINCT file_path
+    FROM context_references
+    WHERE user_id = $1
+      AND source = '@-mentioned'
+      AND created_at > NOW() - INTERVAL '30 days'
+    GROUP BY file_path
+    HAVING COUNT(*) >= 3
+  ),
+  excluded_patterns = ARRAY(
+    SELECT DISTINCT file_pattern
+    FROM semantic_match_dismissals
+    WHERE user_id = $1
+      AND created_at > NOW() - INTERVAL '30 days'
+    GROUP BY file_pattern
+    HAVING COUNT(*) >= 3
+  ),
+  blacklisted_branches = ARRAY(
+    SELECT DISTINCT branch_id
+    FROM conversation_metadata
+    WHERE user_id = $1
+      AND blacklisted_at IS NOT NULL
+  ),
+  last_updated = NOW()
+WHERE user_id = $1;
+```
+
+**Load Per Request** (cached):
+```typescript
+// apps/api/src/services/userPreferences.ts
+const preferencesCache = new Map<string, UserPreference>()
+
+async function loadUserPreferences(userId: string): Promise<UserPreference> {
+  // Check cache
+  if (preferencesCache.has(userId)) {
+    return preferencesCache.get(userId)!
+  }
+
+  // Load from database
+  const prefs = await db.query.userPreferences.findFirst({
+    where: eq(userPreferences.user_id, userId)
+  })
+
+  // Check staleness (>24h)
+  if (prefs.last_updated < new Date(Date.now() - 24 * 60 * 60 * 1000)) {
+    // Trigger recompute (fire-and-forget)
+    recomputeUserPreferences(userId).catch(err => logError(err))
+  }
+
+  // Cache for request duration
+  preferencesCache.set(userId, prefs)
+  return prefs
+}
+```
+
+### Transparency
+
+- "Frequently used" section shows always-include files
+- No UI for managing preferences in MVP (advanced users get viewer in Phase 3+)
+- Privacy: All data scoped to user_id (RLS enforced), never shared
+
+### Performance
+
+- Recompute: <5s daily per user
+- Load: <50ms per request (cached)
+- Staleness: Mark >24h old as stale
+
+---
+
+## R5: Memory Chunking for Long Threads
+
+### Question
+How should we handle threads exceeding 40 messages without overflowing 200K token budget?
+
+### Decision: 10-Message Chunks with Localized Summaries (arch.md Decision 7)
+
+**Rationale**:
+- **Chunk size: 10 messages** - Balances coherence (meaningful segment) with granularity (not too many chunks)
+- **Localized summaries** - Each chunk summarized from its 10 messages only (not cumulative) for better retrieval precision
+- **Top-3 retrieval** - Fits budget: Latest 10 full messages (~5K tokens) + 3 chunks (~6K) + files (~180K) = ~191K
+
+### Chunking Strategy (FR-024e to FR-024g)
+
+**Trigger**: Thread exceeds 40 messages
+- Keep messages 31-40 as full text (recent context)
+- Compress messages 1-30 into chunks:
+  - Chunk 1: messages 1-10
+  - Chunk 2: messages 11-20
+  - Chunk 3: messages 21-30
+
+**Chunk Structure**:
+```typescript
+interface ThreadMemoryChunk {
+  chunk_id: string
+  conversation_id: string
+  message_ids: string[] // 10 message IDs
+  embedding: number[] // 768-dim
+  summary: string // Localized (topics, decisions, artifacts, questions from this chunk)
+  timestamp_range: [Date, Date]
+  chunk_index: number // 1, 2, 3, ...
+}
+```
+
+### Implementation
+
+**Compression (Background Job)**:
+```typescript
+// apps/api/src/functions/compress-memory/index.ts
+async function compressThreadMemory(threadId: string) {
+  const messages = await messageRepository.findByThread(threadId)
+
+  if (messages.length <= 40) return // Not needed yet
+
+  const oldMessages = messages.slice(0, 30) // Messages 1-30
+  const chunks: ThreadMemoryChunk[] = []
+
+  // Create 10-message chunks
+  for (let i = 0; i < oldMessages.length; i += 10) {
+    const chunkMessages = oldMessages.slice(i, i + 10)
+
+    // Generate localized summary (topics, decisions, artifacts, questions)
+    const summary = await generateChunkSummary(chunkMessages)
+
+    // Generate embedding
+    const embedding = await openai.createEmbedding(summary)
+
+    chunks.push({
+      chunk_id: uuid(),
+      conversation_id: threadId,
+      message_ids: chunkMessages.map(m => m.id),
+      embedding,
+      summary,
+      timestamp_range: [
+        chunkMessages[0].created_at,
+        chunkMessages[chunkMessages.length - 1].created_at
+      ],
+      chunk_index: i / 10 + 1
+    })
+  }
+
+  await db.insert(threadMemoryChunks).values(chunks)
+}
+```
+
+**Retrieval (Context Assembly)**:
+```typescript
+// apps/api/src/services/contextAssembly.ts
+async function loadMemoryChunks(threadId: string, query: string) {
+  // Only if thread >40 messages
+  const messageCount = await messageRepository.count(threadId)
+  if (messageCount <= 40) return []
+
+  // Semantic search across chunks
+  const queryEmbedding = await openai.createEmbedding(query)
+
+  const chunks = await db.execute(sql`
+    SELECT chunk_id, summary, 1 - (embedding <=> ${queryEmbedding}::vector) AS similarity
+    FROM thread_memory_chunks
+    WHERE conversation_id = ${threadId}
+    ORDER BY embedding <=> ${queryEmbedding}::vector
+    LIMIT 3
+  `)
+
+  return chunks.map(c => ({ summary: c.summary, weight: 0.6 }))
+}
+```
+
+### Performance
+
+- Chunking: <5s for 30 messages (3 chunks)
+- Retrieval: <500ms for top-3 chunks
+- Storage: 1000-message thread = 100 chunks = 300KB embeddings
+
+---
+
+## R6: Supabase Realtime with Optimistic Updates
+
+### Question
+How should we integrate Supabase Realtime subscriptions with Valtio state and optimistic updates?
+
+### Decision: Valtio + Realtime (No React Query) - arch.md Decision 3
+
+**Rationale** (Constitution Principle XVI):
+- Real-time subscriptions already keep state fresh - caching library is redundant
+- React Query creates dual state (cache + Valtio) and cache invalidation complexity
+- Custom hooks are lighter and purpose-built for real-time apps
+
+### Pattern: Optimistic Update → API Call → Realtime Reconciliation
+
+```typescript
+// apps/web/src/lib/hooks/useCreateFile.ts
+function useCreateFile() {
+  const createFile = async (path: string, content: string) => {
+    // 1. Optimistic update (instant UI feedback)
+    const tempFile = {
+      id: uuid(),
+      path,
+      content,
+      created_at: new Date(),
+      status: 'pending'
+    }
+    aiAgentState.files.push(tempFile)
+
+    try {
+      // 2. API call (async)
+      const { data, error } = await fileService.create({ path, content })
+
+      if (error) throw error
+
+      // 3. Replace temp with server data (reconciliation)
+      const index = aiAgentState.files.findIndex(f => f.id === tempFile.id)
+      aiAgentState.files[index] = data
+
+      toast.success('File created')
+    } catch (err) {
+      // 4. Rollback on error
+      aiAgentState.files = aiAgentState.files.filter(f => f.id !== tempFile.id)
+      toast.error(`Failed: ${err.message}`)
+    }
+  }
+
+  return { createFile }
+}
+```
+
+### Realtime Subscriptions
+
+**RealtimeProvider**:
+```typescript
+// apps/web/src/providers/RealtimeProvider.tsx
+function RealtimeProvider({ children }) {
+  useEffect(() => {
+    const userId = auth.currentUser.id
+
+    // Subscribe to file changes
+    const filesChannel = supabase
+      .channel(`files:user:${userId}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'files',
+        filter: `owner_user_id=eq.${userId}`
+      }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          // Check if already in state (optimistic update)
+          const exists = aiAgentState.files.find(f => f.path === payload.new.path)
+          if (!exists) {
+            aiAgentState.files.push(payload.new)
+          }
+        } else if (payload.eventType === 'UPDATE') {
+          const index = aiAgentState.files.findIndex(f => f.id === payload.new.id)
+          if (index !== -1) {
+            aiAgentState.files[index] = payload.new
+          }
+        } else if (payload.eventType === 'DELETE') {
+          aiAgentState.files = aiAgentState.files.filter(f => f.id !== payload.old.id)
+        }
+      })
+      .subscribe()
+
+    return () => filesChannel.unsubscribe()
+  }, [])
+
+  return <>{children}</>
+}
+```
+
+### Cross-Session Visibility
+
+- **Primary session** (sent message): Subscribes to SSE for lowest latency
+- **Secondary sessions** (other tabs/devices): Subscribe to agent_tool_calls via Realtime
+- Both see identical progress (SSE is primary, Realtime is fallback)
+
+---
+
+## R7: Multi-Provider LLM Strategy with Direct API
+
+### Question
+How should we integrate LLM providers for agent intelligence with tool use, streaming responses, and approval flows? Should we use Claude Agent SDK or Direct API? Support multiple providers?
+
+### Options Considered
+
+**Option 1: Claude Agent SDK**
+- Pros: Built-in tool management, permission hooks, MCP integration, automatic context compaction
+- Cons: ❌ Incompatible with Supabase Edge Functions (requires Node.js long-running process, file system access), opinionated orchestration conflicts with custom approval UI, locks to Claude only
+
+**Option 2: Direct API (Single Provider - Claude)**
+- Pros: Works in Edge Functions, full control over approval flow, TypeScript-native, simpler for MVP
+- Cons: Manual tool orchestration, single vendor lock-in, expensive at scale
+
+**Option 3: Direct API (Multi-Provider Abstraction)**
+- Pros: Works in Edge Functions, full provider flexibility, 85% cost savings via model tiering, easy provider switching, all providers support identical tool calling patterns
+- Cons: Requires abstraction layer (~5 days implementation)
+
+### Decision: Direct API with Multi-Provider Abstraction (Option 3)
+
+**Rationale**:
+- **Edge Functions compatibility**: Direct API works in Supabase Edge Functions (Deno runtime), SDK does not
+- **Deno/Node.js clarification**: Deno 2 supports npm packages, but Edge Functions are stateless with 10s timeout (SDK needs long-running process + file system)
+- **Cost optimization**: 85% savings via model tiering (Gemini Flash → GPT-5 Mini → Claude Sonnet 4.5)
+- **Provider flexibility**: Claude, OpenAI, and Gemini all support streaming + tool calling with similar patterns
+- **Custom approval UI**: Direct API allows pausing SSE stream at exact tool call moment (FR-048a)
+- **Future-proof**: Easy to add new providers or switch defaults
+
+**Multi-Provider Architecture**:
+- Unified `LLMProvider` interface abstracts tool format differences
+- Provider adapters normalize message formats, tool definitions, and streaming chunks
+- Model selection strategy: Simple tasks (70%) → Gemini 2.0 Flash, Medium (20%) → GPT-5 Mini, Complex (10%) → Claude Sonnet 4.5
+- Implementation effort: ~5 days for full abstraction layer
+
+**Cost Analysis** (10K input + 1K output per request, 3.65M requests/year):
+- Claude-only: $164,250/year
+- Multi-provider (tiered): $25,112/year
+- **Savings: $139,138/year (85%)**
+
+**When Agent SDK would be better** (not applicable):
+- If using traditional Node.js server (not Edge Functions)
+- If willing to accept single-vendor lock-in
+- If not needing custom approval UI
+
+### Model Pricing Comparison (2025)
+
+| Model | Input/1M | Output/1M | Context | Best For |
+|-------|----------|-----------|---------|----------|
+| Claude Sonnet 4.5 | $3.00 | $15.00 | 200K | Complex reasoning (10%) |
+| GPT-5 | $1.25 | $10.00 | 272K | General tasks |
+| GPT-5 Mini | $0.50 | $2.00 | 272K | Medium complexity (20%) |
+| o3-mini | $1.10 | $4.40 | 64K | Reasoning tasks |
+| Gemini 2.5 Flash-Lite | $0.10 | $0.40 | 1M | Simple tasks (70%) |
+| Gemini 2.0 Flash | $0.10 | $0.40 | 1M | Simple tasks (70%) |
+
+### Built-in Web Search
+
+All providers offer server-side web search (no custom implementation needed):
+- **Claude**: `web_search` tool via Brave ($10/1K searches + tokens)
+- **OpenAI**: `gpt-5-search-api` model (included in token cost)
+- **Gemini**: `google_search_retrieval` grounding ($35/1K searches + tokens)
+
+**Decision**: Enable as optional tool, use when user requests current information or semantic search finds no results.
+
+### Summarization Strategy
+
+**Thread Summaries** (every message):
+- Model: Gemini 2.0 Flash ($0.0006/summary)
+- Trigger: Background job after each message
+- Format: 2-3 sentences (topics, decisions, artifacts, questions)
+- Annual cost: ~$2K for 10K summaries/day
+
+**Memory Chunks** (threads >40 messages):
+- Model: Gemini 2.0 Flash + OpenAI embeddings
+- Trigger: Every 10 messages after hitting 40
+- Format: Dense paragraph (100-150 words) + 768-dim embedding
+- Cost: $0.0006/chunk
+- Retrieval: Top-3 chunks via semantic search
+
+### Implementation
+
+**Provider Abstraction**:
+- Unified interface: `LLMProvider.generateStream(request)`
+- Tool format normalization: Each provider adapter converts to/from unified schema
+- Agentic loop pattern: Same while-loop works across all providers
+- Model selection: Configurable per-request based on complexity heuristics
+
+**Streaming with Tool Use**:
+- All providers support SSE streaming with tool calls
+- Pattern: Stream text → encounter tool call → pause → approval → execute → resume
+- Tool result format differs (Claude: `tool_result`, OpenAI: `tool` role, Gemini: `function_response`)
+- Abstraction layer normalizes differences
+
+**Cost Monitoring**:
+- Log every request: provider, model, input tokens, output tokens, cost
+- Track success rate and latency per provider
+- Fallback to Claude if primary provider fails
+- A/B test quality metrics across providers
+
+### Implementation
+
+**Agentic Loop (Simplified)**:
+```text
+WHILE not done:
+  1. Call LLM with tools + messages
+  2. Stream text chunks to frontend
+  3. IF tool_call:
+       - Pause stream
+       - Send approval request
+       - Wait for user decision
+       - IF approved: execute tool, add result to messages
+       - IF rejected: end stream with error
+  4. IF complete: end stream
+  5. IF max_loops reached: timeout error
+```
+
+**Key Differences from SDK**:
+- Manual loop (not SDK orchestration)
+- Custom approval flow (not PreToolUse hooks)
+- Works in Edge Functions (not Node.js server)
+- Multi-provider ready (not Claude-only)
+
+---
+
+## Research Summary
+
+**Key Decisions**:
+      { role: 'user', content: `${primeContext}\n\nUser: ${query}` }
+    ],
+    tools: [
+      {
+        name: 'write_file',
+        description: 'Create or update file',
+        input_schema: writeFileSchema
+      },
+      {
+        name: 'search_files',
+        description: 'Search files semantically',
+        input_schema: searchFilesSchema
+      }
+      // ... more tools
+    ]
+  })
+
+  for await (const chunk of stream) {
+    if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
+      // Text chunk
+      yield { type: 'text', content: chunk.delta.text }
+    } else if (chunk.type === 'content_block_start' && chunk.content_block.type === 'tool_use') {
+      const tool = chunk.content_block
+
+      // Pause stream, wait for approval (FR-048a)
+      yield {
+        type: 'tool_call',
+        toolName: tool.name,
+        status: 'awaiting_approval',
+        input: tool.input
+      }
+
+      const approved = await waitForApproval(tool.id, { timeout: 600000 }) // 10min
+
+      if (!approved) {
+        yield { type: 'error', message: 'Approval timed out after 10 minutes' }
+        return
+      }
+
+      yield { type: 'tool_call', toolName: tool.name, status: 'approved' }
+
+      // Execute tool
+      const result = await executeTool(tool.name, tool.input)
+      yield { type: 'tool_call', toolName: tool.name, status: 'completed', result }
+    }
+  }
+}
+```
+
+### Timeout Handling (FR-048b)
+
+- Start 10-minute timer when approval requested
+- Auto-reject after timeout
+- Release SSE connection and Edge Function resources
+- User must retry from beginning
+
+### Error Handling
+
+- Claude API error: Retry once, show toast if failed
+- Tool execution error: Send error to agent, agent revises plan
+- Stream interrupt: Discard partial message, user retries (MVP simplicity)
+
+### Fine-Grained Tool Streaming (Optional Enhancement)
+
+Claude supports `fine-grained-tool-streaming-2025-05-14` header for streaming tool parameters without buffering. This can reduce latency for large tool inputs but is not required for MVP.
+
+**MVP**: Use standard tool streaming (chunk-at-a-time text, buffer complete tool calls)
+**Post-MVP**: Consider fine-grained streaming for large file operations
 
 ---
 
 ## Summary of Decisions
 
-| Research Item | Decision | Rationale |
-|---------------|----------|-----------|
-| Web Search | **Claude Agent SDK Built-in WebSearch** | Zero config, included in API usage, automatic query generation, maintained by Anthropic |
-| Agent Orchestration | **Claude Agent SDK Built-in Orchestration** | Automatic intent routing, parallel subagents, no custom orchestrator needed |
-| Context Management | **Claude Agent SDK Compact Feature** | Automatic summarization at token limit, zero config, no custom logic needed |
-| MCP Tool Strategy | **Database-First Document Access** | 3-5x faster reads, real-time updates, transactional, aligns with Constitution Principle VII |
-| IndexedDB Cache | **Defer to Post-MVP** | MVP-first discipline, real-time sufficient, avoid premature optimization |
-| Embedding Model | **OpenAI text-embedding-3-small (CONFIRMED)** | Best cost/quality, 768-dim reduces storage, negligible cost ($0.01 setup) |
-| Backend Testing | **Deferred to Post-MVP** | Focus on feature delivery, add testing after MVP validation |
+| Research Item | Decision | Key Points |
+|---------------|----------|------------|
+| **SSE Streaming** | Server-Sent Events | One-way sufficient, automatic reconnection, HTTP-based, debuggable |
+| **pgvector Optimization** | ivfflat with 100 lists | Optimal for <10K vectors, <1s queries, 768-dim embeddings |
+| **Context Assembly** | Multi-domain with SemanticSearchService | 6 domains in parallel, weighted prioritization, separate search service |
+| **User Preferences** | Behavioral derivation | Zero-friction, learned from @-mentions/dismissals, daily recompute |
+| **Memory Chunking** | 10-message chunks, top-3 retrieval | Localized summaries, semantic chunk search, trigger at 40 messages |
+| **Realtime Sync** | Valtio + Realtime, no React Query | Optimistic updates with rollback, Realtime reconciliation |
+| **LLM Strategy** | Multi-provider abstraction (Direct API) | 85% cost savings, Edge Functions compatible, multi-model support |
+| **Web Search** | Built-in provider tools | Claude ($10/1K), OpenAI (included), Gemini ($35/1K) - no custom implementation |
+| **Summarization** | Gemini 2.0 Flash + embeddings | $0.0006/summary, background jobs, ~$2K/year at scale |
 
 ---
 
-## Architecture Simplification Summary
+## Architecture Simplifications
 
-**Removed Components** (Claude Agent SDK handles these):
-- ❌ Tavily Search API integration - SDK has built-in WebSearch
-- ❌ Custom orchestrator agent - SDK routes intents automatically
-- ❌ Intent classifier - SDK detects intent from user message
-- ❌ Context optimizer service - SDK's compact feature handles this
-- ❌ Manual context summarization - SDK automates this
-- ❌ Testing infrastructure - deferred to post-MVP
+**Deferred from earlier consideration**:
+- ❌ Claude Agent SDK → Not viable (requires Node.js long-running process + file system, incompatible with Edge Functions)
+- ❌ Single-provider → Multi-provider abstraction chosen (85% cost savings via model tiering)
+- ❌ Custom web search → Built-in provider tools sufficient (Claude/OpenAI/Gemini all support server-side search)
+- ❌ Expensive summarization → Use Gemini 2.0 Flash instead of Claude (97% cheaper)
 
-**Simplified Architecture**:
-```
-Before (Custom Implementation):
-User Message → Custom Orchestrator → Intent Classifier → Route to Agent → Manual Context Summarization → External Web Search API → Response
-
-After (SDK-Powered):
-User Message → Claude Agent SDK → [Built-in: Orchestration + Context Management + Web Search + MCP Tools] → Response
-```
-
-**Complexity Reduction**:
-- **Services eliminated**: 4 (orchestrator, intent classifier, context optimizer, web search wrapper)
-- **External dependencies removed**: 1 (Tavily Search API)
-- **Lines of code saved**: ~2000+ (estimated)
-- **Maintenance burden**: Significantly reduced - Anthropic maintains orchestration logic
-
----
-
-## Technology Stack Summary (Updated)
-
-**Core Technologies**:
-- **Agent Framework**: Claude Agent SDK (@anthropic-ai/agent-sdk)
-  - Built-in tools: WebSearch, WebFetch, Bash (restricted)
-  - Automatic orchestration and intent routing
-  - Automatic context management (compact mode)
-  - Custom tool support via MCP
-- **AI Models**: Claude 3.5 Sonnet (via Agent SDK)
-- **Embeddings**: OpenAI text-embedding-3-small (768-dim, $0.02/1M tokens)
-- **Vector Database**: Supabase pgvector (cosine similarity)
-- **Custom MCP Tools**: Database-first document access (PostgreSQL reads, Storage backup)
-- **No External Search API**: SDK's built-in WebSearch sufficient
-- **No Testing Framework**: Deferred to post-MVP
-- **No IndexedDB**: Deferred to post-MVP (Valtio + Realtime sufficient)
-
-**Technology Checklist** (for agent context update):
-- [x] Claude Agent SDK (@anthropic-ai/agent-sdk) - Main framework
-- [x] Claude 3.5 Sonnet (via SDK) - Agent model
-- [x] OpenAI text-embedding-3-small - Embeddings for semantic search
-- [x] Supabase pgvector - Vector storage and search
-- [x] MCP Tools (custom) - read_document, update_document, search_documents, create_document
-- [x] Built-in WebSearch (SDK) - No external API needed
-- [x] Built-in Orchestration (SDK) - No custom routing needed
-- [x] Built-in Compact Mode (SDK) - No custom summarization needed
+**Added for current architecture**:
+- ✅ Thread branching (parent-child DAG)
+- ✅ Provenance tracking (created_in_conversation_id, context_summary)
+- ✅ Consolidation workflows (multi-branch artifact gathering)
+- ✅ User preference derivation (behavioral learning)
+- ✅ Shadow domain (unified semantic layer)
+- ✅ Memory chunking (long thread compression)
+- ✅ Direct Anthropic API with streaming (full control over SSE relay and approval flow)
 
 ---
 
 ## Next Steps
 
-1. ✅ **Phase 0 Complete**: All NEEDS CLARIFICATION items resolved
-2. **Phase 1**: Generate data-model.md (database schema with new entities)
-3. **Phase 1**: Generate API contracts in /contracts/ (OpenAPI specs)
-4. **Phase 1**: Generate quickstart.md (developer onboarding)
-5. **Phase 1**: Update agent context (.specify/memory/claude-context.md)
-6. **Re-evaluate Constitution Check**: Confirm Gate 7 now passes with MCP strategy documented
+1. ✅ Phase 0 Complete - Research findings documented
+2. **Phase 1**: Generate data-model.md (9 entities aligned with arch.md)
+3. **Phase 1**: Expand contracts/ (19 API endpoints)
+4. **Phase 1**: Generate quickstart.md (implementation guide)
+5. **Phase 2**: Run /speckit.tasks to generate task list
 
 ---
 
 **Authored by**: Claude Code (Sonnet 4.5)
-**Reviewed by**: Pending (awaiting user approval before Phase 1)
+**Reviewed by**: Aligned with spec.md (2025-10-26) and arch.md (2025-10-26)

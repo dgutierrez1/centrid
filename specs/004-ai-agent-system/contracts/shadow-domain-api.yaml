@@ -1,0 +1,187 @@
+openapi: 3.0.3
+info:
+  title: Shadow Domain API
+  description: |
+    Semantic search and shadow entity management.
+
+    **Unified Shadow Domain** (arch.md Decision 1):
+    - Single `shadow_entities` table for files, threads, and KG nodes
+    - pgvector ivfflat index for fast cosine similarity search
+    - 768-dim embeddings (OpenAI text-embedding-3-small)
+
+  version: 1.0.0
+servers:
+  - url: https://your-project.supabase.co/functions/v1
+
+paths:
+  /shadow-domain/search:
+    post:
+      summary: Semantic search across shadow domain
+      description: |
+        Searches across shadow entities (files, threads, concepts) using
+        cosine similarity with pgvector.
+
+        **Relationship Modifiers** (FR-022):
+        - Siblings: +0.10
+        - Parent/Child: +0.15
+
+        **Temporal Decay** (FR-023):
+        - Formula: 1.0 - (months_since_last_interaction × 0.05) with floor 0.3
+
+      security:
+        - supabaseAuth: []
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - query
+              properties:
+                query:
+                  type: string
+                  description: Search query (natural language)
+                  example: "RAG architecture patterns"
+
+                entityTypes:
+                  type: array
+                  items:
+                    type: string
+                    enum: [file, thread, kg_node]
+                  description: Filter by entity type
+                  default: [file, thread]
+
+                threadId:
+                  type: string
+                  format: uuid
+                  description: Current thread (for relationship modifiers)
+
+                limit:
+                  type: integer
+                  minimum: 1
+                  maximum: 50
+                  default: 10
+
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      entities:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ShadowEntity'
+                      relevanceScores:
+                        type: array
+                        items:
+                          type: number
+                          format: float
+                          description: Final score (similarity + modifiers)
+
+  /shadow-domain/sync:
+    post:
+      summary: Generate/update shadow entity (background job)
+      description: |
+        Triggers embedding generation + summary + structure metadata.
+        Runs asynchronously (<2s target).
+
+        **Trigger Conditions** (BR-004):
+        - File created/updated (>20% change)
+        - Thread message added
+
+      security:
+        - supabaseAuth: []
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - entityId
+                - entityType
+              properties:
+                entityId:
+                  type: string
+                  format: uuid
+                entityType:
+                  type: string
+                  enum: [file, thread, kg_node]
+
+      responses:
+        '202':
+          description: Shadow entity sync queued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      shadowDomainId:
+                        type: string
+                        format: uuid
+                      status:
+                        type: string
+                        enum: [queued]
+
+components:
+  securitySchemes:
+    supabaseAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ShadowEntity:
+      type: object
+      properties:
+        shadow_id:
+          type: string
+          format: uuid
+        entity_id:
+          type: string
+          format: uuid
+        entity_type:
+          type: string
+          enum: [file, thread, kg_node]
+        summary:
+          type: string
+          description: 2-3 sentence summary
+        structure_metadata:
+          type: object
+          description: |
+            Entity-specific metadata (JSONB):
+            - Files: { outline: string[], key_concepts: string[] }
+            - Threads: { topics: string[], decisions: string[], artifacts: string[] }
+            - KG nodes: { relationships: { type: string, target: string }[] }
+        similarity:
+          type: number
+          format: float
+          description: Cosine similarity score (0-1)
+        finalScore:
+          type: number
+          format: float
+          description: Similarity + relationship modifiers + temporal decay
+        sourceThread:
+          type: object
+          nullable: true
+          properties:
+            thread_id:
+              type: string
+              format: uuid
+            branch_title:
+              type: string
+        last_updated:
+          type: string
+          format: date-time

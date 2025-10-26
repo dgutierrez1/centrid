@@ -1,926 +1,635 @@
-# Quickstart Guide: AI Agent Execution System
+# Quickstart Guide: AI-Powered Exploration Workspace
 
-**Feature**: 004-ai-agent-system
-**Prerequisites**: Node.js 20+, npm, Supabase CLI, Docker (for local Supabase - optional)
-**Estimated Time**: 30-45 minutes for basic setup
+**Feature**: `004-ai-agent-system`
+**Prerequisites**: Node.js 20+, npm, Supabase CLI, Docker (optional for local Supabase)
+**Estimated Time**: 45-60 minutes
+**Status**: Aligned with spec.md and arch.md
+
+---
 
 ## Overview
 
-This guide walks you through implementing the AI Agent Execution System. The system uses **Claude Agent SDK** for automatic orchestration, web search, and context management, with custom MCP tools for document operations.
+This guide walks you through implementing the AI-Powered Exploration Workspace with:
+- **Branching threads**: DAG structure for parallel exploration
+- **Provenance tracking**: Files linked to source conversations
+- **Semantic discovery**: pgvector-powered cross-branch search
+- **Memory chunking**: Long thread compression with semantic retrieval
+- **User preferences**: Behavioral learning from interactions
 
-**Key Components**:
-1. **Database Schema** - 11 tables with pgvector for semantic search
-2. **Edge Function** - Single `execute-agent` endpoint using Claude Agent SDK
-3. **MCP Tools** - Custom document operations (read, update, search, create)
-4. **Frontend** - Three-layer architecture (Service → Hooks → Components)
+**Architecture**:
+- **Backend**: 3-layer (Edge Functions → Services → Repositories)
+- **Frontend**: 3-layer (Services → Hooks → Components)
+- **Database**: 9 entities with pgvector for semantic search
 
 ---
 
-## Step 1: Set Up Dependencies
+## Step 1: Install Dependencies
 
-### Install Claude Agent SDK
+### Backend Dependencies
 
 ```bash
 cd apps/api
-npm install @anthropic-ai/agent-sdk
-```
 
-### Install OpenAI SDK (for embeddings)
-
-```bash
-npm install openai
-```
-
-### Install Drizzle ORM (database)
-
-```bash
+# Core dependencies
 npm install drizzle-orm postgres
-npm install -D drizzle-kit
+npm install @anthropic-ai/sdk
+npm install openai
+npm install @supabase/supabase-js
+
+# Dev dependencies
+npm install -D drizzle-kit @types/node
+```
+
+### Frontend Dependencies
+
+```bash
+cd apps/web
+
+# State management & API
+npm install valtio
+npm install @supabase/supabase-js
+
+# UI (if not already installed)
+npm install react-hot-toast
 ```
 
 ---
 
-## Step 2: Configure Environment Variables
+## Step 2: Configure Environment
 
 ### Backend Environment (`apps/api/.env`)
 
 ```bash
-# Supabase (Remote)
+# Supabase (Remote - use port 5432 for drizzle-kit push)
 DATABASE_URL="postgresql://postgres.PROJECT_REF:PASSWORD@aws-X-XX-X.pooler.supabase.com:5432/postgres"
+
+# API Keys
+ANTHROPIC_API_KEY="sk-ant-..."  # Claude 3.5 Sonnet
+OPENAI_API_KEY="sk-..."         # For embeddings (text-embedding-3-small)
+
+# Supabase
 SUPABASE_URL="https://your-project.supabase.co"
-SUPABASE_ANON_KEY="your-anon-key"
-SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
-
-# AI APIs
-ANTHROPIC_API_KEY="sk-ant-..."
-OPENAI_API_KEY="sk-..."
-
-# Optional: Enable Edge Function secrets in Supabase Dashboard
-# Settings → Edge Functions → Add Secret
-# - ANTHROPIC_API_KEY
-# - OPENAI_API_KEY
-# - DATABASE_URL (use port 6543 for Edge Functions)
+SUPABASE_ANON_KEY="eyJ..."
+SUPABASE_SERVICE_ROLE_KEY="eyJ..."  # Only for admin operations, NOT user operations
 ```
 
-**Important**:
-- Local `.env` uses port 5432 (session mode) for `db:push`
-- Edge Functions use port 6543 (transaction mode) - configure in Supabase Dashboard → Secrets
+**Important**: URL-encode special characters in DATABASE_URL password (! = %21, @ = %40, # = %23).
+
+### Frontend Environment (`apps/web/.env`)
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL="https://your-project.supabase.co"
+NEXT_PUBLIC_SUPABASE_ANON_KEY="eyJ..."
+SUPABASE_SERVICE_ROLE_KEY="eyJ..."  # Server-side only
+```
 
 ---
 
-## Step 3: Create Database Schema
+## Step 3: Define Database Schema
 
-### Define Schema (`apps/api/src/db/schema.ts`)
+Create the schema with all 9 entities in `apps/api/src/db/schema.ts`:
 
 ```typescript
-import { pgTable, uuid, text, timestamp, integer, jsonb, real, boolean, vector } from 'drizzle-orm/pg-core';
+// apps/api/src/db/schema.ts
+import { pgTable, uuid, text, timestamp, integer, real, boolean, jsonb } from 'drizzle-orm/pg-core';
+import { customType } from 'drizzle-orm/pg-core';
+import { users } from './auth'; // Assuming auth schema exists
 
-// Example: chat_sessions table
-export const chatSessions = pgTable('chat_sessions', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  user_id: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  title: text('title').notNull(),
-  direction_embedding: vector('direction_embedding', { dimensions: 768 }),
+// Custom pgvector type
+const vector = customType<{ data: number[]; driverData: string }>({
+  dataType() {
+    return 'vector(768)';
+  },
+  toDriver(value: number[]): string {
+    return JSON.stringify(value);
+  },
+  fromDriver(value: string): number[] {
+    return JSON.parse(value);
+  }
+});
+
+// 1. Shadow Entities (unified semantic layer)
+export const shadowEntities = pgTable('shadow_entities', {
+  shadow_id: uuid('shadow_id').defaultRandom().primaryKey(),
+  owner_user_id: uuid('owner_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  entity_id: uuid('entity_id').notNull(),
+  entity_type: text('entity_type').notNull(), // 'file' | 'thread' | 'kg_node'
+  embedding: vector('embedding').notNull(), // 768-dim
+  summary: text('summary').notNull(),
+  structure_metadata: jsonb('structure_metadata'),
+  last_updated: timestamp('last_updated').notNull().defaultNow(),
+  created_at: timestamp('created_at').notNull().defaultNow(),
+});
+
+// 2. Threads (branching DAG)
+export const threads = pgTable('threads', {
+  thread_id: uuid('thread_id').defaultRandom().primaryKey(),
+  owner_user_id: uuid('owner_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  parent_id: uuid('parent_id').references(() => threads.thread_id, { onDelete: 'restrict' }),
+  branch_title: text('branch_title'),
+  thread_summary: text('thread_summary'),
+  summary_updated_at: timestamp('summary_updated_at'),
+  inherited_files: jsonb('inherited_files').$type<string[]>(),
+  parent_last_message: text('parent_last_message'),
+  branching_message_content: text('branching_message_content'),
+  shadow_domain_id: uuid('shadow_domain_id').references(() => shadowEntities.shadow_id),
+  created_by: text('created_by').notNull(),
+  archived: boolean('archived').default(false),
   last_activity_at: timestamp('last_activity_at').notNull().defaultNow(),
   created_at: timestamp('created_at').notNull().defaultNow(),
   updated_at: timestamp('updated_at').notNull().defaultNow(),
 });
 
-// See data-model.md for complete schema with all 11 tables
+// 3. Messages
+export const messages = pgTable('messages', {
+  message_id: uuid('message_id').defaultRandom().primaryKey(),
+  thread_id: uuid('thread_id').notNull().references(() => threads.thread_id, { onDelete: 'cascade' }),
+  owner_user_id: uuid('owner_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  role: text('role').notNull(),
+  content: text('content').notNull(),
+  agent_request_id: uuid('agent_request_id'),
+  tokens_used_input: integer('tokens_used_input'),
+  tokens_used_output: integer('tokens_used_output'),
+  created_at: timestamp('created_at').notNull().defaultNow(),
+});
+
+// 4. Thread Memory Chunks
+export const threadMemoryChunks = pgTable('thread_memory_chunks', {
+  chunk_id: uuid('chunk_id').defaultRandom().primaryKey(),
+  conversation_id: uuid('conversation_id').notNull().references(() => threads.thread_id, { onDelete: 'cascade' }),
+  owner_user_id: uuid('owner_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  message_ids: jsonb('message_ids').$type<string[]>().notNull(),
+  embedding: vector('embedding').notNull(),
+  summary: text('summary').notNull(),
+  timestamp_range: jsonb('timestamp_range').$type<[Date, Date]>().notNull(),
+  chunk_index: integer('chunk_index').notNull(),
+  created_at: timestamp('created_at').notNull().defaultNow(),
+});
+
+// 5. Files (with provenance)
+export const files = pgTable('files', {
+  file_id: uuid('file_id').defaultRandom().primaryKey(),
+  owner_user_id: uuid('owner_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  path: text('path').notNull(),
+  content: text('content').notNull(),
+  created_in_conversation_id: uuid('created_in_conversation_id').references(() => threads.thread_id, { onDelete: 'set null' }),
+  creation_timestamp: timestamp('creation_timestamp'),
+  context_summary: text('context_summary'),
+  last_edited: timestamp('last_edited').notNull().defaultNow(),
+  last_edited_by: text('last_edited_by').notNull(),
+  edited_in_conversation_id: uuid('edited_in_conversation_id').references(() => threads.thread_id, { onDelete: 'set null' }),
+  shadow_domain_id: uuid('shadow_domain_id').references(() => shadowEntities.shadow_id),
+  created_at: timestamp('created_at').notNull().defaultNow(),
+  updated_at: timestamp('updated_at').notNull().defaultNow(),
+});
+
+// 6. Context References
+export const contextReferences = pgTable('context_references', {
+  reference_id: uuid('reference_id').defaultRandom().primaryKey(),
+  thread_id: uuid('thread_id').notNull().references(() => threads.thread_id, { onDelete: 'cascade' }),
+  owner_user_id: uuid('owner_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  reference_type: text('reference_type').notNull(),
+  source_reference: text('source_reference'),
+  snippet_line_start: integer('snippet_line_start'),
+  snippet_line_end: integer('snippet_line_end'),
+  source: text('source').notNull(),
+  priority_tier: integer('priority_tier').notNull(),
+  is_active: boolean('is_active').default(true),
+  created_at: timestamp('created_at').notNull().defaultNow(),
+});
+
+// 7. Agent Tool Calls
+export const agentToolCalls = pgTable('agent_tool_calls', {
+  tool_call_id: uuid('tool_call_id').defaultRandom().primaryKey(),
+  message_id: uuid('message_id').notNull().references(() => messages.message_id, { onDelete: 'cascade' }),
+  thread_id: uuid('thread_id').notNull().references(() => threads.thread_id, { onDelete: 'cascade' }),
+  owner_user_id: uuid('owner_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  tool_name: text('tool_name').notNull(),
+  tool_input: jsonb('tool_input').notNull(),
+  tool_output: jsonb('tool_output'),
+  approval_status: text('approval_status').notNull(),
+  approved_at: timestamp('approved_at'),
+  rejected_reason: text('rejected_reason'),
+  timestamp: timestamp('timestamp').notNull().defaultNow(),
+  sequence_order: integer('sequence_order').notNull(),
+});
+
+// 8. User Preferences
+export const userPreferences = pgTable('user_preferences', {
+  preference_id: uuid('preference_id').defaultRandom().primaryKey(),
+  user_id: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }).unique(),
+  always_include_files: jsonb('always_include_files').$type<string[]>().default([]),
+  excluded_patterns: jsonb('excluded_patterns').$type<string[]>().default([]),
+  blacklisted_branches: jsonb('blacklisted_branches').$type<string[]>().default([]),
+  context_budget: integer('context_budget').default(200000),
+  last_updated: timestamp('last_updated').notNull().defaultNow(),
+  derived_from_days: integer('derived_from_days').default(30),
+  created_at: timestamp('created_at').notNull().defaultNow(),
+});
+
+// 9. Knowledge Graph Edges (Phase 2+)
+export const knowledgeGraphEdges = pgTable('knowledge_graph_edges', {
+  edge_id: uuid('edge_id').defaultRandom().primaryKey(),
+  owner_user_id: uuid('owner_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  source_entity_id: uuid('source_entity_id').notNull().references(() => shadowEntities.shadow_id, { onDelete: 'cascade' }),
+  source_type: text('source_type').notNull(),
+  target_entity_id: uuid('target_entity_id').notNull().references(() => shadowEntities.shadow_id, { onDelete: 'cascade' }),
+  target_type: text('target_type').not Null(),
+  relationship_type: text('relationship_type').notNull(),
+  confidence_score: real('confidence_score').notNull(),
+  created_at: timestamp('created_at').notNull().defaultNow(),
+});
 ```
 
-### Push Schema to Remote Supabase
+---
+
+## Step 4: Push Schema to Supabase
 
 ```bash
 cd apps/api
-npm run db:drop    # Drop existing tables (MVP iteration only - destructive!)
-npm run db:push    # Push schema + apply triggers/RLS/foreign keys
+
+# Drop existing tables (MVP iteration)
+npm run db:drop
+
+# Push schema + apply RLS policies + create indexes
+npm run db:push
 ```
 
-**Verify**: Check Supabase Dashboard → Table Editor to confirm tables exist
+**Post-push SQL** (run in Supabase SQL Editor):
 
----
+```sql
+-- Enable pgvector extension
+CREATE EXTENSION IF NOT EXISTS vector;
 
-## Step 4: Implement MCP Tools
+-- Create ivfflat indexes for semantic search
+CREATE INDEX shadow_entities_embedding_idx
+ON shadow_entities
+USING ivfflat (embedding vector_cosine_ops)
+WITH (lists = 100);
 
-### Create MCP Tools Service (`apps/api/src/services/mcpTools.ts`)
+CREATE INDEX memory_chunks_embedding_idx
+ON thread_memory_chunks
+USING ivfflat (embedding vector_cosine_ops)
+WITH (lists = 50);
 
-```typescript
-import * as documentRepo from '../repositories/documentRepository';
+-- RLS policies (apply for all tables)
+CREATE POLICY "Users can only access their own shadow entities"
+ON shadow_entities FOR ALL
+USING (auth.uid() = owner_user_id);
 
-/**
- * MCP Tool: read_document
- */
-export async function read_document(file_path: string, user_id: string) {
-  const document = await documentRepo.findByPath(file_path, user_id);
+CREATE POLICY "Users can only access their own threads"
+ON threads FOR ALL
+USING (auth.uid() = owner_user_id);
 
-  if (!document) {
-    return { error: 'Document not found or unauthorized' };
-  }
-
-  return {
-    file_path: document.file_path,
-    content: document.content_text,
-    last_modified: document.updated_at,
-    last_edit_by: document.last_edit_by,
-  };
-}
-
-/**
- * MCP Tool: search_documents
- */
-export async function search_documents(query: string, user_id: string, limit = 10) {
-  const results = await embeddingRepo.searchSimilar(query, user_id, limit);
-
-  return results.map(r => ({
-    file_path: r.file_path,
-    snippet: r.content.slice(0, 200),
-    similarity: r.similarity,
-  }));
-}
-
-// Implement update_document, create_document similarly
-// See research.md Item 3 for complete implementation
+-- Repeat for all 9 tables...
 ```
 
 ---
 
-## Step 5: Implement Agent Service
+## Step 5: Implement Edge Function (threads-messages)
 
-### Create Agent Service (`apps/api/src/services/agentService.ts`)
+Create `apps/api/src/functions/threads-messages/index.ts` for `POST /threads/:id/messages`:
 
 ```typescript
-import { Agent } from '@anthropic-ai/agent-sdk';
-import { read_document, search_documents, update_document, create_document } from './mcpTools';
+// apps/api/src/functions/threads-messages/index.ts
+// RESTful endpoint: POST /threads/:id/messages
+// Creates message and returns SSE endpoint for agent streaming
+import Anthropic from '@anthropic-ai/sdk';
+import { ContextAssemblyService } from '../../services/contextAssembly';
+import { agentExecutionService } from '../../services/agentExecution';
 
-export async function sendMessageAndExecuteAgent(
-  text: string,
-  chat_id: string,
-  context_references: ContextReference[],
-  user_id: string
-) {
-  // 1. Create user chat_messages record
-  const message = await chatRepository.createMessage({
-    chat_id,
-    user_id,
-    role: 'user',
-    content: text,
-  });
+const anthropic = new Anthropic({
+  apiKey: Deno.env.get('ANTHROPIC_API_KEY')!
+});
 
-  // 2. Persist context_references to database (UPSERT, enables cross-device sync)
-    // If none exist it might mean some were removed.
-
-    await contextRepository.upsertReferences({
-      chat_id,
-      user_id,
-      references: context_references.map(ref => ({
-        ...ref,
-        is_active: true,
-      })),
-    });
-    // ^ This INSERT/UPDATE triggers Realtime broadcast → three-way merge on other devices
-  
-  // 3. Create linked agent_requests record with snapshot
-  const agentRequest = await agentRepository.createRequest({
-    chat_id,
-    user_id,
-    user_message: text,
-    context_references_snapshot: context_references, // Frozen audit trail
-    status: 'pending',
-  });
-
-  // 4. Build context from context references + chat history
-  const context = await buildContextFromReferences(context_references, chat_id, user_id);
-
-  // Create agent with custom MCP tools
-  const agent = new Agent({
-    model: 'claude-sonnet-4-5-20250929',
-
-    // Enable automatic context management
-    compact: true,
-
-    // Built-in + custom tools
-    allowed_tools: [
-      'WebSearch',          // Built-in web search
-      'WebFetch',           // Built-in URL fetch
-      'read_document',      // Custom MCP tool
-      'update_document',    // Custom MCP tool
-      'search_documents',   // Custom MCP tool
-      'create_document',    // Custom MCP tool
-    ],
-
-    // System prompt with user preferences
-    system: await buildSystemPrompt(user_id),
-  });
-
-  // Register custom MCP tools
-  agent.registerTool('read_document', {
-    description: 'Read document content from filesystem',
-    input_schema: {
-      type: 'object',
-      properties: {
-        file_path: { type: 'string', description: 'Path to file' },
-      },
-      required: ['file_path'],
-    },
-    handler: async (input) => read_document(input.file_path, user_id),
-  });
-
-  agent.registerTool('search_documents', {
-    description: 'Search documents using semantic similarity',
-    input_schema: {
-      type: 'object',
-      properties: {
-        query: { type: 'string', description: 'Search query' },
-        limit: { type: 'number', description: 'Max results', default: 10 },
-      },
-      required: ['query'],
-    },
-    handler: async (input) => search_documents(input.query, user_id, input.limit),
-  });
-
-  // Register update_document, create_document similarly...
-
-  // 5. Execute agent (SDK handles orchestration, context management, web search)
-  // NOTE: This is async - agent execution continues in background
-  executeAgentInBackground(agent, agentRequest.id, context);
-
-  // 6. Return immediately with SSE endpoint
-  return {
-    message_id: message.id,
-    request_id: agentRequest.id,
-    sse_endpoint: `/agent-requests/${agentRequest.id}/stream`,
-    status: 'pending',
-  };
-}
-
-// Note: Context persistence happens in step 2 above. The context_references
-// are written to the database with is_active = true, which triggers Realtime
-// broadcast. Other devices receive the update and perform three-way merge
-// to handle concurrent changes from multiple sessions.
-
-// Background agent execution with SSE streaming
-async function executeAgentInBackground(agent: Agent, request_id: string, context: Context) {
-  // Update status to processing
-  await agentRepository.updateStatus(request_id, 'processing');
-
+Deno.serve(async (req: Request) => {
   try {
-    // Execute agent (SDK handles orchestration)
-    const response = await agent.run({
-      messages: context.chatHistory,
-      context: context.contextString,
-      onToolCall: async (toolCall) => {
-        // Stream via SSE AND write to agent_interactions table
-        await trackAndStreamToolCall(request_id, toolCall);
-      },
-    });
-
-    // Update request with final response
-    await agentRepository.updateRequest(request_id, {
-      agent_response: response.content,
-      status: 'completed',
-      confidence_score: response.metadata?.confidence || 0.8,
-      completed_at: new Date(),
-    });
-
-    // Stream completion event via SSE
-    streamSSE(request_id, { type: 'completion', status: 'completed' });
-
-  } catch (error) {
-    // Update request with error
-    await agentRepository.updateRequest(request_id, {
-      status: 'failed',
-      error_message: error.message,
-      completed_at: new Date(),
-    });
-
-    streamSSE(request_id, { type: 'error', error: error.message });
-  }
-}
-
-async function trackAndStreamToolCall(request_id: string, toolCall: ToolCall) {
-  // 1. Stream via SSE (primary session - lowest latency)
-  streamSSE(request_id, {
-    type: 'tool_call',
-    tool_name: toolCall.name,
-    status: 'running',
-    description: toolCall.description,
-    target_file: toolCall.input?.file_path,
-    sequence_order: toolCall.sequence,
-  });
-
-  // 2. Write to agent_interactions table (secondary sessions via Realtime)
-  await agentInteractionsRepository.create({
-    agent_request_id: request_id,
-    tool_name: toolCall.name,
-    tool_input: toolCall.input,
-    status: 'running',
-    sequence_order: toolCall.sequence,
-  });
-  // ^ This INSERT triggers Realtime broadcast to all secondary sessions
-}
-```
-
-**Note**: The Claude Agent SDK automatically tracks all tool calls internally. In production, create `agent_interactions` records for each tool call (read_document, update_document, web_search, etc.) for:
-- Complete audit trail (see DECISIONS.md Section 6)
-- Conflict detection (query pending file operations)
-- Web search result storage (tool_output field)
-- Message-level traceability (link tool calls to specific messages)
-
-Example agent_interactions record for web_search:
-```typescript
-{
-  agent_request_id: request.id,
-  message_id: message.id,
-  tool_name: 'web_search',
-  tool_input: { query: 'React best practices', limit: 5 },
-  tool_output: { results: [...], sources: [...] },
-  status: 'completed',
-  sequence_order: 1,
-}
-```
-
----
-
-## Step 6: Create Edge Function
-
-### Create Edge Function (`apps/api/src/functions/chats-messages/index.ts`)
-
-```typescript
-import { createClient } from '@supabase/supabase-js';
-import { sendMessageAndExecuteAgent } from '../../services/agentService';
-import { validateRequest } from '../../middleware/validation';
-import { verifyAuth } from '../../middleware/auth';
-
-Deno.serve(async (req) => {
-  // CORS handling
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
-  }
-
-  try {
-    // Extract chat_id from URL path: /chats/:chat_id/messages
+    // Extract threadId from URL path: /threads/:id/messages
     const url = new URL(req.url);
-    const pathMatch = url.pathname.match(/^\/chats\/([^/]+)\/messages$/);
+    const pathParts = url.pathname.split('/');
+    const threadId = pathParts[pathParts.indexOf('threads') + 1];
 
-    if (!pathMatch) {
-      return new Response(JSON.stringify({ error: 'Not found' }), {
-        status: 404,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
+    const { text, contextReferences } = await req.json();
 
-    const chat_id = pathMatch[1]; // Extract from URL (RESTful)
+    // Verify auth
+    const userId = await verifyAuth(req);
 
-    // Verify authentication
-    const user = await verifyAuth(req);
+    // Build prime context from all 6 domains
+    const primeContext = await ContextAssemblyService.assemble(threadId, text, userId);
 
-    // Parse and validate request body
-    const body = await req.json();
-    const validated = validateRequest(body, chatMessageSchema);
+    // Create SSE stream
+    const stream = new ReadableStream({
+      async start(controller) {
+        // Keep-alive
+        const keepAlive = setInterval(() => {
+          controller.enqueue(`: ping\n\n`);
+        }, 30000);
 
-    // Send message and execute agent (unified flow)
-    const result = await sendMessageAndExecuteAgent(
-      validated.text,
-      chat_id, // From URL, not body
-      validated.context_references || [],
-      user.id
-    );
+        try {
+          // Stream Claude 3.5 Sonnet
+          const claudeStream = await anthropic.messages.stream({
+            model: 'claude-3-5-sonnet-20241022',
+            max_tokens: 4096,
+            messages: [{ role: 'user', content: primeContext + '\n\n' + text }],
+            tools: mcpTools
+          });
 
-    return new Response(JSON.stringify(result), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          for await (const chunk of claudeStream) {
+            if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
+              // Text chunk
+              controller.enqueue(`data: ${JSON.stringify({
+                type: 'text',
+                content: chunk.delta.text
+              })}\n\n`);
+            } else if (chunk.type === 'content_block_start' && chunk.content_block.type === 'tool_use') {
+              // Tool call - pause for approval
+              const approved = await waitForApproval(chunk.content_block.id);
+
+              if (!approved) {
+                controller.enqueue(`data: ${JSON.stringify({ type: 'error' })}\n\n`);
+                break;
+              }
+            }
+          }
+
+          controller.enqueue(`data: ${JSON.stringify({ type: 'completion' })}\n\n`);
+        } finally {
+          clearInterval(keepAlive);
+          controller.close();
+        }
+      }
     });
 
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive'
+      }
+    });
   } catch (error) {
     return new Response(JSON.stringify({ error: error.message }), {
-      status: error.status || 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
     });
   }
 });
 ```
 
-### Register Functions in config.toml (`apps/api/supabase/config.toml`)
+Add to `apps/api/supabase/config.toml`:
 
 ```toml
-# Unified message + agent endpoint
-[functions.chat-messages]
-entrypoint = '../src/functions/chat-messages/index.ts'
+# RESTful endpoint: POST /threads/:id/messages
+[functions.threads-messages]
+entrypoint = '../src/functions/threads-messages/index.ts'
 import_map = '../import_map.json'
 
-# SSE streaming endpoint (separate function for real-time progress)
-[functions.agent-requests-stream]
-entrypoint = '../src/functions/agent-requests-stream/index.ts'
+# Additional RESTful endpoints (to be implemented)
+[functions.threads]
+entrypoint = '../src/functions/threads/index.ts'  # POST /threads, GET /threads/:id, etc.
 import_map = '../import_map.json'
-```
-
-### Deploy Functions
-
-```bash
-cd apps/api
-npm run deploy:function chat-messages
-npm run deploy:function agent-requests-stream
 ```
 
 ---
 
-## Step 7: Implement Frontend Service Layer
+## Step 6: Implement Services Layer
 
-### Create Chat Service (`apps/web/src/lib/services/chatService.ts`)
-
-```typescript
-import { supabase } from '@/lib/supabase';
-
-export async function sendMessage(
-  chatId: string,
-  text: string,
-  contextReferences: ContextReference[]
-): Promise<{ data?: MessageResponse; error?: Error }> {
-  try {
-    // RESTful unified endpoint: /chats/:chat_id/messages
-    // Sends message AND executes agent in one call
-    const { data, error } = await supabase.functions.invoke(`chats/${chatId}/messages`, {
-      body: {
-        text, // chat_id comes from URL
-        context_references: contextReferences,
-      },
-    });
-
-    if (error) throw error;
-
-    // Returns: { message_id, request_id, sse_endpoint, status }
-    // Context references are now persisted to database (enables cross-device sync)
-    return { data };
-  } catch (error) {
-    return { error };
-  }
-}
-```
-
-### Create SSE Subscription Hook (`apps/web/src/lib/hooks/useAgentProgress.ts`)
+Create `apps/api/src/services/contextAssembly.ts`:
 
 ```typescript
-import { useEffect } from 'react';
-import { useSnapshot } from 'valtio';
-import { agentState, actions } from '../state/agentState';
+// apps/api/src/services/contextAssembly.ts
+import { semanticSearchService } from './semanticSearch';
+import { userPreferencesService } from './userPreferences';
+import { threadRepository } from '../repositories/thread';
 
-export function useAgentProgress(requestId: string | null, sseEndpoint: string | null) {
-  useEffect(() => {
-    if (!requestId || !sseEndpoint) return;
+export class ContextAssemblyService {
+  static async assemble(threadId: string, query: string, userId: string) {
+    // Execute all 6 domains in parallel (<1s target)
+    const [explicit, semantic, tree, memory, preferences] = await Promise.all([
+      this.loadExplicitReferences(threadId),
+      semanticSearchService.search(query, userId, threadId),
+      threadRepository.getTreeContext(threadId),
+      this.loadMemoryChunks(threadId, query),
+      userPreferencesService.loadPreferences(userId)
+    ]);
 
-    // Primary session: Subscribe to SSE for lowest latency
-    const eventSource = new EventSource(
-      `${supabaseUrl}${sseEndpoint}`,
-      {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      }
+    // Apply user preferences (filtering + always-include)
+    const filteredSemantic = semantic.filter(item =>
+      !preferences.excluded_patterns.some(p => new RegExp(p).test(item.path)) &&
+      !preferences.blacklisted_branches.includes(item.source_thread_id)
     );
 
+    const alwaysInclude = preferences.always_include_files.map(path => ({
+      path,
+      weight: 0.8,
+      source: 'user_preference'
+    }));
+
+    // Merge and prioritize
+    const allContext = [
+      ...explicit.map(i => ({ ...i, weight: 1.0, group: 'explicit' })),
+      ...alwaysInclude.map(i => ({ ...i, group: 'frequently_used' })),
+      ...tree.map(i => ({ ...i, weight: 0.7, group: 'branch' })),
+      ...filteredSemantic.map(i => ({ ...i, group: 'semantic' })),
+      ...memory.map(i => ({ ...i, weight: 0.6, group: 'memory' }))
+    ];
+
+    // Fit within 200K token budget
+    const { included, excluded } = this.fitWithinBudget(allContext, 200000);
+
+    return this.buildPrimeContext(included);
+  }
+}
+```
+
+---
+
+## Step 7: Frontend Integration
+
+Create Valtio state in `apps/web/src/lib/state/aiAgentState.ts`:
+
+```typescript
+// apps/web/src/lib/state/aiAgentState.ts
+import { proxy } from 'valtio';
+
+export const aiAgentState = proxy({
+  threads: [],
+  currentThread: null,
+  messages: [],
+  streamingBuffer: '',
+  contextReferences: [],
+  pendingApproval: null
+});
+```
+
+Create custom hook in `apps/web/src/lib/hooks/useStreamMessage.ts`:
+
+```typescript
+// apps/web/src/lib/hooks/useStreamMessage.ts
+import { useSnapshot } from 'valtio';
+import { aiAgentState } from '../state/aiAgentState';
+
+export function useStreamMessage() {
+  const state = useSnapshot(aiAgentState);
+
+  const streamMessage = async (threadId: string, text: string) => {
+    // Create message, get SSE endpoint
+    const { sseEndpoint } = await threadService.sendMessage(threadId, text);
+
+    // Subscribe to SSE
+    const eventSource = new EventSource(sseEndpoint);
+
     eventSource.onmessage = (event) => {
-      const toolCall = JSON.parse(event.data);
+      const data = JSON.parse(event.data);
 
-      // Update agentState with tool call progress
-      actions.addToolCall(requestId, toolCall);
-
-      // Handle completion
-      if (toolCall.type === 'completion') {
+      if (data.type === 'text') {
+        aiAgentState.streamingBuffer += data.content;
+      } else if (data.type === 'tool_call' && data.status === 'awaiting_approval') {
+        aiAgentState.pendingApproval = data;
+      } else if (data.type === 'completion') {
+        aiAgentState.messages.push({
+          role: 'assistant',
+          content: aiAgentState.streamingBuffer
+        });
+        aiAgentState.streamingBuffer = '';
         eventSource.close();
-        actions.updateRequestStatus(requestId, 'completed');
       }
     };
 
-    eventSource.onerror = (error) => {
-      console.error('SSE error:', error);
-      eventSource.close();
-      actions.updateRequestStatus(requestId, 'failed');
-    };
-
-    return () => {
+    eventSource.onerror = () => {
+      toast.error('Stream interrupted');
       eventSource.close();
     };
-  }, [requestId, sseEndpoint]);
-}
-```
-
-### Create Valtio State with Three-Way Merge (`apps/web/src/lib/state/chatState.ts`)
-
-```typescript
-import { proxy } from 'valtio';
-
-export const chatState = proxy({
-  chats: {} as Record<string, Chat>,
-
-  // Three-way merge states
-  localContextReferences: {} as Record<string, ContextReference[]>,   // User's current selection
-  serverContextReferences: {} as Record<string, ContextReference[]>,  // Last known server state (baseline)
-});
-
-// Helper: Calculate diff between two reference lists
-function diffReferences(
-  base: ContextReference[],
-  current: ContextReference[]
-): { added: ContextReference[]; removed: string[] } {
-  const baseIds = new Set(base.map(r => r.id));
-  const currentIds = new Set(current.map(r => r.id));
-
-  const added = current.filter(r => !baseIds.has(r.id));
-  const removed = Array.from(baseIds).filter(id => !currentIds.has(id));
-
-  return { added, removed };
-}
-
-// Helper: Apply changes to a reference list
-function applyChanges(
-  base: ContextReference[],
-  changes: { added: ContextReference[]; removed: string[] }
-): ContextReference[] {
-  // Start with base
-  let result = [...base];
-
-  // Apply removals
-  result = result.filter(r => !changes.removed.includes(r.id));
-
-  // Apply additions (dedupe by id)
-  const existingIds = new Set(result.map(r => r.id));
-  for (const ref of changes.added) {
-    if (!existingIds.has(ref.id)) {
-      result.push(ref);
-      existingIds.add(ref.id);
-    }
-  }
-
-  return result;
-}
-
-export const actions = {
-  // Initialize references for a chat (from database)
-  initializeContextReferences(chatId: string, references: ContextReference[]) {
-    chatState.localContextReferences[chatId] = [...references];
-    chatState.serverContextReferences[chatId] = [...references]; // Set baseline
-  },
-
-  // Add reference (local change)
-  addContextReference(chatId: string, reference: ContextReference) {
-    if (!chatState.localContextReferences[chatId]) {
-      chatState.localContextReferences[chatId] = [];
-    }
-    chatState.localContextReferences[chatId].push(reference);
-    // Don't update server state - it's the baseline
-  },
-
-  // Remove reference (local change)
-  removeContextReference(chatId: string, referenceId: string) {
-    if (chatState.localContextReferences[chatId]) {
-      chatState.localContextReferences[chatId] =
-        chatState.localContextReferences[chatId].filter(r => r.id !== referenceId);
-    }
-  },
-
-  // Merge remote update (three-way merge)
-  mergeRemoteContextReferences(chatId: string, remoteReferences: ContextReference[]) {
-    const localState = chatState.localContextReferences[chatId] || [];
-    const serverState = chatState.serverContextReferences[chatId] || [];
-
-    // Calculate changes
-    const localChanges = diffReferences(serverState, localState);
-    const remoteChanges = diffReferences(serverState, remoteReferences);
-
-    // Merge: Start with remote, apply local changes
-    let merged = applyChanges(remoteReferences, localChanges);
-
-    // Handle conflicts: If same reference was removed remotely and added locally, remove wins
-    const remoteRemovedIds = new Set(remoteChanges.removed);
-    merged = merged.filter(r => !remoteRemovedIds.has(r.id));
-
-    // Update states
-    chatState.serverContextReferences[chatId] = [...remoteReferences]; // New baseline
-    chatState.localContextReferences[chatId] = merged; // Merged result
-  },
-
-  // Sync local state to server (after user action)
-  async syncContextReferencesToServer(chatId: string) {
-    const localState = chatState.localContextReferences[chatId] || [];
-
-    // Send to server
-    await supabase
-      .from('context_references')
-      .upsert(localState.map(ref => ({ ...ref, chat_id: chatId, is_active: true })));
-
-    // Update server baseline
-    chatState.serverContextReferences[chatId] = [...localState];
-  },
-};
-```
-
-### Create Custom Hook (`apps/web/src/lib/hooks/useChatMessage.ts`)
-
-```typescript
-import { useState } from 'react';
-import { sendMessage as sendMessageService } from '../services/chatService';
-import { useSnapshot } from 'valtio';
-import { chatState, agentState, actions } from '../state/chatState';
-import toast from 'react-hot-toast';
-import { useAgentProgress } from './useAgentProgress';
-
-export function useChatMessage(chatId: string) {
-  const [loading, setLoading] = useState(false);
-  const [currentRequestId, setCurrentRequestId] = useState<string | null>(null);
-  const [sseEndpoint, setSseEndpoint] = useState<string | null>(null);
-  const snap = useSnapshot(chatState);
-
-  // Subscribe to SSE progress (primary session)
-  useAgentProgress(currentRequestId, sseEndpoint);
-
-  const sendMessage = async (text: string) => {
-    setLoading(true);
-
-    // Optimistic update - add user message
-    const tempMessageId = `temp-${Date.now()}`;
-    actions.addMessage(chatId, {
-      id: tempMessageId,
-      role: 'user',
-      content: text,
-      created_at: new Date().toISOString(),
-    });
-
-    try {
-      // Get current context references (user's local draft state)
-      const contextReferences = snap.localContextReferences[chatId] || [];
-
-      // Call unified endpoint (sends message AND executes agent)
-      const { data, error } = await sendMessageService(chatId, text, contextReferences);
-
-      if (error) throw error;
-
-      // data: { message_id, request_id, sse_endpoint, status }
-
-      // Replace temp message with real message
-      actions.replaceMessage(chatId, tempMessageId, {
-        id: data.message_id,
-        role: 'user',
-        content: text,
-        created_at: new Date().toISOString(),
-      });
-
-      // Set up SSE subscription for agent progress
-      setCurrentRequestId(data.request_id);
-      setSseEndpoint(data.sse_endpoint);
-
-      // Agent response will come via SSE stream (useAgentProgress hook)
-      toast.success('Message sent');
-
-    } catch (error) {
-      // Rollback optimistic update
-      actions.removeMessage(chatId, tempMessageId);
-      toast.error(`Error sending message: ${error.message}`);
-    } finally {
-      setLoading(false);
-    }
   };
 
-  return { sendMessage, loading, isAgentProcessing: !!currentRequestId };
+  return { streamMessage, streamingBuffer: state.streamingBuffer };
 }
 ```
 
 ---
 
-## Step 8: Test the Flow
+## Step 8: Test the Feature
 
-### Test Script (`apps/api/test-unified-flow.ts`)
+### Create Test Thread
 
-```typescript
-import { sendMessageAndExecuteAgent } from './src/services/agentService';
-
-async function test() {
-  const contextReferences = [
-    { reference_type: 'file', source_reference: 'research/notes.md' }
-  ];
-
-  // Unified flow: sends message AND executes agent
-  const result = await sendMessageAndExecuteAgent(
-    'what are the main themes in my research notes?',
-    'test-chat-id',
-    contextReferences,
-    'test-user-id'
-  );
-
-  console.log('Message ID:', result.message_id);
-  console.log('Request ID:', result.request_id);
-  console.log('SSE Endpoint:', result.sse_endpoint);
-  console.log('Status:', result.status);
-
-  // To test SSE streaming, you would:
-  // 1. Subscribe to the SSE endpoint
-  // 2. Listen for tool_call events
-  // 3. Wait for completion event
-}
-
-test();
+```bash
+# RESTful: POST /threads (resource-based, not verb-based)
+curl -X POST https://your-project.supabase.co/functions/v1/threads \
+  -H "Authorization: Bearer YOUR_JWT" \
+  -H "Content-Type: application/json" \
+  -d '{"title": "Test Exploration", "parentId": null}'
 ```
 
-### Run Test
+**Response**:
+```json
+{
+  "data": {
+    "threadId": "uuid-here",
+    "title": "Test Exploration",
+    "parentId": null
+  }
+}
+```
+
+### Send Message (Triggers Agent Execution)
+
+```bash
+# RESTful: POST /threads/:id/messages (nested resource for creating message)
+# This triggers agent execution and returns SSE endpoint
+curl -X POST https://your-project.supabase.co/functions/v1/threads/UUID_HERE/messages \
+  -H "Authorization: Bearer YOUR_JWT" \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Explain RAG architecture", "contextReferences": []}'
+```
+
+**Response**:
+```json
+{
+  "data": {
+    "messageId": "uuid-here",
+    "requestId": "uuid-here",
+    "sseEndpoint": "/agent-requests/uuid-here/stream"
+  }
+}
+```
+
+### Subscribe to Agent Stream (SSE)
+
+```bash
+# Connect to SSE stream returned from message creation
+curl -N https://your-project.supabase.co/functions/v1/agent-requests/UUID_HERE/stream \
+  -H "Authorization: Bearer YOUR_JWT"
+```
+
+Expected SSE output:
+```
+data: {"type":"text","content":"RAG (Retrieval-Augmented Generation)..."}
+
+data: {"type":"completion"}
+```
+
+---
+
+## Step 9: Deploy
 
 ```bash
 cd apps/api
-npx tsx test-unified-flow.ts
-```
 
----
+# Deploy all Edge Functions
+npm run deploy:functions
 
-## Step 9: Real-time Subscriptions
-
-### Setup Real-time Provider (`apps/web/src/components/providers/ChatProvider.tsx`)
-
-```typescript
-import { useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
-import { actions, chatState, agentState } from '@/lib/state/chatState';
-
-export function ChatProvider({ children, userId }) {
-  useEffect(() => {
-    // 1. Subscribe to chat messages (from other sessions)
-    const messagesSubscription = supabase
-      .channel('chat_messages')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'chat_messages',
-          filter: `user_id=eq.${userId}`,
-        },
-        (payload) => {
-          // Add message from secondary session
-          actions.addMessage(payload.new.chat_id, payload.new);
-        }
-      )
-      .subscribe();
-
-    // 2. Subscribe to agent_interactions (for secondary sessions)
-    const interactionsSubscription = supabase
-      .channel('agent_interactions')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'agent_interactions',
-          filter: `user_id=eq.${userId}`,
-        },
-        (payload) => {
-          // Secondary session receives tool calls via Realtime
-          // (Primary session gets same data via SSE)
-          const toolCall = {
-            type: 'tool_call',
-            tool_name: payload.new.tool_name,
-            status: payload.new.status,
-            description: payload.new.description,
-            target_file: payload.new.tool_input?.file_path,
-            sequence_order: payload.new.sequence_order,
-          };
-
-          // Update agentState with tool call
-          actions.addToolCall(payload.new.agent_request_id, toolCall);
-        }
-      )
-      .subscribe();
-
-    // Subscribe to context references (cross-device sync with three-way merge)
-    const referencesSubscription = supabase
-      .channel('context_references')
-      .on(
-        'postgres_changes',
-        {
-          event: '*', // INSERT, UPDATE, DELETE
-          schema: 'public',
-          table: 'context_references',
-          filter: `user_id=eq.${userId}`,
-        },
-        async (payload) => {
-          const chatId = payload.new?.chat_id || payload.old?.chat_id;
-
-          // Fetch current remote state from database
-          const { data: remoteReferences } = await supabase
-            .from('context_references')
-            .select('*')
-            .eq('chat_id', chatId)
-            .eq('is_active', true);
-
-          // Perform three-way merge (handles concurrent additions/removals from multiple devices)
-          actions.mergeRemoteContextReferences(chatId, remoteReferences || []);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      messagesSubscription.unsubscribe();
-      interactionsSubscription.unsubscribe();
-      referencesSubscription.unsubscribe();
-    };
-  }, [userId]);
-
-  return <>{children}</>;
-}
-```
-
-**Cross-Session Visibility Pattern**:
-- **Primary session** (where message was sent): Subscribes to SSE via `useAgentProgress` hook (lowest latency)
-- **Secondary sessions** (other tabs/devices): Subscribe to `agent_interactions` via Realtime (above code)
-- **Result**: All sessions see identical progress with same data structure
-- **Why hybrid?**: SSE has lower latency (no database write delay), Realtime reuses existing WebSocket connection
-
-**Context Persistence & Sync**:
-- When user sends message, `POST /chats/:chat_id/messages` persists context_references to database
-- Database INSERT/UPDATE triggers Realtime broadcast to all subscribed sessions
-- Each session performs three-way merge: `mergeRemoteContextReferences(chatId, remoteReferences)`
-- Result: Context pills stay in sync across all devices, concurrent changes merged intelligently
-
-
-
----
-
-## Development Workflow
-
-### Typical Development Loop
-
-1. **Update Schema**: Edit `apps/api/src/db/schema.ts`
-2. **Push Changes**: `npm run db:push` from `apps/api/`
-3. **Update Repositories**: Add new queries to `apps/api/src/repositories/`
-4. **Update Services**: Modify business logic in `apps/api/src/services/`
-5. **Deploy Edge Functions**: `npm run deploy:functions` from `apps/api/`
-6. **Test Frontend**: `npm run web:dev` from root
-7. **Iterate**: Repeat as needed
-
-### Common Commands
-
-```bash
-# Backend (run from apps/api/)
-npm run db:drop            # Drop all tables (MVP iteration)
-npm run db:push            # Push schema to remote
-npm run deploy:functions   # Deploy all Edge Functions
-npm run deploy:function <name>  # Deploy single function
-
-# Frontend (run from root)
-npm run dev                # Start all apps
-npm run web:dev            # Start main app only
-npm run type-check         # TypeScript check
-
-# Testing (when added post-MVP)
-npm test                   # Run all tests
-npm run test:watch         # Watch mode
+# Or deploy single function (RESTful endpoint)
+npm run deploy:function threads-messages
+npm run deploy:function threads
 ```
 
 ---
 
 ## Troubleshooting
 
-### Issue: Database connection fails
+### Issue: "pgvector extension not found"
+```sql
+-- Run in Supabase SQL Editor
+CREATE EXTENSION IF NOT EXISTS vector;
+```
 
-**Solution**: Verify `DATABASE_URL` in `apps/api/.env` uses port 5432 (session mode) and password is URL-encoded
+### Issue: "Schema push fails with foreign key errors"
+```bash
+# Drop all tables first
+npm run db:drop
 
-### Issue: Edge Function deployment fails
+# Then push
+npm run db:push
+```
 
-**Solution**: Ensure function is declared in `apps/api/supabase/config.toml` with correct entrypoint and import_map
+### Issue: "SSE stream closes immediately"
+- Check keep-alive interval (should be 30s)
+- Verify `Content-Type: text/event-stream` header
+- Check Edge Function logs in Supabase Dashboard
 
-### Issue: Claude Agent SDK errors
+### Issue: "Semantic search is slow (>1s)"
+```sql
+-- Verify index exists
+\d shadow_entities
 
-**Solution**: Verify `ANTHROPIC_API_KEY` is set in Supabase Dashboard → Edge Functions → Secrets (not local `.env`)
-
-### Issue: pgvector not working
-
-**Solution**: Enable pgvector extension in Supabase Dashboard → Database → Extensions → pgvector
-
-### Issue: RLS blocking queries
-
-**Solution**: Verify RLS policies exist and `auth.uid()` matches `user_id` in queries. Use `SUPABASE_SERVICE_ROLE_KEY` only when necessary with manual ownership checks.
+-- If missing, create:
+CREATE INDEX shadow_entities_embedding_idx
+ON shadow_entities
+USING ivfflat (embedding vector_cosine_ops)
+WITH (lists = 100);
+```
 
 ---
 
 ## Next Steps
 
-1. **Implement UI Components**: Create chat interface, context pills, approval prompts in `packages/ui/`
-2. **Add Real-time Progress**: Implement progress tracking for long-running agent requests
-3. **Add File Change Approvals**: Implement approval flow for agent-proposed file modifications
-4. **Design Iteration**: Run `/speckit.design` to create visual designs in `apps/design-system`
-5. **Testing** (Post-MVP): Add Vitest unit tests, Playwright E2E tests when feature is stable
+1. **Implement remaining services**: SemanticSearchService, UserPreferencesService, ProvenanceTrackingService
+2. **Add background jobs**: `/sync-shadow-domain`, `/summarize-thread`, `/compress-memory`
+3. **Build frontend UI**: ChatView, ContextPanel, BranchSelector, FileEditorView
+4. **Test consolidation workflow**: Multi-branch artifact gathering
+5. **Run `/speckit.verify-ui`**: Automated UI testing against acceptance criteria
 
 ---
 
-## Resources
-
-- **Spec**: `specs/004-ai-agent-system/spec.md`
-- **Plan**: `specs/004-ai-agent-system/plan.md`
-- **Research**: `specs/004-ai-agent-system/research.md`
-- **Data Model**: `specs/004-ai-agent-system/data-model.md`
-- **API Contracts**: `specs/004-ai-agent-system/contracts/execute-agent.yaml`
-- **Claude Agent SDK Docs**: https://docs.claude.com/en/api/agent-sdk/overview
-- **Constitution**: `.specify/memory/constitution.md`
-- **CLAUDE.md**: Root-level development guide
-
----
-
-**Estimated Implementation Time**: 2-3 days for core functionality (chat + agent execution), 4-5 days including UI
-
-**Ready to Start?** Begin with Step 3 (Database Schema) and work through sequentially.
+**Authored by**: Claude Code (Sonnet 4.5)
+**Reviewed by**: Aligned with spec.md (2025-10-26) and arch.md (2025-10-26)

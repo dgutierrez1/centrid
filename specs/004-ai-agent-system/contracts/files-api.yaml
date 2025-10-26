@@ -1,0 +1,306 @@
+openapi: 3.0.3
+info:
+  title: Files API
+  description: |
+    File operations with provenance tracking.
+
+    **Key Features**:
+    - Create files with automatic provenance tracking
+    - Read files with full provenance metadata
+    - Update files with edit history
+    - Automatic shadow domain sync on file changes >20%
+
+  version: 1.0.0
+servers:
+  - url: https://your-project.supabase.co/functions/v1
+
+paths:
+  /files:
+    post:
+      summary: Create file
+      description: |
+        Creates new file. If created by agent, provenance is automatically tracked.
+        Triggers shadow domain sync background job.
+
+        **Provenance** (BR-002):
+        - Agent-created: created_in_conversation_id set
+        - Manually created: created_in_conversation_id = null
+
+      security:
+        - supabaseAuth: []
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - path
+                - content
+              properties:
+                path:
+                  type: string
+                  description: File path (unique per user)
+                  example: "/projects/spec.md"
+                content:
+                  type: string
+                  description: File content
+                provenance:
+                  type: object
+                  properties:
+                    created_in_conversation_id:
+                      type: string
+                      format: uuid
+                    context_summary:
+                      type: string
+                      description: 2-3 sentences explaining creation context
+
+      responses:
+        '201':
+          description: File created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      fileId:
+                        type: string
+                        format: uuid
+                      path:
+                        type: string
+                      shadowDomainId:
+                        type: string
+                        format: uuid
+                        description: Shadow entity ID (created asynchronously)
+
+  /files/{file_id}:
+    get:
+      summary: Fetch file with content and provenance
+      description: Returns full file content, provenance metadata, and shadow domain summary.
+
+      security:
+        - supabaseAuth: []
+
+      parameters:
+        - name: file_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+
+      responses:
+        '200':
+          description: File details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      file:
+                        $ref: '#/components/schemas/File'
+                      content:
+                        type: string
+                      provenance:
+                        $ref: '#/components/schemas/Provenance'
+                      shadowDomain:
+                        type: object
+                        properties:
+                          summary:
+                            type: string
+                          structure_metadata:
+                            type: object
+
+    put:
+      summary: Update file content
+      description: |
+        Updates file content. Tracks last edit metadata (BR-003).
+        Triggers shadow domain regeneration if >20% change (BR-004).
+
+      security:
+        - supabaseAuth: []
+
+      parameters:
+        - name: file_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - content
+              properties:
+                content:
+                  type: string
+                edited_by:
+                  type: string
+                  enum: [user, agent]
+                  default: user
+                edited_in_conversation_id:
+                  type: string
+                  format: uuid
+                  description: Thread ID if agent edit
+
+      responses:
+        '200':
+          description: File updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      file:
+                        $ref: '#/components/schemas/File'
+                      shadowDomainUpdated:
+                        type: boolean
+
+    delete:
+      summary: Delete file
+      description: Deletes file and cascades to shadow_entities.
+
+      security:
+        - supabaseAuth: []
+
+      parameters:
+        - name: file_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+
+      responses:
+        '204':
+          description: File deleted
+
+  /files/{file_id}/provenance:
+    get:
+      summary: Fetch full provenance metadata
+      description: |
+        Returns complete provenance:
+        - Source conversation with link
+        - Creation context summary
+        - Edit history (last edit only for MVP per arch.md Decision 5)
+
+      security:
+        - supabaseAuth: []
+
+      parameters:
+        - name: file_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+
+      responses:
+        '200':
+          description: Provenance details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Provenance'
+
+components:
+  securitySchemes:
+    supabaseAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    File:
+      type: object
+      properties:
+        file_id:
+          type: string
+          format: uuid
+        owner_user_id:
+          type: string
+          format: uuid
+        path:
+          type: string
+        created_in_conversation_id:
+          type: string
+          format: uuid
+          nullable: true
+        creation_timestamp:
+          type: string
+          format: date-time
+          nullable: true
+        context_summary:
+          type: string
+          nullable: true
+        last_edited:
+          type: string
+          format: date-time
+        last_edited_by:
+          type: string
+          enum: [user, agent]
+        edited_in_conversation_id:
+          type: string
+          format: uuid
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Provenance:
+      type: object
+      properties:
+        createdIn:
+          type: object
+          nullable: true
+          properties:
+            thread_id:
+              type: string
+              format: uuid
+            branch_title:
+              type: string
+            created_at:
+              type: string
+              format: date-time
+        contextSummary:
+          type: string
+          nullable: true
+        editHistory:
+          type: object
+          properties:
+            last_edited:
+              type: string
+              format: date-time
+            last_edited_by:
+              type: string
+              enum: [user, agent]
+            edited_in_conversation:
+              type: object
+              nullable: true
+              properties:
+                thread_id:
+                  type: string
+                  format: uuid
+                branch_title:
+                  type: string

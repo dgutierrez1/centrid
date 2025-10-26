@@ -2,13 +2,16 @@ openapi: 3.0.3
 info:
   title: AI Agent Execution API
   description: |
-    Execute AI agent requests using Claude Agent SDK with built-in orchestration, web search, and context management.
+    Execute AI agent requests using Claude 3.5 Sonnet with unified context assembly.
 
-    The SDK automatically handles:
-    - Intent detection (question, edit, create, refactor, search, delete)
-    - Tool selection and execution (WebSearch, read_document, update_document, search_documents, create_document)
-    - Context summarization when approaching token limit
-    - Parallel subagent execution for complex tasks
+    **Context Assembly**: Combines semantic search (shadow domain with pgvector) + thread tree traversal (parent/child/sibling relationships) + relationship modifiers + temporal decay in a single optimized service.
+
+    **Key Features**:
+    - Thread-based conversations with branching (DAG structure)
+    - Unified shadow domain for semantic search across files, threads, and concepts
+    - Tool execution with user approval (write_file, create_branch, search_files, read_file)
+    - Server-Sent Events (SSE) streaming for real-time agent progress
+    - Provenance tracking for all agent-created artifacts
   version: 1.0.0
   contact:
     name: Centrid API Support
@@ -17,40 +20,42 @@ servers:
     description: Production Supabase Edge Functions
 
 paths:
-  /chats/{chat_id}/messages:
+  /threads/{thread_id}/messages:
     post:
-      summary: Send chat message and execute agent
+      summary: Send message and execute agent
       description: |
-        **UNIFIED ENDPOINT**: Sending a message IS executing an agent. This single endpoint:
-        1. Creates user chat_messages record (role: 'user')
+        **RESTful ENDPOINT**: Sends message to thread and executes AI agent. This endpoint:
+        1. Creates user message record (role: 'user')
         2. Validates all context references exist (RLS check)
         3. Persists context_references to database (UPSERT with is_active = true)
         4. Creates linked agent_requests record with context_references_snapshot
-        5. Builds RAG context from references + chat history
-        6. Starts agent execution using Claude Agent SDK
-        7. Streams progress via SSE (returned sse_endpoint)
-        8. Writes tool calls to agent_interactions table (triggers Realtime for other sessions)
-        9. Creates agent chat_messages record when complete (role: 'agent')
-        10. Returns message_id + request_id + SSE endpoint
+        5. Builds prime context via ContextAssemblyService (semantic search + tree navigation + relationship modifiers)
+        6. Starts agent execution using Claude 3.5 Sonnet
+        7. Returns message_id + request_id + SSE endpoint
+        8. Streams progress via SSE (tool calls, status updates, completion)
+        9. Writes tool call events to agent_tool_calls table (triggers Realtime for other sessions)
+        10. Creates agent message record when complete (role: 'assistant')
 
-        **Context Persistence**: Context references are persisted to database on message send,
-        enabling cross-device sync via three-way merge when Realtime updates are received.
+        **Context Assembly**: Unified service combines semantic search across shadow domain + thread tree traversal + relationship modifiers (+0.10 sibling, +0.15 parent/child).
+
+        **Context Persistence**: Context references persisted to database on send,
+        enabling cross-device sync via Realtime subscriptions.
 
         **Cross-Session Visibility**: Primary session subscribes to SSE for lowest latency.
-        Secondary sessions (other tabs/devices) subscribe to agent_interactions table via Realtime.
-        Both see identical progress with same data structure.
+        Secondary sessions (other tabs/devices) subscribe to agent_tool_calls via Realtime.
+        Both see identical progress.
 
       security:
         - supabaseAuth: []
 
       parameters:
-        - name: chat_id
+        - name: thread_id
           in: path
           required: true
           schema:
             type: string
             format: uuid
-          description: UUID of the chat session
+          description: UUID of the thread
           example: "123e4567-e89b-12d3-a456-426614174000"
 
       requestBody:
@@ -96,42 +101,47 @@ paths:
                         description: For snippet pills - ending line number
 
       responses:
-        '200':
-          description: Message sent and agent execution started
+        '201':
+          description: Message created and agent execution started
           content:
             application/json:
               schema:
                 type: object
                 required:
-                  - message_id
-                  - request_id
-                  - sse_endpoint
+                  - data
                 properties:
-                  message_id:
-                    type: string
-                    format: uuid
-                    description: UUID of the created chat_messages record
-                    example: "123e4567-e89b-12d3-a456-426614174000"
+                  data:
+                    type: object
+                    required:
+                      - messageId
+                      - requestId
+                      - sseEndpoint
+                    properties:
+                      messageId:
+                        type: string
+                        format: uuid
+                        description: UUID of the created message record
+                        example: "123e4567-e89b-12d3-a456-426614174000"
 
-                  request_id:
-                    type: string
-                    format: uuid
-                    description: UUID of the created agent_requests record (linked to message)
-                    example: "456e7890-e89b-12d3-a456-426614174001"
+                      requestId:
+                        type: string
+                        format: uuid
+                        description: UUID of the created agent_requests record
+                        example: "456e7890-e89b-12d3-a456-426614174001"
 
-                  sse_endpoint:
-                    type: string
-                    description: |
-                      Server-Sent Events endpoint for streaming agent progress.
-                      Primary session should subscribe to this for lowest latency.
-                      Secondary sessions can use same endpoint or subscribe to agent_interactions via Realtime.
-                    example: "/agent-requests/456e7890-e89b-12d3-a456-426614174001/stream"
+                      sseEndpoint:
+                        type: string
+                        description: |
+                          Server-Sent Events endpoint for streaming agent progress.
+                          Primary session subscribes for lowest latency.
+                          Secondary sessions use Realtime subscriptions.
+                        example: "/agent-requests/456e7890-e89b-12d3-a456-426614174001/stream"
 
-                  status:
-                    type: string
-                    enum: [pending, processing]
-                    description: Initial agent request status (will update via SSE/Realtime)
-                    example: "pending"
+                      status:
+                        type: string
+                        enum: [pending, processing]
+                        description: Initial agent request status
+                        example: "pending"
 
         '400':
           description: Bad request - validation error
@@ -140,9 +150,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
               example:
-                error: "Validation error"
-                message: "text must be between 1 and 10000 characters"
-                code: "VALIDATION_ERROR"
+                error:
+                  message: "Validation error: text must be between 1 and 10000 characters"
+                  code: "VALIDATION_ERROR"
 
         '401':
           description: Unauthorized - invalid or missing auth token
@@ -151,9 +161,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
               example:
-                error: "Unauthorized"
-                message: "Invalid authentication token"
-                code: "UNAUTHORIZED"
+                error:
+                  message: "Invalid authentication token"
+                  code: "UNAUTHORIZED"
 
         '403':
           description: Forbidden - quota exceeded or permission denied
@@ -162,9 +172,20 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
               example:
-                error: "Quota exceeded"
-                message: "You have reached your monthly request limit (100/100). Upgrade to Pro for more requests."
-                code: "QUOTA_EXCEEDED"
+                error:
+                  message: "Quota exceeded: You have reached your monthly request limit (100/100). Upgrade to Pro."
+                  code: "QUOTA_EXCEEDED"
+
+        '422':
+          description: Unprocessable entity - context reference validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  message: "Context reference validation failed: file not found"
+                  code: "INVALID_CONTEXT_REFERENCE"
 
         '500':
           description: Internal server error
@@ -173,9 +194,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
               example:
-                error: "Internal server error"
-                message: "Agent execution failed: Claude API timeout"
-                code: "AGENT_EXECUTION_ERROR"
+                error:
+                  message: "Agent execution failed: Claude API timeout"
+                  code: "AGENT_EXECUTION_ERROR"
 
   /agent-requests/{request_id}/stream:
     get:
@@ -289,20 +310,21 @@ components:
       type: object
       required:
         - error
-        - message
       properties:
         error:
-          type: string
-          description: Error type
-        message:
-          type: string
-          description: Human-readable error message
-        code:
-          type: string
-          description: Machine-readable error code
-        details:
           type: object
-          description: Additional error details (optional)
+          required:
+            - message
+          properties:
+            message:
+              type: string
+              description: Human-readable error message
+            code:
+              type: string
+              description: Machine-readable error code
+            details:
+              type: object
+              description: Additional error details (optional)
 
 ---
 

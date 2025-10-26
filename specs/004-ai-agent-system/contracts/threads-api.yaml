@@ -1,0 +1,361 @@
+openapi: 3.0.3
+info:
+  title: Threads API
+  description: |
+    Thread management API for branching conversations (DAG structure).
+
+    **Key Features**:
+    - Create root threads or branch from existing threads
+    - Navigate thread tree (parent, children, siblings)
+    - Consolidate artifacts from multiple child branches
+    - Archive/delete threads with validation
+
+  version: 1.0.0
+servers:
+  - url: https://your-project.supabase.co/functions/v1
+    description: Production Supabase Edge Functions
+
+paths:
+  /threads:
+    post:
+      summary: Create new thread (root or branch)
+      description: |
+        Creates a new conversation thread. Can be a root thread (parent_id = null)
+        or a child branch (parent_id specified).
+
+        **Branch Inheritance** (BR-009):
+        - Explicit files from parent (references only)
+        - Parent summary
+        - Parent's last message
+        - Branching message (if agent-created)
+
+      security:
+        - supabaseAuth: []
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - title
+              properties:
+                title:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                  description: Thread title
+                  example: "Explore RAG architecture"
+
+                parent_id:
+                  type: string
+                  format: uuid
+                  description: Parent thread ID (null for root threads)
+                  example: "123e4567-e89b-12d3-a456-426614174000"
+
+      responses:
+        '201':
+          description: Thread created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      threadId:
+                        type: string
+                        format: uuid
+                      title:
+                        type: string
+                      parentId:
+                        type: string
+                        format: uuid
+                        nullable: true
+
+  /threads/{thread_id}:
+    get:
+      summary: Fetch thread with messages and metadata
+      description: Returns thread details, message history, context references, and branch metadata.
+
+      security:
+        - supabaseAuth: []
+
+      parameters:
+        - name: thread_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+
+      responses:
+        '200':
+          description: Thread details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      thread:
+                        $ref: '#/components/schemas/Thread'
+                      messages:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Message'
+                      contextReferences:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ContextReference'
+                      branchMetadata:
+                        type: object
+                        properties:
+                          parentId:
+                            type: string
+                            format: uuid
+                            nullable: true
+                          childIds:
+                            type: array
+                            items:
+                              type: string
+                              format: uuid
+                          siblingIds:
+                            type: array
+                            items:
+                              type: string
+                              format: uuid
+
+    patch:
+      summary: Update thread (rename, archive)
+      description: Partial update of thread metadata.
+
+      security:
+        - supabaseAuth: []
+
+      parameters:
+        - name: thread_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  description: New title
+                archived:
+                  type: boolean
+                  description: Archive status
+
+      responses:
+        '200':
+          description: Thread updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Thread'
+
+    delete:
+      summary: Delete thread (only if no children)
+      description: |
+        Deletes thread. Fails if child branches exist (BR-001).
+
+        **Cascade Behavior**:
+        - CASCADE: messages, context_references, memory_chunks
+        - RESTRICT: Cannot delete if children exist
+
+      security:
+        - supabaseAuth: []
+
+      parameters:
+        - name: thread_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+
+      responses:
+        '204':
+          description: Thread deleted
+        '409':
+          description: Cannot delete - child branches exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  message: "Cannot delete thread with child branches. Delete children first."
+                  code: "HAS_CHILDREN"
+
+  /threads/{thread_id}/consolidate:
+    post:
+      summary: Consolidate artifacts from child branches
+      description: |
+        Gathers artifacts (files, summaries) from specified child branches
+        and generates consolidated document with provenance citations.
+
+        **Multi-Branch Provenance**:
+        - File tracks multiple source conversations
+        - Citations in consolidated document
+        - Context summary includes all contributing branches
+
+      security:
+        - supabaseAuth: []
+
+      parameters:
+        - name: thread_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - childBranchIds
+              properties:
+                childBranchIds:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+                  description: Child thread IDs to consolidate
+
+      responses:
+        '201':
+          description: Consolidation complete
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      fileId:
+                        type: string
+                        format: uuid
+                        description: Created consolidated file
+                      provenance:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            threadId:
+                              type: string
+                              format: uuid
+                            branchTitle:
+                              type: string
+                            artifacts:
+                              type: array
+                              items:
+                                type: string
+
+components:
+  securitySchemes:
+    supabaseAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Thread:
+      type: object
+      properties:
+        thread_id:
+          type: string
+          format: uuid
+        owner_user_id:
+          type: string
+          format: uuid
+        parent_id:
+          type: string
+          format: uuid
+          nullable: true
+        branch_title:
+          type: string
+          nullable: true
+        thread_summary:
+          type: string
+          nullable: true
+        archived:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Message:
+      type: object
+      properties:
+        message_id:
+          type: string
+          format: uuid
+        thread_id:
+          type: string
+          format: uuid
+        role:
+          type: string
+          enum: [user, assistant]
+        content:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    ContextReference:
+      type: object
+      properties:
+        reference_id:
+          type: string
+          format: uuid
+        thread_id:
+          type: string
+          format: uuid
+        reference_type:
+          type: string
+          enum: [file, folder, thread, snippet, all_filesystem, pasted, web, auto_gen]
+        source_reference:
+          type: string
+        priority_tier:
+          type: integer
+          enum: [1, 2, 3]
+
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          required:
+            - message
+          properties:
+            message:
+              type: string
+            code:
+              type: string
