@@ -1,970 +1,625 @@
-# Feature Specification: AI Agent Execution System
+# Feature Specification: AI-Powered Exploration Workspace
 
 **Feature Branch**: `004-ai-agent-system`
 **Created**: 2025-10-23
-**Status**: Draft (Updated with Filesystem Architecture)
-**Input**: User description: "AI Agent Execution System with Claude Sonnet - filesystem-based collaborative editing with advanced context optimization"
+**Status**: Reframed (Updated 2025-10-25)
+**Input**: User description: "Exploration workspace where branching conversations and persistent filesystem are unified through provenance"
+
+---
+
+## Strategic Context
+
+**What we're building**: An exploration workspace where users can branch conversations to explore multiple approaches in parallel, capture findings as persistent files with provenance, and consolidate insights from the entire exploration tree.
+
+**The problem we solve**: Researchers, consultants, and knowledge workers suffer from context fragmentation when exploring complex topics. Current tools force linear exploration (ChatGPT/Claude) or manual organization (Notion). Users lose track of parallel threads, can't reference insights across exploration paths, and must manually consolidate findings.
+
+**Our solution**: Branching conversations + persistent filesystem + provenance tracking + cross-branch context = complete exploration workflow (Explore → Capture → Reference → Consolidate → Ship)
+
+**Category positioning**:
+
+- **Not**: "AI chat with better memory"
+- **Not**: "Notion with AI"
+- **Yes**: "Exploration workspace for deep research"
+
+**Core insight**: Files are artifacts of exploration. Conversations are exploration paths. Provenance connects them. Don't force users to choose between "file view" or "conversation view" - they're the same thing from different angles.
+
+---
 
 ## Clarifications
 
-### Session 2025-10-24
+### Session 2025-10-26
 
-- Q: When AI agent creates content, does it create a "document" in the 003 sense (with embedding chunks) or just a "file"? How do markdown editor features integrate with AI-generated content? → A: Agent-created content follows the same path as user-created content with identical embedding flow. MVP will include `last_edit_by` field to track whether user or agent made the last edit. Agent-generated content is treated identically to user-generated content in the editor.
+- Q: How should conversation summaries be generated when "auto-updated on every message" - incremental update or full regeneration? → A: Regenerate summary and embedding from scratch on every new message (not incremental updates)
+- Q: Should system enforce hard limits on branch count (e.g., max 200 branches per user)? → A: No hard limits beyond billing plan quotas - system should scale gracefully without artificial branch count limits
+- Q: What information should conversation summaries include (topics, decisions, artifacts, questions)? → A: Topics + key decisions + artifacts created + open questions (comprehensive context for consolidation and cross-branch discovery)
+- Q: What happens when consolidation attempts to access deleted files from archived branches? → A: Skip deleted files silently and note in consolidation output ("Note: 2 referenced files unavailable")
+- Q: What happens when file is edited outside of originating conversation - how does provenance update? → A: Update edit_history only (timestamp, editor=user, edited_in_conversation_id=null), keep original provenance metadata unchanged
+- Q: Should memory chunk summaries be generated from just the 10 messages in that chunk or all messages up to that point? → A: From the 10 messages in that chunk only (localized summaries for better semantic retrieval of specific conversation segments)
+- Q: How does system handle file created in Branch A, edited in Branch B, then edited again in Branch A - multi-branch provenance chain? → A: No edit history array - just update last_edited timestamp, last_edited_by (agent/user), and edited_in_conversation_id fields with most recent edit (simple last-edit tracking, not full history)
+- Q: What should file structure_metadata include (outline, concepts, entities, AST)? → A: File outline (headings hierarchy) + key concepts + main topics (structured for navigation and semantic matching)
+- Q: When branch is deleted (allowed only if no children), what happens to files created in that branch? → A: Keep files but clear provenance - preserve files in filesystem, set created_in_conversation_id=null to indicate orphaned status, keep context_summary for historical reference (prevents data loss while maintaining provenance transparency)
+- Q: What threshold defines "significant" file content change for triggering shadow entity summary update? → A: Character diff threshold >20% (balances freshness with embedding/LLM cost, measurable trigger)
+- Q: Should User Story 5 show "full edit history" or "simple last-edit tracking only" (conflicts with FR-012c)? → A: Simple last-edit tracking only - show only most recent edit info (last_edited_by, edited_in_conversation_id) without full history array (matches FR-012c, MVP simplicity, reduces storage overhead)
+- Q: When user @-mentions Chat A which @-mentions Chat B which @-mentions Chat C, how to prevent circular reference and infinite context expansion? → A: No nested resolution (depth 1 only) - load @-mentioned chat's direct content (summary + last 5 messages + explicit files + artifacts) WITHOUT expanding any @-mentions inside it (prevents infinite loops, keeps context predictable, simple for MVP)
+- Q: When agent requests tool approval and user abandons prompt for hours, what happens to prevent indefinite resource consumption (SSE connection, Edge Function execution)? → A: Timeout after 10 minutes - auto-reject pending approval, release server resources, show error "Approval timed out. Please retry your request." User must retry from beginning (balances review time with resource conservation)
+- Q: How should users manually exclude sibling branches from context (UI mechanism for FR-029)? → A: Toggle in semantic matches section - each semantic match shows "Hide from [Branch Name]" button in tooltip/dropdown, clicking blacklists that branch_id for current conversation (prevents future semantic matches from that branch), user can view/remove blacklisted branches in context settings (discoverable at point of need, per-conversation scope)
 
-- Q: How does TipTap editor handle AI-proposed changes? Does diff view work within TipTap or separately? Can user continue editing in TipTap while AI processes changes? → A: No diffs in MVP. Agent changes are applied directly to the editor like normal user edits. Approval prompts specify what the agent wants approval for (edit/create/delete/move/rename). If user edits file being modified by agent, conflict modal appears for user to choose between canceling agent request or discarding user changes.
+### Session 2025-10-25
 
-- Q: If user is typing and AI agent is invoked, does the 3-second timer reset? What happens if user keeps typing continuously? → A: User cannot type and trigger request simultaneously. If user starts typing after request begins, conflict modal appears when request determines involved entities. Modal is blocking and cannot be dismissed until user decides; autosave pauses until decision. User can edit files unrelated to the request. System differentiates read-only vs write access - read-only requests proceed without conflict, write requests trigger modal if user has pending changes.
+- Q: Should context priming capture related files/nodes automatically when user sends a request? → A: Yes, system should automatically capture semantically related files for agent processing
+- Q: Can users @-mention other conversations (chats) to add them to context? → A: Yes, users should be able to @-mention other chats to add their context (files, messages, artifacts)
+- Q: How should provenance be displayed in file editor - click modal or hover tooltip? → A: Click file/reference opens editor with full provenance in header; hover shows summarized tooltip with key provenance data
+- Q: Should context panel be separate UI component or integrated into chat? → A: Context section integrated into chat (above input box, before messages) showing different context types with visual priority indicators
+- Q: How should context priority/weight be visualized to users? → A: Use visual indicators (color/icon/grouping boundaries) to show priority tiers (Group 1 = highest priority, Group 2 = next, etc.) without exposing numeric weights
+- Q: Should context budget (token allocation) be displayed to users? → A: No, context budget removed from user-facing UI (internal optimization only)
+- Q: When user @-mentions another conversation, what content should be included in context? → A: Conversation summary + last 5 messages + all explicit files + all artifacts from @-mentioned conversation
+- Q: How should nested branches inherit context (Main → A → A1)? → A: Inherit explicit files from immediate parent only + parent conversation summary + parent's last message + branching user message content (if agent-created branch)
+- Q: When semantic search finds 50+ relevant files, how should results be limited? → A: Show top 10 files by final relevance score, prioritize files from related branches (siblings/parent/child) over distant branches
+- Q: How should provenance be assigned to manually created files (not via agent)? → A: No provenance assigned to manually created files. If agent later edits it, track last_edited timestamp and editor (agent vs user) in edit history
+- Q: What happens when parent branch is deleted but child branches exist? → A: Prevent parent deletion if children exist (show error: "Cannot delete branch with children. Delete children first.")
+- Q: Should all domain entities (files, conversations, knowledge graph nodes) have embeddings and summaries in a unified layer? → A: Yes - All entities get embeddings + summary + structure metadata in unified shadow layer
+- Q: Should the unified embedding layer be a separate table (shadow domain) or embedded columns in each entity table? → A: Separate `shadow_entities` table - Unified table with (entity_id, entity_type, embedding, summary, structure_metadata) that all entities reference
+- Q: How should agent responses be displayed to users (streaming vs complete)? → A: Stream responses in real-time via Server-Sent Events (SSE) showing mixed content (text, tool calls, approvals) in execution order within same chat message. Message structure can be: text, tool, text, tool, tool, text, etc. with loading feedback at start
+- Q: When agent response stream is interrupted (network disconnect, server error), how should system handle reconnection? → A: Discard partial message, user must retry request from beginning (simpler for MVP)
+- Q: When agent requests tool call approval during streaming response, should stream pause or continue? → A: Pause stream, wait for user approval/rejection, then resume streaming after user acts (prevents confusion, clearer causality)
+- Q: How often should conversation embeddings and summaries be updated? → A: Trigger embedding and summary generation on every message (not just every 10 messages) for maximum context freshness
+- Q: Is "Context Pill" the right term or should it be renamed? → A: Rename to "Context Reference" (Context Pill is UI-specific term, Context Reference is more accurate for domain model)
+- Q: When should prime context be built for agent requests? → A: Build prime context BEFORE sending request to agent, assembling most relevant and optimal data across all domains (files, conversations, KG) so agent can perform actions optimally and know which tools to call
+- Q: When agent streams multiple tool calls and user rejects the first one, what happens to subsequent tool calls? → A: Pause stream at first rejection, ask agent to revise plan given rejection, continue with new strategy
+- Q: How should system prevent irrelevant sibling pollution while enabling useful cross-branch discovery? → A: Use relevance threshold + topic divergence check - if branch summaries have cosine similarity <0.3, only show semantic matches with relevance >0.9 (prevents noise from topically unrelated branches)
+- Q: How should branch graph UI be displayed during regular workflow (not just Phase 3 tree view)? → A: Branch selector dropdown shows hierarchical tree structure with indentation for nested branches (similar to file tree: Main → RAG Deep Dive → RAG Performance)
+- Q: Should context management use dynamic priming only, memory chunking only, or hybrid? → A: Hybrid - Dynamic priming optimizes per-request context (show excluded items in UI for manual re-priming), memory chunking compresses old conversation messages into embeddings when conversation exceeds manageable size (retrieve relevant chunks semantically per request)
+- Q: When user renames or moves a file, how should system handle provenance metadata, context references, and shadow entity? → A: Update all references atomically in transaction - file_id stays same, update path in all tables (files, context_references, shadow_entities), preserve provenance metadata, update shadow entity path reference
+- Q: How should desktop workspace layout balance chat-first UX with file editing needs? → A: Adaptive 3-panel layout - Left panel (20%, tabs for Files/Chats, defaults to Chats on open, no persistence), Center panel (40-80% chat, expands when no file open), Right panel (0-40% editor, appears only when file opened, only one file at a time, close button to dismiss)
+- Q: When consolidating from branches with conflicting information, how should agent handle contradictions? → A: Agent chooses best recommendation using prioritization criteria (most recent > parent branch > higher confidence), includes provenance citation showing which branch was chosen and why, user can edit consolidated output if they disagree
 
-- Q: Are document chunks and shadow filesystem the same system or two different indexing layers? Do both coexist? Which takes precedence for context retrieval? → A: Same indexing layer. Document chunks should work toward being the shadow filesystem - unified system, not separate layers.
-
-- Q: When user uploads files via 003 interface, how does 004 shadow filesystem sync? Is there a delay before uploaded files appear in AI chat context? → A: Upload succeeds immediately. File tree UI shows "indexing" icon instead of file icon while embedding generation is in progress. File status is bound to UI with real-time updates.
-
-- Q: Are the three-panel layout from 003 and split view from 004 the same layout or different modes? Can user resize panels? Does chat always occupy right 30% or can it be full-screen? → A: Desktop only has three-panel layout. Chat always shows on right 30% panel. None of the panels can be resized. Fixed proportions for MVP.
-
-- Q: When user opens a document in 003 editor, does it automatically become a context pill in 004 chat? Or are these separate selection mechanisms? → A: Chat creation context depends on how chat was created: (1) Chat from file/folder → initial context is that file/folder, (2) Chat from "New chat" with document open → "all filesystem" + currently opened document as pills, (3) Chat from "New chat" with no document open → "all filesystem" only. User can close editor to show empty state. Pills evolve as user adds/removes context.
-
-- Q: If two users view same file in their own chat sessions and AI modifies it for user A, does user B see updates in real-time via 003's filesystem sync? → A: No multi-user file/folder sharing. Same user across different browser sessions or devices receives real-time updates via broadcast. Same user editing from multiple sessions simultaneously triggers conflict resolution flow.
-
-- Q: Are semantic search and full-text search unified into one search interface or separate? Which search is used when user types in search box? → A: Main search defaults to semantic search via embeddings. (Note: Clarify if semantic search already covers full-text search needs or if both are required.)
-
-- Q: Do storage limits from 004 apply to 003's document uploads? What counts toward limit - only indexed files or all files including binaries? → A: 10MB upload limit per file. Free tier: 50MB total, Pro tier: 1GB total, Enterprise: not in MVP. All user data counts toward limit: files, embeddings, indexes, everything. No binary file support.
-
-- Q: Should 003 spec explicitly state text/markdown restriction is for AI agent integration scope? → A: Only MD and text files are supported across the entire system.
-
-- Q: Does snippet context menu exist in 003's TipTap editor? Or only in a separate read-only file viewer? → A: Use same TipTap editor for all editing. If TipTap doesn't support custom right-click options, extend the reusable right-click pattern from file system UI to TipTap.
-
-- Q: If user deletes file manually via 003 UI while it's in a 004 chat context pill, what happens immediately? Does pill update in real-time? → A: Yes, real-time updates. When entity is deleted, all references update (chats, other entities). Database triggers client UI updates when references are updated/deleted.
-
-- Q: Are markdown sanitization (003) and LLM input sanitization (004) the same layer or different? Does AI-generated content also go through markdown sanitizer? → A: Same sanitization. AI-generated content is sanitized identically to user content.
-
-- Q: If user long-presses on file name in mobile tree view vs file content in editor, do different menus appear? Could this be confusing? → A: Long-press on mobile behaves the same as right-click. Same menu appears regardless of location.
-
-- Q: When user first logs in with no files, should they see 003's empty state (create file first) or 004's empty state (start chat)? What's the intended flow? → A: New user: empty state on file tree + document viewer (create/upload), empty state on chat panel (starting chat creates first chat immediately). Returning user with chats: chat list shown on chat panel. When user selects chat, add URL param for chat ID so page reload preserves selected chat.
-
-- Q: Does cost tracking include storage costs from 003's uploaded files? Or only AI-related costs? → A: Track all costs across all entities per user: API costs, AI costs, storage costs, request costs, everything. No running total in MVP, but must be queryable per user in database.
-
-- Q: How should the system behave when users hit their usage quota limits (requests or storage)? Should there be overages, grace periods, or hard stops? → A: Hard stop at tier limits - block all requests when quota is reached until the next billing cycle. Prompt users to upgrade plan when quota exhausted.
-
-- Q: What observability strategy should be implemented for production monitoring to detect issues like slow embedding generation, failed web searches, or degraded agent response quality? → A: Structured logging + Sentry errors + key metrics dashboard (minimum viable observability for MVP). Track request latency, error rates, embedding generation success, web search failures, and quota utilization.
-
-- Q: What is the disaster recovery strategy if the database is corrupted, embeddings are lost, or a critical bug causes data loss? FR-051 defers automatic backups to post-MVP. → A: Supabase built-in backups only (daily snapshots with point-in-time recovery). Leverage Supabase's automatic daily backups for MVP without additional backup infrastructure. Application-level backups deferred to post-MVP.
-
-- Q: What embedding model should be used for shadow filesystem and chat direction tracking? Options include sentence-transformers (local), OpenAI text-embedding-3-small, OpenAI ada-002, or CodeBERT. → A: OpenAI text-embedding-3-small (768-dim, $0.02/1M tokens, cloud API). Provides excellent retrieval quality with reasonable cost and simple API integration without model hosting infrastructure.
-
-- Q: What vector database should be used for storing and querying embeddings? Options include Supabase pgvector (built-in), Pinecone (managed), or Weaviate (self-hosted/cloud). → A: Supabase pgvector (built-in, co-located with data, free within Supabase plan). Already part of stack, simpler queries with co-located data, zero additional vendor costs, sufficient performance for MVP scale (<5,000 files).
+---
 
 ## User Scenarios & Testing _(mandatory)_
 
-### User Story 1 - Chat with Filesystem for Context-Aware Answers (Priority: P1)
+### User Story 1 - Branch Conversations for Parallel Exploration (Priority: P1)
 
-A user wants to ask questions about their files, notes, documents, or project materials and receive accurate answers that understand the structure, relationships, and content of their filesystem without manually searching or opening multiple files.
+A user exploring a complex topic wants to try multiple approaches simultaneously without losing context between threads. They need to branch their conversation to explore different angles (e.g., "RAG approach" vs "Fine-tuning approach") while maintaining the original exploration context.
 
-**Why this priority**: This is the foundational capability - enabling natural language interaction with the entire filesystem. It's the entry point that proves the value of AI-assisted file exploration and knowledge synthesis.
-
-**Independent Test**: Can be fully tested by creating a project with 10-15 files across multiple folders (meeting notes, research documents, project plans), asking "what are the key decisions from last week's meetings?", and verifying the agent synthesizes information from relevant files with accurate context.
+**Why this priority**: This is the foundational capability that differentiates us from linear chatbots (ChatGPT/Claude). Without branching, we're just another AI chat. This enables the core exploration workflow.
 
 **Acceptance Scenarios**:
 
-1. **Given** user has a project with 20 files across 5 folders (meeting notes, research, drafts), **When** user creates a new chat and asks "what are the main themes in my research notes?", **Then** system searches shadow filesystem, retrieves relevant files (research-1.md, analysis.md, etc.), and provides a synthesized answer with file references within 5 seconds
-2. **Given** user is viewing a specific file (notes/project-plan.md), **When** user creates a chat from that file, **Then** chat context is primed with the file content, its folder context, and sibling files, with a "project-plan.md" context pill displayed
-3. **Given** user highlights a text snippet in the viewer and right-clicks "Add to chat", **When** snippet is added, **Then** a new context pill appears showing "Snippet from project-plan.md (lines 45-67)" and agent's next response considers that specific snippet
-4. **Given** user has multiple context pills (3 files, 1 folder, 2 snippets), **When** user dismisses the "All filesystem" pill, **Then** agent only considers the explicitly selected contexts in subsequent responses
+1. **Given** user is in a conversation about "AI Agent Architecture", **When** they click "Create Branch" and name it "RAG Deep Dive", **Then** system creates a new branch with parent context inherited (explicit files as context references only, not messages) and displays parent-child relationship in branch selector dropdown with hierarchical indentation (Main → RAG Deep Dive)
+2. **Given** user is exploring "RAG vs Fine-tuning" in Main branch, **When** agent detects topic divergence (semantic distance >0.7) and suggests "This seems like a different exploration path. Create branch for Fine-tuning?", **Then** user can approve/reject, and if approved, system creates "Fine-tuning" branch with inherited context
+3. **Given** user has 3 branches (Main → RAG, Main → Orchestration), **When** user switches between branches, **Then** each branch maintains separate conversation history while sharing explicitly added files from parent
+4. **Given** user is in Branch A, **When** they send message asking about concept from Branch B, **Then** system does NOT automatically access Branch B context (context isolation by default, semantic search can find files created in Branch B if relevant)
+5. **Given** agent identifies opportunity for parallel exploration ("I could explore RAG in one branch and Orchestration in another"), **When** agent proposes branch creation with `create_branch(title, context_files)`, **Then** user sees approval prompt with proposed branch name and context, can approve/reject
 
 ---
 
-### User Story 2 - Collaborative Editing with AI Assistance (Priority: P2)
+### User Story 2 - Capture Artifacts with Provenance (Priority: P2)
 
-A user wants the AI agent to make content changes, create new files, or reorganize existing content based on natural language instructions, with the ability to review and approve changes before they're applied.
+A user wants AI to create files (analysis documents, summaries, decision docs) from conversation insights and have those files automatically track which conversation created them, when, and why. Files should be persistent and reusable across all conversations.
 
-**Why this priority**: This transforms the agent from read-only assistant to active collaborator, enabling productivity gains through automated content generation and editing. It's the key differentiator from basic chatbots.
-
-**Independent Test**: Can be tested by asking the agent "expand the introduction section with more detail", reviewing the proposed changes with inline diff, approving, and verifying the file is updated correctly.
+**Why this priority**: Artifact capture is what makes exploration persistent. Without this, insights evaporate like in ChatGPT. This enables the "Capture" step in our workflow (Explore → Capture → Reference → Consolidate).
 
 **Acceptance Scenarios**:
 
-1. **Given** user asks "reorganize the meeting notes to group by topic instead of chronologically", **When** agent proposes changes, **Then** user sees an approval prompt listing affected files (meeting-notes.md) with action summary, and can approve/reject before changes are applied
-2. **Given** agent is making edits to a file, **When** changes are approved, **Then** file is updated in real filesystem and user sees a success notification with link to the modified file
-3. **Given** user asks "create a new research summary for the climate change topic", **When** agent proposes file creation, **Then** approval prompt shows file path (research/climate-summary.md), estimated word count, and file preview before creation
-4. **Given** user requests changes across 5 files, **When** approval prompt is shown, **Then** user can expand each file to see detailed diff preview and approve all at once or reject specific files
+1. **Given** user is in "RAG Deep Dive" branch and asks "create a summary of RAG best practices", **When** agent proposes file creation with `write_file(path="rag-analysis.md", content)`, **Then** user sees approval prompt with file path, preview, and can approve/reject
+2. **Given** user approves file creation, **When** file is created, **Then** system stores provenance metadata (created_in_conversation_id, creation_timestamp, context_summary) and generates embeddings + node_summary (title, structure, key concepts)
+3. **Given** file "rag-analysis.md" was created in Branch A, **When** user creates new Branch B from Main, **Then** system can surface "rag-analysis.md" via semantic search when relevant to Branch B context (cross-branch discovery)
+4. **Given** user views file "rag-analysis.md" in file editor, **When** they hover over provenance indicator, **Then** system shows "Created in: RAG Deep Dive branch, 2 hours ago, Context: RAG best practices discussion"
+5. **Given** agent creates file "rag-analysis.md" in conversation, **When** next message is sent in same conversation, **Then** file is auto-included in explicit context (agent remembers what it just created)
+6. **Given** agent streams response with multiple tool calls ("Let me create analysis.md [tool_call] and also update config.md [tool_call]"), **When** user rejects first tool call, **Then** stream pauses, system sends rejection to agent with context, agent revises plan, stream resumes with revised strategy (second pending tool call is discarded, agent may propose different approach)
 
 ---
 
-### User Story 3 - Enhanced Research with Web Search (Priority: P3)
+### User Story 3 - Cross-Branch Context Discovery (Priority: P3)
 
-A user wants the AI agent to supplement filesystem knowledge with real-time web search results when local context is insufficient or when explicitly requested (e.g., "search the web for React 18 best practices").
+A user working in one branch wants to discover and reference relevant files created in sibling branches or parent branches without manually searching. System should surface contextually relevant files from across the exploration tree using semantic similarity.
 
-**Why this priority**: Web search adds external knowledge beyond the filesystem, making the agent more versatile. However, filesystem-based answers are the core value, making this enhancement-tier.
-
-**Independent Test**: Can be tested by asking a question that requires external knowledge ("what are the breaking changes in TypeScript 5.0?"), verifying the agent searches the web, and seeing cited web sources in the response.
+**Why this priority**: This enables the "Reference" step in our workflow. Without cross-branch discovery, branches become isolated silos. This is what makes the exploration tree more valuable than isolated conversations.
 
 **Acceptance Scenarios**:
 
-1. **Given** user asks "what are the latest security best practices for JWT authentication?", **When** filesystem has limited security documentation, **Then** agent automatically triggers web search, synthesizes findings from 3-5 web sources, and provides answer with both filesystem and web citations
-2. **Given** user explicitly requests "search the web for Next.js 14 app router examples", **When** agent processes request, **Then** response prioritizes web search results, shows source URLs with snippets, and optionally suggests saving relevant patterns to filesystem
-3. **Given** user asks a filesystem-specific question "where is the user validation logic?", **When** sufficient context exists locally, **Then** agent answers using only filesystem context without triggering unnecessary web searches
-4. **Given** web search returns 10 results, **When** agent synthesizes response, **Then** answer includes executive summary with top 3 most relevant sources highlighted and full source list available on expand
+1. **Given** user created "rag-analysis.md" in Branch A and "orchestration-notes.md" in Branch B, **When** user is in Main branch and asks "compare RAG and orchestration approaches", **Then** semantic search surfaces both files as relevant context (shown in "Semantic matches" section of context panel)
+2. **Given** user is in Branch B discussing orchestration, **When** system finds "rag-analysis.md" from sibling Branch A has high semantic similarity (>0.8), **Then** system shows "rag-analysis.md" in semantic matches with sibling relationship indicator (+0.15 weight boost)
+3. **Given** user manually adds file "rag-analysis.md" from Branch A to Branch B context, **When** user sends message, **Then** file appears in "Explicit context" section with provenance indicator (from Branch A) and gets 100% weight in context allocation
+4. **Given** user types "@rag" in message input, **When** autocomplete dropdown appears, **Then** system shows matching files across all branches with branch indicators ("rag-analysis.md [RAG Deep Dive]")
+5. **Given** user has 10+ branches with 50+ files, **When** user asks ambiguous question, **Then** context assembly applies relationship modifiers (siblings +0.15, parent/child +0.10) and temporal decay to prioritize recent, related content
 
 ---
 
-### User Story 4 - Cross-File Referencing and Context Management (Priority: P4)
+### User Story 4 - Consolidate from Exploration Tree (Priority: P4)
 
-A user wants to reference files from different folders, add specific snippets to ongoing conversations, and dynamically manage chat context even when the chat was initialized from a specific file or folder.
+A user who has explored a topic across multiple branches (e.g., Branch A: RAG, Branch B: Orchestration, Branch C: Prompting) wants to consolidate findings from all branches into a single comprehensive document with provenance tracking (which insights came from which branch).
 
-**Why this priority**: This enables complex multi-file workflows and keeps conversations contextually relevant. It's important for power users but not essential for initial value delivery.
-
-**Independent Test**: Can be tested by starting a chat from folder A, asking about file B in folder C, then adding a snippet from file D, and verifying all contexts are properly tracked with pills.
+**Why this priority**: This enables the "Consolidate" step in our workflow (Explore → Capture → Reference → Consolidate → Ship). This is where parallel exploration becomes more valuable than linear chat - user can synthesize multiple exploration paths.
 
 **Acceptance Scenarios**:
 
-1. **Given** user types "@" in chat input, **When** user continues typing "not", **Then** system shows autocomplete dropdown with matching files/folders (notes/, notes/brainstorm.md, etc.), and user can arrow-key navigate and Enter to select
-2. **Given** user has selected "@notes/brainstorm.md" from autocomplete, **When** message is sent, **Then** system automatically adds brainstorm.md as a context pill and includes it in the agent's context window
-3. **Given** user types "use this template/templates/blog-post.md as reference", **When** message is sent, **Then** system parses inline file path, adds blog-post.md as context pill, and agent uses it as reference for subsequent responses
-4. **Given** user has 6 context pills (2 folders, 3 files, 1 snippet), **When** combined context exceeds token limit, **Then** system shows warning "Context limit reached" and allows user to remove pills or prioritizes most recent additions
-5. **Given** user creates a chat from a specific file, **When** user later references another file from a different folder, **Then** both contexts are maintained with separate pills, and agent understands relationships between them
-6. **Given** user copies text from external source and pastes into chat, **When** user asks "integrate this outline into project-brief.md", **Then** agent recognizes external snippet, adds it as context pill "Pasted snippet", and proposes integration changes
-7. **Given** user has "All filesystem" pill active, **When** user adds specific file project-brief.md as context pill, **Then** both contexts coexist (broad search + explicit priority for project-brief.md), and agent weights project-brief.md higher in context allocation
+1. **Given** user has explored topic across 3 branches (RAG, Orchestration, Prompting) with artifacts in each, **When** user returns to Main branch and says "generate comprehensive AI agent decision document from all branches", **Then** agent traverses tree, accesses artifacts from all child branches, and proposes consolidated document with provenance citations ("RAG approach from Branch A", "Orchestration from Branch B")
+2. **Given** agent is consolidating from multiple branches, **When** agent generates content, **Then** system includes provenance in AI prompts ("This came from Branch A: RAG Deep Dive") so agent can cite sources in output
+3. **Given** consolidated document references insights from Branch A and Branch B, **When** user views document, **Then** provenance metadata shows source branches for each section (e.g., "Section 2.1: From RAG Deep Dive branch")
+4. **Given** user approves consolidated document creation, **When** file is created, **Then** system stores provenance with multiple source conversations (created from Main, references Branch A + Branch B + Branch C)
+5. **Given** user has deeply nested branches (Main → A → A1, Main → B → B1 → B2), **When** consolidation happens, **Then** agent can traverse full tree depth to gather all relevant artifacts (tree traversal for consolidation)
 
 ---
 
-### User Story 5 - Mobile-Optimized Context Selection (Priority: P5)
+### User Story 5 - Provenance Transparency & Navigation (Priority: P5)
 
-A user on mobile wants to add text snippets or files to chat, navigate to specific chats, and manage context pills efficiently within mobile screen constraints.
+A user wants to understand where files came from, which conversation created them, and navigate back to the source conversation to see the full context that led to artifact creation. This builds trust and enables exploration traceability.
 
-**Why this priority**: Mobile support is important for on-the-go workflows, but desktop is the primary environment for code editing. Mobile optimization can be refined post-MVP.
-
-**Independent Test**: Can be tested on mobile by highlighting text in viewer, tapping "Add to chat" (stays in viewer) vs "Add and go to chat" (shows chat picker), and verifying smooth navigation.
+**Why this priority**: Provenance transparency is critical for trust ("where did this come from?") and navigation ("how did I arrive at this insight?"). This is the connective tissue that makes branching + filesystem a unified system, not separate features.
 
 **Acceptance Scenarios**:
 
-1. **Given** user on mobile highlights code snippet in file viewer, **When** user long-presses to open context menu, **Then** menu shows "Add to chat" (adds to current chat, stays in viewer) and "Add and go to chat" (shows chat picker modal)
-2. **Given** user selects "Add and go to chat", **When** chat picker appears, **Then** modal shows list of recent chats sorted by last activity with chat titles, preview of last message, and "+ New Chat" option at top
-3. **Given** user has 5 context pills in chat, **When** viewing on mobile, **Then** pills are horizontally scrollable with smooth drag gesture and last pill shows "+3 more" if overflow exists
-4. **Given** user taps a context pill on mobile, **When** pill detail view opens, **Then** user can preview content in bottom sheet, remove pill, or navigate to source file
+1. **Given** user views file "rag-analysis.md" in context references, **When** they click provenance indicator, **Then** system shows modal with: source branch name, creation timestamp, context summary (2-3 sentences about what the conversation was exploring), and "Go to source conversation" link
+2. **Given** user clicks "Go to source conversation", **When** navigation happens, **Then** system opens source branch at the exact message where file was created, with highlight on the creation event
+3. **Given** user is in conversation viewing context panel, **When** they hover over file in "Semantic matches" section, **Then** tooltip shows: "From: RAG Deep Dive branch (sibling, +0.15 weight), Created: 2 hours ago, Relevance: 0.87"
+4. **Given** user has Visual Tree View enabled (Phase 3), **When** they click on file node in tree, **Then** system highlights all conversations that referenced this file (provenance graph visualization)
+5. **Given** file was created in Branch A and later edited in Branch B, **When** user views provenance, **Then** system shows creation info and most recent edit info ("Created in Branch A, Last edited in Branch B by agent")
 
 ---
 
 ### Edge Cases
 
-- What happens when user requests file edits but files are currently open and modified (unsaved changes)?
-- How does system handle file creation when target path already exists?
-- What happens when shadow filesystem is out of sync with real filesystem (file modified externally)?
-- How does system handle extremely large files (>10,000 lines) that exceed context window?
-- What happens when web search API is unavailable or rate-limited?
-- How does system handle concurrent edits from multiple chat sessions targeting the same file?
-- What happens when agent proposes changes that would break syntax or introduce compilation errors?
-- How does system handle binary files (images, PDFs) in context pills?
-- What happens when chat direction embedding generation fails or takes too long?
-- How does system handle deeply nested folder structures (10+ levels) in context selection?
-- What happens when user's filesystem contains sensitive files (credentials, API keys)?
-- How does system handle file deletions requested by agent?
-- What happens when user deletes a chat while agent is processing a request in that chat?
-- What happens when user pastes extremely large content (>10MB) into chat input?
-- How does system handle agent proposing to delete a file that's referenced in another chat's context pills?
-- What happens when embedding generation fails for specific file (corrupted content, encoding issues)?
-- How does system handle user editing file while agent is reading it for context building?
-- What happens when filesystem contains duplicate file names in different folders?
-- How does system handle symbolic links or aliases in filesystem?
-- What happens when agent proposes creating file with name matching existing folder?
-- What happens when user switches to different project/filesystem while agent is processing request?
+**Branching & Context**:
+
+- ✅ **RESOLVED**: What happens when user creates branch from branch (nested branches) - does context inherit from immediate parent only or accumulate from root? → Inherit from immediate parent only: explicit files + parent summary + parent's last message + branching message (if agent-created)
+- ✅ **RESOLVED**: How does system handle deeply nested branches (10+ levels) - performance and context limits? → No hard limits on nesting depth or branch count beyond billing plan quotas. System designed to scale gracefully with optimized tree traversal and context assembly
+- ✅ **RESOLVED**: What happens when parent branch is deleted but child branches exist - orphaned branches behavior? → Prevent parent deletion if children exist (show error: "Cannot delete branch with children. Delete children first.")
+
+**Provenance & Files**:
+
+- ✅ **RESOLVED**: What happens when file is edited outside of originating conversation - how does provenance update? → Update last_edited timestamp, last_edited_by=user, edited_in_conversation_id=null, keep original provenance metadata unchanged (preserves creation context)
+- ✅ **RESOLVED**: How does system handle file created in Branch A, edited in Branch B, then edited again in Branch A - multi-branch provenance chain? → No edit history array - just update last_edited timestamp, last_edited_by (agent/user), and edited_in_conversation_id with most recent edit (simple last-edit tracking)
+- ✅ **RESOLVED**: What happens when user manually creates file (not via agent) - how is provenance assigned? → No provenance assigned to manually created files. If agent later edits it, track last_edited timestamp and last_edited_by (agent vs user)
+- ✅ **RESOLVED**: How does system handle file renames or moves - does provenance persist? → Update all references atomically in transaction (file_id unchanged, update path in all tables), preserve provenance, update shadow entity, maintain navigation and context references
+
+**Consolidation**:
+
+- ✅ **RESOLVED**: What happens when consolidation attempts to access deleted files from archived branches? → Skip deleted files silently and note in consolidation output ("Note: 2 referenced files unavailable")
+- ✅ **RESOLVED**: How does system handle consolidation from 20+ branches - context window overflow? → Hybrid context management: prioritize high-relevance artifacts using semantic scoring, compress conversation history with memory chunking, show excluded items in UI for manual inclusion
+- ✅ **RESOLVED**: What happens when user consolidates from branches with conflicting information - how does agent handle contradictions? → Agent chooses best recommendation using prioritization (most recent > parent branch > higher confidence), includes provenance citation showing which branch was chosen and why, user can edit output if they disagree
+
+**Cross-Branch Discovery**:
+
+- ✅ **RESOLVED**: What happens when semantic search finds 50+ relevant files across branches - how are results prioritized and limited? → Show top 10 files by final relevance score, prioritize files from related branches (siblings/parent/child) over distant branches
+- ✅ **RESOLVED**: How does system prevent irrelevant sibling pollution (Branch A about "agents" and Branch B about "pricing" shouldn't cross-pollinate)? → Use topic divergence filtering: if branch summaries have cosine similarity <0.3, only show semantic matches with relevance >0.9 (high-confidence only from unrelated branches)
+- ✅ **RESOLVED**: What happens when user explicitly excludes sibling branches from context - manual override mechanism? → "Hide from [Branch Name]" button in semantic match tooltip/dropdown blacklists branch_id for current conversation, user can view/remove blacklisted branches in context settings (per-conversation scope)
+
+**Performance & Scale**:
+
+- ✅ **RESOLVED**: How does tree traversal perform with 100+ branches? → Performance targets defined in FR-065: <2s for <50 branches, <5s for <200 branches. No hard limits enforced - system scales gracefully
+- What happens when provenance metadata grows large (file edited 50+ times across 20+ conversations)?
+- What happens when semantic search scale when searching across 1000+ files from 100+ branches? (Performance target: <1s for 1000 entities per FR-064)
+
+**Streaming & Network**:
+
+- ✅ **RESOLVED**: What happens when SSE stream is interrupted mid-response (network disconnect, server error)? → Discard partial message, show error prompt, user must retry request from beginning (simpler for MVP)
+
+---
 
 ## Requirements _(mandatory)_
 
 ### Functional Requirements
 
-#### Filesystem Integration
+#### Branching & Chat Graph Management
 
-- **FR-001**: System MUST maintain a shadow filesystem representation with embeddings for all text-based files (markdown, text, notes, documents)
-- **FR-002**: System MUST synchronize shadow filesystem with real filesystem changes within 2 seconds of file save events
-- **FR-003**: System MUST generate embeddings for new/modified files asynchronously without blocking user interaction, processing one file at a time to avoid resource exhaustion
-- **FR-003a**: System MUST display indexing progress indicator in UI showing number of files indexed out of total (e.g., "Indexing: 45/120 files")
-- **FR-003b**: System MUST allow users to start chatting before indexing completes - indexed files are searchable immediately, unindexed files return on next sync
-- **FR-003c**: System MUST enforce file upload limits (maximum file count and total size per upload) to prevent performance degradation
-- **FR-003d**: System MUST enforce storage limits per user plan (Free: 50MB, Pro: 1GB, Enterprise: deferred post-MVP) and prompt upgrade when limit reached - all user data counts toward limit including files, embeddings, indexes, and all associated data
-- **FR-003e**: System MUST enforce 10MB maximum file size for individual file uploads
-- **FR-004**: System MUST support filesystem operations on text files (.txt) and markdown files (.md) only - other file types are out of scope for MVP
-- **FR-005**: System MUST index folder hierarchy and maintain parent-child relationships for context traversal
-- **FR-006**: System MUST detect file renames and moves to preserve chat context references
-- **FR-006a**: System MUST retrigger embedding generation when files are renamed or moved to maintain accurate shadow filesystem
-- **FR-006b**: System MUST update all chat context references (pills, auto-gen artifacts) when files are renamed or moved, with pills UI reacting in real-time to path changes
-- **FR-006c**: System MUST clear embeddings, references, chat pills, and all related data when files/folders are deleted
-- **FR-006d**: System MUST allow agent requests to continue when referenced file/folder is deleted - attempt to retrieve entities but proceed if not found, notifying user in response that referenced file is no longer available
-- **FR-006e**: System MUST handle deleted file references differently based on location: (1) remove deleted file pills from active pill list at top of chat, (2) preserve deleted file pills in chat message history with "File Deleted" indicator where they were originally referenced
-- **FR-007**: System MUST default to read-only access mode for all files - agent operations requiring write access MUST prompt user for permission before proceeding
-- **FR-007a**: System MUST check if target folder exists before file creation, creating parent directories automatically if needed
-- **FR-007b**: System MUST fail gracefully when encountering filesystem permission errors with user-friendly error messages
-- **FR-007c**: System MUST differentiate between read-only and write access requests - read-only requests proceed without conflict even if user is editing file, write requests trigger conflict modal if user has pending changes
-- **FR-007d**: System MUST track last_edit_by field for all files (user_id or 'agent' value) to indicate whether last modification was by user or agent
-- **FR-007e**: System MUST display "indexing" icon on file tree UI for files currently being embedded, replacing standard file icon until embedding generation completes with real-time status updates
+- **FR-001**: System MUST support creating child branches from any conversation with parent-child relationship (DAG structure)
+- **FR-002**: System MUST inherit from immediate parent when child branch is created: explicit files (context references) + parent conversation summary + parent's last message + branching message content (if agent-created the branch via `create_branch`)
+- **FR-002a**: System MUST NOT accumulate context from entire ancestor chain (nested branches inherit from immediate parent only, not from root or all ancestors)
+- **FR-003**: System MUST maintain context isolation between sibling branches by default (Branch A context does not auto-load in Branch B unless semantically matched)
+- **FR-004**: System MUST support user-initiated branching via "Create Branch" button in chat header
+- **FR-005**: System MUST support agent-initiated branching via `create_branch(title, context_files)` tool call with user approval
+- **FR-006**: System MUST support system-prompted branching when topic shift is detected (semantic distance >0.7 from parent conversation)
+- **FR-007**: System MUST display branch navigation UI showing current branch, parent, siblings, and children with branch titles in hierarchical tree structure with indentation for nested branches (similar to file tree display pattern)
+- **FR-008**: System MUST allow branch renaming by user at any time
+- **FR-008a**: System MUST allow branch deletion by user, but MUST prevent deletion if child branches exist (show error: "Cannot delete branch with children. Delete children first."). When branch is deleted, files created in that branch MUST be preserved with provenance cleared: set created_in_conversation_id=null to indicate orphaned status, keep context_summary for historical reference
+- **FR-009**: System MUST track branch metadata: parent_id, creation_timestamp, branch_title, creator (user/agent/system)
+- **FR-009a**: System MUST generate and maintain conversation summary for each conversation using embeddings/summarization (regenerate summary and embedding from scratch on every message for maximum context freshness, not incremental updates). Summary MUST include: topics discussed, key decisions made, artifacts created, and open questions
+- **FR-010**: System MUST support tree traversal (parent → children, children → parent, siblings discovery) for navigation and consolidation
+
+#### Shadow Domain (Unified Semantic Layer)
+
+- **FR-010a**: System MUST maintain a separate `shadow_entities` table as the unified shadow domain for all searchable entities (files, conversations, knowledge graph nodes)
+- **FR-010b**: System MUST create shadow entity entry for each domain entity containing: entity_id (reference to source entity), entity_type (file/conversation/kg_node), embedding (768-dim vector), summary (auto-generated 2-3 sentence description), structure_metadata (JSONB entity-specific structure: for files = {outline: headings hierarchy array, key_concepts: string array, main_topics: string array}, for conversations = {topics: string array}, for kg_nodes = {relationships: object})
+- **FR-010c**: System MUST generate shadow entity embeddings asynchronously within 2 seconds of source entity creation or modification
+- **FR-010d**: System MUST support unified semantic search across all entity types via single query to shadow_entities table ("find files OR conversations OR concepts about RAG")
+- **FR-010e**: System MUST update shadow entity summary when source entity changes significantly (files: >20% character diff from last snapshot triggers regeneration of embedding + summary + structure_metadata, conversations: regenerate from scratch on every message, KG nodes: relationship changes)
+- **FR-010f**: System MUST delete shadow entity when source entity is deleted (cascade delete or cleanup job)
+
+#### File Creation & Provenance Tracking
+
+- **FR-011**: System MUST create files only via agent tool call `write_file(path, content)` with user approval
+- **FR-012**: System MUST store provenance metadata only for agent-created files: created_in_conversation_id, creation_timestamp, context_summary (2-3 sentence description of conversation context)
+- **FR-012a**: System MUST NOT assign provenance metadata to manually created files (files created by user outside of agent `write_file` tool)
+- **FR-012b**: System MUST track last edit metadata for ALL files (agent-created and manual): last_edited timestamp, last_edited_by (agent/user), edited_in_conversation_id (nullable - null if user manual edit outside conversation, conversation_id if agent edit)
+- **FR-012c**: System MUST preserve original provenance metadata when agent-created file is edited (user or agent): update last_edited, last_edited_by, edited_in_conversation_id fields only, do NOT modify created_in_conversation_id or context_summary
+- **FR-013**: System MUST create shadow entity for every file (agent-created or manual) with embedding, summary, and structure_metadata containing: outline (headings hierarchy as nested array), key_concepts (extracted concept terms as string array), main_topics (primary topics as string array)
+- **FR-014**: REMOVED - Integrated into FR-010b (shadow entity contains structure_metadata)
+- **FR-015**: System MUST auto-include newly created files in explicit context for next message in same conversation (agent remembers what it created)
+- **FR-016**: System MUST support file editing via agent `write_file(path, updated_content)` with user approval - updates last_edited timestamp, last_edited_by=agent, edited_in_conversation_id
+- **FR-017**: System MUST display provenance indicators in file UI only for agent-created files (pills, editor header, file browser) showing source conversation
+- **FR-018**: System MUST open file editor with full provenance in header when user clicks file or file reference (source branch, creation timestamp, context summary, last edit info (last_edited_by, edited_in_conversation_id if applicable), "Go to source" link)
+- **FR-018a**: System MUST display summarized provenance tooltip on hover over file reference (source branch, creation time, brief context) without opening editor
+- **FR-019**: System MUST navigate to source conversation at exact message where file was created when user clicks "Go to source"
+- **FR-020**: System MUST handle file renames and moves atomically in transaction: file_id remains unchanged, update path in files table + all context_references + shadow_entity entity_id field, preserve all provenance metadata (created_in_conversation_id, context_summary, last edit fields), update shadow entity summary to reflect new path, maintain all references so "Go to source" navigation and context references continue to work
+
+#### Cross-Branch Context Assembly
+
+- **FR-021**: System MUST perform semantic search across shadow_entities table to find relevant files, conversations, and concepts (not limited to current branch) when building context
+- **FR-021a**: System MUST limit semantic search results to top 10 entities by final relevance score (after relationship and temporal modifiers applied), prioritizing entities from related branches (siblings/parent/child) over distant branches
+- **FR-021b**: System MUST support entity type filtering in semantic search (e.g., "files only", "conversations only", "all types") based on context assembly needs
+- **FR-021c**: System MUST apply topic divergence filtering to prevent irrelevant sibling pollution: when comparing current branch summary to source branch summary via cosine similarity, if similarity <0.3 (topically divergent), only show semantic matches with relevance score >0.9 (high-confidence matches only from unrelated branches)
+- **FR-022**: System MUST apply relationship modifiers to relevance scores: siblings +0.10, parent/child +0.15 when entities from related branches match semantically
+- **FR-023**: System MUST apply temporal decay to relevance scores based on last_interaction timestamp: `1.0 - (months_since_last_interaction × 0.05)` with floor of 0.3
+- **FR-024**: System MUST display context section integrated into chat (above input box, before messages) with collapsible context type groups: (1) Explicit context, (2) Semantic matches, (3) Branch context, (4) Artifacts from this chat, (5) Knowledge graph connections (background), (6) Excluded from context (items that didn't fit in 200K budget, user can manually re-prime)
+- **FR-024a**: System MUST use visual priority indicators (color/icon/boundary grouping) to show context priority tiers (Group 1 = highest priority, Group 2 = next, etc.) without exposing numeric weights to users
+- **FR-024b**: System MUST build prime context BEFORE sending request to agent, automatically assembling most relevant and optimal data across all domains (files via shadow entities, conversations, KG nodes) so agent can perform actions optimally and determine which tools to call
+- **FR-024c**: System MUST complete prime context assembly within 1s of user sending message, prioritizing based on semantic relevance, relationship modifiers, and temporal decay
+- **FR-024d**: System MUST display excluded context items in UI (items that were referenced/relevant but didn't fit within 200K context budget after priming) in a separate collapsible section "Excluded from context" with ability to manually re-prime selected items
+- **FR-024e**: System MUST implement memory chunking for conversations exceeding 40 messages: compress messages 1-30 into embedding chunks (stored in shadow_entities or conversation_memory table), keep messages 31-40 as full text, retrieve relevant memory chunks semantically per request
+- **FR-024f**: System MUST chunk conversation history in batches of 10 messages (messages 1-10 → chunk 1, messages 11-20 → chunk 2, etc.) with each chunk containing: embedding, summary (generated from the 10 messages in that chunk only, not cumulative), message_ids array, timestamp_range
+- **FR-024g**: System MUST retrieve top 3 most relevant memory chunks when building context for long conversations (>40 messages), combining: latest 10 full messages + 3 relevant memory chunks (summarized) + files + branch context
+- **FR-024h**: System MUST allow manual re-priming of excluded context items: user clicks item in "Excluded from context" section → item promoted to explicit context (1.0 weight) for next request
+- **FR-025**: System MUST show provenance indicators in semantic matches section: file name, source branch, relationship type (sibling/parent/child), relevance score
+- **FR-025a**: System MUST display summarized provenance data in tooltip on hover (source branch, creation time, relevance) and full provenance in editor header when file is clicked
+- **FR-026**: System MUST support @-mention autocomplete for both files and other conversations (chats) with indicators in dropdown ("rag-analysis.md [RAG Deep Dive branch]", "Chat: RAG vs Fine-tuning [Main branch]")
+- **FR-026a**: System MUST allow users to @-mention other conversations to add their context to current conversation: conversation summary (from embeddings/summarization) + last 5 messages + all explicit files + all artifacts from @-mentioned conversation. System MUST NOT expand nested @-mentions (depth 1 only): if @-mentioned conversation contains @-mentions to other chats, those are ignored during resolution to prevent circular references and infinite context expansion
+- **FR-027**: System MUST prioritize context within 200K token limit using hybrid approach: Explicit references (1.0 weight, never truncated) > Semantic matches (0.5 base + modifiers) > Branch context (0.7 base) > Chat history (latest 10 full messages + top 3 relevant memory chunks if >40 messages, rest excluded but shown in UI)
+- **FR-028**: REMOVED - Context budget NOT displayed to users (internal optimization only)
+- **FR-029**: System MUST allow manual exclusion of sibling branches from context via "Hide from [Branch Name]" button in semantic match tooltip/dropdown. When clicked, system MUST blacklist that branch_id for current conversation (store in conversation metadata), preventing future semantic matches from that branch. System MUST provide UI in context settings to view and remove blacklisted branches (per-conversation scope)
+
+#### Consolidation from Exploration Tree
+
+- **FR-030**: System MUST support tree traversal for consolidation: agent can access artifacts from all child branches when user requests consolidation
+- **FR-031**: System MUST include branch provenance in AI prompts during consolidation ("This came from Branch A: RAG Deep Dive") so agent can cite sources
+- **FR-032**: System MUST store consolidated file provenance with multiple source conversations (array of conversation_ids that contributed to consolidated document)
+- **FR-033**: System MUST handle context window limits during consolidation using hybrid context management: prioritize high-relevance artifacts from all branches (semantic scoring + relationship modifiers), compress conversation history from each branch using memory chunking (retrieve relevant chunks only), show excluded branches/artifacts in UI with option for user to manually include before consolidation proceeds
+- **FR-034**: System MUST provide "Generate report from branches" command in Main branch that triggers tree traversal consolidation workflow
+- **FR-035**: System MUST display consolidation status in real-time: "Traversing tree → Gathering artifacts (3/5 branches) → Consolidating → Generating document"
+- **FR-035a**: System MUST handle conflicting information during consolidation by instructing agent to choose best recommendation using prioritization criteria: most recent timestamp > parent branch over sibling > higher confidence score from agent's analysis, MUST include provenance citation in consolidated output showing which branch recommendation was chosen and why (e.g., "Using PostgreSQL [from Branch A: Database Selection, most recent]"), user can manually edit consolidated document if they disagree with agent's choice
+- **FR-035b**: System MUST skip deleted files during consolidation and note unavailable files in output (e.g., "Note: 2 referenced files unavailable") without failing the consolidation operation
+
+#### Visual Tree View & Navigation (Phase 3)
+
+- **FR-036**: System SHOULD provide visual tree view showing branch hierarchy as interactive graph (desktop only, mobile uses list)
+- **FR-037**: Visual tree view SHOULD display branch nodes with titles, creation timestamps, artifact counts
+- **FR-038**: Visual tree view SHOULD allow click-to-navigate to any branch
+- **FR-039**: Visual tree view SHOULD highlight current active branch
+- **FR-040**: Visual tree view SHOULD show provenance graph: clicking file node highlights all conversations that referenced it
+
+#### Filesystem Integration (Shadow Filesystem)
+
+- **FR-041**: System MUST create shadow entity (via shadow_entities table) for all text-based files (.md, .txt) containing embedding, summary, and structure_metadata with: outline (headings hierarchy as nested array), key_concepts (extracted concept terms as string array), main_topics (primary topics as string array)
+- **FR-042**: System MUST synchronize shadow entities with file changes within 2 seconds (update embedding, summary, and structure_metadata when content changes by >20% character diff from last snapshot)
+- **FR-043**: System MUST generate shadow entity embeddings asynchronously without blocking user interaction
+- **FR-044**: System MUST support semantic search using cosine similarity on shadow entity embeddings with pgvector
+- **FR-045**: System MUST index folder hierarchy and maintain parent-child relationships in file metadata
+- **FR-046**: System MUST detect file renames/moves and update all references atomically in transaction (file_id unchanged, update path in files + context_references + shadow_entity, preserve provenance) within 2 seconds of filesystem change detection
+
+#### Agent Tool Calls & Approval Flow
+
+- **FR-047**: System MUST provide agent tools: `write_file(path, content)`, `create_branch(title, context_files)`, `search_files(query)`, `read_file(path)`, `list_directory(path)`
+- **FR-047a**: System MUST stream agent responses via Server-Sent Events (SSE) showing mixed content (text, tool calls, approval prompts) in execution order within same chat message
+- **FR-047b**: System MUST support agent message structures with any sequence of content types: text → tool → text → tool → tool → text, etc. (not just single text or single tool per message)
+- **FR-047c**: System MUST display loading feedback immediately when user sends message, then stream each content chunk (text/tool) as it arrives from agent
+- **FR-048**: System MUST require user approval for write operations (`write_file`, `create_branch`) before execution
+- **FR-048a**: System MUST pause stream when agent requests tool call approval, wait for user approval/rejection, then resume streaming after user acts (prevents confusion, clearer causality)
+- **FR-048b**: System MUST auto-reject pending approval and terminate SSE stream after 10 minutes of inactivity to release server resources (Edge Function execution, SSE connection, DB connections). System MUST show error message "Approval timed out after 10 minutes. Please retry your request." User must send message again to retry from beginning
+- **FR-049**: System MUST show approval prompt with: operation type, affected entities (file path/branch name), preview/summary, approve/reject buttons
+- **FR-050**: System MUST apply approved changes immediately and update shadow filesystem + embeddings asynchronously
+- **FR-051**: System MUST handle approval rejection by pausing stream, sending rejection context to agent (which tool was rejected, user's reason if provided), prompting agent to revise plan, then resuming stream with agent's revised strategy (subsequent pending tool calls in original stream are discarded)
+- **FR-052**: System MUST track all agent tool calls in audit log: tool_name, input_params, output_results, approval_status, timestamp
+
+#### Real-time Updates & Sync
+
+- **FR-053**: System MUST stream agent responses to user via Server-Sent Events (SSE) endpoint, delivering incremental content chunks (text, tool calls, approval prompts) as agent generates them
+- **FR-053a**: System MUST discard partial message and show error prompt if SSE stream is interrupted (network disconnect, server error), requiring user to retry request from beginning
+- **FR-053b**: System MUST broadcast conversation updates (new messages, branch creation, file creation) to all connected client sessions via Supabase real-time subscriptions
+- **FR-054**: System MUST sync context references, branch navigation state, and file updates across devices in real-time (<100ms)
+- **FR-055**: System MUST handle concurrent edits with conflict resolution: if user edits file while agent proposes changes to same file, show conflict modal with options (keep user changes, apply agent changes)
 
 #### Security & Privacy
 
-- **FR-096**: System MUST sanitize all user input before sending to LLM to prevent injection attacks
-- **FR-097**: Orchestrator agent MUST detect and hide sensitive data (API keys, passwords, credentials, tokens) before including context in LLM requests
-- **FR-098**: System MUST audit log all agent actions and steps including: request initiation, file reads, write permission prompts, user approvals/rejections, file modifications, errors, completion status
-- **FR-099**: System MUST retain chat history and data indefinitely (no automatic expiration or cleanup in MVP)
-- **FR-100**: System MUST hide auto-generated artifacts from filesystem UI but allow visibility in chat pill when agent references the artifact content
-- **FR-100a**: Auto-generated artifacts MUST use same storage and security model as user files (no special encryption)
+- **FR-056**: System MUST enforce row-level security: users can only access their own conversations, branches, files
+- **FR-057**: System MUST sanitize user input before sending to LLM to prevent injection attacks
+- **FR-058**: System MUST detect and auto-exclude sensitive files from LLM context: .env, credentials.json, files with API_KEY=, PASSWORD=, SECRET= patterns
+- **FR-059**: System MUST audit log all agent actions: request initiation, tool calls, user approvals/rejections, file modifications, errors
 
-#### Observability & Monitoring
+#### Usage Tracking & Limits
 
-- **FR-122**: System MUST implement structured logging for all critical operations including: agent requests, embedding generation, file operations, web searches, errors, and performance metrics
-- **FR-123**: System MUST integrate Sentry for error tracking and alerting in production environment
-- **FR-124**: System MUST provide key metrics dashboard displaying: request latency (p50/p95/p99), error rates, embedding generation success rates, web search failures, active users, quota utilization per tier
-- **FR-125**: System MUST log performance degradation indicators including: slow embedding generation (>5s per file), failed web searches, agent response latency >10s, context summarization failures
+- **FR-060**: System MUST track usage per user: agent requests count, tokens consumed, files created, branches created
+- **FR-061**: System MUST enforce quota limits: Free (100 requests/month), Pro (1000 requests/month), Enterprise (10000 requests/month)
+- **FR-062**: System MUST block requests when quota is exceeded and prompt upgrade
 
-#### Data Reliability & Disaster Recovery
+#### Performance & Observability
 
-- **FR-126**: System MUST rely on Supabase's built-in backup infrastructure (daily snapshots with point-in-time recovery) for disaster recovery in MVP
-- **FR-127**: System MUST NOT implement additional application-level backup mechanisms in MVP (deferred to post-MVP based on failure patterns)
-- **FR-128**: System SHOULD document recovery procedures for common failure scenarios (database corruption, embedding loss, file storage issues) in operational runbook
+- **FR-063**: System MUST achieve agent response latency <5s for simple queries, <10s for consolidation
+- **FR-064**: System MUST achieve semantic search latency <1s for 1000 entities in shadow_entities table, <500ms for <100 entities
+- **FR-064a**: System MUST achieve unified shadow entity query latency <300ms for cross-entity-type searches (files + conversations + kg_nodes simultaneously)
+- **FR-065**: System MUST achieve tree traversal latency <2s for <50 branches, <5s for <200 branches
+- **FR-065a**: System MUST achieve shadow entity creation/update latency <2s (asynchronous, non-blocking) for new or modified entities
+- **FR-066**: System MUST log structured logs for all critical operations: agent requests, embeddings, shadow entity operations, file ops, errors
+- **FR-067**: System MUST integrate Sentry for error tracking and alerting in production
+- **FR-068**: System MUST provide metrics dashboard: request latency (p50/p95/p99), error rates, active users, quota utilization, shadow entity sync lag
 
-#### Chat Session Management
-
-- **FR-008**: System MUST support creating chats from three entry points with distinct initial contexts: (1) Chat from file → initial context pill is that file, (2) Chat from folder → initial context pill is that folder, (3) Chat from "New chat" button → initial context depends on editor state
-- **FR-008a**: System MUST provide "Add to chat" action in file/folder context menu to add file or folder as context pill to current active chat without navigating away
-- **FR-008b**: System MUST set initial context pills when creating chat via "New chat" button: if document is open in editor, pills are "All filesystem" + currently opened document; if no document is open (empty editor state), pill is "All filesystem" only
-- **FR-008c**: System MUST allow users to close the editor to show empty state, independent of chat context
-- **FR-009**: System MUST maintain session-based "current chat" for "Add to chat" actions
-- **FR-010**: System MUST persist chat history across sessions with automatic save on each message
-- **FR-011**: System MUST support multiple concurrent chat sessions per user
-- **FR-012**: System MUST track chat direction using embeddings that represent conversation trajectory and topic focus
-- **FR-013**: System MUST generate chat direction embeddings after every 5 messages OR when conversation topic shifts significantly (detected via semantic drift threshold >0.7 from last embedding) to maintain current state
-- **FR-013a**: System MUST use last user message with text search as fallback for chat direction when chat has fewer than 5 messages or embedding generation fails
-- **FR-013b**: System MUST log errors and continue normal operation when embedding API is unavailable (non-blocking failure)
-- **FR-013c**: System MUST automatically re-trigger embedding generation when user continues working after embedding API recovery
-- **FR-013d**: System SHOULD implement embedding queue for recovery from API failures (post-MVP enhancement)
-- **FR-014**: System MUST use chat direction embeddings to suggest relevant files when user asks ambiguous questions
-- **FR-015**: System MUST display chat titles (auto-generated from first user message or user-editable)
-- **FR-015a**: System MUST provide semantic search via embeddings as the default search mechanism across all chats and files with filter options to search only chats or only files (Note: Clarify if semantic search covers full-text search needs or if dual implementation required)
-- **FR-015b**: System MUST include chat picker with title search capability for quick navigation between conversations
-- **FR-015c**: System MUST support chat branching - users can fork a conversation at any message to explore alternative approaches while preserving original chat
-- **FR-015d**: System MUST add chat ID as URL parameter when user selects a chat
-- **FR-015e**: System MUST reload and display the previously selected chat from URL parameter when page is reloaded, maintaining user's context across sessions
-
-#### Context Selection & Pills UI
-
-- **FR-016**: System MUST display context pills for all active contexts (files, folders, snippets, web results, auto-generated artifacts)
-- **FR-017**: System MUST show default "All filesystem" pill that can coexist with specific file/folder pills (both active simultaneously with weighted priority)
-- **FR-018**: System MUST allow adding context through: file/folder selection, @-mentions (e.g., "@models/User.ts"), inline file paths (e.g., "use this template/api-doc.md"), snippet highlights, drag-and-drop, pasted external content
-- **FR-019**: System MUST parse inline file path references in user messages and automatically add matching files as context pills - any reference/pill mentioned inline in chat MUST display in the pill list positioned above the chat input text box
-- **FR-019a**: System MUST show disambiguation picker when multiple files match the same path reference (e.g., "models/User.ts" matches "backend/models/User.ts" and "frontend/models/User.ts"), displaying full paths for user selection
-- **FR-019b**: System MUST detect and add context pills for all inline reference types: @-mentions ("@Button.tsx"), file paths ("models/User.ts"), folder paths ("src/components/"), and natural language references ("use the Button component file")
-- **FR-020**: System MUST support removing individual context pills with clear visual feedback
-- **FR-021**: System MUST make pills horizontally scrollable with overflow indicator showing count of hidden pills
-- **FR-022**: System MUST show pill metadata on hover/tap (file path, lines of code, last modified, token count, auto-generated flag)
-- **FR-023**: System MUST prioritize context within token limit: explicit pills (100% weight) > auto-generated artifacts (80% weight) > chat history (60% weight) > shadow filesystem search results (40% weight)
-- **FR-024**: System MUST support 200,000 token context window using Claude model for comprehensive file analysis
-- **FR-024a**: System MUST limit context pills to maximum of 10 active pills - when user attempts to add 11th pill, system MUST suggest using "All filesystem" pill or folder pill instead. On mobile more than 3 pills onward should be collapsed into a pill with a container of the remaining pills, "3+", same for desktop but at the 5th pill.
-- **FR-024b**: System MUST process the entire filesystem regardless of size through intelligent summarization - adding/removing files never hits context limits
-- **FR-024c**: System MUST use intelligent summarization strategies when context approaches token limits: split context into chunks (filesystem, user characterization, chat history, explicit pills), evaluate which context type is consuming most tokens, summarize less important context types while keeping most important context less summarized. If important context is too large, summarize it as well to maintain token budget.
-- **FR-024d**: System MUST prime context based on semantic similarity to query using embeddings from chat direction, folder relationships, user preference profile, and shadow filesystem vectors
-- **FR-024e**: System MUST weight filesystem context by proximity to referenced files using formula: Final Score = (0.6 × Semantic Similarity) + (0.4 × Proximity Score), with full filesystem available as fallback for responding
-- **FR-024f**: System MUST show in-chat notification when summarization is happening (e.g., "Optimizing context...") without showing user which specific content was summarized (complexity stays on backend)
-- **FR-024g**: System MUST start request with summarization process when context is too tight, automatically allocating tokens across context sources without user intervention
-- **FR-024h**: System MUST reserve 20% of model context window (40,000 tokens) as summarization/autocompact buffer - when context usage reaches 160,000 tokens, trigger automatic summarization
-- **FR-024i**: System MUST drop context from earliest messages in chat history if summarization process itself fails, ensuring request can proceed
-- **FR-024j**: System MUST summarize complex requests (message content + sources + referenced entities) when initial context gathering exceeds buffer limits
-- **FR-024k**: System MUST use file/folder references without loading full content when context is tight - only expand to full content when semantically necessary for response
-- **FR-024l**: System MUST integrate Claude Agent SDK for context caching and optimization to reduce redundant context transmission across requests
-
-#### Automatic Context Artifact Management
-
-- **FR-025**: System MUST automatically create hidden reference content when user pulls content from external sources (web search results, pasted content, inline examples) to maintain context across multi-turn conversations
-- **FR-026**: System MUST store auto-generated artifacts with metadata (source URL/type, creation timestamp, parent chat session) - artifacts do NOT expire and are NOT cleaned (cleanup deferred to post-MVP)
-- **FR-027**: System MUST keep auto-generated artifacts hidden from user (no UI visibility, no context pill representation except for pasted file line references).
-- **FR-028**: System MUST use auto-generated artifacts internally for context building without user interaction
-- **FR-029**: System MUST NOT allow promotion of auto-generated artifacts to permanent files (feature deferred to post-MVP)
-
-#### Snippet Management
-
-- **FR-030**: System MUST allow highlighting text in viewer with right-click/long-press context menu
-- **FR-031**: System MUST provide two snippet actions: "Add to chat" (stays in viewer) and "Add and go to chat" (shows chat picker)
-- **FR-032**: System MUST create snippet pills showing source file name and line range (e.g., "Button.tsx lines 45-67") - snippets reference pasted text from file at time of creation
-- **FR-032a**: System MUST ensure all files are saved before processing any agent request (no pending changes) - snippets always reference saved file state
-- **FR-032b**: System MUST detect when source file changes after snippet creation such that line range no longer matches original text (lines added/removed/modified)
-- **FR-032c**: System MUST convert snippet from line range reference to auto-generated content ONLY when source file changes invalidate line range (do NOT create auto-gen content preemptively)
-- **FR-032d**: System MUST update pill UI when snippet is converted: remove line references from pill label, show visual indicator "(Changed)"
-- **FR-032e**: System MUST make snippet pills clickable: if line range valid, open source file at correct location; if line range invalidated, open auto-generated content file (read-only, cannot be edited)
-- **FR-033**: System MUST preserve snippet formatting and syntax highlighting in pill preview
-- **FR-034**: System MUST support adding external snippets (pasted code) as context pills labeled "Pasted snippet"
-
-#### Chat Picker (Mobile & Desktop)
-
-- **FR-035**: System MUST show chat picker modal when user selects "Add and go to chat"
-- **FR-036**: System MUST list recent chats sorted by last activity with titles and last message preview
-- **FR-037**: System MUST provide "+ New Chat" option at top of picker
-- **FR-038**: System MUST support exact name search in chat picker using frontend text search (matches against chat titles)
-- **FR-038a**: System MUST show empty state "No chats found" when search returns zero results
-- **FR-039**: System MUST show context preview (file/folder icons) for each chat in picker
-
-#### Context Priming & Optimization
-
-- **FR-034**: System MUST analyze user preferences from filesystem files (terminology, organizational patterns, documentation structure)
-- **FR-035**: System MUST extract user characterization including: preferred content structure, documentation organization style, folder naming conventions (NOTE: Privacy/legal review needed for user profiling)
-- **FR-036**: System MUST prime agent context with folder relationships when chat is initialized from a file - prioritize siblings (same folder), children (subfolders/files), and parents (parent folder) over distant files based on proximity weighting
-- **FR-037**: System MUST use shadow filesystem embeddings for fast semantic search across all files
-- **FR-038**: System MUST retrieve top 10 most relevant files for "All filesystem" context based on query embedding similarity
-- **FR-039**: System MUST include last 5 agent interactions in context for conversation continuity
-- **FR-040**: System MUST allocate context budget: 50% explicit pills, 30% semantic search results, 20% user characterization + history
-
-#### Agent Request Processing
-
-- **FR-041**: System MUST classify user requests into intent types: question, edit, create, refactor, search, delete
-- **FR-042**: System MUST allow users to explicitly trigger web search with phrases like "search the web for" or clicking web search toggle
-- **FR-043**: System MUST validate all agent requests against schema (user ID, message 1-10000 chars, chat ID, context pills)
-- **FR-044**: System MUST estimate token usage before processing and warn if exceeding quota
-- **FR-045**: System MUST enforce usage quota limits based on user plan (Free: 100 requests/month, Pro: 1000/month, Enterprise: 10000/month) with hard stop enforcement - block all requests when quota is reached until next billing cycle
-- **FR-045a**: System MUST trigger autosave before processing agent request and wait for autosave completion to ensure agent works with current file state
-- **FR-045b**: System MUST stream agent responses token-by-token (like ChatGPT) for improved perceived performance
-- **FR-045c**: System MUST allow users to cancel requests
-- **FR-101**: System MUST prompt user for write access permission in chat when agent needs to perform edit/create/delete operations - default is read-only access
-- **FR-102**: System MUST stop request and prompt user for guidance when write access is denied, asking "What would you like the agent to do instead?"
-- **FR-103**: System MUST run file operations in background even when user navigates to different files/screens - operations complete in cloud without blocking UI
-- **FR-104**: System MUST determine all involved entities (files, folders, affected paths) at request start before execution begins
-- **FR-105**: System MUST fail subsequent requests if they target entities currently being modified by an active request, showing conflict notification: "Another request is modifying [entity] - please wait or cancel the previous request"
-
-#### Autosave & File Conflict Management
-
-- **FR-045d**: System MUST trigger autosave before processing any agent request to ensure agent works with current file state
-- **FR-045e**: System MUST detect when user makes additional edits to file/folder while agent is processing changes to that same file/folder
-- **FR-045f**: System MUST show blocking modal when file/folder conflict detected: "Agent is making changes to [file/folder] you are working on" with two options: (1) Cancel agent request (keep user changes), (2) Apply agent changes (discard user changes and replace with agent's version) - modal cannot be dismissed until user makes a decision
-- **FR-045g**: System MUST coordinate autosave with agent requests - autosave completes before agent reads file context, and autosave is paused when conflict modal is displayed until user makes a decision
-- **FR-045h**: System MUST apply conflict resolution to all agent operations (file edits, folder moves, file renames, file deletions) - user has agreed to changes when approving, so agent changes take precedence unless user explicitly cancels
-- **FR-045i**: System MUST allow users to edit files unrelated to the current agent request while the request is processing - conflicts only occur for files involved in the specific request
-
-#### Orchestrator Agent (Intent Routing)
-
-- **FR-091**: System MUST use an orchestrator agent to analyze user messages and route to appropriate specialized agents (question, edit, create, refactor, web search) without communicating routing decision to user
-- **FR-092**: Orchestrator MUST evaluate message complexity and context to determine if multiple agent types should collaborate (e.g., web search + create for "build a React component using latest best practices from the web")
-- **FR-093**: Orchestrator MUST maintain routing decision history to improve accuracy over time based on user feedback (implicit through approval rates)
-- **FR-094**: Orchestrator MUST default to question agent when intent is ambiguous and confidence score is below 0.7
-- **FR-095**: Orchestrator routing decisions MUST NOT be shown to user and MUST NOT be overridable by user (seamless experience)
-
-#### Collaborative Editing & Approvals
-
-- **FR-046**: System MUST detect when agent proposes file modifications and generate approval prompt
-- **FR-047**: System MUST show approval prompts specifying: affected files/folders, specific action type (edit/create/delete/move/rename), high-level summary of what the agent wants to do
-- **FR-048**: REMOVED - No diff preview in MVP, changes are applied directly like normal user edits after approval
-- **FR-049**: System MUST allow bulk approval (all affected entities) or rejection of entire proposed operation
-- **FR-050**: System MUST apply approved changes directly to the filesystem and TipTap editor as if user made the changes, then update shadow filesystem with new embeddings
-- **FR-051**: System SHOULD create automatic backups before applying destructive changes (file deletion, major reorganizations) - deferred to post-MVP
-- **FR-052**: System MUST show success notification after changes are applied successfully
-- **FR-052a**: System MUST treat agent-generated content identically to user-generated content - same sanitization, same rendering, same editing capabilities in TipTap editor
-
-#### File & Folder Creation
-
-- **FR-054**: System MUST support creating new files through agent instructions (e.g., "create a meeting summary for today's standup")
-- **FR-055**: System MUST infer appropriate file paths based on project structure and naming patterns
-- **FR-056**: System MUST show file creation approval prompt with: proposed path, estimated word count, file preview
-- **FR-057**: System MUST detect path conflicts and offer alternative paths or overwrite confirmation
-- **FR-058**: System MUST support creating folder structures (e.g., "create a new folder for Q1 2025 planning with subfolders for goals, metrics, and updates")
-- **FR-059**: System MUST generate appropriate document structure based on file type and user templates (blog post, meeting notes, research summary, etc.)
-- **FR-059a**: System MUST support moving files between folders when user requests reorganization (e.g., "move all research files to research/ folder")
-- **FR-059b**: System MUST support renaming files and folders through agent instructions with approval prompt
-- **FR-059c**: System MUST show approval prompt for move/rename operations listing: affected files/folders, source paths, destination paths, potential conflicts
-
-#### Web Search Integration
-
-- **FR-060**: System MUST automatically trigger web search when filesystem context is insufficient for answering user query
-- **FR-061**: System MUST support explicit web search requests through natural language or UI toggle
-- **FR-062**: System MUST retrieve 5-10 web results and extract relevant content snippets
-- **FR-063**: System MUST synthesize web results with filesystem context when both are relevant
-- **FR-064**: System MUST cite web sources with URLs and snippets in response
-- **FR-065**: System MUST include both recent results (last 6 months) and older relevant results for all query types (technical and non-technical)
-- **FR-066**: System MUST handle web search API failures gracefully by showing in-chat notification (e.g., "Web search unavailable - using filesystem only"), attempting retry with fallback to filesystem-only answers
-- **FR-066a**: System MUST communicate all key tool or step failures to user in chat (embedding generation failures, autosave timeouts, file sync errors, etc.) with appropriate retry or fallback actions
-- **FR-109**: System MUST integrate Claude Agent SDK for web search tool access when available
-- **FR-110**: System MUST audit log web search usage (query, results count, sources) via SDK integration
-- **FR-111**: System MUST use Claude Agent SDK for all agent tools (web search, file operations, folder operations) to centralize tool management
-- **FR-112**: System MUST count web search operations toward Claude SDK usage limits (no separate rate limiting in MVP)
-
-#### Real-time Progress & Feedback
-
-- **FR-067**: System MUST provide real-time typing indicators while agent is generating response
-- **FR-068**: System MUST show progress updates for long-running operations (embedding generation, file creation)
-- **FR-069**: System MUST update progress at key milestones (searching filesystem → retrieving context → generating response → validating changes)
-- **FR-070**: System MUST support cancelling in-progress agent requests
-- **FR-071**: System MUST broadcast progress updates to all connected client sessions (cross-device sync)
-- **FR-071a**: System MUST allow users to switch to different chats while agent processes requests in background
-- **FR-071b**: System MUST display toast notification when agent in another chat completes without changing focus to that chat (user stays in current chat)
-- **FR-071ba**: System MUST cancel agent request and delete chat when user deletes a chat that is currently processing a request
-- **FR-071c**: System MUST format agent responses using markdown with syntax-highlighted code blocks
-- **FR-071d**: System MUST render file path references as clickable links that open the referenced file
-- **FR-071e**: System MUST provide one-click copy button for code blocks in agent responses
-- **FR-071f**: System MUST suggest follow-up prompts based on current context and conversation direction
-
-#### Quality Control & Validation
-
-- **FR-072**: System MUST validate agent responses for: accuracy (compared to filesystem content), content coherence, relevance (to user query)
-- **FR-073**: System MUST calculate confidence scores (0-1) for responses based on context sufficiency and source quality
-- **FR-074**: System MUST show low confidence warnings when score is below 0.6
-- **FR-075**: System MUST retry with expanded context when initial response confidence is low
-
-#### Usage Tracking & Analytics
-
-- **FR-077**: System MUST log every agent request with user ID, intent type, tokens used, web search triggered, success status
-- **FR-078**: System MUST track context efficiency metrics (token usage per request, cache hit rates for shadow filesystem)
-- **FR-079**: System MUST aggregate usage by user and time period (day, week, month)
-- **FR-080**: System MUST provide usage dashboard showing: total requests, files created/edited, average response time, quota remaining
-- **FR-113**: System MUST capture session behavior data including: session duration, request count per session, navigation patterns, time between requests
-- **FR-114**: System MUST link all requests to their parent session for in-depth experience analysis
-- **FR-115**: System MUST provide thumbs up/down buttons for each agent message response
-- **FR-116**: System MUST audit log all user decisions (accept/reject file changes, write permission grants/denials, request cancellations)
-
-#### Cost Tracking & Monitoring
-
-- **FR-117**: System MUST track and audit each request with detailed metrics: behavior (intent, actions taken), performance (latency, token usage), cost breakdown (LLM tokens, embeddings, storage, web search)
-- **FR-118**: System MUST calculate cost per user across ALL cost sources: embedding generation, vector storage, LLM API calls, web search API calls, file storage, bandwidth, and all other associated costs
-- **FR-119**: System MUST be able to calculate the total cost amount for each user via database query (no running total required in MVP, but all cost data must be queryable)
-- **FR-120**: System SHOULD expose cost analytics for business analysis - admin UI deferred to post-MVP
-- **FR-121**: System MUST break down costs by operation type (question, edit, create, refactor, search, document_upload, embedding_generation, storage, bandwidth) to identify high-cost patterns and inform pricing decisions
-- **FR-122**: System MUST track all billable events in unified usage_events table including agent executions, document uploads, embedding generation, storage operations, and bandwidth usage
-
-#### Conflict Detection & Tool Call Tracking
-
-- **FR-123**: System MUST track all agent tool calls (read_document, update_document, create_document, delete_document, search_documents, web_search, list_directory) with input parameters, output results, and execution status in agent_interactions table
-- **FR-124**: System MUST link each tool call to the specific chat message that triggered it for complete audit trail and message-level traceability
-- **FR-125**: System MUST detect conflicts when multiple concurrent agent requests attempt to modify the same file by querying agent_interactions for pending file operations
-- **FR-126**: System MUST store web search results in agent_interactions.tool_output for audit trail, with option to create formatted artifacts in auto_gen_artifacts for substantial research
-- **FR-127**: System MUST sequence tool calls within each agent request using sequence_order field to maintain execution order and enable replay/debugging
-
-#### AI Model Integration
-
-- **FR-081**: System MUST use Claude Sonnet exclusively for all agent operations via Anthropic API
-- **FR-082**: System MUST configure temperature per intent type (Question: 0.1, Edit: 0.3, Create: 0.7, Refactor: 0.5)
-- **FR-083**: System MUST track token usage separately for input context and output generation
-- **FR-084**: System MUST implement retry logic with exponential backoff (1s, 2s, 4s delays) for max 3 attempts on API failures
-- **FR-084a**: System MUST display toast notifications for error recovery attempts and failures
-- **FR-085**: System MUST handle rate limiting by queueing requests and showing queue position to user
-- **FR-085a**: System MUST block all new requests when quota exhausted (requests or storage limits) and display upgrade prompt with clear messaging that service resumes next billing cycle or immediately upon upgrade
-- **FR-085b**: System MUST support bulk file operations sequentially for MVP (e.g., "add header to all markdown files in docs/")
-- **FR-085c**: System MUST show progress indicator for bulk operations displaying "Processing X/Y files..." with current file name
-- **FR-085d**: System MUST allow cancellation of bulk operations mid-process
-- **FR-085e**: System MUST handle partial failures in bulk operations: automatic retry on failure, if retry fails then rollback all changes
-- **FR-106**: System MUST treat bulk operations as atomic (all succeed or all fail) - partial success triggers retry, retry failure triggers full rollback
-- **FR-107**: System MUST stop bulk operation as-is when user cancels mid-process, allowing user to later continue or rollback via chat instructions
-- **FR-108**: System MUST apply FR-105 to bulk operations - new bulk request fails if any target entities conflict with active request
-
-#### Future: Overseer Agent (Post-MVP)
-
-- **FR-086**: System SHOULD implement overseer agent that evaluates agent actions before execution
-- **FR-087**: Overseer SHOULD assess risk level (low/medium/high) for proposed changes based on scope and impact
-- **FR-088**: Overseer SHOULD provide reasoning explanation for risk assessment
-- **FR-089**: Overseer SHOULD flag potentially dangerous operations (file deletion, credential modification, bulk refactors)
-- **FR-090**: Overseer SHOULD maintain audit log of all agent actions with timestamps, user approvals, and outcomes
+---
 
 ### Key Entities
 
-- **Chat Session**: Represents an ongoing conversation - includes session ID, user ID, title (editable), initialization context (file/folder/all), conversation history (array of messages), context pills (active contexts), chat direction embedding (768-dim vector), total tokens used, creation timestamp, last activity timestamp, last message preview, session duration, request count, navigation patterns (file/chat switches), time between requests
+- **Shadow Entity**: Unified semantic layer entry for all searchable domain entities - includes shadow_id, entity_id (reference to source file/conversation/kg_node), entity_type (file/conversation/kg_node), embedding (768-dim vector), summary (auto-generated 2-3 sentence description), structure_metadata (JSONB entity-specific: for files = {outline: headings hierarchy nested array, key_concepts: string array of extracted concepts, main_topics: string array of primary topics}, for conversations = {topics: string array}, for kg_nodes = {relationships: object}), last_updated, owner_user_id
 
-- **Context Pill**: Represents a discrete context element - includes pill ID, pill type (file/folder/snippet/web/pasted), display label, source reference (file path/URL/line range), content preview (100 chars), token count, added timestamp, removable flag
+- **Conversation (Branch)**: Represents a node in the exploration tree - includes conversation_id, parent_id (nullable for root/Main), branch_title, creation_timestamp, creator (user/agent/system), conversation_summary (auto-generated from shadow entity summary, regenerated from scratch on every message, includes: topics discussed, key decisions made, artifacts created, open questions), messages array, explicit_files (inherited from parent + manually added), parent_last_message (cached from parent for child branch context), branching_message_content (if agent-created via `create_branch`), blacklisted_branches (array of conversation_ids manually excluded from semantic context via "Hide from [Branch Name]"), total_tokens_used, shadow_entity_id (reference to shadow_entities table)
 
-- **Shadow Filesystem Node**: Represents a file or folder in shadow filesystem - includes node ID, path (absolute), node type (file/folder), file content (for text files), content embedding (768-dim vector), metadata (size, last modified, language), relationships (parent folder, sibling files, imported modules), embedding generation timestamp, sync status, indexing status (indexed/indexing/pending), last_edit_by (user_id or 'agent' to track whether last modification was by user or AI agent)
+- **Message**: Represents a single turn in conversation - includes message_id, conversation_id, role (user/assistant), content, tool_calls array (for agent messages), timestamp, tokens_used
 
-- **Agent Request**: Represents a single user message and agent response - includes request ID, user ID, chat ID, user message content, intent type (question/edit/create/refactor/search/delete), context pills at request time (snapshot), agent response content, confidence score, tokens used, processing time, timestamp
+- **Conversation Memory Chunk**: Compressed conversation history for long conversations (>40 messages) - includes chunk_id, conversation_id, message_ids array (messages compressed in this chunk), embedding (768-dim vector representing chunk content), summary (localized to this chunk only: topics + key decisions + artifacts created + open questions from the 10 messages in this chunk, not cumulative from all prior messages), timestamp_range (start_timestamp, end_timestamp), chunk_index (sequential: chunk 1 = messages 1-10, chunk 2 = messages 11-20, etc.), owner_user_id. Used for semantic retrieval when conversation exceeds manageable size
 
-- **Agent Interaction**: Represents a single tool call made by the agent - includes interaction ID, request ID, message ID (optional link to specific message), tool name (read_document, update_document, create_document, delete_document, search_documents, web_search, list_directory), tool input (JSON parameters), tool output (JSON results), requires_confirmation flag (true for write operations), confirmation_status (pending/approved/rejected), status (pending/running/completed/failed/rejected), sequence_order (execution order within request), applied timestamp, error message (if failed)
+- **File**: Represents a persistent artifact - includes file_id, path, content, provenance metadata (nullable - only for agent-created files: created_in_conversation_id, creation_timestamp, context_summary), last_edited timestamp, last_edited_by (agent/user), edited_in_conversation_id (nullable - conversation_id if agent edit, null if user manual edit), owner_user_id, shadow_entity_id (reference to shadow_entities table for embedding, summary, structure_metadata)
 
-- **User Preference Profile**: Represents analyzed user preferences - includes profile ID, user ID, organizational preferences (folder structure, naming patterns), preferred content structure, documentation organization style, common formatting patterns (headings, lists, emphasis), last analysis timestamp, source files analyzed count (NOTE: requires privacy/legal review for user profiling compliance)
+- **Provenance Metadata**: Embedded in file entity (nullable - only for agent-created files) - includes created_in_conversation_id, creation_timestamp, context_summary (2-3 sentences). Last edit metadata tracked separately for all files via last_edited, last_edited_by, edited_in_conversation_id fields
 
-- **Web Search Result**: Represents external search result - includes result ID, request ID, source URL, title, content snippet (500 chars), relevance score (0-1), publish date, domain authority, included in response flag
+- **Context Reference** (renamed from "Context Pill"): Represents explicit context in conversation - includes reference_id, conversation_id, entity_type (file/folder/conversation), entity_reference (file_path/folder_path/conversation_id), source (inherited/manual/agent-added/@-mentioned), display_label, added_timestamp, priority_tier (1=highest, 2=medium, 3=lower for visual grouping)
 
-- **Usage Event**: Unified tracking for both usage limits and costs - includes event ID, user ID, request ID (nullable for non-agent events), event type (agent_execution/document_upload/embedding_generation/storage/bandwidth), operation subtype (for agent_execution: question/edit/create/refactor/search), tokens used (for AI operations), storage bytes (for storage operations), cost breakdown (LLM input/output, embeddings, vector storage, web search, file storage, bandwidth, other), total cost, event metadata (JSON), timestamp
+- **Agent Tool Call**: Represents agent action requiring approval - includes tool_call_id, message_id, conversation_id, tool_name (write_file/create_branch/etc), tool_input (JSON params), tool_output (JSON results), approval_status (pending/approved/rejected), timestamp
 
-- **Auto-Generated Artifact**: Represents reference content created automatically by system - includes artifact ID, chat session ID, artifact type (web-source/pasted-code/inline-example/invalidated-snippet), source reference (URL or "user-pasted"), source_interaction_id (links to agent_interactions for web search artifacts), content (full text or code), content embedding (768-dim vector for similarity search), creation timestamp - artifacts hidden from filesystem UI but visible in chat when agent references them, use same storage/security as user files, do NOT expire until post-MVP, cannot be promoted to permanent files in MVP
+- **Semantic Match**: Computed entity (not stored) - includes file_id, file_path, relevance_score (base cosine similarity), relationship_modifier (sibling +0.15, parent/child +0.10), temporal_modifier, final_score, source_branch_id, provenance_summary
 
-- **Orchestrator Decision**: Represents agent routing decision (internal only, not visible to user) - includes decision ID, request ID, user message, detected intent type, confidence score (0-1), selected agent(s) (single or multiple for collaboration), routing reasoning (brief explanation for logging), approval rate for this routing pattern (historical success metric for improving accuracy over time)
+- **Knowledge Graph Edge** (Background Infrastructure): Represents AI-detected connections - includes edge_id, source_entity_id, source_type (file/conversation/concept), target_entity_id, target_type, relationship_type (relates_to/used_in/evolved_from), confidence_score, creation_timestamp (NOTE: KG runs in background for future V2+ features, not exposed in MVP UI)
 
-- **Chat Branch**: Represents a forked conversation - implemented as a new independent chat session that copies all context from the original chat at the branch point (context pills, conversation history up to branch point, chat direction embedding) and is primed for new direction - no special parent-child relationship in data model for MVP
+- **Audit Log Entry**: Represents logged system event - includes log_id, user_id, conversation_id, event_type (branch_created, file_created, file_edited, approval_requested, approval_granted, approval_rejected), event_details (JSON), timestamp
 
-- **Audit Log Entry**: Represents logged system event - includes log ID, user ID, session ID, request ID, event type (request_start, file_read, write_permission_request, user_approval, user_rejection, file_modification, error, completion), event details (JSON), timestamp, related entity IDs (file paths, folder paths), success status
+---
 
-- **User Feedback**: Represents user rating for agent message - includes feedback ID, request ID, message ID, user ID, rating type (thumbs_up/thumbs_down), timestamp, optional text feedback (post-MVP)
+### Non-Functional Requirements
 
-### Technical Evaluation _(research needed)_
+**Performance**:
 
-This section outlines key technical decisions requiring research, prototyping, and benchmarking before implementation.
+- Agent responses: <5s for simple queries, <10s for consolidation
+- Prime context assembly: <1s from user sending message to context ready for agent
+- Semantic search: <1s for 1000 entities across shadow_entities table, <500ms for <100 entities
+- Shadow entity queries: <300ms for unified search across all entity types (files + conversations + kg_nodes)
+- Tree traversal: <2s for 50 branches, <5s for 200 branches
+- Real-time sync: <100ms propagation latency
+- Embedding generation: <2s per entity (background, asynchronous)
+- Conversation summary update: <2s per message (background, asynchronous)
 
-#### 1. Shadow Filesystem Architecture
+**Scalability**:
 
-**Decision**: Use embeddings/summaries for context optimization
+- Support 1000+ files per user (with corresponding shadow entities)
+- Support 200+ branches per user (with corresponding shadow entities)
+- Support 10,000+ messages per user
+- Support 1000+ shadow entities per user across all entity types (files + conversations + kg_nodes)
+- Concurrent users: 500 without degradation
+- Shadow entity sync throughput: 100+ entities/second for batch operations
 
-**Research Needed**:
+**Reliability**:
 
-**A. Existing Patterns Analysis**
+- 99.9% uptime for core services
+- Zero data loss (all operations ACID compliant)
+- Graceful degradation if embedding service unavailable (fallback to text search)
 
-- **Notion AI**: Investigate how Notion AI searches across workspaces and pages
-  - Research questions: Do they use embeddings? How do they handle incremental updates? How do they prioritize context within token limits?
-- **Obsidian with AI Plugins**: Study how knowledge graph tools maintain context across linked notes
-  - Research questions: What context is sent with each request? How do they handle large vaults? Do they embed entire notes or paragraphs?
-- **Mem.ai**: Analyze their context-aware note retrieval and synthesis
-  - Research questions: How do they detect relevant notes? What embedding models do they use? How do they optimize for latency?
+**Security**:
 
-**B. Prototype Comparison**
+- All data encrypted in transit (TLS) and at rest (Supabase encryption)
+- Row-level security enforces user isolation
+- Sensitive file auto-exclusion prevents credential leakage
+- Audit logs retained for 90 days
 
-| Approach                            | Implementation                                                      | Test Scenario                                                      | Metrics to Measure                                           |
-| ----------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------ |
-| **Full Embeddings**                 | Generate 768-dim vector for every file using Sentence Transformers  | 100-file project, query "what are the main themes in my research?" | Retrieval accuracy, query latency, storage cost              |
-| **Chunk Embeddings**                | Split files into 200-word chunks, embed each chunk separately       | Same project, same query                                           | Precision/recall, context redundancy, token efficiency       |
-| **Hybrid (Summaries + Embeddings)** | Store LLM-generated summary + embedding for each file               | Same project, same query                                           | Best of both worlds? Summarization cost vs retrieval quality |
-| **Heading-Based Indexing**          | Parse markdown into sections, embed each heading block individually | Same project, query "what decisions were made about pricing?"      | Section-specific accuracy, parsing overhead, format support  |
+**Usability**:
 
-**Success Criteria**: Approach must achieve <500ms retrieval time for 1000-file repos, >85% relevance for top 5 results, <$0.01 per file for embedding generation.
+- Branching workflow discoverable by new users within 5 minutes (progressive disclosure)
+- Provenance indicators visible but not intrusive (hover tooltip, click for full details)
+- Context section integrated into chat with visual priority indicators helps users understand what AI sees
+- @-mention autocomplete for files and conversations enables quick context addition
+- Mobile-responsive (branch nav as drawer, context section collapsible, tree view desktop-only)
 
-**C. Cost Analysis**
-
-Calculate costs for 1000-file repository:
-
-| Approach         | Embedding Generation                         | Storage (per month)           | Query Cost        | Total (first month)  |
-| ---------------- | -------------------------------------------- | ----------------------------- | ----------------- | -------------------- |
-| Full Embeddings  | 1000 files × $0.002 = $2                     | 1000 × 3KB × $0.10/GB = $0.30 | $0.0001 per query | $2.30 + query costs  |
-| Chunk Embeddings | 5000 chunks × $0.002 = $10                   | 5000 × 3KB × $0.10/GB = $1.50 | $0.0001 per query | $11.50 + query costs |
-| Hybrid           | $2 (embeddings) + $10 (summaries via Claude) | Same as Full                  | Same              | $12.30 + query costs |
-| Heading-Based    | $0 (local parsing) + $5 (section embeddings) | 3000 × 3KB × $0.10/GB = $0.90 | Same              | $5.90 + query costs  |
-
-**Note**: These are estimates. Real costs depend on embedding model (OpenAI vs local), summarization frequency, and query volume.
-
-**D. Performance Benchmarks**
-
-Test scenarios (measure against 100-file, 1000-file, 10000-file repos):
-
-1. **Cold Start**: Time to generate embeddings for entire new repository
-2. **Incremental Update**: Time to re-embed single modified file
-3. **Query Latency**: Time from user message to relevant files retrieved (p50, p95, p99)
-4. **Context Quality**: Human evaluation of top 5 retrieved files (relevant vs irrelevant)
-5. **Token Efficiency**: Average tokens used per request when relying on shadow filesystem vs reading files on-demand
-
-**Target Benchmarks**:
-
-- Cold start: <30 seconds for 100-file repo, <5 minutes for 1000-file repo
-- Incremental update: <2 seconds per file
-- Query latency p95: <500ms
-- Context quality: >85% of top 5 results are relevant
-- Token efficiency: 30% reduction vs on-demand file reading
-
-#### 2. Chat Direction Tracking
-
-**Decision**: Use chat embeddings (vector representing conversation direction)
-
-**Research Needed**:
-
-**A. Embedding Strategy**
-
-| Approach               | How It Works                                                     | Pros                                    | Cons                                              |
-| ---------------------- | ---------------------------------------------------------------- | --------------------------------------- | ------------------------------------------------- |
-| **Rolling Window**     | Embed last N messages (N=5) as single vector                     | Captures recent direction, low storage  | Loses long-term context, recency bias             |
-| **Cumulative Summary** | LLM generates summary after every 3 messages, embed summary      | Captures full conversation arc, compact | Summarization cost, potential information loss    |
-| **Hierarchical**       | Embed each message individually, aggregate with weighted average | Preserves nuance, flexible weighting    | Higher storage, complex aggregation logic         |
-| **Topic Modeling**     | Extract topics from chat using LDA, represent as topic vector    | Interpretable, good for routing         | Requires minimum message threshold, less semantic |
-
-**Cost Comparison** (for 100-message chat):
-
-| Approach           | Embedding Cost                        | Storage                | Query Cost |
-| ------------------ | ------------------------------------- | ---------------------- | ---------- |
-| Rolling Window     | 20 embeddings × $0.0001 = $0.002      | 20 × 3KB = 60KB        | $0.0001    |
-| Cumulative Summary | 33 summaries × $0.01 (Claude) = $0.33 | 33 × 3KB = 99KB        | $0.0001    |
-| Hierarchical       | 100 embeddings × $0.0001 = $0.01      | 100 × 3KB = 300KB      | $0.0001    |
-| Topic Modeling     | $0 (local computation)                | 10 topics × 100B = 1KB | $0         |
-
-**Recommendation**: Start with **Rolling Window** (lowest cost, good enough), iterate to **Cumulative Summary** if users report poor context retention in long chats.
-
-**Alternative if Costs High**: Replace embeddings with structured metadata:
-
-- Track mentioned files/folders (array of paths)
-- Track intent type distribution (% questions vs edits vs creates)
-- Track user's content focus (research vs planning vs writing vs notes)
-- Use rule-based routing instead of semantic similarity
-
-**B. Chat Routing Use Cases**
-
-When do we use chat direction embeddings?
-
-1. **Smart File Suggestions**: User asks "what did we decide?" → Use chat embedding to find semantically similar past conversations → Suggest files discussed in those chats
-2. **Context Disambiguation**: User says "expand that section" without specifying which → Use chat history to infer likely target file
-3. **Multi-Chat Management**: User has 10 open chats → Show most relevant chat when user highlights snippet and selects "Add to chat" (matches snippet to chat direction)
-
-**Benchmark**: Does embedding-based routing outperform simple heuristics (last mentioned file, most frequently discussed folder)?
-
-#### 3. User Characterization from Filesystem
-
-**Decision**: Writing Style Analysis from existing files
-
-**Research Needed**:
-
-**A. Analysis Depth**
-
-What patterns should we extract?
-
-| Pattern Type               | Example                                                                                            | Extraction Method                            | Value                                                   |
-| -------------------------- | -------------------------------------------------------------------------------------------------- | -------------------------------------------- | ------------------------------------------------------- |
-| **Naming Conventions**     | File naming patterns (kebab-case vs camelCase), folder structure (by-date vs by-topic)             | Regex + frequency analysis                   | **High** - helps maintain consistent organization       |
-| **Content Structure**      | Heading hierarchy (H1→H2→H3 vs flat), list formatting (bullets vs numbered), section organization  | Markdown parsing + pattern detection         | **Medium** - influences document architecture           |
-| **Tone & Formality**       | Formal (third-person, passive voice) vs casual (first-person, contractions), vocabulary complexity | Text analysis + linguistic features          | **High** - ensures generated content matches user voice |
-| **Documentation Style**    | Detailed vs concise, examples-heavy vs theory-heavy, verbosity level                               | Content length patterns + structure analysis | **High** - matches user's explanation depth preferences |
-| **Formatting Preferences** | Bold/italic usage, code blocks, tables, blockquotes, inline links vs reference links               | Markdown syntax frequency                    | **Medium** - maintains visual consistency               |
-| **Content Organization**   | Chronological vs topical, project-based vs tag-based, nested folders vs flat with prefixes         | Folder structure + file relationships        | **Medium** - helps suggest appropriate file locations   |
-
-**MVP Focus**: Tone & formality, documentation style, naming conventions (high-value, straightforward to extract)
-
-**B. When to Run Analysis?**
-
-| Trigger                                | Pros                                                               | Cons                                                              |
-| -------------------------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------- |
-| **On First Chat**                      | Immediate benefit, user sees personalized responses from the start | Blocking delay if analysis takes >5 seconds                       |
-| **Background Job (Periodic)**          | No user-facing latency, always up-to-date                          | Cold start problem for new users, wasted compute if user inactive |
-| **Incremental (Per File Save)**        | Always reflects current state, no bulk processing                  | Potentially noisy (frequent small updates)                        |
-| **On-Demand (User Requests Analysis)** | User controls timing, explicit opt-in                              | Extra friction, many users won't bother                           |
-
-**Recommendation**: **Background job on first project access** (analyze once, cache results, update incrementally on file saves)
-
-**C. Privacy Considerations**
-
-User characterization raises questions:
-
-- Should users see what patterns were detected? (Transparency)
-- Can users override detected preferences? (Control)
-- Do we store raw file content for analysis or just extracted patterns? (Privacy)
-
-**MVP Approach**: Store only extracted patterns (not raw content), show in user settings with edit capability
-
-#### 4. Performance at Scale
-
-**Benchmarks to Run**:
-
-| Scenario                  | Repo Size                                      | Action                               | Target Metric                                        |
-| ------------------------- | ---------------------------------------------- | ------------------------------------ | ---------------------------------------------------- |
-| **Filesystem Sync**       | 10,000 files                                   | User saves 1 file                    | <2s to update shadow filesystem                      |
-| **Chat Context Building** | 5 context pills (3 files, 1 folder, 1 snippet) | User sends message                   | <500ms to build context                              |
-| **Semantic Search**       | 10,000 files                                   | User asks "where is authentication?" | <1s to retrieve top 10 results                       |
-| **Embedding Generation**  | 1,000 file repository                          | User opens project for first time    | <5 minutes to generate all embeddings (background)   |
-| **Concurrent Chats**      | 1 user, 5 active chat sessions                 | User switches between chats          | <100ms to load chat history                          |
-| **File Creation**         | Agent proposes creating 10 files               | User approves all                    | <3s to create all files and update shadow filesystem |
-
-**Optimization Strategies to Test**:
-
-1. **Caching**: Cache frequently accessed file embeddings in Redis
-2. **Lazy Loading**: Load chat history on-demand (last 20 messages) vs all messages
-3. **Debouncing**: Batch file save events (wait 500ms for additional saves before triggering sync)
-4. **Parallel Processing**: Generate embeddings for multiple files concurrently (test 5, 10, 20 parallel workers)
-
-### UI/UX Requirements
-
-#### Screens/Views Needed
-
-- **Chat Interface**: Primary interaction point with message history, context pills at top, input at bottom, typing indicators, approval prompts inline
-- **Chat List Sidebar**: Shows all user chats with titles, last message preview, unread indicators, sort/filter options
-- **Chat Picker Modal**: Full-screen modal (mobile) or dropdown (desktop) showing recent chats when user selects "Add and go to chat"
-- **File Viewer with Chat Integration**: Split view showing file content on left, chat panel on right, highlight-to-add-to-chat functionality
-- **Approval Prompt Modal**: Displays proposed file changes with diff previews, expandable file details, approve/reject actions
-- **Context Pills Bar**: Horizontally scrollable bar above chat input showing all active contexts (maximum 10 pills, on desktop collapse 3+, on mobile collapse 2+), with remove (X) buttons, system suggests "All filesystem" or folder pill when limit reached
-- **Usage Dashboard**: Displays quota usage, request history, files created/edited, token consumption charts
-
-#### Key Interactive Elements
-
-- **Context Pill** (Chip/Badge): Shows file/folder/snippet name with icon, displays metadata on hover (path, line count, tokens), removable with X button, clickable to preview content, drag-and-drop to reorder priority
-- **Chat Input** (Multi-line Textarea): Supports @-mentions for file/folder selection, paste detection for external snippets, slash commands (/search, /edit, /create), rich text formatting for code blocks, attachment button for files
-- **Approval Prompt Card** (Modal): Header with action summary ("Agent wants to edit 3 files"), expandable file list with diff previews (side-by-side or unified), approve all button (primary), reject button (secondary), approve individual files checkboxes
-- **Chat Picker** (Modal/Dropdown): Search bar at top, scrollable list of chats with chat icon + title + preview, sorted by last activity, "+ New Chat" prominent action, swipeable on mobile
-- **Typing Indicator** (Animated): Three-dot animation showing agent is thinking, progress text for long operations ("Searching filesystem...", "Generating code...", "Validating syntax...")
-- **Web Search Toggle** (Switch): Toggle button in chat input area, indicates when web search is active, shows "Web" badge on messages that used web search
-- **File Creation Preview** (Card): Shows proposed file path, estimated line count, language icon, expandable code preview with syntax highlighting, "Create File" button
-- **Diff Viewer** (Deferred Post-MVP): Side-by-side comparison for edits (original left, proposed right), line numbers on both sides, color-coded additions (green) and deletions (red) - NOT in MVP, changes are applied directly after approval
-- **File Conflict Modal** (Dialog): Appears when user edits file/folder while agent is processing changes to same target, shows warning message "Agent is making changes to [file/folder] you are working on", two action buttons: "Cancel Agent Request" (keep user changes) and "Apply Agent Changes" (discard user edits), displays last save timestamp and pending changes count
-
-#### Responsive Requirements
-
-- **Mobile Priority**:
-
-  - Full-height chat interface with fixed input at bottom
-  - Keyboard pushes content up when opened, pills remain visible on top of input (standard chat UI behavior)
-  - Context pills horizontally scrollable with snap-to-pill behavior, collapsed pills (>3) show bottom sheet on tap with all pills (removable)
-  - Chat picker as full-screen modal with smooth slide-up animation
-  - Approval prompts as bottom sheet (50% screen height, expandable to full) showing action type and summary (no diff preview in MVP)
-  - Snippet addition via long-press context menu with vibration feedback - same behavior as right-click on desktop
-  - Swipe gestures: swipe right on message to quote/reply, swipe left to delete (own messages)
-  - Collapsible chat list (hamburger menu) to maximize chat view space
-  - No offline mode support (requires network connection)
-  - No battery-specific optimizations (standard mobile web app behavior)
-  - Long-press on file names in tree view or file content in editor triggers same context menu as right-click
-
-- **Desktop Enhancements**:
-  - Three-panel fixed layout: file tree (left 20%), document editor (center 50%), chat interface (right 30%) - NO panel resizing in MVP
-  - TipTap editor in center panel with right-click context menu support for snippet creation (extend file system UI context menu pattern if TipTap doesn't natively support custom right-click)
-  - Chat always visible on right 30% panel, cannot be full-screen or hidden
-  - Approval prompts show action type and summary (no diff preview, no side-by-side comparison in MVP)
-  - Keyboard shortcuts: Cmd/Ctrl+K to open chat picker, Cmd/Ctrl+Enter to send message, Esc to close modals
-  - Drag-and-drop files from file tree directly into chat to add as context pill
-  - Hover previews on context pills showing full file path and content preview
-  - Multi-select in file tree to add multiple files as context at once
-  - Editor can be closed to show empty state, independent of chat panel
-
-#### Critical States
-
-- **Loading**:
-
-  - Skeleton screens for chat history during initial load
-  - Typing indicator with pulsing dots while agent generates response
-  - Progress bar for embedding generation (background) with percentage and ETA
-  - Spinner on approval buttons during file write operations
-  - Disabled chat input during active request (prevent spam)
-  - In-chat notification for context summarization: "Optimizing context..." (appears when context tight)
-  - Bulk operation progress: "Processing 15/50 files... [current-file-name.md]" with cancel button
-
-- **Error**:
-
-  - Inline error banner above chat input with specific message: "Web search unavailable", "Quota exceeded - 0 requests remaining until [date]", "File sync failed"
-  - Suggested actions: "Retry", "Upgrade Plan" (when quota exhausted, chat input is disabled until upgrade or next billing cycle), "Try without web search"
-  - Red error icon with shake animation for attention
-  - Preserved user input for easy retry after fixing error
-  - Detailed error logs accessible via "View details" link for debugging
-
-- **Empty**:
-
-  - **New User First Login** (no files, no chats):
-    - File tree panel: Empty state with "Create File" and "Upload Files" buttons, onboarding guidance
-    - Document editor panel: Empty state with "Create File", "Upload Files", "Open Document" prompts
-    - Chat panel: Empty state with "Start chatting" prompt - clicking immediately creates first chat with "All filesystem" context pill
-  - **Returning User** (has chats):
-    - Chat panel: Shows chat list with titles, last message previews, sorted by last activity
-    - When chat selected: URL param added with chat ID, reload preserves selected chat
-  - **No Files in Project**: Empty state on file tree and editor explaining how to add files, upload button prominent
-  - **No Search Results**: "No relevant files found" message, suggestions to adjust query or broaden context (add "All filesystem" pill)
-  - **Editor Closed**: Empty state on document editor panel when user closes the editor, independent of chat panel state
-  - **No Document Open + New Chat**: Creating new chat with no document in editor shows "All filesystem" pill only
-
-- **Success**:
-  - Green checkmark animation on approval confirmation
-  - Toast notification: "3 files updated successfully" with undo option (5-second window)
-  - File creation success: Highlight new file in file tree with brief glow effect
-  - Automatic scroll to newly created/edited content in viewer
-  - Confetti animation for first successful agent collaboration (onboarding delight)
-
-#### Accessibility Priorities
-
-- **Keyboard Navigation**:
-
-  - Tab order: context pills (left to right) → chat input → send button → message history (bottom to top) → sidebar chats
-  - Arrow keys within pills bar to move focus between pills
-  - Enter to remove focused pill, Space to preview
-  - Cmd/Ctrl+K to open chat picker from anywhere
-  - Escape to close modals/pickers
-  - Tab within approval prompt: approve all → file checkboxes → reject
-  - Focus trap within modals (can't tab outside until dismissed)
-
-- **Screen Reader**:
-
-  - Announce context pill additions: "Added Button.tsx to context, 3 pills total"
-  - Announce typing indicator: "Agent is generating response"
-  - Announce approval prompts: "Agent proposes editing 3 files, review changes"
-  - Read diff changes: "Line 45 removed: old code, Line 45 added: new code"
-  - Announce success/error states clearly
-  - Label all interactive elements with aria-label
-  - Use aria-live regions for dynamic updates (typing indicator, progress)
-
-- **Touch Targets**:
-  - Minimum 44×44px for all tappable elements on mobile
-  - Sufficient spacing between approve/reject buttons (12px gap minimum)
-  - Large swipe zones for chat picker (entire row tappable, not just text)
-  - Context pill X buttons large enough for thumb (36×36px touch area)
-  - Chat input has comfortable tap target (minimum 56px height)
-  - Long-press for snippet addition (500ms threshold, vibration feedback)
+---
 
 ## Success Criteria _(mandatory)_
 
 ### Measurable Outcomes
 
-#### Performance Metrics
+**Adoption & Engagement**:
 
-- **SC-001**: Users can ask questions about their filesystem and receive responses with relevant file citations within 5 seconds
-- **SC-002**: Shadow filesystem synchronizes with real filesystem changes within 2 seconds of file save events
-- **SC-003**: Semantic search across 1000-file repository returns top 10 relevant results in under 1 second
-- **SC-004**: Chat direction embeddings are generated and stored within 3 seconds after every 5th message
-- **SC-005**: File creation/editing operations complete within 3 seconds after user approval
-- **SC-006**: Web search results are retrieved and synthesized into responses within 8 seconds
-- **SC-007**: Context pills load with previews within 500ms of addition
-- **SC-008**: Chat picker displays recent chats within 300ms of opening
+- **SC-001**: 70% of users create at least one branch within first week
+- **SC-002**: 80% of users who create 3+ branches continue using product after 30 days (retention inflection)
+- **SC-003**: Average 5-10 branches created per active user by Week 4
+- **SC-004**: 60% of users create at least one file artifact within first week
 
-#### Quality Metrics
+**Exploration Workflow Validation**:
 
-- **SC-009**: 85% of agent responses include accurate citations to relevant files in the filesystem
-- **SC-010**: 90% of proposed code changes pass syntax validation before showing approval prompt
-- **SC-011**: Agent's context selection (retrieved files) is rated as relevant by users in 80% of requests
-- **SC-012**: REMOVED - user preference matching deferred to post-MVP detailed feedback phase
-- **SC-013**: Web search is triggered appropriately (only when filesystem context insufficient) in 90% of cases
-- **SC-014**: High confidence responses (>0.8) have >90% approval rate (validates confidence prediction accuracy)
-- **SC-049**: Chat direction routing suggests relevant files in 80% of ambiguous queries as measured by user thumbs up/down feedback
+- **SC-005**: 40% of branches result in file artifact creation (proves Explore → Capture workflow)
+- **SC-006**: 30% of branches reference files from sibling branches (proves cross-branch discovery works)
+- **SC-007**: 20% of users perform consolidation from 2+ branches by Week 8 (proves Consolidate workflow)
+- **SC-008**: Users with 10+ artifacts show 85%+ retention vs 60% for <5 artifacts (proves data lock-in)
 
-#### Adoption & Engagement Metrics
+**Provenance & Trust**:
 
-- **SC-015**: 70% of users create at least one chat session within their first day of using the platform
-- **SC-016**: Users send an average of 15 messages per week across all chats after initial adoption
-- **SC-017**: 60% of users approve at least one file edit/creation within their first week
-- **SC-018**: Users with collaborative editing enabled (approved at least 1 change) return 2x more frequently than read-only users
-- **SC-019**: 40% of chat sessions include explicit context pill management (adding/removing pills)
-- **SC-020**: Average chat session duration is 8 minutes (indicates sustained engagement)
+- **SC-009**: 50% of users interact with provenance indicators (click/hover) within first week
+- **SC-010**: Provenance navigation ("Go to source") used by 30% of users
+- **SC-011**: User feedback mentions provenance positively (qualitative validation through surveys)
 
-#### System Scalability
+**Performance**:
 
-- **SC-021**: System handles 500 concurrent chat sessions without performance degradation
-- **SC-022**: Embedding generation for 1000-file repository completes in under 5 minutes (background processing)
-- **SC-023**: System maintains <500ms query latency at p95 for repositories up to 10,000 files
-- **SC-024**: File sync operations handle 100 concurrent file saves without message loss
+- **SC-012**: Agent response latency p95 <5s for simple queries, p95 <10s for consolidation
+- **SC-013**: Semantic search returns results in <1s for repositories up to 1000 files
+- **SC-014**: Zero critical errors (data loss, failed file creation) in production
 
-#### Mobile Experience
+**Quality**:
 
-- **SC-025**: Mobile users successfully add snippets to chat using "Add to chat" and "Add and go to chat" actions in 95% of attempts
-- **SC-026**: Chat picker modal loads and displays within 300ms on mobile devices (4G connection)
-- **SC-027**: Context pills are usable (scrollable, removable) on mobile with 100% task completion rate
-- **SC-028**: Approval prompts are reviewable and actionable on mobile with 90% successful approval rate (no accidental rejections)
+- **SC-015**: 90% approval rate for agent-proposed file creations (proves AI quality)
+- **SC-016**: 80% approval rate for agent-proposed branch creations
+- **SC-017**: 85% of semantic matches rated as relevant by users (measured via "Dismiss irrelevant" button usage)
 
-#### Cost Efficiency
+**Switching Cost (Long-term)**:
 
-- **SC-029**: Average cost per agent request stays below $0.03 for filesystem-only queries and $0.10 for web search queries (with 200k context window)
-- **SC-030**: Shadow filesystem storage costs remain below $0.50 per user per month for typical repositories (<5,000 files)
-- **SC-031**: Chat direction embedding costs stay below $0.01 per 100 messages
+- **SC-018**: Users with 50+ artifacts across 10+ branches show 95% retention (switching cost evident)
+- **SC-019**: User attempts to export/migrate to ChatGPT decline to <5% after 50+ artifacts created
 
-#### New Feature Metrics
-
-- **SC-032a**: Token-by-token streaming provides first response token within 1 second of request completion
-- **SC-032b**: Autosave completes within 500ms before agent request processing begins
-- **SC-032c**: File conflict warnings appear within 100ms of user typing in file being modified by agent
-- **SC-032d**: Chat search returns results across all chats and files within 300ms
-- **SC-032e**: Chat branching creates fork within 200ms with full context preserved from branch point
-- **SC-032f**: Background task completion notifications display within 100ms of operation finishing
-- **SC-032g**: Auto-suggested follow-up prompts appear within 500ms of agent response completion
-- **SC-032h**: Code block copy buttons function with one-click copy in 100% of cases
-- **SC-032i**: File path links in responses navigate to correct file in 100% of cases
-
-#### Orchestrator & Advanced Features
-
-- **SC-033**: Orchestrator routes requests to correct agent type with >90% accuracy based on implicit user feedback (approval rates)
-- **SC-034**: Multi-agent collaboration is detected and coordinated in <100ms
-- **SC-035**: Users perceive agent responses as appropriate to their request (no perceived misrouting) >90% of the time
-- **SC-036**: Auto-generated artifacts are created and used internally without user visibility issues (zero user complaints about hidden artifacts)
-- **SC-037a**: Context summarization completes within 2 seconds and maintains response quality >85% of cases as measured by user approval rates
-- **SC-037b**: Bulk operations (50 files) complete with progress updates every 3 seconds and <5% failure rate
-
-### Qualitative Outcomes
-
-- **SC-038**: User satisfaction ratings for agent responses average 4.5+ stars out of 5
-- **SC-039**: Users report 4x faster file exploration compared to manual navigation based on post-task surveys
-- **SC-040**: Generated content is approved without modifications in 70% of cases (indicates high quality on first attempt)
-- **SC-041**: Users describe the agent as "understanding my filesystem" rather than "generic AI assistant" in feedback surveys (indicates effective context optimization)
-- **SC-042**: Users trust agent-proposed changes enough to approve without line-by-line review in 50% of simple edits (indicates confidence in validation)
-- **SC-043**: Users describe context selection as "smart" rather than "overwhelming" in usability tests (10-pill limit, smart summarization)
-- **SC-044**: Users successfully recover from file conflicts without data loss in 100% of cases (conflict modal effectiveness)
-- **SC-045**: Orchestrator routing decisions are perceived as "correct" by users >90% of the time (seamless agent selection)
-- **SC-046**: Auto-generated artifacts usage is transparent to users - zero confusion about where external content is stored
+---
 
 ## Assumptions
 
-1. **Shadow Filesystem Approach**: Embeddings-based shadow filesystem provides sufficient context quality - we assume 768-dim vectors capture semantic meaning well enough for accurate retrieval (benchmark will validate)
+**User Behavior**:
 
-2. **Chat Direction Tracking**: Embeddings generated after every 5 messages capture conversation direction adequately - we assume recent message batches are stronger signals than full history for context routing
+- Users exploring complex topics naturally think in parallel paths (validating via user research: researchers, consultants do "compare X vs Y" frequently)
+- Users will approve agent-proposed branches when value is clear (validate via >60% approval rate in beta)
+- Provenance transparency builds trust rather than creating noise (validate via qualitative feedback)
+- Users can learn branching workflow within 5 minutes (validate via onboarding task completion rates)
 
-3. **User Characterization**: Analyzing 50+ files provides sufficient data to extract meaningful organizational preferences and documentation patterns - we assume users have established conventions visible in their content (requires privacy/legal review for compliance)
+**Technical**:
 
-4. **Context Token Budget**: 200,000 token context window with 20% summarization buffer (40k tokens) allows for comprehensive file analysis - we assume intelligent summarization handles repositories up to 5,000 files effectively, with larger filesystems deferred to post-MVP selective context features. Storage limits (Free: 50MB, Pro: 1GB, 10MB per file) constrain repository sizes within practical ranges for MVP
+- Embeddings-based semantic search (768-dim) provides sufficient accuracy for cross-branch discovery (validate via >80% relevant matches)
+- 200K context window with prioritization handles up to 50 branches + 200 files effectively (validate via no context overflow errors in production)
+- Topic shift detection (semantic distance >0.7) accurately identifies divergence (validate via >70% user agreement with branch prompts)
+- Provenance metadata storage overhead acceptable (<5% database size increase per 1000 files)
 
-5. **Web Search Triggers**: LLM can reliably determine when filesystem context is insufficient - we assume the model knows when to search the web vs when local context suffices
+**Product Strategy**:
 
-6. **Approval Friction**: Users will accept approval prompts for edits without significant workflow disruption - we assume the approval UI is fast enough (<2 seconds for single-file edits, <30 seconds for bulk operations with scannable summaries) that it feels collaborative, not blocking
+- Branching + filesystem + provenance integration is defensible moat (validate via competitive analysis: ChatGPT/Claude cannot replicate due to UX complexity at 100M scale)
+- 8-week MVP timeline achievable with core integration only (defer advanced features to V2+)
+- Exploration workspace category resonates with target users (validate via positioning tests with researchers, consultants)
 
-7. **Mobile Use Cases**: Users will perform read-heavy tasks (questions, browsing) on mobile and edit-heavy tasks (approving large reorganizations) on desktop - we assume mobile is secondary interface
-
-8. **Project Size**: Typical user projects contain 100-5,000 files based on industry patterns - edge cases (10,000+ files) will be addressed when data shows demand, with selective context and priority folder features deferred to post-MVP
-
-9. **Real-time Sync**: 2-second sync latency for shadow filesystem is acceptable - we assume users don't expect instant context updates after saving files
-
-10. **Embedding Model**: Using OpenAI text-embedding-3-small provides sufficient accuracy for content retrieval at reasonable cost ($0.02/1M tokens) - we assume general-purpose embeddings work for diverse content types without requiring domain-specific models
-
-11. **Cost Sustainability**: Comprehensive cost tracking per user (LLM tokens, embeddings, storage, web search) enables pricing validation - we're tracking all cost sources to feed into business decisions and validate that usage quotas (100/1000/10000 requests per month) align with profitable pricing tiers
+---
 
 ## Dependencies
 
-1. **Filesystem Access & Monitoring**: Requires filesystem watcher (fs.watch or chokidar) to detect file changes in real-time for shadow filesystem sync
+1. **Filesystem Access & Monitoring**: Filesystem watcher (chokidar) for real-time file change detection
+2. **Embedding Generation**: OpenAI embeddings API (text-embedding-3-small, 768-dim, $0.02/1M tokens) for shadow entity embeddings
+3. **Vector Storage & Search**: Supabase pgvector extension for storing shadow entity embeddings and cosine similarity search across all entity types
+4. **Shadow Entity Infrastructure**: Unified `shadow_entities` table with entity_type discriminator for files, conversations, and knowledge graph nodes
+5. **Server-Sent Events (SSE)**: SSE endpoint for streaming agent responses (text chunks, tool calls, approval prompts) in real-time to frontend
+6. **Real-time Subscriptions**: Supabase real-time for broadcasting updates across devices (conversations, files, shadow entities)
+7. **Edge Functions**: Supabase Edge Functions for agent execution, shadow entity generation, embedding creation, tree traversal, SSE streaming
+8. **LLM API**: Claude Sonnet 3.5 for agent intelligence (branching, consolidation, file creation, summary generation) with streaming support
+9. **Frontend State Management**: Valtio for managing branch navigation, context references, real-time updates, streaming message assembly, prime context display
+10. **Authentication**: Supabase Auth for user identity and RLS enforcement (including shadow entity access control)
 
-2. **Embedding Generation Service**: Requires OpenAI embeddings API (text-embedding-3-small) to generate 768-dim vectors for files and chat direction tracking
+---
 
-3. **Vector Storage & Search**: Requires Supabase pgvector extension for storing embeddings and performing semantic similarity search with cosine distance
+## Out of Scope (Deferred Post-MVP)
 
-4. **Web Search API**: Requires integration with web search provider (Tavily, SerpAPI, or Perplexity) for retrieving external search results
+**Phase 1-3 (MVP Week 1-8) focuses on core integration only. The following are explicitly deferred:**
 
-5. **Real-time Subscriptions**: Requires Supabase real-time subscriptions for broadcasting typing indicators, progress updates, and file sync events across devices
+**Deferred to V2 (Month 2)**:
 
-6. **Supabase Edge Functions**: Requires Edge Functions infrastructure for agent execution, embedding generation, and file operations with unlimited execution time
+- Conversation embeddings (searchable branches by semantic similarity)
+- Advanced semantic search (conversation history search, concept search)
+- User profile learning (style, preferences, behavioral patterns)
+- Interaction tracking (copy rate, regenerate rate, edit before use)
 
-7. **Frontend State Management**: Requires Valtio for managing chat state, context pills, approval prompts, and real-time updates
+**Deferred to V3 (Month 3)**:
 
-8. **Diff Generation Library**: Requires diff library (diff-match-patch or jsdiff) for generating line-by-line diffs for approval previews
+- Divergence penalty (reduce sibling pollution as branches diverge)
+- Concept extraction (NER, topic modeling, keyphrase extraction)
+- Advanced relevance scoring (interaction boost, divergence modifier)
 
-9. **File Backup System**: Requires backup strategy (git integration or snapshot storage) for creating automatic backups before applying destructive changes
+**Deferred to V4 (Month 4-6)**:
 
-10. **Authentication & Authorization**: Requires Supabase Auth for user identity and file-level permissions enforcement
+- Templates (save exploration patterns as reusable workflows)
+- Collaboration (multi-user shared exploration graphs)
+- Marketplace (community templates)
 
-11. **File Type Detection**: Requires file type detection library for appropriate syntax highlighting and content rendering in previews
+**Deferred to V5 (Month 6-12)**:
 
-## Out of Scope
+- Temporal reasoning (concept evolution timeline)
+- Meta-learning (aggregate pattern learning across users)
+- Decision history ("what made me change my mind?")
 
-1. **Multi-User Collaboration**: Real-time collaborative editing where multiple users edit the same file simultaneously - deferred to post-MVP (focus on single-user workflows first)
+**Explicitly Out of Scope**:
 
-2. **Advanced Overseer Agent**: Full reasoning explanation, risk assessment, and audit trails - MVP uses simple approval prompts, overseer added later
+- Branch merging (complex UX, low user demand expected)
+- Multi-language support (English only for MVP)
+- Binary file support (images, PDFs, videos - text only)
+- Code execution/sandboxing (security complexity)
+- Offline mode (real-time is core value prop)
+- Git integration (auto-commits, PR generation)
+- Voice input (text only for MVP)
+- Social auth (email/password only for MVP)
 
-3. **Diff Preview UI**: Side-by-side or unified diff viewer showing proposed changes before approval - MVP applies changes directly after approval prompt (no preview), diff UI deferred to post-MVP based on user feedback requesting change visibility before approval
+---
 
-4. **Line-by-Line Diff Approval**: Granular approval of each changed line with accept/reject buttons - deferred to post-MVP, MVP uses bulk approve/reject only
+## MVP Implementation Phases
 
-5. **Git Integration**: Automatic commits for agent changes, branch creation, PR generation - deferred to post-MVP (manual git workflows sufficient initially)
+### Phase 1: Core Integration (Week 1-4)
 
-6. **Custom Agent Types**: User-defined agents with custom prompts, temperature, and behavior - MVP includes predefined intent classification only
+**Build**:
 
-7. **Advanced Context Prioritization**: User-defined weights for context sources (explicit pills 80%, semantic search 20%, etc.) - MVP uses fixed allocation strategy
+1. Conversation branching (parent-child DAG in database)
+2. File creation with provenance (`write_file` tool, provenance metadata)
+3. Context inheritance (copy explicit_files from parent to child branch)
+4. Basic cross-branch reference (semantic search across all files with relationship modifiers)
+5. Branch navigation UI (left sidebar: current, parent, siblings, children)
+6. Context references UI (explicit, semantic matches, branch context sections)
 
-8. **Multi-Language Support**: Content generation in languages other than English - deferred based on user demand
+**Validate**:
 
-9. **Binary File Handling**: Opening, previewing, or analyzing images, PDFs, videos in chat context - MVP stores metadata only, no content analysis
+- Do users understand branching? (>70% create a branch in first week)
+- Do they create files? (>60% create at least one artifact)
+- Do they reference files across branches? (>30% cross-branch references observed)
 
-10. **Code Execution**: Running generated code in sandboxed environment to validate functionality - MVP relies on syntax validation only, no runtime testing
+**Success Criteria**:
 
-11. **Advanced Web Search**: Filtering by date range, domain, source type - MVP uses basic keyword search with recency bias
+- Branching workflow functional with <2s branch creation latency
+- File creation with provenance works with >90% approval rate
+- Semantic search finds relevant files from sibling branches with >75% accuracy
 
-12. **Voice Input**: Speech-to-text for chat messages on mobile - deferred to post-MVP based on mobile user demand
+---
 
-13. **Agent Marketplace**: Community-contributed agents, templates, or prompts - deferred until core agent system is proven
+### Phase 2: Consolidation (Week 5-6)
 
-14. **Offline Mode**: Chat functionality without internet connection using locally cached embeddings - requires significant architectural changes, post-MVP
+**Build**:
 
-15. **Cross-Repository Context**: Referencing files from multiple projects in single chat session - MVP focuses on single project/repository
+1. Tree traversal for consolidation (access child branch artifacts)
+2. "Generate report from branches" command (consolidation trigger)
+3. Provenance in AI prompts ("This came from Branch A: RAG Deep Dive")
+4. Consolidated file provenance (multiple source_conversation_ids)
+5. Real-time consolidation progress ("Gathering artifacts 3/5 branches")
 
-16. **Advanced Analytics**: Detailed insights into agent performance, token efficiency trends, A/B testing of prompt strategies - basic analytics in MVP, advanced deferred
+**Validate**:
 
-17. **Panel Resizing**: User-customizable panel widths for file tree, editor, and chat - MVP uses fixed proportions (20/50/30), resizing deferred to post-MVP based on user feedback
+- Do users create multi-branch explorations? (>20% of users have 3+ branches)
+- Do they consolidate into final outputs? (>20% use consolidation command)
+- Is provenance useful or confusing? (qualitative feedback from user interviews)
 
-## Technical Architecture Decisions _(to be finalized during planning)_
+**Success Criteria**:
 
-This section will be expanded during `/speckit.plan` based on research findings:
+- Consolidation from 5 branches completes in <10s
+- Provenance citations appear in >80% of consolidated documents
+- Users report consolidation saves time vs manual synthesis (survey feedback)
 
-### Shadow Filesystem Implementation
+---
 
-- **Embedding Model**: OpenAI text-embedding-3-small (768-dim vectors, $0.02/1M tokens) - excellent retrieval quality, simple cloud API integration, no hosting infrastructure required
-- **Vector Database**: Supabase pgvector - built-in PostgreSQL extension, co-located with application data, zero additional vendor costs, sufficient for MVP scale (<5,000 files per user)
-- **Sync Strategy**: [TBD after benchmarking - event-driven vs polling vs hybrid]
-- **Storage Format**: [TBD - raw vectors vs compressed vs quantized]
+### Phase 3: Polish (Week 7-8)
 
-### Chat Direction Tracking
+**Build**:
 
-- **Embedding Strategy**: Rolling Window (decided), but frequency and window size to be tuned
-- **Fallback Strategy**: If embedding costs too high, use structured metadata (mentioned files array + intent distribution)
+1. Visual tree view (optional, desktop only) showing branch hierarchy
+2. Provenance UI enhancements (hover tooltips showing summarized data, click opens editor with full provenance)
+3. Better context section visualization (priority tier groupings with visual indicators)
+4. @-mention support for other conversations (add chat context to current conversation)
+5. Branch search (find branch by name or content)
 
-### Context Priming
+**Validate**:
 
-- **User Characterization**: AST parsing vs regex vs LLM analysis - [TBD after accuracy comparison]
-- **Folder Relationship Detection**: Import analysis vs naming conventions vs co-location patterns - [TBD]
+- Does tree view help navigation? (>40% of users who enable it continue using it)
+- Do users notice/use provenance? (>50% interact with provenance indicators)
+- Do priority tier visual indicators help users understand context? (user feedback on clarity)
+- Do users @-mention other chats to combine contexts? (>20% usage rate)
 
-### Performance Optimization
+**Success Criteria**:
 
-- **Caching Layer**: Redis for frequently accessed embeddings - [TBD after load testing]
-- **Lazy Loading**: Chat history pagination strategy - [TBD based on average chat length metrics]
-- **Parallel Processing**: Optimal worker count for embedding generation - [TBD after benchmarking]
+- Tree view renders <1s for 50 branches
+- Provenance tooltip appears <100ms on hover, editor opens <300ms on click
+- Context section with priority tiers renders <200ms
+- @-mention autocomplete for chats appears <300ms
 
-These decisions will be researched, prototyped, and documented in `plan.md` during the planning phase.
+---
+
+## Next Steps
+
+1. **Finalize technical architecture**: Review `arch.md` for database schema, context assembly implementation, agent tool specifications
+2. **Design UI/UX**: Review `design.md` for screen layouts, interaction patterns, component specifications
+3. **Generate implementation plan**: Run `/speckit.plan` to create detailed implementation roadmap
+4. **Generate task list**: Run `/speckit.tasks` to create dependency-ordered tasks for Phase 1-3
+5. **Begin implementation**: Start with Phase 1 (Week 1-4) focusing on branching + provenance foundation

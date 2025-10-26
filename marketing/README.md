@@ -1,4 +1,36 @@
-# Centrid Marketing: First Paying Customers
+# Centrid Marketing Documentation
+
+---
+
+## **Complete MVP Strategy** (2025-10-25) 🎯
+
+**Strategy**: Branching + Filesystem Integration
+
+**The complete picture**: [mvp-strategy-consolidated.md](./mvp-strategy-consolidated.md) - Everything in one place
+
+This consolidates:
+- Strategic positioning (branching + filesystem unified model)
+- Complete system architecture (4 domains, 9-layer context)
+- Dynamic relevance scoring (5 factors with divergence tracking)
+- Technical implementation (data models, caching, performance)
+- MVP scope (8 weeks, phased approach)
+- UX design (filesystem primary, progressive disclosure)
+- Competitive moat analysis
+- Go-to-market strategy
+
+**Quick reference docs**:
+1. **[DECISION.md](./DECISION.md)** - One-page decision (5 min)
+2. **[executive-summary.md](./executive-summary.md)** - Strategic overview (15 min)
+3. **[system-model.md](./system-model.md)** - Technical deep dive with Q&A (45 min)
+
+**Supporting analysis**:
+- [branching-filesystem-integration.md](./branching-filesystem-integration.md) - Design decision details
+- [claude-memory-analysis.md](./claude-memory-analysis.md) - Competitive research
+- [approach-comparison.md](./approach-comparison.md) - Three approaches evaluated
+
+---
+
+## Go-to-Market: First Paying Customers
 
 > **Goal**: Get 1-5 paying customers in 14 days through direct outreach. Prove someone will pay before scaling.
 

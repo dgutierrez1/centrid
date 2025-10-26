@@ -81,8 +81,9 @@ Given that feature description, do this:
       **Feature**: [Link to spec.md]
       
       ## Content Quality
-      
-      - [ ] No implementation details (languages, frameworks, APIs)
+
+      - [ ] No implementation details (languages, frameworks, APIs, tech stack)
+      - [ ] No UI/UX architecture (screens, flows, components, state management - use /speckit.arch)
       - [ ] Focused on user value and business needs
       - [ ] Written for non-technical stakeholders
       - [ ] All mandatory sections completed
@@ -171,8 +172,15 @@ Given that feature description, do this:
 
 - Focus on **WHAT** users need and **WHY**.
 - Avoid HOW to implement (no tech stack, APIs, code structure).
+- **Avoid UI/UX architecture** (screens, flows, components, state management) - use `/speckit.arch` for that.
 - Written for business stakeholders, not developers.
 - DO NOT create any checklists that are embedded in the spec. That will be a separate command.
+
+**Separation of Concerns**:
+- `spec.md` = WHAT users need (requirements, user stories, acceptance criteria)
+- `arch.md` = WHY + STRUCTURE (architecture: screens, flows, components, data model) ← use `/speckit.arch`
+- `plan.md` = HOW to implement (technical approach, tech stack)
+- `design.md` = VISUAL design (colors, spacing, interactions) ← use `/speckit.design`
 
 ### Section Requirements
 

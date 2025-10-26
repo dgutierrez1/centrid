@@ -5,16 +5,6 @@
 **Status**: Draft
 **Input**: User description: "we need to implement next feature for the file processing and filesystem setup and management. we will target a bigger scope, we need the full file system setup. so users need to be able to CRUD their file system and files. the ui needs to be setup so we can build on top of it later, even though we are only focusing on the filesystem. the ui for desktop will have three panels, on the left we have the file system with tree view, on the center we have the document currently opened (maybe none are opned), on the right we have the ai chat. for mobile is trickier, the main focus screen could either be a chat or a document, the user will be able to change between one another when they select a chat or a document. the files would be ideally in markdown so they can be render correctly and good looking in the UI, users should be able to edit the files in the ui with styling and editing tools. can we implement automatic saving and updates to prevent users to have to manually save the files and loose data potentially. the visualization tool we use on the ui should allow later on to integrate diffs from the ai agent changes/suggestions, so keep in mind the ui tool will need to be extended in the future. we also need to setup things to work with the ai agents for search, optimal context, indexing, etc, so we need to focus on the core problem we want to adress about context fragmentation and enabling agents to do context optimal worflows."
 
-## Clarifications
-
-### Session 2025-10-22
-
-- Q: How should the folder hierarchy be implemented in the data model (separate tables vs single table with type discriminator)? → A: Separate `folders` and `documents` tables for cleaner domain separation and type safety
-- Q: Which markdown editor component should be used for implementation with extensibility for future diff/merge UI? → A: TipTap (ProseMirror-based) for its extensibility, TypeScript support, and capability for custom diff extensions
-- Q: Where should the actual markdown file content be stored in the backend architecture? → A: Supabase Storage (object storage) with metadata in `documents` table and storage path reference
-- Q: When and how should document content be indexed for search and AI context retrieval? → A: Database trigger on `documents` table changes automatically queues indexing job
-- Q: Which React component library should be used for the hierarchical file tree view with drag-and-drop? → A: react-arborist for its virtualization, built-in drag-and-drop, keyboard navigation, and TypeScript support
-
 ## User Scenarios & Testing
 
 ### User Story 1 - Create and Edit Markdown Documents (Priority: P1)
@@ -22,8 +12,6 @@
 A user logs in to Centrid and wants to create a new document to organize their thoughts or project notes. They create a new markdown file, write content with rich text formatting, and the system automatically saves their work without manual intervention.
 
 **Why this priority**: This is the foundational capability of the entire feature. Without the ability to create and edit documents, no other functionality can exist. This delivers immediate value by giving users a place to store and edit their knowledge.
-
-**Independent Test**: Can be fully tested by creating a new user account, creating a markdown file, typing content with formatting, closing the browser, and reopening to verify content persists. Delivers a complete note-taking experience.
 
 **Acceptance Scenarios**:
 
@@ -39,8 +27,6 @@ A user logs in to Centrid and wants to create a new document to organize their t
 A user has multiple documents and wants to organize them into folders. They create folders, move files between folders, rename items, and navigate through their file tree to find the document they need.
 
 **Why this priority**: Organization is critical for scaling beyond a few documents. This enables users to build a structured knowledge base rather than a flat list of files. Essential for the "context management" core value proposition.
-
-**Independent Test**: Can be fully tested by creating multiple folders and documents, organizing them into a hierarchy, renaming items, moving files between folders, and verifying the tree structure updates correctly. Delivers a complete file organization experience.
 
 **Acceptance Scenarios**:
 
@@ -58,8 +44,6 @@ A user working on a desktop computer sees a three-panel layout: file tree on the
 
 **Why this priority**: The three-panel layout is the core UX paradigm that enables the AI-enhanced workflow. It allows users to reference their files while chatting with AI, creating a seamless context-aware experience. This is the visual foundation for all future AI features.
 
-**Independent Test**: Can be fully tested by opening the application on a desktop browser, verifying all three panels are visible with fixed proportions, and confirming each panel functions independently. Delivers the complete workspace foundation.
-
 **Acceptance Scenarios**:
 
 1. **Given** a user opens the application on a desktop browser (width > 1024px), **When** the app loads, **Then** three panels are visible with fixed proportions: file tree (left, 20% width), editor (center, 50% width), chat (right, 30% width)
@@ -74,8 +58,6 @@ A user working on a desktop computer sees a three-panel layout: file tree on the
 A user accessing the application on a mobile device sees a focused single-panel view. They can toggle between viewing their current document and the AI chat, with the file tree accessible via a slide-out menu.
 
 **Why this priority**: Mobile support is important for accessibility and modern user expectations, but can be delivered after the core desktop experience. This allows us to validate the core features on desktop first, then adapt the interface patterns.
-
-**Independent Test**: Can be fully tested by opening the application on a mobile browser or device, navigating between document and chat views, accessing the file tree menu, and performing basic file operations. Delivers a complete mobile experience.
 
 **Acceptance Scenarios**:
 
@@ -92,8 +74,6 @@ When a user creates or updates a document, the system automatically processes th
 
 **Why this priority**: This is the bridge between the file system and AI capabilities. While not immediately visible to users, it's essential for delivering the core value proposition of "context-aware AI". Can be developed in parallel with UI features.
 
-**Independent Test**: Can be fully tested by creating documents with distinct content, waiting for background indexing, then using search functionality to verify content is discoverable. Delivers the foundation for AI-powered features.
-
 **Acceptance Scenarios**:
 
 1. **Given** a user creates a new document with content, **When** the auto-save triggers and updates the `documents` table, **Then** a database trigger automatically queues the document for background indexing
@@ -108,8 +88,6 @@ When a user creates or updates a document, the system automatically processes th
 A user has existing markdown or text files on their computer and wants to import them into Centrid. They drag and drop files or use a file picker to upload multiple documents, which are then processed and made available in their file tree.
 
 **Why this priority**: Many users will have existing notes, documentation, or content they want to bring into Centrid. This enables migration from other tools and provides immediate value by populating their knowledge base. Essential for adoption.
-
-**Independent Test**: Can be fully tested by preparing markdown/text files locally, uploading them via drag-and-drop or file picker, and verifying they appear in the file tree and are searchable. Delivers complete document import capability.
 
 **Acceptance Scenarios**:
 
@@ -127,8 +105,6 @@ A user with many documents wants to find specific information. They use the sear
 
 **Why this priority**: Search becomes valuable once users have accumulated multiple documents. While important for long-term usability, the feature can be delivered after users can create and organize their initial document base.
 
-**Independent Test**: Can be fully tested by creating multiple documents with different content, performing various search queries, and verifying results are relevant and ranked appropriately. Delivers a complete search experience.
-
 **Acceptance Scenarios**:
 
 1. **Given** a user has multiple indexed documents, **When** they enter a search query, **Then** results are returned in under 1 second ranked by relevance
@@ -140,17 +116,12 @@ A user with many documents wants to find specific information. They use the sear
 
 ### Edge Cases
 
-- **What happens when a user loses network connection while editing?** Changes continue to queue locally and sync when connection is restored, with conflict resolution if document was modified elsewhere
-- **How does system handle very large files (>10MB)?** System warns users before upload and either prevents upload or implements progressive loading for performance
-- **What happens when a user tries to create a file/folder with duplicate names?** System appends a number (e.g., "Document (1)") or prompts user to choose a different name
-- **How does system handle special characters in file names?** System sanitizes names to prevent filesystem conflicts (e.g., replaces `/` with `-`)
-- **What happens when document indexing fails?** Background indexing job retries up to 3 times with exponential backoff, then logs error and marks document with indexing_failed status (user can manually retry via UI if needed)
-- **How does system handle concurrent edits to the same document?** Last-write-wins for MVP, with future consideration for operational transforms or CRDTs
-- **What happens when a user's storage quota is exceeded?** System prevents new document creation/upload and displays quota warning with upgrade prompt
-- **How does system handle markdown rendering errors?** Displays sanitized content with error indicator, preventing XSS while maintaining usability
-- **What happens when a user uploads unsupported file types?** System shows error message indicating only .md and .txt files are supported in MVP
-- **How does system handle bulk uploads of many files?** Files are queued and uploaded sequentially with overall progress indicator, preventing server overload
-- **What happens when upload fails mid-transfer?** User sees error notification with retry option, partial uploads are cleaned up automatically
+- **Network connection loss while editing**: Changes queue locally and sync when connection restored, with conflict resolution if document was modified elsewhere
+- **Large files (>10MB)**: System warns before upload and prevents or implements progressive loading for performance
+- **Document indexing failures**: Background job retries 3x with exponential backoff, then logs error and marks document with indexing_failed status (manual retry available)
+- **Concurrent edits**: Last-write-wins for MVP (operational transforms/CRDTs deferred)
+- **Storage quota exceeded**: Prevents new creation/upload, displays quota warning with upgrade prompt
+- **Bulk uploads**: Files queued and uploaded sequentially with progress indicator to prevent server overload
 
 ## Requirements
 
@@ -234,20 +205,10 @@ A user with many documents wants to find specific information. They use the sear
 
 #### Animation Guidelines
 
-- **Principle**: Fast, fluid, minimal - animations enhance usability without overwhelming users
-- **Desktop Duration**: 150-250ms for most transitions (quick enough to feel instant, slow enough to provide visual feedback)
-- **Mobile Duration**: 100-150ms for all transitions (very fast and snappy to match native app expectations)
-- **Key Transitions**:
-  - Document open/close: Subtle fade-in (200ms desktop, 120ms mobile) when document loads in editor
-  - Folder expand/collapse: Arrow rotation (150ms desktop, 100ms mobile) and content slide-down (200ms desktop, 120ms mobile)
-  - View switching (mobile): Slide transition (150ms) when toggling between document and chat - must feel instant
-  - File tree updates: Fade-in (150ms desktop, 100ms mobile) for newly created/uploaded items
-  - Save status: Icon morph animation (200ms desktop, 120ms mobile) when state changes
-  - Drag-and-drop: Drop zone border pulse (continuous during drag, 150ms desktop / 100ms mobile completion)
-  - Mobile overlay: File tree slide-in/out (150ms) with slight easing for smooth feel
-- **No Animation**: Static text rendering, toolbar interactions, scroll behavior
-- **Mobile Optimization**: All mobile animations prioritize speed over smoothness to feel native and responsive
-- **Reduced Motion**: System respects user's prefers-reduced-motion setting by disabling non-essential animations
+- **Principle**: Fast, minimal transitions (150-250ms desktop, 100-150ms mobile) enhance usability without overwhelming users
+- **Key Transitions**: Document open (fade 200ms/120ms), folder expand/collapse (slide 200ms/120ms), mobile view switch (slide 150ms), save status (morph 200ms/120ms), drag-and-drop (border pulse), file tree updates (fade 150ms/100ms)
+- **No Animation**: Static text, toolbar interactions, scroll behavior
+- **Accessibility**: Respects prefers-reduced-motion setting by disabling non-essential animations
 
 #### Critical States
 
@@ -265,69 +226,55 @@ A user with many documents wants to find specific information. They use the sear
 
 ## Success Criteria
 
-### Measurable Outcomes
+**Performance**:
+- Document creation to editing: <3s
+- Auto-save reliability: >99%
+- File tree operations: <1s
+- Search results (up to 1000 files): <1s
+- Document indexing (50-page doc): <60s
+- File uploads (<1MB): <5s
 
-- **SC-001**: Users can create a new document and begin editing within 3 seconds of clicking "New Document"
-- **SC-002**: Auto-save successfully persists changes with 99%+ reliability, preventing data loss
-- **SC-003**: File tree operations (create, rename, delete, move) complete within 1 second of user action with smooth visual feedback
-- **SC-004**: Document search returns relevant results in under 1 second for document collections up to 1000 files
-- **SC-005**: Three-panel desktop layout with fixed proportions maintains usability at screen widths from 1024px to 2560px without horizontal scrolling
-- **SC-006**: Mobile interface remains functional and usable on devices from 320px to 768px width
-- **SC-007**: Users can edit documents offline and changes sync automatically when connection is restored
-- **SC-008**: Markdown rendering displays correctly for all standard markdown syntax (headers, emphasis, lists, code, links, blockquotes)
-- **SC-009**: 90% of users successfully create, organize, and edit documents without encountering errors in their first session
-- **SC-010**: Document indexing completes within 60 seconds for 50-page documents, enabling immediate search availability
-- **SC-011**: File uploads complete within 5 seconds for typical markdown files (<1MB) with clear progress indication
-- **SC-012**: Users can upload multiple files simultaneously and continue working while upload happens in background
-- **SC-013**: Desktop animations complete within 150-250ms, providing visual feedback without feeling sluggish
-- **SC-014**: Mobile animations complete within 100-150ms, feeling instant and snappy like native mobile apps
+**UX Quality**:
+- First session success rate: >90% (create/organize/edit without errors)
+- Animation timing: 150-250ms desktop, 100-150ms mobile
+- Responsive range: 320px-2560px width (mobile to desktop)
+
+**Features**:
+- Offline editing with automatic sync on reconnection
+- Background multi-file uploads
+- Standard markdown syntax support (headers, emphasis, lists, code, links, blockquotes)
 
 ## Assumptions
 
-- Users will primarily create or upload text-based markdown documents, not large binary files
-- Maximum individual document size will be reasonable (<10MB) for in-browser editing and upload
-- Users understand basic markdown syntax or will learn through the formatting toolbar
-- Network latency for API requests will be <500ms under normal conditions
-- Users will organize documents into folders rather than maintaining flat structure
-- Search relevance ranking by title > headers > body will meet user expectations
-- Auto-save interval of 3 seconds balances UX (no data loss) with backend load
-- Mobile users will tolerate single-panel focus view rather than attempting multi-panel complexity
-- Document content will be primarily English for MVP (affects search stemming and language detection)
-- Users will not require real-time collaborative editing in MVP (deferred to future versions)
-- Fixed panel proportions (20/50/30) will work for most users in MVP, customization can be added post-MVP
-- Desktop animations (150-250ms) will enhance UX without causing motion sickness or distraction
-- Mobile animations (100-150ms) will feel native and responsive, matching user expectations from mobile apps
-- Most uploaded files will be .md or .txt format, with larger file type support deferred to post-MVP
+- **Content & Scale**: Primarily text-based markdown documents (<10MB), English content for MVP, organized into folders rather than flat structure, mostly .md/.txt file uploads
+- **Performance & Network**: API latency <500ms, auto-save (3s) balances UX/load, desktop animations (150-250ms) and mobile (100-150ms) enhance without distraction
+- **User Behavior**: Users understand basic markdown or learn via toolbar, tolerate single-panel mobile view, fixed panel proportions (20/50/30) work for most users, search ranking by title > headers > body meets expectations
+- **Scope Deferrals**: No real-time collaborative editing in MVP, panel customization deferred post-MVP
 
 ## Dependencies
 
-- Authentication system must be operational to enforce user isolation and document ownership
-- Backend storage system must support hierarchical folder structures with separate `folders` and `documents` tables
-- Supabase Storage must be configured with user-isolated buckets and RLS policies for file access control
-- Backend must provide endpoints for CRUD operations on documents and folders
-- Backend must provide file upload endpoint with multipart form data support and Supabase Storage integration
-- Database trigger on `documents` table (INSERT/UPDATE) must automatically queue indexing jobs
-- Background indexing job (Edge Function or pg_cron) must fetch content from Supabase Storage, chunk it, generate embeddings, and store in `document_chunks` table
+**Technical Decisions** (from clarification session 2025-10-22):
+- Data model: Separate `folders` and `documents` tables for cleaner domain separation and type safety
+- Markdown editor: TipTap (ProseMirror-based) for extensibility, TypeScript support, and custom diff extension capability
+- File tree component: react-arborist for virtualization, drag-and-drop, keyboard navigation, and TypeScript support
+- File storage: Supabase Storage (object storage) with metadata in `documents` table and storage path reference
+- Indexing trigger: Database trigger on `documents` table changes automatically queues indexing jobs
+
+**Required Systems**:
+- Authentication system operational to enforce user isolation and document ownership
+- Supabase Storage configured with user-isolated buckets and RLS policies for file access control
+- Backend endpoints for CRUD operations on documents and folders
+- Backend file upload endpoint with multipart form data support and Supabase Storage integration
+- Background indexing job (Edge Function or pg_cron) to fetch content from Supabase Storage, chunk it, generate embeddings, and store in `document_chunks` table
 - Document deletion must cascade to remove associated chunks and storage files
-- Real-time updates may require websocket or polling infrastructure for save status and upload progress
-- TipTap editor library (ProseMirror-based) with markdown extensions for rich text editing
-- TipTap must be configured with XSS-safe markdown serialization/deserialization
-- react-arborist library for file tree component with virtualization, drag-and-drop, and keyboard navigation
-- File content must be retrieved from Supabase Storage via signed URLs or direct download for editor loading
+- Real-time updates infrastructure (websocket or polling) for save status and upload progress
+- TipTap configured with XSS-safe markdown serialization/deserialization
+- File content retrieval from Supabase Storage via signed URLs or direct download for editor loading
 
 ## Out of Scope (Post-MVP)
 
-- Document version history and rollback capability
-- Real-time collaborative editing with multiple users
-- Document sharing and permissions (public links, team access)
-- Document templates and boilerplates
-- Export to other formats (PDF, DOCX, HTML)
-- Advanced markdown features (math equations, diagrams, embeds)
-- AI-suggested edits with inline diff view (UI foundation established, but feature deferred)
-- Document tagging and advanced metadata
-- Bulk operations (move multiple files, batch delete)
-- Trash/recycle bin with recovery
-- Resizable panel widths (fixed proportions for MVP, customization deferred)
-- Custom themes and editor preferences
-- Syntax highlighting for code blocks in editor mode
-- Upload of file types beyond .md and .txt (PDF, DOCX processing deferred)
+- **Collaboration**: Version history, rollback, real-time multi-user editing, document sharing/permissions, team access
+- **Advanced Editing**: Templates, export formats (PDF/DOCX/HTML), math equations, diagrams, embeds, syntax highlighting, custom themes/preferences
+- **AI Features**: Inline diff view for suggested edits (UI foundation established, feature deferred)
+- **Organization**: Document tagging/metadata, bulk operations, trash/recycle bin, resizable panels
+- **File Support**: Upload beyond .md/.txt (PDF/DOCX processing deferred)

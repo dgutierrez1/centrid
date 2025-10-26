@@ -2,7 +2,7 @@
 
 **Purpose**: Create reusable presentational components in `packages/ui` following component architecture from plan.md, create mock containers with sample data in `apps/design-system`, iterate visually until approved.
 
-**Prerequisites**: spec.md, plan.md (with Component Architecture section for UI projects), global design system exists
+**Prerequisites**: spec.md, plan.md (with Component Architecture section for UI projects) OR arch.md (preferred for UI Architecture), global design system exists
 
 ---
 
@@ -17,22 +17,30 @@
 **Load feature context** from FEATURE_DIR:
 - **Required**: `spec.md` (user stories, requirements)
 - **Required**: `plan.md` (tech stack, architecture, component architecture)
+- **Optional**: `arch.md` (if exists in AVAILABLE_DOCS - preferred source for architecture)
 - **Optional**: `data-model.md` (if exists in AVAILABLE_DOCS)
 
 **Load design system context**:
 - Read `.specify/design-system/tokens.md` (design tokens)
 - Read `packages/ui/src/components/index.ts` (available primitives)
 
-**Load component architecture** (from plan.md):
-- Read "Component Architecture" section (all 6 subsections):
+**Load component architecture**:
+- **IF arch.md EXISTS**: Load "User Interface Architecture" section from arch.md (preferred):
+  - Screen Inventory (screens, navigation paths, user stories)
+  - User Flow Map (navigation patterns, entry/exit points)
+  - Information Architecture (content hierarchy, organization)
+  - Module/Component Architecture (hierarchy, responsibilities, composition)
+  - State Management Strategy (application/UI/URL/external state, flow patterns)
+  - Interaction Patterns (user interactions, state transitions, feedback)
+- **ELSE**: Load "Component Architecture" section from plan.md (fallback):
   1. Screen Inventory (screens, routes, user stories)
   2. Component Hierarchy (per screen trees)
   3. Container/Presenter Mapping (where each component lives)
   4. State Management Strategy (global/component/URL state)
   5. Data Flow Architecture (props down, callbacks up)
   6. Composition Patterns (prop drilling vs context, etc.)
-- If section missing: SKIP architecture-based steps (API/CLI project)
-- If section exists: Use all 6 subsections to guide component creation
+- **IF BOTH MISSING**: SKIP architecture-based steps (API/CLI project or no UI)
+- Use loaded architecture to guide component creation
 
 ### 2. Component Reusability Assessment
 

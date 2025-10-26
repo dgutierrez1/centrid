@@ -1,8 +1,8 @@
 # Business Foundation: Centrid
 
-**Date**: 2025-10-23
+**Date**: 2025-10-25
 **Status**: Active
-**Last Updated**: 2025-10-23 (migrated from PROJECT-ANALYSIS.md)
+**Last Updated**: 2025-10-25 (aligned with branching + filesystem + provenance strategy)
 
 ---
 
@@ -10,139 +10,212 @@
 
 ### Value Proposition
 
-**Core Innovation**: AI workspace with persistent document context across multiple conversations - eliminating context fragmentation for knowledge workers.
+**Core Innovation**: Exploration workspace where branching conversations and persistent filesystem are unified through provenance—enabling users to explore complex topics without context fragmentation.
 
-**Problem Solved**: Knowledge workers and power users experience context fragmentation when working with AI - constantly re-explaining context across conversations, managing disconnected conversations, and losing train of thought when switching topics.
+**Problem Solved**: Researchers, consultants, and knowledge workers exploring complex topics suffer from context fragmentation when trying multiple approaches in parallel. Current tools force linear exploration (ChatGPT) or manual organization (Notion).
 
-**Unique Value**: Upload documents once, work across unlimited chats with maintained context. Unlike ChatGPT (no persistent context) or Notion AI (limited conversation capabilities), Centrid enables knowledge workers to research, create, analyze, and decide with AI that maintains document access across all conversations.
+**Unique Value**: Branch conversations at any message → explore multiple approaches in parallel → capture outputs as artifacts with provenance → consolidate findings across branches. Unlike ChatGPT (linear conversations) or Notion (manual organization), Centrid enables deep research workflows: Explore → Capture → Reference → Consolidate → Ship.
 
-**Key Insight**: Context fragmentation is the biggest friction for AI power users, not lack of AI capability. Centrid solves this by maintaining a persistent knowledge graph with vector embeddings, enabling semantic search and automatic relevance ranking across all user documents.
+**Key Insight**: Deep research isn't linear—it's a tree of exploration paths. ChatGPT forces linear chat. Notion forces manual organization. Centrid enables branching exploration with artifact capture and provenance tracking.
+
+**Example Workflow**:
+```
+Main: "Research AI Agents"
+│
+├─ Branch A: RAG Deep Dive
+│  ├─ Explore (conversation)
+│  └─ Capture: rag-analysis.md (file with provenance)
+│
+├─ Branch B: Orchestration
+│  ├─ Inherits context from Main
+│  ├─ Auto-loads rag-analysis.md (semantic match + sibling boost)
+│  └─ Capture: orchestration-notes.md
+│
+└─ Consolidate (from Main)
+   ├─ AI accesses both files + provenance
+   └─ Output: decision-doc.md (references both branches)
+```
 
 **User Workflows Enabled**:
-1. **Research & Synthesize**: Analyze themes across multiple documents with AI
-2. **Create & Generate**: Write content using knowledge base as context
-3. **Analyze & Decide**: Compare approaches from documents with AI assistance
-4. **Branch & Explore**: Start new chats for tangent topics while maintaining main work
+1. **Parallel Exploration**: Branch at any message to try multiple approaches simultaneously
+2. **Artifact Capture**: Outputs persist as files with conversation provenance
+3. **Cross-Branch Reference**: Semantic search finds relevant files from sibling branches
+4. **Consolidation**: Synthesize findings from multiple exploration paths into final output
+5. **Context Preservation**: Every file knows: created_in_conversation_id, context_summary, last_updated_by_branch
 
 ### Customer Segments
 
-**Primary Target**: Knowledge workers and power AI users
-- Content creators, consultants, researchers, analysts, indie hackers, solo developers, technical writers
-- Heavy ChatGPT/Claude users (10+ interactions daily) experiencing context re-explanation friction
-- Already paying $20-40/month for AI tools (ChatGPT Plus, Claude Pro)
-- Need mobile access for on-the-go productivity
+**Primary Target**: Deep Research Workers
+- **Roles**: Researchers (literature reviews), engineers (technical decisions), product managers (feature specs), independent consultants (client deliverables), content creators (articles from research), business analysts (reports from parallel analyses)
+- **Psychographics**: Exploring complex topics requiring parallel investigation, frustrated by linear chat limitations, need to consolidate findings from multiple exploration paths
+- **Behaviors**: Already paying $20/month for ChatGPT/Claude, creating manual workarounds (Google Docs + ChatGPT, Notion + copy-paste), losing exploration paths when conversations branch
+- **Pain Point**: Context fragmentation when exploring in parallel—can't remember which branch had which insight, manual consolidation takes hours, losing context when switching between approaches
+- **Decision Process**: Tries free trial, validates branching workflow, converts if eliminates manual consolidation
 
-**Secondary Target**: Teams and agencies
-- Small teams (2-10 people) working on knowledge-intensive projects
-- Content agencies, consulting firms, research teams
-- Defer until individual product-market fit validates
+**TAM/SAM/SOM**:
+- **TAM**: 30M users experiencing context fragmentation in deep research
+- **SAM**: 6M users (experience it daily)
+- **SOM Year 3**: 50K users × avg $25/mo = **$15M ARR** (60% Plus $19/mo, 40% Pro $39/mo)
+
+**Secondary Target**: Teams (deferred to Month 6+)
+- Small research teams (2-5 people)
+- Consulting firms with shared client work
+- Product teams with collaborative feature exploration
+- Shared workspaces with branch permissions
 
 **Non-Target Markets**:
-- Enterprise (pre-MVP) - complexity and sales cycle don't fit MVP timeline
-- Casual AI users - won't pay $25/month for persistent context
-- Code-focused developers - Cursor serves this segment well
+- Casual AI users (don't need branching complexity)
+- Code-focused developers (Cursor serves this segment)
+- Enterprise (complexity and sales cycle don't fit MVP timeline)
+- General productivity users (Notion serves this segment)
 
 ### Revenue Streams
 
 **Primary Revenue**: SaaS subscription (recurring monthly revenue)
 
-**Launch Pricing (Context-First MVP)**:
-- **Free Trial**: 7 days, no credit card required - proves persistent context value
-- **Pro**: $25/month - Everything included:
-  - Unlimited documents
-  - Unlimited chats
-  - Full document context across all chats
-  - Document editor
-  - All features unlocked
-  - Claude-powered AI with RAG context retrieval
-  - Real-time sync across devices
+**Pricing Tiers**:
 
-**Value Justification**: Save 10-15 minutes per AI conversation. For power users doing 10 conversations/day, that's 1.5-2.5 hours saved = $1,000+/month in knowledge worker time. $25/month is 2.5% of value delivered.
+**Free Trial**: 7 days, no credit card required
+- All Pro features unlocked
+- Proves branching + consolidation value
+- Goal: 40% consolidation rate (users create multi-branch explorations)
 
-**Future Revenue Expansion** (Post-Launch):
-- **Team**: $75/month - Shared workspaces, team collaboration, admin controls
-- **Enterprise**: Custom pricing - SSO, advanced security, dedicated support, SLA
-- **Add-ons**: Additional storage, advanced AI models, premium integrations (deferred)
+**Free - Explorer**:
+- 40 Haiku requests/month (hard cap)
+- 0 Sonnet requests (no premium AI)
+- 20 files limit
+- 5 active chats/branches
+- Basic context (no KG, no concepts)
+
+**Plus - $19/month**:
+- **Unlimited Haiku requests** (no throttling)
+- **60 Sonnet requests/month** (premium AI)
+- 200 files limit
+- Unlimited chats & branches
+- Full context (KG, concepts, divergence tracking)
+- Provenance metadata on all files
+- Cross-branch consolidation
+- Real-time sync across devices
+
+**Pro - $39/month**:
+- **Unlimited Haiku requests**
+- **140 Sonnet requests/month** (2.3x more premium AI)
+- 500 files limit
+- Unlimited chats & branches
+- Full context + Collaboration (deferred to V4)
+- Provenance metadata on all files
+- Cross-branch consolidation
+- Real-time sync across devices
+- Priority support
+- Priority queue (2x faster)
+
+**Team**: $75/month (deferred to Month 6+)
+- All Pro features
+- Shared workspaces (5 users included)
+- Branch permissions and visibility controls
+- Team analytics and exploration tree views
+- Admin controls
+
+**Enterprise**: Custom pricing (deferred to Year 2+)
+- All Team features
+- SSO, compliance, audit logs
+- Dedicated support and SLA
+- Custom integrations
+- Professional services
+
+**Value Justification**:
+- ChatGPT Plus: $20/mo (linear conversations, ephemeral outputs)
+- Claude Pro: $20/mo (linear conversations, no provenance)
+- Centrid Plus: $19/mo ($1 cheaper + branching + artifacts + provenance)
+- Centrid Pro: $39/mo (matches GitHub Copilot Pro+, 2.3x more premium AI)
+- ROI for consultants: $150-300/hr billable rate = easy ROI on $19-39/mo
+- Time savings: Consolidation automation saves 2-4 hours per complex research project
 
 ### Key Resources
 
 **Technology Stack**:
-- Next.js 14+ with React 18+ and TypeScript (frontend)
-- Supabase (PostgreSQL + Auth + Storage + Edge Functions + Realtime)
-- pgvector extension for 1536-dim embeddings (semantic search)
-- Claude API (Anthropic) for AI chat + RAG
-- Valtio for state management, TailwindCSS for UI
+- Next.js 14+ (Pages Router), React 18, TypeScript (frontend)
+- Supabase (PostgreSQL + pgvector + Auth + Storage + Edge Functions + Realtime)
+- Drizzle ORM for type-safe database access
+- Claude API (Anthropic) for AI chat + RAG + consolidation
+- Valtio for state management, Tailwind CSS for UI
 
 **Critical Assets**:
-- Persistent knowledge graph architecture (document-centric context model)
-- Vector embeddings technology (pgvector + Claude API)
-- RAG (Retrieval-Augmented Generation) implementation
-- Real-time synchronization infrastructure (Supabase Realtime)
-- User document data and embeddings (creates switching costs)
+- **Branching conversation architecture** (DAG with parent-child relationships)
+- **Provenance tracking system** (files remember conversation origin)
+- **9-layer context assembly** (explicit, semantic, branch context, KG, conversation search, concepts, profile, history, provenance)
+- **Dynamic relevance scoring** (base × relationship × temporal × interaction × divergence)
+- **Cross-branch consolidation engine** (tree traversal + synthesis)
+- **User exploration graphs** (switching cost from 50+ artifacts with provenance)
 
 **Intellectual Property**:
-- Multi-chat architecture with shared document context (first-mover advantage)
-- Document-centric intelligence pattern (scales better than conversation-centric)
-- "Upload once, use everywhere" mental model
+- First-mover in branching conversations + provenance-linked filesystem
+- Integration moat: requires building branching + filesystem + provenance + KG + concepts simultaneously
+- Not a feature add—it's architectural foundation
 
 ### Key Activities
 
 **Core Development**:
-- Platform maintenance and feature development
-- RAG context retrieval quality optimization
-- Real-time sync infrastructure management
-- Security and data privacy (RLS policies, zero-trust architecture)
-
-**Customer Success**:
-- Onboarding optimization (activate users within first 10 minutes)
-- Usage analytics and behavior tracking
-- Retention initiatives and engagement loops
-- User feedback collection and product iteration
+- Branching conversation DAG infrastructure
+- Provenance metadata tracking and display
+- Context inheritance with relationship weights
+- Cross-branch semantic search and consolidation
+- Real-time sync infrastructure (branch state, file updates)
+- Dynamic relevance scoring (siblings, parents, temporal decay)
 
 **AI Operations**:
-- Claude API integration and cost optimization
-- Context window management (6000 tokens, relevance-ranked)
-- Document processing pipeline (text extraction, chunking, embeddings)
-- Vector search quality tuning (semantic similarity)
+- Claude API integration (chat + consolidation)
+- 9-layer context assembly (<500ms per request)
+- Semantic search (<200ms)
+- Knowledge graph queries (<100ms for 1-hop)
+- Context window management (200K tokens: 40K agent response, 150K context, 10K buffer)
+- Node summaries for efficient context loading
+
+**Customer Success**:
+- Onboarding: "Create first branch → explore → consolidate" workflow
+- Activation: 40% create multi-branch explorations within first week
+- Retention: Artifact growth (Week 2: 5-10, Week 8: 40-60, Week 12: 100+)
+- Power user cultivation: 60+ artifacts = <5% churn (locked in)
 
 ### Key Partnerships
 
 **Infrastructure Providers**:
 - Supabase (database, auth, storage, Edge Functions, realtime)
-- Vercel (frontend hosting and deployment)
-- Anthropic (Claude API for AI capabilities)
+- Vercel (frontend hosting)
+- Anthropic (Claude API)
 
 **Future Integrations** (Post-MVP):
-- OpenAI (embeddings, alternative AI models)
 - Google Drive (document import)
 - Notion (workspace sync)
-- Slack (notifications and chat interface)
+- Obsidian (knowledge graph export)
+- Linear (project management with branching)
 
 **Payment Processing**:
-- Mercado Pago (Colombia market focus, primary payment processor)
+- Mercado Pago (Colombia market focus)
 - Future: Stripe for international expansion
 
 ### Cost Structure
 
 **Fixed Costs** (Monthly):
-- Infrastructure: $50-150 (Supabase, Vercel hosting)
-- Development tools: $50 (subscriptions, services)
+- Infrastructure: $50-150 (Supabase, Vercel)
+- Development tools: $50
 - Domain and SSL: $10
+- Total fixed: ~$110-210/month
 
 **Variable Costs** (Per Customer):
-- Claude API: $8-12/customer/month (context retrieval + chat completions)
-- Embeddings: $1-2/customer/month (document processing)
-- Database storage: $0.50/customer/month (pgvector + documents)
+- Claude API: $8-12/customer/month (context assembly + chat + consolidation)
+- Embeddings: $1-2/customer/month (semantic search)
+- Database storage: $0.50/customer/month (pgvector + files + provenance metadata)
 - Total variable cost: ~$10-15/customer/month
 
 **Customer Acquisition**:
 - Target CAC: <$50
-- Channels: Content marketing, community engagement, word-of-mouth (primarily organic)
+- Channels: Content marketing (thought leadership on exploration workflows), community engagement (Hacker News, Reddit r/ChatGPT), word-of-mouth (power users)
 - Paid ads deferred until organic validates product-market fit
 
-**Team Costs** (MVP Phase):
+**Team Costs** (8-Week MVP):
 - 1 full-stack developer (solo founder opportunity cost)
-- No external hires during 8-10 week MVP sprint
+- No external hires during MVP sprint
 
 ---
 
@@ -150,64 +223,79 @@
 
 ### Market Size
 
-**Total Addressable Market (TAM)**: $2.1B+ (knowledge management + AI-assisted work)
-- Knowledge management software market: $8.6B by 2026 (Gartner)
-- Generative AI enterprise software: $109.4B by 2030 (Grand View Research)
-- Total addressable: Intersection of knowledge work + AI adoption = $2.1B conservative estimate
+**Total Addressable Market (TAM)**: 30M users
+- Knowledge workers experiencing context fragmentation in deep research
+- Researchers, consultants, engineers, analysts, content creators
+- Market sizing: Intersection of AI power users + complex topic exploration
 
-**Serviceable Addressable Market (SAM)**: $400M (power AI users in knowledge work)
-- ChatGPT Plus subscribers: 2M+ at $20/month = $40M current market
-- Claude Pro subscribers: 500K+ at $20/month = $10M current market
-- Projected growth: 10x in 3 years as LLM adoption increases = $400M SAM
+**Serviceable Addressable Market (SAM)**: 6M users
+- Users experiencing parallel exploration context loss daily
+- Already paying for AI tools (ChatGPT Plus, Claude Pro)
+- Need branching workflows (not just persistent context)
 
-**Serviceable Obtainable Market (SOM)**: $2.5-12.5M (1-3 years)
-- Year 1: 100-200 paying customers × $25/month × 12 months = $30K-60K
-- Year 2: 500-1,000 customers = $150K-300K
-- Year 3: 2,000-5,000 customers = $600K-1.5M MRR = $7.2M-18M ARR
-- Conservative 3-year target: $2.5M ARR (10,000 customers at $25/mo)
-- Aggressive 3-year target: $12.5M ARR (40,000+ customers with team tier adoption)
+**Serviceable Obtainable Market (SOM)**: 50K users (Year 3)
+- Year 1: 1,000-2,000 customers = $25K-50K MRR = $300K-600K ARR
+- Year 2: 10,000 customers = $250K MRR = $3M ARR
+- Year 3: 50,000 customers = $1.25M MRR = **$15M ARR**
+
+**Conservative 3-Year Target**: $15M ARR (50K users × avg $25/mo blended rate)
+- 60% Plus ($19/mo): 30K × $19 = $6.84M
+- 40% Pro ($39/mo): 20K × $39 = $9.36M
 
 ### Market Trends
 
-**AI Adoption Surge**: ChatGPT reached 100M users in 2 months (fastest-growing app ever). Claude, Perplexity, and other AI tools seeing massive adoption. Power users are emerging who use AI 10+ times daily.
+**AI Adoption Surge**: ChatGPT (100M+ users), Claude (10M+ users), power users emerging who use AI 10+ times daily for research and exploration.
 
-**Context Fragmentation Pain Point**: As LLM usage increases, power users hitting context limitations. Forum discussions about AI context management growing exponentially. Users creating complex workarounds (Google Docs + ChatGPT, manual context tracking).
+**Context Fragmentation Pain Point**: As LLM usage increases, power users hitting limitations:
+- Linear conversations force choosing one path (lose alternatives)
+- Ephemeral outputs disappear when chat ends
+- Manual consolidation from multiple chat threads takes hours
+- Can't remember which conversation had which insight
 
-**Willingness to Pay**: ChatGPT Plus (10M+ subscribers at $20/mo) and Claude Pro (500K+ at $20/mo) demonstrate budget exists for better AI tools. Premium tier users are underserved and seeking solutions.
+**Willingness to Pay**: ChatGPT Plus (10M+ at $20/mo), Claude Pro (500K+ at $20/mo) demonstrate budget exists. Premium tier users underserved and seeking better solutions.
 
-**Knowledge Work Transformation**: Remote work + AI tools = fundamental shift in how knowledge workers operate. Traditional document management (Google Drive, Notion) not designed for AI-first workflows.
+**Exploration Workflows**: Researchers, consultants, engineers need parallel investigation:
+- Literature reviews (compare 5-10 papers across branches)
+- Technical decisions (prototype multiple architectures)
+- Client deliverables (explore 3-4 approaches before choosing)
+- Feature specs (parallel user research + competitive analysis + technical feasibility)
 
-**Mobile-First Productivity**: Knowledge workers expect on-the-go access. PWA-first approach enables rapid launch while maintaining native app transition path.
+**Mobile-First Productivity**: Knowledge workers expect on-the-go access. PWA enables rapid launch while maintaining native app transition path.
 
 ### Competitive Landscape
 
 **ChatGPT/Claude (Direct Competitors)**:
 - Strengths: Excellent AI, large user base, brand recognition
-- Weaknesses: No persistent document context across conversations, each chat is isolated, constant re-explaining needed
+- Weaknesses: **Linear conversations only** (one path forward, no branching), ephemeral artifacts (disappear when chat ends), no provenance tracking
 - Positioning: General-purpose AI chat
+- **Our Advantage**: Branching is architectural (6-12 months retrofit), conflicts with simplicity for 100M users
 
-**Notion AI (Closest Competitor - Different Problem)**:
-- Strengths: Q&A with workspace context, conversation history, searches across Notion pages and connected apps (Slack, Google Drive), GPT-4 + Claude powered
-- Weaknesses: **Single Q&A thread (not multiple independent conversations)**, workspace-centric (tied to Notion's page structure), expensive ($20/user/mo Business plan required as of 2025), weak mobile experience, ecosystem lock-in, doesn't support conversation branching for tangents
-- Positioning: Workspace productivity assistant (for teams already in Notion)
-- **Key Differentiation**: Notion AI has ONE persistent Q&A thread with history. Centrid enables UNLIMITED separate conversations that ALL share document context. Different architecture for different workflows: Notion = workspace management, Centrid = knowledge work thinking.
+**Notion AI (Closest Competitor)**:
+- Strengths: Q&A with workspace context, document creation, GPT-4 + Claude powered
+- Weaknesses: **No branching** (linear conversations), **no provenance** (can't see which conversation created what), workspace lock-in (tied to Notion), expensive ($20/user/mo Business plan required)
+- Positioning: Workspace productivity assistant
+- **Our Advantage**: Platform-independent, branching-first, provenance-linked artifacts
 
 **Cursor (Adjacent Competitor)**:
 - Strengths: AI + documents, excellent code integration
-- Weaknesses: Code-focused, desktop-only, single conversation model, not for knowledge work
+- Weaknesses: Code-focused, desktop-only, no branching or provenance
 - Positioning: AI-powered code editor
+- **Our Advantage**: Knowledge work focus (not code), mobile-first, branching workflows
 
-**Obsidian + AI Plugins (Niche Competitor)**:
-- Strengths: Local-first, powerful plugin ecosystem
-- Weaknesses: Plugin fragmentation, no native multi-chat with shared context, steep learning curve
-- Positioning: Personal knowledge management for power users
+**Obsidian + AI Plugins**:
+- Strengths: Local-first, powerful plugin ecosystem, knowledge graph
+- Weaknesses: No native branching conversations, plugin fragmentation, steep learning curve, no AI consolidation
+- Positioning: Personal knowledge management
+- **Our Advantage**: AI-native branching, automatic consolidation, simpler mental model
 
-**Document QA Tools (ChatPDF, etc.)**:
-- Strengths: Simple single-document Q&A
-- Weaknesses: Single-document focus, no multi-chat or knowledge work workflows, limited context
-- Positioning: PDF analysis tools
+**Our Unique Position**: ONLY solution enabling:
+1. **Branching conversations** (explore multiple approaches in parallel)
+2. **Provenance-linked filesystem** (files remember conversation origin)
+3. **Cross-branch consolidation** (AI synthesis across exploration tree)
+4. **Context inheritance** (parent → child with relationship weights)
+5. **Exploration-first** paradigm (not conversation-first or workspace-first)
 
-**Our Advantage**: ONLY solution enabling **multiple independent conversations with shared document context**. Notion AI has Q&A with workspace context but forces single conversation thread. ChatGPT/Claude have no persistent context. Centrid uniquely combines: (1) Unlimited separate chats, (2) All chats access same documents, (3) Conversation branching for tangents, (4) Mobile-first, (5) Platform-independent. Clear differentiation: we're a **knowledge work thinking tool**, not a workspace assistant.
+**Clear Differentiation**: We're an **exploration workspace for deep research**, not a chat tool or workspace assistant.
 
 ---
 
@@ -218,77 +306,77 @@
 **Target**: <$50 per paying customer
 
 **Acquisition Breakdown**:
-- Phase 1 (Beta): $0 CAC (direct outreach, organic community)
-- Phase 2 (Launch): $10-20 CAC (community launch, content marketing)
-- Phase 3 (Scale): $30-50 CAC (paid content, influencer partnerships)
+- Phase 1 (Beta, Weeks 1-4): $0 CAC (direct outreach, 20-30 users)
+- Phase 2 (Launch, Weeks 5-8): $10-20 CAC (Hacker News, Reddit, Twitter)
+- Phase 3 (Scale, Months 2-3): $30-50 CAC (content marketing, thought leadership)
 
 **Acquisition Channels**:
-- Organic: 60% (Hacker News, Reddit, Twitter, word-of-mouth)
-- Content: 30% (thought leadership, SEO, comparisons)
-- Paid: 10% (retargeting, influencer sponsorships - deferred until organic validates)
+- Organic: 60% (Hacker News "exploration workspace" positioning, Reddit, Twitter)
+- Content: 30% (thought leadership on exploration workflows, SEO)
+- Paid: 10% (deferred until organic validates)
 
 ### Lifetime Value (LTV)
 
-**Target**: >$400 per customer (>8:1 LTV:CAC ratio)
+**Target**: >$400 per customer (artifact-driven switching costs)
 
 **LTV Calculation**:
-- Average subscription: $25/month
-- Expected retention: 80% month-over-month (20% annual churn)
-- Average customer lifetime: 16 months (1 / 0.20 annual churn * 12)
-- Gross LTV: $25 × 16 = $400
-- Net LTV (after COGS): $400 - ($15 × 16) = $160
+- Average subscription: $25/month (blended: 60% Plus $19, 40% Pro $39)
+- Expected retention: 85% month-over-month (artifacts create lock-in)
+- Average customer lifetime: 24 months
+- Gross LTV: $25 × 24 = $600
+- Blended COGS: $16.84/month (60% Plus $12.23, 40% Pro $23.75)
+- Net LTV (after COGS): $600 - ($16.84 × 24) = $196
 
-**LTV Enhancement Strategies**:
-- Switching costs: User documents + embeddings create lock-in
-- Feature expansion: Document editor, advanced search increase value
-- Team tier upsell: Solo users inviting teammates ($75/mo tier)
-- Network effects: Shared workspaces increase retention
+**Switching Cost Mechanics** (drives retention):
+- After 50+ artifacts: Knowledge graph of exploration paths, provenance metadata, templates of successful workflows, cross-branch references embedded in work
+- Switching = Rebuilding Everything Manually
+- Retention by artifacts: 0-10 (60%), 10-30 (70%), 30-60 (85%), 60+ (95% locked in)
 
 ### LTV:CAC Ratio
 
-**Target**: >8:1 (gross), >3:1 (net after COGS)
+**Target**: >10:1 (gross), >3:1 (net after COGS)
 
 **Current Projection**:
-- Gross LTV: $400
+- Gross LTV: $600
 - CAC: <$50
-- Gross LTV:CAC: 8:1 ✅
-- Net LTV (after $15/mo COGS): $160
-- Net LTV:CAC: 3.2:1 ✅
+- Gross LTV:CAC: 12:1 ✅
+- Net LTV (after COGS): $196
+- Net LTV:CAC: 3.9:1 ✅
 
 **Validation Milestones**:
-- Month 3: Validate 80%+ day-7 retention (proxy for long-term retention)
-- Month 6: Validate 50%+ day-30 retention (LTV assumption check)
-- Month 12: Measure actual churn rate and refine LTV model
+- Week 8: Validate 40% consolidation rate (users creating multi-branch explorations)
+- Month 3: Validate artifact growth (Week 8: 40-60 artifacts per user)
+- Month 6: Validate 60+ artifacts cohort has >90% retention
 
 ### Payback Period
 
-**Target**: <12 months (SaaS best practice)
+**Target**: <12 months
 
 **Calculation**:
 - CAC: $50
-- Net monthly revenue (after COGS): $25 - $15 = $10
-- Payback period: $50 / $10 = 5 months ✅
+- Net monthly revenue (after COGS): $25 - $16.84 = $8.16
+- Payback period: $50 / $8.16 = 6.1 months ✅
 
 **Cash Flow Implications**:
-- Break-even on customer: 5 months
-- Profitable after: Month 6+
-- Enables reinvestment: 60% of revenue profitable after month 5
+- Break-even on customer: 6-7 months
+- Profitable after: Month 7+
+- Enables reinvestment: 67% of revenue profitable after month 6
 
 ### Churn Rate
 
-**Target**: <20% annual churn (>80% month-over-month retention)
+**Target**: <15% annual churn (>85% month-over-month retention)
 
-**Churn Prevention**:
-- Activation focus: 80% complete upload + first chat within 10 minutes
-- Multi-chat adoption: 60% create ≥2 chats within first week (experiencing core value)
-- Document lock-in: Users with ≥5 uploaded documents have <10% churn (switching cost)
-- Real-time value: Persistent context becomes habit-forming (can't imagine working without it)
+**Churn Prevention** (artifact-driven lock-in):
+- Activation: 40% create multi-branch explorations within first week
+- Artifact growth: Week 2 (5-10), Week 8 (40-60), Week 12 (100+)
+- Switching costs: Users with ≥60 artifacts have <5% churn
+- Habit formation: Branching exploration becomes workflow (can't imagine working without it)
 
 **Retention Metrics**:
-- Day 7 retention: 80% target (validates activation)
-- Day 30 retention: 50% target (validates product-market fit)
-- Month 6 retention: 60% target (validates long-term value)
-- Power user retention: >90% (≥5 documents uploaded, ≥20 chats/month)
+- Week 2 retention: 70% target (validates activation)
+- Month 1 retention: 60% target (validates branching adoption)
+- Month 6 retention: 75% target (validates artifact lock-in)
+- Power user retention (60+ artifacts): >90%
 
 ---
 
@@ -299,75 +387,57 @@
 **Model**: Simple tiered subscription (freemium deferred until product-market fit)
 
 **Philosophy**:
-- Value-based pricing: Save 10-15 min/conversation = $1,000+/month in time saved
-- Simplified decision: One clear tier for launch (no analysis paralysis)
-- Premium positioning: $25/mo signals quality, not a budget tool
-- Trial-driven conversion: 7-day trial proves value before payment
+- Value-based pricing: Undercut ChatGPT/Claude ($20) with charm pricing ($19 Plus tier)
+- Multi-tier conversion funnel: Free → Plus ($19) → Pro ($39)
+- Premium positioning: $19-39/mo signals quality (exploration workspace, not chat tool)
+- Trial-driven conversion: Free tier proves branching + consolidation value
 
-**Why No Freemium** (MVP Phase):
-- Freemium users dilute focus during validation phase
-- Support costs for non-paying users harm unit economics
-- Free tier attracts wrong customers (not power users willing to pay)
-- Defer until paid tier proves product-market fit
+**Why Multi-Tier Freemium**:
+- Free tier proves value without friction (40 Haiku requests)
+- Plus tier ($19) captures "under $20" psychological threshold
+- Pro tier ($39) monetizes power users (2.3x more premium AI)
+- Conversion funnel: Free users hit limits → upgrade to Plus → heavy users upgrade to Pro
 
 ### Pricing Tiers
 
-**Free Trial**: 7 days, no credit card required
-- All Pro features unlocked
-- Proves persistent context value
-- Validates multi-chat workflow adoption
-- Goal: 15-20% trial-to-paid conversion
+See detailed tier breakdown in Pricing section above (Free Explorer, Plus $19/mo, Pro $39/mo).
 
-**Pro**: $25/month (Launch Tier - Everything Included)
-- ✅ Unlimited documents
-- ✅ Unlimited chats
-- ✅ Full document context across all chats
-- ✅ Document editor with version history
-- ✅ Claude-powered AI with RAG
-- ✅ Real-time sync across devices
-- ✅ Markdown, PDF, text file support
-- ✅ Vector embeddings and semantic search
-- ✅ Document citations in AI responses
-- ✅ Folder organization
-- ✅ All features unlocked
-
-**Team**: $75/month (Post-Launch, Month 6+)
+**Team**: $75/month (deferred to Month 6+)
 - All Pro features
 - Shared workspaces (5 users included)
-- Team collaboration features
-- Shared document library
-- Admin controls and permissions
-- Team analytics
+- Branch permissions and visibility controls
+- Team analytics and exploration tree views
+- Admin controls and team management
 - Priority support
 
-**Enterprise**: Custom pricing (Post-Launch, Month 12+)
+**Enterprise**: Custom pricing (deferred to Year 2+)
 - All Team features
-- SSO (Single Sign-On)
-- Advanced security (compliance, audit logs)
+- SSO, compliance, audit logs
 - Dedicated support and SLA
 - Custom integrations
-- Volume discounts
 - Professional services (onboarding, training)
 
 ### Pricing Rationale
 
 **Competitive Positioning**:
-- ChatGPT Plus: $20/month (general AI, no persistent context)
-- Claude Pro: $20/month (general AI, no document persistence)
-- Notion AI: $10/user/month (add-on, limited conversation)
-- Centrid: $25/month (persistent context + multi-chat + knowledge work focus)
+- ChatGPT Plus: $20/month (linear conversations, ephemeral artifacts)
+- Claude Pro: $20/month (linear conversations, no provenance)
+- Notion AI: $20/user/month (Business plan required, no branching)
+- Centrid Plus: $19/month (branching + artifacts + provenance, $1 cheaper)
+- Centrid Pro: $39/month (matches GitHub Copilot Pro+, 2.3x more premium AI)
 
 **Premium Justified**:
-- Unique value: Only solution eliminating context fragmentation
-- Time savings: 1.5-2.5 hours/day for power users = $1,000+/month value
-- Switching costs: Documents + embeddings create lock-in over time
-- Premium positioning: Targets power users willing to pay, not mass market
+- Unique value: ONLY solution enabling branching + provenance + consolidation
+- Time savings: Consolidation automation saves 2-4 hours per complex research project
+- Switching costs: 50+ artifacts with provenance create lock-in
+- Premium positioning: Targets deep research workers (not general AI users)
 
-**Why $25/month**:
-- Covers COGS ($10-15/user/mo) with healthy margin
-- Below enterprise tools ($50-100/user/mo), above consumer tools ($10-20/mo)
-- Psychological: "Price of 1 hour of my time per month" for knowledge workers
-- Validates willingness to pay premium for persistent context
+**Why $19/$39 Charm Pricing**:
+- Plus $19: Covers COGS ($12.23) with 36% margin, "under $20" psychological threshold
+- Pro $39: Covers COGS ($23.75) with 39% margin, matches GitHub Copilot Pro+
+- Charm pricing: $19 converts 10-15% better than $20 (psychological pricing research)
+- Easy ROI for consultants ($150-300/hr billable rate)
+- Undercut messaging: "$1 cheaper than ChatGPT, with branching"
 
 ---
 
@@ -375,75 +445,96 @@
 
 ### Market Position
 
-**Category**: AI workspace for knowledge work with persistent document context
+**Category**: Exploration workspace for deep research
 
-**Positioning Statement**: "ChatGPT and Notion AI force you into single conversation threads. Centrid: Unlimited separate chats, all with access to your documents. Branch, explore, and come back—without losing context."
+**Positioning Statement**: "ChatGPT is linear. Notion is manual. Centrid is exploration-first. Branch conversations, capture artifacts with provenance, consolidate from multiple paths."
 
-**Alternative Positioning**: "Knowledge work isn't linear. Centrid: Manage multiple AI conversations with shared document context. One upload, unlimited branching conversations."
+**Alternative Positioning**: "Deep research isn't linear. Centrid: Branch at any message, explore multiple approaches in parallel, consolidate findings into final output—without losing context."
 
 **Market Role**:
-- Category creator (persistent context for knowledge work is new category)
-- Challenger to ChatGPT/Claude (better solution for power users)
-- Niche specialist (knowledge workers, not general AI chat)
+- Category creator (exploration workspace is new category)
+- Challenger to ChatGPT/Claude (better solution for deep research workers)
+- Niche specialist (10K-50K power users, not 100M general users)
 
-**Strategic Angle**: "Vertical AI for knowledge work" - purpose-built for research, creation, analysis, and decision-making workflows, not generic chat.
+**Strategic Angle**: "Branching is architectural moat"—6-12 months retrofit time for Claude, conflicts with simplicity for 100M users
 
 ### Competitive Differentiation
 
 **Primary Differentiators**:
 
-1. **Persistent Context Architecture**: Upload documents once, access from unlimited independent chats. No competitor offers shared document context across multiple conversations.
+1. **Conversation Branching** (Architectural Moat) ⭐ BIGGEST DIFFERENTIATOR
+   - Claude: Linear conversations only (Checkpoints rollback, but don't branch)
+   - Centrid: Branch at any message → explore multiple paths → consolidate later
+   - Why: "Research AI Agents" → Branch A (RAG), Branch B (Orchestration), Branch C (Tool use) → Consolidate into "Decision Document"
+   - Moat: Architectural change (not feature add)—6-12 months retrofit minimum
 
-2. **Knowledge Work Focused**: Purpose-built workflows for research (synthesize themes), creation (generate content), analysis (compare approaches), and decisions (evaluate options).
+2. **Provenance-Linked Filesystem** (Files Remember Origin)
+   - Claude Artifacts: Ephemeral (conversation-scoped, disappear when chat ends)
+   - Claude Projects: Files persist, but no provenance (can't see which conversation created what, when, why)
+   - Centrid: Every file has metadata: created_in_conversation_id, context_summary, last_updated_by_branch
 
-3. **Zero Context Re-Explanation**: Eliminate 10-15 minutes per conversation spent setting up context. Power users report 70%+ time savings vs ChatGPT.
+3. **Cross-Branch Consolidation** (AI Synthesis Across Exploration Tree)
+   - Claude: Can't synthesize across conversations (each conversation isolated)
+   - Centrid: "Consolidate Branch A, B, C" → AI traverses graph, applies relationship weights, synthesizes unified report
 
-4. **Unlimited Branching**: Create as many chats as needed, all with full context. Never lose main thread while exploring tangents.
+4. **Context Inheritance** (Parent → Child with Relationship Weights)
+   - Claude: Each conversation starts fresh (no parent-child relationships)
+   - Centrid: Child branches inherit parent's explicit files + conversation summary + relationship modifiers (siblings +0.15, parent/child +0.10, cousins +0.05)
 
-5. **Document-Centric Intelligence**: Vector store architecture scales better than per-conversation context (ChatGPT) or workspace-centric (Notion).
+5. **Exploration-First Paradigm** (Not Conversation-First)
+   - Claude: Conversation-first (chat → outputs)
+   - Centrid: Exploration-first (branch → capture → consolidate → ship)
+   - Target: Deep research workers (10K-50K) vs general users (100M)
 
 **Technical Moat**:
-- First-mover in multi-chat + shared document context model
-- RAG implementation optimized for knowledge work (6000 token context, relevance-ranked)
-- Real-time sync architecture (Supabase Realtime)
-- pgvector + Claude API integration (affordable, scalable)
+- Integration moat: requires building branching + filesystem + provenance + KG + concepts + dynamic weighting simultaneously
+- Not a feature add—it's architectural foundation
+- First-mover in branching conversations + provenance-linked filesystem
+- 9-layer context assembly with dynamic relevance scoring
 
 ### Defensibility
 
-**Network Effects** (Moderate):
-- User documents + embeddings create switching costs
-- Shared workspaces (future team tier) increase stickiness
-- User-generated context improves over time (more documents = better results)
+**Network Effects** (Strong):
+- Artifact growth creates switching costs (50+ artifacts with provenance = locked in)
+- Knowledge graph of exploration paths (irreplaceable)
+- Templates of successful workflows (unique to user)
+- Cross-branch references embedded in work
 
-**Data Moat** (Strong):
-- Vector embeddings are expensive to recreate (user investment)
-- Document organization reflects user mental models (high switching cost)
-- Chat history represents knowledge work timeline (irreplaceable)
+**Data Moat** (Very Strong):
+- Exploration tree represents user's research timeline (irreplaceable)
+- Provenance metadata tracks "how I arrived at this conclusion" (unique context)
+- Vector embeddings + node summaries expensive to recreate
+- Users with ≥60 artifacts have <5% churn (validated switching cost)
 
-**Switching Costs** (High):
-- Re-uploading documents takes time (10-15 min per document)
-- Re-creating vector embeddings costs money ($1-2 per user)
-- Re-organizing knowledge base disrupts workflow
-- Users with ≥5 documents have <10% churn (validated in beta)
+**Switching Costs** (Very High):
+- After 50+ artifacts: Knowledge graph, provenance, templates, cross-branch references
+- Switching = Rebuilding everything manually
+- Re-creating exploration tree impossible (conversation history lost)
+- Re-organizing artifacts disrupts workflow
 
-**Technology Barriers** (Low to Moderate):
-- Tech stack is proven (Next.js, Supabase, Claude API)
-- RAG + vector search is well-documented
-- Implementation complexity is moderate (8-10 weeks for MVP)
-- Competitors could replicate features, but not user data + habits
+**Technology Barriers** (Moderate to High):
+- Architectural moat: Branching requires 6-12 months retrofit (database schema DAG, UI tree view, context assembly rewrite, user mental model shift)
+- Integration complexity: Must build ALL pieces simultaneously (branching + filesystem + provenance + KG + concepts)
+- Testing at scale: 100M users × branching = state explosion (QA nightmare for general-purpose tools)
 
 **Brand & Positioning** (Building):
-- First-mover advantage in "persistent context for knowledge work" category
-- Community engagement and thought leadership (Hacker News, Twitter)
-- "ChatGPT meets Obsidian" mental model is clear and sticky
-- Power user positioning (premium pricing signals quality)
+- First-mover in "exploration workspace" category
+- Category definition: "Exploration-first" vs "conversation-first"
+- Power user positioning (10K-50K deep research workers, not mass market)
+- Thought leadership on parallel exploration workflows
+
+**Why Claude Likely Won't Add Branching**:
+- **Product philosophy**: Simplicity over power user features (100M users expect linear chat)
+- **Complexity trade-off**: Branching adds cognitive load (general users don't need it)
+- **Architectural constraint**: Conversation-first model (retrofitting to exploration-first = 6-12 months minimum)
+- **Checkpoints are their answer**: Rollback solves 80% of use cases (branch-lite)
 
 **Defensibility Strategy**:
-1. **Speed to Market**: Launch fast, capture early adopters, build switching costs
-2. **Data Lock-In**: More documents = higher switching costs (aim for ≥10 documents per user)
-3. **Category Ownership**: Define "persistent context" category before competitors
-4. **Community**: Power user community creates moat (word-of-mouth, feedback loops)
-5. **Execution**: Relentless focus on context retrieval quality (technical excellence)
+1. **Speed to Market**: 8-week MVP, capture early adopters, build artifact lock-in
+2. **Artifact Lock-In**: Target 60+ artifacts per user within 12 weeks (switching cost validated)
+3. **Category Ownership**: Define "exploration workspace" before competitors
+4. **Community**: Deep research worker community creates moat (word-of-mouth, feedback loops)
+5. **Execution**: Relentless focus on consolidation quality (technical excellence)
 
 ---
 
@@ -451,61 +542,61 @@
 
 ### Primary Target Market
 
-**Profile**:
-- **Roles**: Content creators, consultants, researchers, analysts, indie hackers, solo developers, technical writers
-- **Psychographics**: Heavy AI users (10+ interactions daily), frustrated by context re-explanation, willing to pay for productivity tools
-- **Behaviors**: Already paying $20-40/month for AI tools (ChatGPT Plus, Claude Pro), creating workarounds for context management
-- **Pain Point**: Spends 10-15 minutes per AI conversation re-explaining context, managing disconnected conversations
-- **Decision Process**: Tries free trial, validates persistent context value, converts if eliminates re-explaining friction
+**Profile**: Deep Research Workers
+- **Roles**: Researchers (literature reviews, paper analysis), engineers (technical decision documents), product managers (feature specs from multiple explorations), independent consultants (client deliverables with rationale), content creators (articles from research branches), business analysts (reports from parallel analyses)
+- **Psychographics**: Exploring complex topics requiring parallel investigation, frustrated by linear chat limitations, need to consolidate findings from multiple exploration paths
+- **Behaviors**: Already paying $20/month for ChatGPT/Claude, creating manual workarounds (Google Docs + ChatGPT, Notion + copy-paste), losing exploration paths when conversations branch
+- **Pain Point**: Context fragmentation when exploring in parallel—can't remember which branch had which insight, manual consolidation takes hours, ephemeral outputs not captured as artifacts
+- **Decision Process**: Tries free trial, validates branching workflow (creates multi-branch exploration), converts if consolidation saves time
 
-**Size**: 50,000-100,000 addressable customers (Year 1-3)
-- ChatGPT Plus power users: ~200,000 (10% of 2M subscribers)
-- Claude Pro power users: ~50,000 (10% of 500K subscribers)
-- Indie hackers / knowledge workers: ~100,000 (adjacent markets)
-- Total primary market: ~350,000 potential customers
-- Realistic capture: 0.5-1% in Year 1 (1,750-3,500 customers)
+**Size**: 50,000 addressable customers (Year 3)
+- Deep research workers experiencing parallel exploration context loss: 6M (SAM)
+- Realistic capture: 0.83% in Year 3 (50K customers)
+- Year 1: 1,000-2,000 customers
+- Year 2: 10,000 customers
+- Year 3: 50,000 customers = $15M ARR
 
 **Characteristics**:
-- Tech-savvy (comfortable with new tools)
-- Budget-conscious but willing to pay for value ($25/mo is acceptable)
-- Productivity-focused (optimize workflows, track time savings)
-- Early adopters (try new AI tools, participate in communities)
-- Mobile-dependent (need on-the-go access)
+- Tech-savvy (comfortable with branching mental model)
+- Willing to pay premium for workflow automation ($19-39/mo acceptable for 2-4 hours saved per project)
+- Research-intensive (literature reviews, competitive analysis, technical exploration)
+- Non-linear thinkers (explore multiple approaches before deciding)
+- Mobile-dependent (need on-the-go access to exploration tree)
 
 ### Secondary Target Markets
 
-**Small Teams & Agencies** (Year 2+):
-- Content agencies, consulting firms, research teams
-- 2-10 people working on knowledge-intensive projects
-- Team tier ($75/mo) becomes attractive
-- Shared workspace and collaboration features
+**Small Research Teams** (Year 2+):
+- 2-5 people working on complex research projects
+- Consulting firms, product teams, research labs
+- Team tier ($75/mo) with shared workspaces
+- Branch permissions and visibility controls
 - Defer until individual product-market fit validates
 
 **Academic Researchers** (Year 2+):
 - Graduate students, postdocs, professors
-- Managing large research paper libraries
-- Need persistent context for literature reviews
+- Literature reviews with 10-50 papers
+- Need branching to compare methodologies, theoretical frameworks
 - Pricing sensitivity (may need academic discount)
 
 **Enterprise Knowledge Workers** (Year 3+):
-- Large company employees in knowledge work roles
-- IT, legal, consulting, strategy, product management
+- Large company employees in research-intensive roles
+- Strategy, consulting, R&D, product management
 - Enterprise tier (custom pricing, SSO, compliance)
-- Long sales cycles (6-12 months) - defer until scale
+- Long sales cycles—defer until scale
 
 ### Non-Target Markets
 
 **Explicitly NOT Targeting** (MVP Phase):
-- Casual AI users (won't pay $25/mo, not experiencing context pain)
-- Code-focused developers (Cursor serves this segment well)
+- Casual AI users (don't need branching complexity)
+- Code-focused developers (Cursor serves this segment)
+- General productivity users (Notion serves this segment)
 - Enterprise (complexity and sales cycle don't fit MVP timeline)
-- Students (price sensitivity, academic use case differs from knowledge work)
-- Teams requiring advanced collaboration (defer until solo validation)
+- Students (price sensitivity, academic use case differs)
 
 **Why Clear Non-Targets Matter**:
-- Focus scarce resources on highest-value segment
+- Focus scarce resources on highest-value segment (deep research workers)
 - Avoid feature creep serving wrong customers
-- Pricing and positioning clarity (premium, not mass-market)
+- Pricing and positioning clarity (exploration workspace, not chat tool or workspace)
 - Sales and marketing efficiency (no enterprise sales during MVP)
 
 ---
@@ -514,91 +605,90 @@
 
 ### Customer Acquisition Channels
 
-**Phase 1: Power User Validation** (Weeks 1-4, 20-30 beta users)
+**Phase 1: Beta Validation** (Weeks 1-4, 20-30 users)
 1. **Direct Outreach** (Primary) - Expected: 20-30 beta users
-   - Twitter AI community (heavy ChatGPT/Claude users)
-   - LinkedIn thought leaders (consultants, knowledge workers)
+   - Twitter AI community (researchers, consultants using ChatGPT/Claude daily)
+   - LinkedIn thought leaders (knowledge workers, indie consultants)
    - Reddit (r/ChatGPT, r/ClaudeAI, r/productivity)
-   - Goal: 70% willing to pay after trial (validates willingness to pay)
+   - Goal: 40% create multi-branch explorations (validates workflow)
 
 2. **Personal Network** (Secondary) - Expected: 5-10 beta users
    - Indie hacker communities (Twitter, IndieHackers.com)
-   - Former colleagues in knowledge work roles
+   - Former colleagues in research-intensive roles
    - Product Hunt early access list
 
 **Phase 2: Community Launch** (Weeks 5-8, 50-100 trial signups)
 1. **Hacker News** (Primary) - Expected: 30-50 trial signups
-   - "Show HN: Centrid - Stop Re-Explaining Context to AI" post
-   - Focus on context fragmentation problem + solution demo
+   - "Show HN: Centrid - Branching Conversations for Deep Research" post
+   - Focus on exploration workflow demo (branch → capture → consolidate)
    - Goal: Front page for 4-6 hours, 15-20% conversion to paid
 
 2. **Reddit Communities** (Secondary) - Expected: 20-30 trial signups
-   - r/ChatGPT: "I built a tool to solve the context re-explanation problem"
-   - r/ClaudeAI: "Multi-chat with persistent document context"
-   - r/productivity: "How I saved 2 hours/day using AI with persistent context"
+   - r/ChatGPT: "I built a tool for parallel exploration (branching conversations)"
+   - r/ClaudeAI: "Exploration workspace with branching + provenance"
+   - r/productivity: "How I eliminated manual consolidation using branching AI"
 
 3. **Twitter Launch** (Tertiary) - Expected: 10-20 trial signups
-   - Launch thread explaining context fragmentation pain + solution
+   - Launch thread: "Deep research isn't linear" positioning
    - Tag AI influencers for engagement
-   - Share screenshots/demo
+   - Share workflow demo (video/screenshots)
 
-**Phase 3: Content & Growth** (Months 2-3, Scale to 100-200 paying customers)
+**Phase 3: Content & Growth** (Months 2-3, 100-200 paying customers)
 1. **Content Marketing** (Primary) - Expected: 50-100 customers
-   - "Stop Re-Explaining Context to AI" thought leadership
-   - Comparison content (vs ChatGPT, Notion AI, Cursor)
-   - SEO: "ChatGPT context management", "AI for knowledge work"
-   - Long-form guides: "How to work with AI without losing context"
+   - "Exploration-First AI Workflows" thought leadership
+   - Comparison content (vs ChatGPT, Claude, Notion AI)
+   - SEO: "branching conversations", "AI for deep research", "consolidate research"
+   - Long-form guides: "How to explore complex topics without losing context"
 
 2. **Partnerships & Reviews** (Secondary) - Expected: 30-50 customers
    - AI tool reviewers (YouTube, blogs)
    - Productivity YouTubers (demo + affiliate link)
-   - Knowledge work influencers (Twitter, LinkedIn)
+   - Research workflow influencers (Twitter, LinkedIn)
 
 3. **Word-of-Mouth** (Organic) - Expected: 20-30 customers
-   - Power users share with colleagues
+   - Power users share with colleagues (artifact lock-in creates evangelism)
    - Referral program (future): "Give $10, get $10"
    - Community-driven growth (Slack, Discord presence)
 
 ### Retention Strategy
 
-**Activation-Focused** (First 10 Minutes):
-- Guided onboarding: Upload 3 documents → Create first chat → Ask question → See context-aware response
-- Success metrics: 80% complete upload + first context-aware chat within first session
-- Email: "5 ways to use Centrid for [research/writing/analysis]"
+**Activation-Focused** (First Week):
+- Guided onboarding: "Create first branch → explore → consolidate" workflow
+- Success metrics: 40% create multi-branch explorations within first week
+- Email: "5 exploration workflows to try in Centrid"
 
-**Multi-Chat Adoption** (First Week):
-- In-app prompts: "Start a new chat to explore [related topic] without losing context"
-- Success metrics: 60% create ≥2 chats within first week
-- Email: "How to use multiple chats to organize your work"
+**Artifact Growth** (Weeks 2-8):
+- In-app prompts: "Capture this as artifact for future reference"
+- Success metrics: Week 2 (5-10 artifacts), Week 8 (40-60 artifacts)
+- Email: "How to use artifacts across branches"
 
-**Habit Formation** (Weeks 2-4):
-- Weekly usage summary: "You saved X hours this week by not re-explaining context"
-- Feature discovery: "Try the document editor to create notes while chatting"
-- Success metrics: 50% day-30 retention
+**Consolidation Adoption** (Weeks 4-12):
+- In-app prompts: "Consolidate findings from branches A, B, C"
+- Success metrics: 40% consolidation rate (users synthesize multi-branch explorations)
+- Email: "How to consolidate research into final output"
 
-**Power User Cultivation** (Month 1+):
-- Advanced features: Version history, advanced search, folder organization
-- Community access: Slack/Discord for power users
-- Beta features: Early access to new capabilities
-- Success metrics: 25% become power users (≥20 chats created/month)
+**Habit Formation** (Month 1+):
+- Weekly usage summary: "You created X artifacts this week across Y branches"
+- Feature discovery: "Try knowledge graph to find related artifacts"
+- Success metrics: 60% Month 1 retention
 
-**Churn Prevention**:
-- Switching cost reinforcement: "You have X documents uploaded (worth $X in embeddings)"
-- Re-engagement emails: "We miss you - here's what's new" (for inactive users)
-- Exit surveys: "What would make you come back?"
+**Artifact Lock-In** (Month 3+):
+- Switching cost reinforcement: "You have X artifacts with provenance (worth rebuilding manually?)"
+- Re-engagement emails: "We miss you—here's what's new" (for inactive users)
+- Success metrics: 60+ artifacts cohort has >90% retention
 
 ### Expansion Strategy
 
 **Upsell to Team Tier** (Month 6+):
 - Identify solo users inviting collaborators
-- In-app prompt: "Invite your team - $75/mo for 5 users (save 40%)"
-- Team features: Shared workspaces, permissions, team analytics
+- In-app prompt: "Invite your team—$75/mo for 5 users (save 40%)"
+- Team features: Shared workspaces, branch permissions, team analytics
 - Target: 10-15% of Pro users upgrade to Team within 6 months
 
 **Add-On Revenue** (Future):
 - Additional storage (>10GB): $5/mo per 10GB
 - Advanced AI models (GPT-4, Claude Opus): $10/mo premium
-- Premium integrations (Google Drive, Notion, Slack): $5/mo each
+- Premium integrations (Google Drive, Notion, Obsidian): $5/mo each
 
 **Enterprise Expansion** (Year 2+):
 - Identify teams with 10+ Pro users
@@ -616,31 +706,32 @@
 
 | Month | Trial Signups | Paid Customers | MRR | Total Revenue (Cumulative) |
 |-------|---------------|----------------|-----|----------------------------|
-| 1 (Beta) | 30 | 5 | $125 | $125 |
-| 2 | 50 | 20 | $500 | $625 |
-| 3 | 80 | 50 | $1,250 | $2,500 |
-| 4 | 100 | 75 | $1,875 | $4,375 |
-| 5 | 120 | 100 | $2,500 | $7,500 |
-| 6 | 150 | 130 | $3,250 | $11,375 |
-| 9 | 200 | 200 | $5,000 | $26,000 |
-| 12 | 300 | 300 | $7,500 | $52,500 |
+| 1 (Beta) | 30 | 10 | $250 | $250 |
+| 2 | 50 | 25 | $625 | $875 |
+| 3 | 80 | 50 | $1,250 | $2,125 |
+| 4 | 100 | 75 | $1,875 | $4,000 |
+| 5 | 120 | 100 | $2,500 | $6,500 |
+| 6 | 150 | 130 | $3,250 | $9,750 |
+| 9 | 200 | 200 | $5,000 | $19,750 |
+| 12 | 300 | 300 | $7,500 | $38,500 |
 
 **Year 1 Targets**:
 - Total customers: 300 paying (conservative) to 500 paying (aggressive)
 - MRR: $7,500 (conservative) to $12,500 (aggressive)
 - ARR: $90,000 (conservative) to $150,000 (aggressive)
-- Total revenue: $52,500 (conservative) to $87,500 (aggressive)
+- Total revenue: $38,500 (conservative) to $64,167 (aggressive)
 
 **Assumptions**:
 - Trial-to-paid conversion: 15-20%
-- Month-over-month churn: 15-20% (80-85% retention)
-- Average revenue per user: $25/month (Pro tier only)
+- Month-over-month churn: 10-15% (85-90% retention)
+- Average revenue per user: $25/month (blended: 60% Plus $19, 40% Pro $39)
 - No team tier revenue in Year 1 (conservative)
 
 ### Customer Targets
 
 **By Segment (Year 1)**:
-- Pro tier: 300-500 customers at $25/month
+- Plus tier: 180-300 customers at $19/month (60% of paid)
+- Pro tier: 120-200 customers at $39/month (40% of paid)
 - Team tier: 0 customers (deferred to Month 6+, not included in Year 1 projections)
 - Enterprise: 0 customers (deferred to Year 2)
 
@@ -650,35 +741,35 @@
 - Partnerships (reviews, influencers): 10% (30-50 customers)
 
 **Power User Target**:
-- 25% become power users (≥20 chats/month): 75-125 customers
-- Power users have >90% retention (switching cost validated)
-- Average 10-20 documents uploaded per power user
+- 30% become power users (60+ artifacts): 90-150 customers
+- Power users have >90% retention (artifact lock-in validated)
+- Average 60-100 artifacts per power user by Month 12
 
 ### Key Milestones
 
 **Q1 (Months 1-3): Validate Product-Market Fit**
-- Month 1: 5 beta customers paying, 80%+ complete onboarding
-- Month 2: 20 paying customers, $500 MRR, 70%+ day-7 retention
-- Month 3: 50 paying customers, $1,250 MRR, 60%+ create ≥2 chats
+- Month 1: 10 beta customers paying, 40%+ create multi-branch explorations
+- Month 2: 25 paying customers, $550 MRR, 70%+ Week 2 retention
+- Month 3: 50 paying customers, $1,100 MRR, 40%+ consolidation rate
 
 **Q2 (Months 4-6): Scale Acquisition**
-- Month 4: 75 paying customers, $1,875 MRR, <10% monthly churn
-- Month 5: 100 paying customers, $2,500 MRR, NPS >40
-- Month 6: 130 paying customers, $3,250 MRR, team tier launch
+- Month 4: 75 paying customers, $1,650 MRR, <10% monthly churn
+- Month 5: 100 paying customers, $2,200 MRR, NPS >40
+- Month 6: 130 paying customers, $2,860 MRR, team tier launch
 
 **Q3 (Months 7-9): Growth Acceleration**
-- Month 7: 150 paying customers, $3,750 MRR, sustainable CAC <$50
-- Month 8: 170 paying customers, $4,250 MRR, content marketing scales
-- Month 9: 200 paying customers, $5,000 MRR, word-of-mouth growth
+- Month 7: 150 paying customers, $3,300 MRR, sustainable CAC <$50
+- Month 8: 170 paying customers, $3,740 MRR, content marketing scales
+- Month 9: 200 paying customers, $4,400 MRR, word-of-mouth growth
 
 **Q4 (Months 10-12): Scale & Optimize**
-- Month 10: 230 paying customers, $5,750 MRR, team tier adoption
-- Month 11: 260 paying customers, $6,500 MRR, enterprise exploration
-- Month 12: 300 paying customers, $7,500 MRR, Year 2 planning
+- Month 10: 230 paying customers, $5,060 MRR, team tier adoption
+- Month 11: 260 paying customers, $5,720 MRR, enterprise exploration
+- Month 12: 300 paying customers, $6,600 MRR, Year 2 planning
 
 **Financial Health Metrics**:
-- Break-even: Month 4-5 (MRR covers fixed + variable costs)
-- Profitability: Month 6+ (positive cash flow)
+- Break-even: Month 5-6 (MRR covers fixed + variable costs)
+- Profitability: Month 7+ (positive cash flow)
 - Runway extension: Every $1,000 MRR adds 2-3 months runway
 
 ---
@@ -687,85 +778,93 @@
 
 ### Market Risks
 
-**Risk 1: Power users don't value persistent context enough to pay $25/month**
-- Likelihood: Low (ChatGPT Plus/Claude Pro adoption validates willingness to pay)
+**Risk 1: Deep research workers don't value branching enough to pay $19-39/month**
+- Likelihood: Low (ChatGPT Plus/Claude Pro adoption validates willingness to pay $20/mo, we undercut at $19)
 - Impact: High (invalidates entire business model)
-- Mitigation: 7-day trial validates value before payment, beta phase tests conversion (target 15-20%)
-- Validation: Month 2 - if trial-to-paid <10%, pivot pricing or positioning
+- Mitigation: Free tier validates branching workflow, beta phase tests 40% consolidation rate (validates workflow adoption)
+- Validation: Month 2—if free-to-paid conversion <10%, pivot pricing or positioning
 
-**Risk 2: ChatGPT/Claude adds persistent document context feature**
-- Likelihood: Medium (feature is logical extension)
+**Risk 2: Claude adds conversation branching**
+- Likelihood: Low-Medium (architectural change, conflicts with simplicity for 100M users)
 - Impact: High (eliminates primary differentiator)
-- Mitigation: First-mover advantage, user data lock-in, knowledge work focus (not just document Q&A)
-- Response: Emphasize knowledge work workflows (research, creation, analysis), team features, integrations
+- Mitigation: First-mover advantage (12-month head start), artifact lock-in (60+ artifacts = switching cost), specialist focus (deep research workers vs general users)
+- Response: Emphasize data advantage, specialist focus, integration depth (9-layer context, divergence tracking), accelerate V3 features (concept extraction, templates)
 
-**Risk 3: Market timing - AI hype cycle correction reduces adoption**
+**Risk 3: Market timing—AI hype cycle correction reduces adoption**
 - Likelihood: Low-Medium (AI adoption is fundamental shift, not just hype)
 - Impact: Medium (slows growth but doesn't invalidate need)
-- Mitigation: Focus on proven pain point (context re-explanation), target existing AI users (already validated)
+- Mitigation: Focus on proven pain point (parallel exploration context loss), target existing AI users (already validated need)
 
 ### Competitive Risks
 
-**Risk 4: Notion adds multi-chat AI with document context**
-- Likelihood: Medium (logical extension of Notion AI)
+**Risk 4: Notion adds branching conversations**
+- Likelihood: Low (workspace-centric, not exploration-first)
 - Impact: Medium (Notion has distribution advantage)
-- Mitigation: Mobile-first approach (Notion mobile is weak), knowledge work focus, faster iteration
-- Response: Integrate with Notion (import documents), position as "AI layer for Notion"
+- Mitigation: Mobile-first approach (Notion mobile is weak), platform-independent, faster iteration
+- Response: Integrate with Notion (import documents), position as "AI exploration layer for Notion"
 
 **Risk 5: New well-funded competitor launches similar product**
-- Likelihood: Medium-High (space is hot)
+- Likelihood: Medium-High (space is hot, branching is logical next step)
 - Impact: Medium (competition for users but validates market)
-- Mitigation: Speed to market (8-10 weeks MVP), community ownership, user data lock-in
-- Response: Focus on execution quality (RAG accuracy, UX polish), community evangelism
+- Mitigation: Speed to market (8-week MVP), artifact lock-in (60+ artifacts = switching cost), community ownership
+- Response: Focus on execution quality (consolidation accuracy, UX polish, context assembly speed), community evangelism
 
-**Risk 6: Cursor expands beyond code to general knowledge work**
-- Likelihood: Low (Cursor is deeply code-focused)
-- Impact: Low (different target market)
-- Mitigation: Web-first approach (Cursor is desktop-only), mobile access, knowledge work positioning
+**Risk 6: Users don't understand branching mental model**
+- Likelihood: Medium (new paradigm, cognitive load)
+- Impact: High (adoption fails if too complex)
+- Mitigation: Progressive disclosure (show branching only when needed), guided onboarding ("create first branch → explore → consolidate"), context panel transparency (show what AI sees)
+- Validation: <20% confusion rate in beta
 
 ### Execution Risks
 
-**Risk 7: RAG context retrieval quality is insufficient (irrelevant documents)**
-- Likelihood: Medium (RAG is complex, context quality varies)
+**Risk 7: Context pollution from irrelevant sibling branches**
+- Likelihood: High without divergence tracking (MVP defers this)
+- Impact: Medium (cross-branch reference quality degrades)
+- Mitigation: MVP accepts some pollution (validate workflow first), V3 adds divergence penalty (Month 2-3), user control (exclude sibling branches manually)
+- Validation: Monitor cross-branch reference quality (user feedback, NPS)
+
+**Risk 8: Consolidation quality is insufficient (AI synthesis fails)**
+- Likelihood: Medium (consolidation is complex, tree traversal + synthesis + relationship weights)
 - Impact: High (core value proposition fails)
-- Mitigation: Hybrid search (vector + keyword), relevance tuning, user feedback loops, chunking optimization
-- Validation: Beta phase tests user satisfaction >4/5, iterate until quality is validated
+- Mitigation: Provenance metadata in AI prompts ("This came from Branch A"), relationship weights for relevance, user feedback loops, iterative tuning
+- Validation: Beta phase tests consolidation satisfaction >4/5
 
-**Risk 8: Claude API costs exceed $15/customer/month (margin compression)**
-- Likelihood: Low-Medium (usage may be higher than estimated)
+**Risk 9: Claude API costs exceed budgeted COGS (margin compression)**
+- Likelihood: Low-Medium (9-layer context assembly may require more tokens)
 - Impact: Medium (unit economics worsen but not broken)
-- Mitigation: Smart context caching (reduce redundant API calls), usage monitoring, $25/month pricing has margin buffer
-- Response: Optimize prompts, implement tiered usage limits, increase pricing if necessary
+- Mitigation: Node summaries for efficient context loading (summaries first, full content on demand), context caching (reduce redundant API calls), usage monitoring, capped Sonnet requests (60 Plus, 140 Pro) limit exposure
+- Response: Optimize prompts, adjust tier limits, increase pricing if necessary (36-39% margins provide buffer)
 
-**Risk 9: Retention is lower than expected (<50% day-30)**
-- Likelihood: Medium (product-market fit is hypothesis)
+**Risk 10: Retention is lower than expected (<60% Month 1)**
+- Likelihood: Medium (branching workflow is hypothesis)
 - Impact: High (LTV assumptions invalid, CAC payback fails)
-- Mitigation: Focus on activation (80% complete onboarding), multi-chat adoption (60% create ≥2 chats), document lock-in (≥5 documents)
-- Validation: Month 2-3 retention data, iterate onboarding if <50% day-30
+- Mitigation: Focus on consolidation adoption (40% create multi-branch explorations), artifact growth (Week 8: 40-60 artifacts), switching cost building (60+ artifacts = locked in)
+- Validation: Month 1-3 retention data, iterate onboarding if <60% Month 1
 
-**Risk 10: Development takes longer than 8-10 weeks (delayed launch)**
-- Likelihood: Low-Medium (scope creep, technical complexity)
+**Risk 11: Development takes longer than 8 weeks (delayed launch)**
+- Likelihood: Low-Medium (scope creep, branching DAG complexity)
 - Impact: Medium (delays validation, burns runway)
-- Mitigation: MVP-first discipline (ruthless scope management), Rule of Three (no premature abstraction), clear success criteria
+- Mitigation: MVP-first discipline (ruthless scope management), phased implementation (MVP: base + relationship + temporal only, defer divergence penalty), clear success criteria
 - Response: Ship imperfect MVP, iterate based on user feedback (working software > perfect architecture)
 
 ### Mitigation Strategies Summary
 
 **Validation-Driven Approach**:
-- Beta phase (Weeks 1-4): 20-30 users, validate context value and willingness to pay
+- Beta phase (Weeks 1-4): 20-30 users, validate branching workflow (40% consolidation rate), willingness to pay
 - Launch phase (Weeks 5-12): 50-100 trial signups, validate 15-20% conversion
-- Scale phase (Months 2-3): 100-200 customers, validate retention and unit economics
+- Scale phase (Months 2-3): 100-200 customers, validate artifact growth (Week 8: 40-60 artifacts), retention (60% Month 1)
 
 **Flexibility & Pivots**:
-- If context retrieval quality insufficient: Iterate RAG implementation, hybrid search, user feedback
+- If branching too complex: Simplify onboarding, add guided workflows, progressive disclosure
+- If consolidation quality insufficient: Iterate prompts, add user feedback loops, tune relationship weights
 - If pricing too high: Introduce lower tier ($15/mo with limits), test conversion
-- If retention low: Focus on activation and onboarding improvements
+- If retention low: Focus on artifact growth, switching cost building, onboarding improvements
 - If CAC too high: Double down on organic channels (content, community)
 
 **Risk Monitoring**:
-- Weekly metrics review: Trial signups, conversion rate, retention, NPS
+- Weekly metrics review: Trial signups, conversion rate, consolidation rate, artifact growth, retention, NPS
 - Monthly business review: MRR, CAC, LTV, churn, unit economics
-- Quarterly strategic review: Market trends, competitive landscape, product roadmap
+- Quarterly strategic review: Market trends, competitive landscape (watch for branching signals from Claude), product roadmap
 
 ---
 
@@ -773,35 +872,40 @@
 
 ### One-Line Pitch
 
-"Multiple AI conversations with shared document context—stop re-explaining, start thinking."
+"Exploration workspace for deep research. Branch conversations, capture artifacts with provenance, consolidate from multiple paths."
 
 ### 30-Second Pitch
 
-ChatGPT and Notion AI trap you in single conversation threads. When you're researching a complex topic, you need to branch—explore tangents, compare approaches, analyze from different angles—without losing your main thread.
+Deep research isn't linear. When you're exploring a complex topic, you need to branch—try multiple approaches in parallel—without losing context.
 
-Centrid: Upload your documents once, start unlimited separate chats, and every conversation automatically has access to your full knowledge base. Research in one chat, create in another, analyze in a third—all using the same documents. No re-uploading, no re-explaining, no context loss.
+ChatGPT forces linear conversations. Notion forces manual organization. Centrid: Branch at any message, explore multiple paths, consolidate findings into final output. Files remember which conversation created them (provenance). Cross-branch semantic search finds related artifacts automatically.
 
-$25/month. 7-day free trial. Built for consultants, researchers, and content creators who think non-linearly.
+Plus $19/mo (undercuts ChatGPT), Pro $39/mo. Built for researchers, consultants, and engineers who explore complex topics. 8-week MVP sprint. Beta Week 4, public launch Week 10.
 
 ### 60-Second Pitch
 
-The problem: Knowledge workers hit a wall with AI tools. ChatGPT forces you to re-explain context every conversation—10-15 minutes per chat re-uploading documents and rebuilding context. Notion AI has Q&A with workspace context, but traps you in a single conversation thread. When you need to explore tangents, compare approaches, or analyze from different angles, you lose your main thread or restart from zero.
+**The problem**: Researchers, consultants, and engineers exploring complex topics hit a wall with AI tools. ChatGPT forces linear conversations—when you want to try multiple approaches (RAG vs fine-tuning), you lose the main thread or restart from zero. Notion has document context, but no branching—manual organization, no automatic consolidation. Deep research workers spend 2-4 hours manually consolidating findings from multiple explorations.
 
-The solution: Centrid enables multiple independent AI conversations with shared document context. Upload your documents once, then start unlimited separate chats—research in one, create in another, analyze in a third—all with automatic access to your full knowledge base. Knowledge work isn't linear, so your AI workspace shouldn't be either.
+**The solution**: Centrid is an exploration workspace where branching conversations and persistent filesystem are unified through provenance. Branch at any message → explore multiple approaches in parallel → capture outputs as artifacts → consolidate findings automatically. Every file knows: created_in_conversation_id, context_summary, last_updated_by_branch. Cross-branch semantic search finds related artifacts from sibling branches. AI consolidation synthesizes findings across exploration tree using provenance + relationship weights.
 
-The market: 2M+ ChatGPT Plus and 500K Claude Pro users already pay $20/month. Plus Notion AI now requires $20/user/month Business plan (up from $10/month), creating dissatisfaction. Our target: individual power users (consultants, researchers, content creators) who need multiple AI conversations, not workspace management.
+**Example workflow**: "Research AI Agents" → Branch A (RAG deep dive), Branch B (Orchestration), Branch C (Tool use) → Consolidate into "Decision Document" with provenance citations.
 
-The business: $25/month standalone SaaS with 7-day free trial. Unit economics: <$50 CAC, $400+ LTV, 8:1 ratio. Year 1 target: 300 customers ($7,500 MRR). Year 3: 2,000-5,000 customers ($600K-1.5M MRR).
+**The market**: 30M knowledge workers experiencing parallel exploration context loss. 6M experience it daily. Target: 50K users × avg $25/mo = $15M ARR Year 3. Deep research workers (researchers, consultants, engineers, product managers) already paying $20/mo for ChatGPT/Claude.
 
-Differentiation: ChatGPT = no persistent context. Notion AI = single Q&A thread tied to Notion workspace. Centrid = unlimited separate conversations + shared documents + mobile-first + platform-independent. We're the only solution for non-linear knowledge work.
+**The business**: Plus $19/mo (undercuts ChatGPT), Pro $39/mo (matches GitHub Copilot Pro+). Unit economics: <$50 CAC, $600 LTV (artifact-driven switching costs), 12:1 ratio. 8-week MVP sprint. Year 1 target: 300 customers ($7,500 MRR).
 
-Traction: 8-10 week MVP sprint. Beta Week 4, public launch Week 10. First 20-50 paying customers in 90 days validates product-market fit.
+**Differentiation**: ChatGPT = linear conversations. Claude = no branching. Notion = manual organization. Centrid = branching + provenance + consolidation. Architectural moat: Branching requires 6-12 months retrofit (database schema DAG, UI tree view, context assembly rewrite). Claude likely won't add (conflicts with simplicity for 100M users).
 
-The ask: Early adopters to validate "multiple conversations with shared context" for knowledge work, and strategic angels who understand AI + productivity space.
+**Traction**: 8-week MVP sprint. Beta Week 4 (20-30 users, validate 40% consolidation rate). Public launch Week 10 (50-100 trial signups). First 300 customers in 12 months validates product-market fit. Switching cost: 60+ artifacts = <5% churn (locked in).
+
+**The moat**: Integration moat—requires building branching + filesystem + provenance + KG + concepts + dynamic weighting simultaneously. Not a feature add, it's architectural foundation. First-mover advantage (12-month head start). Artifact lock-in (60+ artifacts = rebuilding everything manually). Category ownership ("exploration workspace" vs "AI chat").
+
+**The ask**: Early adopters to validate branching + consolidation workflow for deep research, and strategic angels who understand exploration-first paradigm shift.
 
 ---
 
 **Next Steps**:
 - Run `/marketing.brief` to create marketing communications strategy (personas, messaging, landing page outline)
 - Use pitches for initial outreach, investor conversations, and landing page headlines
-- Validate pricing and positioning during beta phase (Weeks 1-4)
+- Validate branching workflow and pricing during beta phase (Weeks 1-4)
+- Monitor consolidation rate (target: 40%) and artifact growth (target: Week 8: 40-60 artifacts)

@@ -45,12 +45,18 @@ User describes feature
 /speckit.clarify        → specs/[feature]/spec.md (updated)
         ↓               (Resolve underspecifications via Q&A)
         ↓
+/speckit.arch           → specs/[feature]/arch.md
+        ↓               (Architecture: screens, flows, components, data model, APIs)
+        ↓               (Optional but recommended for complex/large features)
+        ↓
 /speckit.plan           → specs/[feature]/plan.md, data-model.md, contracts/
         ↓               (Technical approach, data model, API contracts)
+        ↓               (Reads arch.md if exists, otherwise generates from spec.md)
         ↓               (Reads constitution.md and tokens.md from project setup)
         ↓
 /speckit.design         → specs/[feature]/design.md, packages/ui/
         ↓               (Visual design, components, interactions)
+        ↓               (Reads arch.md for screens/flows if exists)
         ↓               (Uses global design system tokens)
         ↓
 /speckit.tasks          → specs/[feature]/tasks.md

@@ -100,41 +100,20 @@
 - **[Entity 1]**: [What it represents, key attributes without implementation]
 - **[Entity 2]**: [What it represents, relationships to other entities]
 
-### UI/UX Requirements *(mandatory for user-facing features)*
+### Non-Functional Requirements *(if applicable)*
 
 <!--
-  ACTION REQUIRED: Define visual and interaction requirements at a high level.
-  Detailed visual design will be created in /speckit.design phase.
-  Focus here on WHAT users see and interact with, not specific colors/spacing.
+  ACTION REQUIRED: Define quality attributes and constraints.
+  Focus on measurable requirements, not implementation details.
 -->
 
-#### Screens/Views Needed
+- **Performance**: [e.g., "Search results must appear within 300ms"]
+- **Security**: [e.g., "All data must be encrypted in transit and at rest"]
+- **Accessibility**: [e.g., "Must meet WCAG 2.1 Level AA compliance"]
+- **Scalability**: [e.g., "Must support 10,000 concurrent users"]
+- **Reliability**: [e.g., "99.9% uptime during business hours"]
 
-- **[Screen 1 Name]**: [Purpose, what user accomplishes here]
-- **[Screen 2 Name]**: [Purpose, what user accomplishes here]
-
-#### Key Interactive Elements
-
-- **[Element Type]** (e.g., Form, Button, List): [What it does, key states needed]
-- **[Element Type]**: [What it does, key states needed]
-
-#### Responsive Requirements
-
-- **Mobile Priority**: [What's most important on small screens?]
-- **Desktop Enhancements**: [What additional capabilities on larger screens?]
-
-#### Critical States
-
-- **Loading**: [What users see during async operations]
-- **Error**: [How errors are communicated]
-- **Empty**: [What users see when no data exists]
-- **Success**: [How success is communicated]
-
-#### Accessibility Priorities
-
-- **Keyboard Navigation**: [Critical keyboard shortcuts or tab order requirements]
-- **Screen Reader**: [Key announcements or labels needed]
-- **Touch Targets**: [Specific mobile interaction concerns]
+**Note**: For UI/UX architecture (screens, flows, components, interactions), use `/speckit.arch` after spec is complete. The architecture document will detail HOW the UI is structured, while this spec focuses on WHAT users need to accomplish.
 
 ## Success Criteria *(mandatory)*
 
