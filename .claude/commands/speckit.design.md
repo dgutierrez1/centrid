@@ -17,30 +17,33 @@
 **Load feature context** from FEATURE_DIR:
 - **Required**: `spec.md` (user stories, requirements)
 - **Required**: `plan.md` (tech stack, architecture, component architecture)
-- **Optional**: `arch.md` (if exists in AVAILABLE_DOCS - preferred source for architecture)
+- **Optional**: `ux.md` (if exists in AVAILABLE_DOCS - PREFERRED source for detailed flows)
+- **Optional**: `arch.md` (if exists in AVAILABLE_DOCS - fallback for architecture if no ux.md)
 - **Optional**: `data-model.md` (if exists in AVAILABLE_DOCS)
 
 **Load design system context**:
 - Read `.specify/design-system/tokens.md` (design tokens)
 - Read `packages/ui/src/components/index.ts` (available primitives)
 
-**Load component architecture**:
-- **IF arch.md EXISTS**: Load "User Interface Architecture" section from arch.md (preferred):
+**Load UX flows & component architecture**:
+- **IF ux.md EXISTS**: Load detailed UX specification from ux.md (PREFERRED):
+  - Screen-by-Screen UX Flows (step-by-step interactions with components, props, callbacks)
+  - Component Specifications (props interfaces, states to design)
+  - Interaction Patterns (common behaviors, keyboard shortcuts)
+  - Layout & Spatial Relationships (desktop + mobile diagrams, spacing)
+  - State Management Requirements (component/global/URL state)
+- **ELSE IF arch.md EXISTS**: Load "User Interface Architecture" section from arch.md (fallback):
   - Screen Inventory (screens, navigation paths, user stories)
   - User Flow Map (navigation patterns, entry/exit points)
-  - Information Architecture (content hierarchy, organization)
   - Module/Component Architecture (hierarchy, responsibilities, composition)
   - State Management Strategy (application/UI/URL/external state, flow patterns)
-  - Interaction Patterns (user interactions, state transitions, feedback)
-- **ELSE**: Load "Component Architecture" section from plan.md (fallback):
+- **ELSE**: Load "Component Architecture" section from plan.md (last resort):
   1. Screen Inventory (screens, routes, user stories)
   2. Component Hierarchy (per screen trees)
   3. Container/Presenter Mapping (where each component lives)
   4. State Management Strategy (global/component/URL state)
-  5. Data Flow Architecture (props down, callbacks up)
-  6. Composition Patterns (prop drilling vs context, etc.)
-- **IF BOTH MISSING**: SKIP architecture-based steps (API/CLI project or no UI)
-- Use loaded architecture to guide component creation
+- **IF ALL MISSING**: SKIP architecture-based steps (API/CLI project or no UI)
+- Use loaded flows/architecture to guide component creation
 
 ### 2. Component Reusability Assessment
 
@@ -63,7 +66,14 @@
 
 ### 3. Create Components
 
-**Use component architecture** from plan.md (if exists):
+**Use UX specification from ux.md** (if exists - PREFERRED):
+- Follow component specifications (props interfaces, states to design)
+- Use exact prop names and types from ux.md
+- Design all states listed (default, loading, error, empty, etc.)
+- Follow layout diagrams (desktop + mobile spacing)
+- Implement interaction patterns documented
+
+**ELSE use component architecture** from arch.md or plan.md (fallback):
 - Follow component hierarchy (containers vs presenters, nesting levels)
 - Follow container/presenter mapping (where to place each component)
 - Use state management strategy (define props interfaces to receive state)
@@ -146,18 +156,29 @@
 
 ### 5.5. Document Testable User Flows
 
-**Purpose**: Create detailed, automated-testable flows that map to acceptance criteria from spec.md
+**Purpose**: Ensure detailed, automated-testable flows are ready for design.md
 
-**Process**:
+**IF ux.md EXISTS** (PREFERRED):
+- Flows already documented in ux.md with:
+  - Step-by-step interactions
+  - Component references
+  - Props and callbacks
+  - Error scenarios with test data
+  - Success criteria
+- **Process**: Reference ux.md flows in design.md User Flows section
+- **Add**: Playwright `data-testid` selectors to components during design
+- **Validation**: Verify ux.md flows cover ALL user stories from spec.md (ALL priorities)
+
+**ELSE** (if no ux.md - create flows from scratch):
 
 1. **Review acceptance criteria** from spec.md:
-   - Read all User Stories with priorities (P1, P2, P3)
+   - Read ALL User Stories with ALL priorities (P1, P2, P3, P4, etc.)
    - Read all Acceptance Scenarios (Given/When/Then)
    - Read Success Criteria (SC-001, SC-002, etc.)
    - Read Edge Cases
 
 2. **Map flows to criteria**:
-   - For each high-priority acceptance criterion (P1, P2), create a testable flow
+   - For EVERY acceptance criterion (ALL priorities), create a testable flow
    - Identify which screens are involved in the flow
    - List specific components used at each step
    - Define Playwright selectors using `data-testid` attributes (recommended pattern)
@@ -183,10 +204,10 @@
 
 5. **Create navigation map**:
    - Visual overview showing how flows connect screens
-   - Include primary flows (P1, P2) and key secondary flows (P3)
+   - Include ALL flows (ALL priorities)
 
 6. **Validation before proceeding**:
-   - All P1 user stories have corresponding flows
+   - ALL user stories have corresponding flows (ALL priorities)
    - All flows map to acceptance criteria from spec.md
    - All flows have error scenarios documented
    - All flows have Playwright selectors
@@ -194,10 +215,23 @@
 
 ### 6. Final Validation Gate
 
-**MANDATORY before creating design.md**: Verify component architecture integrity.
+**MANDATORY before creating design.md**: Verify architecture alignment and component integrity.
 
-**Run validation**:
+**IF ux.md EXISTS - UX Coverage Check**:
+1. Load ux.md Component Specifications section
+2. For each component in ux.md:
+   - [ ] Component created in packages/ui with matching name
+   - [ ] Props interface matches ux.md specification
+   - [ ] All states from ux.md designed (default, loading, error, etc.)
+   - [ ] Screenshots exist for each state
+3. Load ux.md Screen-by-Screen UX Flows section
+4. For each screen in ux.md:
+   - [ ] Screen designed in design.md
+   - [ ] All components from flow exist in packages/ui
+   - [ ] Layout matches ux.md diagrams (desktop + mobile)
+   - [ ] Interaction patterns implemented
 
+**Component Architecture Check** (always run):
 1. Verify common components (if any): `ls packages/ui/src/components/*.tsx` and check exports
 2. Verify feature components: `ls packages/ui/src/features/[feature-name]/*.tsx`
 3. Verify global export: `grep "[feature-name]" packages/ui/src/features/index.ts`
@@ -205,6 +239,14 @@
    - `import { CommonComponent } from '@centrid/ui/components'`
    - `import { Screen1 } from '@centrid/ui/features'`
    - No errors, components render
+
+**Component Pattern Check** (load from constitution.md if exists):
+For each component in packages/ui:
+- [ ] No data fetching (no fetch, useQuery, etc.)
+- [ ] No API client imports (no supabase, axios, etc.)
+- [ ] No auth logic (no useAuth, useUser)
+- [ ] Props are data-in/callbacks-out
+- [ ] Component is in correct location (common vs feature-specific)
 
 **Design principles check** (`.specify/DESIGN-PRINCIPLES.md`):
 - [ ] Visual hierarchy: Primary actions prominent, clear focal points
@@ -218,18 +260,20 @@
 
 **Report**:
 ```
+✅ UX Coverage (if ux.md): [X/Y] components match specs, [X/Y] screens designed
 ✅ Common: [N] components in packages/ui/src/components/ (if any)
 ✅ Feature: [N] components in packages/ui/src/features/[feature-name]/
 ✅ Exports: All components exported from index.ts files
 ✅ Imports: Verified in showcase, no errors
+✅ Component Patterns: [X/Y] components follow presentational pattern
 ✅ Screenshots: [N] saved to apps/design-system/public/screenshots/
 ✅ Reusability: Categorization table complete
 ✅ Design Principles: Verified against 10 levers
 
-Status: READY for design.md
+Status: READY / NEEDS WORK (with specific gaps listed)
 ```
 
-**If validation fails**: STOP, fix issues, re-validate before Step 7
+**If validation fails**: STOP, list specific gaps, fix issues before Step 7
 
 ### 7. Document Design Spec
 

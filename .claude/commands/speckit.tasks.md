@@ -21,6 +21,10 @@ You **MUST** consider the user input before proceeding (if not empty).
      - contracts/ (API endpoints)
      - research.md (decisions)
      - quickstart.md (test scenarios)
+     - **ux.md (detailed UX specification)** - If exists, extract:
+       - Component Specifications (props interfaces, states)
+       - Screen-by-Screen UX Flows (interactions, test data)
+       - State Management Requirements (component/global/URL state)
      - **design.md (UI component architecture, designed components)** - If exists, extract:
        - Component Architecture section (reusable components in packages/ui/src/features/)
        - Screen-to-Component Mapping table (which components were designed)
@@ -223,12 +227,22 @@ Every task MUST strictly follow this format:
    - Foundational/blocking tasks → Foundational phase (Phase 2)
    - Story-specific setup → within that story's phase
 
-5. **From Design (design.md)** - IF EXISTS:
+5. **From UX Specification (ux.md)** - IF EXISTS:
+   - **Use Component Specifications** to inform state management tasks:
+     - Props interfaces → Define what data containers must fetch/manage
+     - State Management Requirements → Know which state is component/global/URL
+     - Screen-by-Screen UX Flows → Understand interaction patterns for hooks
+   - **Use for test task generation**:
+     - UX flows define Playwright selectors and test data
+     - Create test tasks with exact selectors from ux.md
+     - Include error scenario tests documented in ux.md
+
+6. **From Design (design.md)** - IF EXISTS:
    - **DO NOT create tasks to build UI components** (already done in packages/ui by /speckit.design)
    - **DO create tasks to integrate designed components**:
      - Container components that wrap designed components with business logic
-     - Custom hooks for state management (useFileSystem, useMarkdownEditor, etc.)
-     - State management setup (Valtio stores)
+     - Custom hooks for state management (use ux.md props if available)
+     - State management setup (Valtio stores based on ux.md requirements if available)
      - API integration (Edge Functions, endpoints)
      - Page/route setup using container components
    - **Task examples when design.md exists**:

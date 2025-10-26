@@ -3,9 +3,9 @@
 **Feature**: `[###-feature-name]`
 **Design Date**: [DATE]
 **Status**: Draft
-**Input**: Feature specification from `/specs/[###-feature-name]/spec.md` and implementation plan from `/specs/[###-feature-name]/plan.md`
+**Input**: Feature specification from `/specs/[###-feature-name]/spec.md`, implementation plan from `/specs/[###-feature-name]/plan.md`, and (if exists) UX specification from `/specs/[###-feature-name]/ux.md`
 
-**Note**: This template is filled in by the `/speckit.design` command. See `.claude/commands/speckit.design.md` for the execution workflow.
+**Note**: This template is filled in by the `/speckit.design` command. See `.claude/commands/speckit.design.md` for the execution workflow. If ux.md exists, component specifications and flows are loaded from there; otherwise, they're created during the design process.
 
 ## Overview
 
@@ -106,6 +106,15 @@ Feature-specific in `packages/ui/src/features/[feature-name]/`:
 
 <!--
   CRITICAL: These flows are used by /speckit.verify-ui for automated acceptance testing.
+
+  IF ux.md EXISTS:
+  - Flows are already documented in ux.md with step-by-step interactions, props, callbacks
+  - Reference ux.md flows here and add Playwright data-testid selectors
+  - Ensure all ux.md flows are covered with screenshots
+
+  IF NO ux.md:
+  - Create flows from scratch during design process
+
   Each flow must:
   - Map to acceptance criteria from spec.md
   - Reference specific components and routes

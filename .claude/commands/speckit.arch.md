@@ -130,8 +130,10 @@ cd /Users/daniel/Projects/misc/centrid
 
 **3.3.1 Screens & Flows**:
 - Table: Screen, Purpose, User Story, Priority, Route/Entry
-- Primary user flow diagram
+- Primary user flow diagram (high-level navigation paths only)
 - Navigation pattern
+
+**Note**: Detailed UX flows (step-by-step interactions, layouts, component props) are handled by `/speckit.ux`. arch.md focuses on structural architecture (screens, components, data), not detailed interaction design.
 
 **3.3.2 Component Structure**:
 - Component hierarchy per screen (simple tree diagram)
@@ -325,11 +327,14 @@ Status: READY / NEEDS WORK
 
 **Next Steps**:
 1. Review arch.md for accuracy and completeness (covers full-stack architecture)
-2. Run /speckit.plan to generate technical implementation plan
+2. Run /speckit.ux to create detailed UX specification (if UI feature - RECOMMENDED before design)
+   - UX will use: Screen inventory, component hierarchy from arch.md
+   - UX creates: Step-by-step flows, component props, interaction patterns, layouts
+3. Run /speckit.plan to generate technical implementation plan
    - Plan will use: Domain model, API contracts, service structure, integration patterns
-3. Run /speckit.design to create UI/UX visual design (if UI feature)
-   - Design will use: Screen inventory, user flows, component hierarchy
-4. arch.md is the single source of truth for feature architecture (frontend + backend + data + integration)
+4. Run /speckit.design to create UI/UX visual design (if UI feature)
+   - Design will use: ux.md flows (if exists), or arch.md screen inventory (fallback)
+5. arch.md is the single source of truth for feature architecture (frontend + backend + data + integration)
 
 **Note**: Architecture bridges requirements (spec.md) and implementation (plan.md, design.md, tasks.md)
 ```
@@ -360,9 +365,10 @@ Address user input:
 - `constitution.md` (optional): Source of architectural principles
 
 **Output used by**:
+- `/speckit.ux`: Uses screen inventory, component hierarchy to create detailed UX flows
 - `/speckit.plan`: Uses domain model, API contracts, module structure
-- `/speckit.design`: Uses screen inventory, user flows, component hierarchy
+- `/speckit.design`: Uses ux.md (if exists) or arch.md screen inventory (fallback)
 - `/speckit.tasks`: Uses module architecture, state management strategy
 - `/speckit.implement`: Uses integration patterns, data flows
 
-**Artifact**: `arch.md` is single source of truth for architectural decisions
+**Artifact**: `arch.md` is single source of truth for architectural decisions (structure, not detailed UX)
