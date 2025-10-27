@@ -53,6 +53,11 @@ export function BranchSelector({
           <span className="text-sm font-medium text-gray-900 dark:text-white truncate">
             {currentBranch.title}
           </span>
+          {branches.length > 1 && (
+            <Badge variant="secondary" className="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs shrink-0">
+              {branches.length}
+            </Badge>
+          )}
         </div>
         <svg
           className={`w-4 h-4 text-gray-600 dark:text-gray-400 transition-transform ${
@@ -67,14 +72,18 @@ export function BranchSelector({
       </DropdownMenuTrigger>
 
       <DropdownMenuContent className="w-[300px] max-h-[400px] overflow-y-auto" data-testid="branch-selector-dropdown">
-        {branches.map((branch) => {
+        {branches.map((branch, index) => {
           const isCurrentBranch = branch.id === currentBranch.id;
-          const indentPx = branch.depth * 16;
+          const indentPx = branch.depth * 24;
+
+          // Check if this is the last child of its parent
+          const nextBranch = branches[index + 1];
+          const isLastChild = !nextBranch || nextBranch.depth <= branch.depth || nextBranch.parentId !== branch.parentId;
 
           return (
             <DropdownMenuItem
               key={branch.id}
-              className={`flex items-start justify-between gap-3 py-2 cursor-pointer ${
+              className={`relative flex items-start justify-between gap-3 py-2 cursor-pointer ${
                 isCurrentBranch ? 'bg-primary-50 dark:bg-primary-900/20' : ''
               }`}
               style={{ paddingLeft: `${16 + indentPx}px` }}
@@ -86,6 +95,36 @@ export function BranchSelector({
               }}
               data-testid={`branch-item-${branch.id}`}
             >
+              {/* Tree lines */}
+              {branch.depth > 0 && (
+                <>
+                  {/* Horizontal line connecting to parent */}
+                  <div
+                    className="absolute top-1/2 h-px bg-gray-300 dark:bg-gray-600"
+                    style={{
+                      left: `${16 + (branch.depth - 1) * 24 + 8}px`,
+                      width: '12px',
+                    }}
+                  />
+                  {/* Vertical line */}
+                  <div
+                    className="absolute bg-gray-300 dark:bg-gray-600 w-px"
+                    style={{
+                      left: `${16 + (branch.depth - 1) * 24 + 8}px`,
+                      top: isLastChild ? '0' : '0',
+                      bottom: isLastChild ? '50%' : '0',
+                    }}
+                  />
+                  {/* Icon for leaf node */}
+                  <div
+                    className="absolute w-2 h-2 rounded-full border-2 border-gray-400 dark:border-gray-500 bg-white dark:bg-gray-800"
+                    style={{
+                      left: `${16 + (branch.depth - 1) * 24 + 4}px`,
+                      top: 'calc(50% - 4px)',
+                    }}
+                  />
+                </>
+              )}
               <div className="flex flex-col gap-1 flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className={`text-sm font-medium ${isCurrentBranch ? 'text-primary-700 dark:text-primary-400' : 'text-gray-900 dark:text-white'}`}>

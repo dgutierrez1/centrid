@@ -1,83 +1,176 @@
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { DesignSystemFrame } from '../../components/DesignSystemFrame';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@centrid/ui/components';
+import { Card } from '@centrid/ui/components';
+import { AiAgentSystemMock } from '../../components/AiAgentSystemMock';
+
+type Viewport = 'desktop' | 'mobile';
 
 export default function AiAgentSystemIndex() {
-  const screens = [
-    {
-      name: 'Chat Interface',
-      route: '/ai-agent-system/chat-interface',
-      description: 'Primary conversation UI with message streaming, context panel, and tool approval',
-    },
-    {
-      name: 'Context Panel',
-      route: '/ai-agent-system/context-panel',
-      description: 'Collapsible context sections showing what the AI sees (explicit, semantic, branch, artifacts)',
-    },
-    {
-      name: 'Branch Selector',
-      route: '/ai-agent-system/branch-selector',
-      description: 'Hierarchical dropdown for navigating between branches with indentation',
-    },
-    {
-      name: 'Workspace View',
-      route: '/ai-agent-system/workspace',
-      description: 'Full 3-panel adaptive workspace (sidebar, thread, file editor)',
-    },
-    {
-      name: 'File Editor',
-      route: '/ai-agent-system/file-editor',
-      description: 'Right panel file editor with provenance header',
-    },
-    {
-      name: 'Components',
-      route: '/ai-agent-system/components',
-      description: 'Individual component showcase (Message, ThreadInput, ToolCallApproval, ContextReference)',
-    },
-  ];
+  const [viewport, setViewport] = useState<Viewport>('desktop');
+  const [showFileEditor, setShowFileEditor] = useState(true);
+
+  const viewportSizes = {
+    desktop: { width: '1440px', height: '900px' },
+    mobile: { width: '375px', height: '812px' },
+  };
 
   return (
     <DesignSystemFrame title="AI Agent System">
-      <div className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">
+      <div className="h-screen overflow-y-auto">
+        {/* Header */}
+        <div className="pt-6 pb-4 px-4">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
             AI-Powered Exploration Workspace
           </h1>
-          <p className="text-lg text-gray-600 dark:text-gray-400 max-w-3xl">
+          <p className="text-base text-gray-600 dark:text-gray-400 max-w-3xl mb-4">
             An exploration workspace where users branch threads to explore multiple approaches in parallel,
             capture findings as persistent files with provenance, and consolidate insights from the entire
             exploration tree.
           </p>
+
+          {/* Controls */}
+          <div className="flex flex-wrap gap-4 mb-4">
+            {/* Viewport Selector */}
+            <div className="flex gap-2">
+              <button
+                onClick={() => setViewport('desktop')}
+                className={`px-4 py-2 rounded-md font-medium transition-colors ${
+                  viewport === 'desktop'
+                    ? 'bg-primary-600 text-white'
+                    : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                }`}
+              >
+                Desktop (1440×900)
+              </button>
+              <button
+                onClick={() => setViewport('mobile')}
+                className={`px-4 py-2 rounded-md font-medium transition-colors ${
+                  viewport === 'mobile'
+                    ? 'bg-primary-600 text-white'
+                    : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                }`}
+              >
+                Mobile (375×812)
+              </button>
+            </div>
+
+            {/* File Editor Toggle */}
+            <div className="flex gap-2 items-center border-l border-gray-300 dark:border-gray-600 pl-4">
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                File Editor:
+              </label>
+              <button
+                onClick={() => setShowFileEditor(!showFileEditor)}
+                className={`px-4 py-2 rounded-md font-medium transition-colors ${
+                  showFileEditor
+                    ? 'bg-green-600 text-white'
+                    : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                }`}
+              >
+                {showFileEditor ? 'Open (3-panel)' : 'Closed (2-panel)'}
+              </button>
+            </div>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {screens.map((screen) => (
-            <Link key={screen.route} href={screen.route}>
-              <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer">
-                <CardHeader>
-                  <CardTitle className="text-xl">{screen.name}</CardTitle>
-                  <CardDescription>{screen.description}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-sm text-primary-600 dark:text-primary-400 font-medium flex items-center gap-2">
-                    View Design
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 5l7 7-7 7"
-                      />
-                    </svg>
-                  </div>
-                </CardContent>
+        {/* Workspace Preview */}
+        <div className="mb-6">
+          <div className="mb-3 px-4 flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-1">
+                Workspace
+              </h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Adaptive 3-panel workspace (sidebar, thread, file editor)
+              </p>
+            </div>
+            <Link
+              href="/ai-agent-system/workspace"
+              className="text-sm text-primary-600 dark:text-primary-400 hover:underline font-medium flex items-center gap-1"
+            >
+              Full Page
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                />
+              </svg>
+            </Link>
+          </div>
+
+          {/* Screen Preview - Full width container with more height */}
+          <div
+            className="bg-white dark:bg-gray-800 overflow-auto border border-gray-200 dark:border-gray-700 transition-all duration-300 w-full"
+            style={{
+              height: viewport === 'desktop' ? '1200px' : '900px',
+            }}
+          >
+            <AiAgentSystemMock showFileEditor={showFileEditor} />
+          </div>
+        </div>
+
+        {/* Navigation Cards */}
+        <div className="border-t border-gray-200 dark:border-gray-700 pt-6 px-4">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+            Component Details
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <Link href="/ai-agent-system/workspace">
+              <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer p-6">
+                <h3 className="text-xl font-semibold mb-2">Workspace View</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Full-page workspace with file editor
+                </p>
               </Card>
             </Link>
-          ))}
+            <Link href="/ai-agent-system/components">
+              <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer p-6">
+                <h3 className="text-xl font-semibold mb-2">Components</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Individual component showcase
+                </p>
+              </Card>
+            </Link>
+            <Link href="/ai-agent-system/context-panel">
+              <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer p-6">
+                <h3 className="text-xl font-semibold mb-2">Context Panel</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Interactive context panel demo
+                </p>
+              </Card>
+            </Link>
+            <Link href="/ai-agent-system/branch-selector">
+              <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer p-6">
+                <h3 className="text-xl font-semibold mb-2">Branch Selector</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Hierarchical branch navigation
+                </p>
+              </Card>
+            </Link>
+            <Link href="/ai-agent-system/file-editor">
+              <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer p-6">
+                <h3 className="text-xl font-semibold mb-2">File Editor</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  File editor with provenance
+                </p>
+              </Card>
+            </Link>
+            <Link href="/ai-agent-system/input-states">
+              <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer p-6">
+                <h3 className="text-xl font-semibold mb-2">Thread Input States</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  All input states and interactions
+                </p>
+              </Card>
+            </Link>
+          </div>
         </div>
 
-        <div className="mt-12 p-6 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+        {/* Design Status */}
+        <div className="mt-6 mx-4 mb-8 p-6 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
           <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-100 mb-2">
             Design Status
           </h3>

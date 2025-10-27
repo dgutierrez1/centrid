@@ -55,7 +55,7 @@ export function ThreadInput({
       data-testid="thread-input"
     >
       <div className="flex flex-col gap-2">
-        <div className="flex items-end gap-2">
+        <div className="flex items-end gap-3">
           <Textarea
             value={messageText}
             onChange={(e) => onChange(e.target.value)}
@@ -64,8 +64,8 @@ export function ThreadInput({
             onBlur={() => setIsFocused(false)}
             placeholder={placeholder}
             disabled={isDisabled}
-            className={`resize-none min-h-[44px] max-h-[200px] ${
-              isFocused ? 'ring-2 ring-primary-500' : ''
+            className={`resize-none min-h-[44px] max-h-[200px] transition-shadow ${
+              isFocused ? 'ring-1 ring-primary-300 dark:ring-primary-700' : ''
             }`}
             rows={1}
             data-testid="message-input"
@@ -74,14 +74,14 @@ export function ThreadInput({
           {isStreaming ? (
             <Button
               onClick={handleStop}
-              variant="destructive"
+              variant="outline"
               size="lg"
-              className="shrink-0 h-11 w-11 p-0"
+              className="shrink-0 h-11 w-11 p-0 border-gray-300 dark:border-gray-600 hover:border-error-500 hover:bg-error-50 dark:hover:bg-error-950 text-gray-600 dark:text-gray-400 hover:text-error-600 dark:hover:text-error-400 transition-colors"
               data-testid="stop-button"
               aria-label="Stop streaming"
             >
               <svg
-                className="w-5 h-5"
+                className="w-4 h-4"
                 fill="currentColor"
                 viewBox="0 0 20 20"
               >
@@ -92,14 +92,19 @@ export function ThreadInput({
             <Button
               onClick={handleSend}
               disabled={!canSend}
+              variant="ghost"
               size="lg"
-              className="shrink-0 h-11 w-11 p-0 bg-primary-600 hover:bg-primary-700"
+              className={`shrink-0 h-11 w-11 p-0 transition-colors ${
+                canSend
+                  ? 'text-primary-600 dark:text-primary-500 hover:bg-primary-50 dark:hover:bg-primary-950'
+                  : 'text-gray-300 dark:text-gray-700'
+              }`}
               data-testid="send-button"
               aria-label="Send message"
             >
               {isLoading ? (
                 <svg
-                  className="animate-spin w-5 h-5"
+                  className="animate-spin w-4 h-4"
                   fill="none"
                   viewBox="0 0 24 24"
                 >
@@ -119,15 +124,15 @@ export function ThreadInput({
                 </svg>
               ) : (
                 <svg
-                  className="w-5 h-5"
+                  className="w-4 h-4"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
+                  strokeWidth={2}
                 >
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    strokeWidth={2}
                     d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
                   />
                 </svg>
@@ -136,15 +141,19 @@ export function ThreadInput({
           )}
         </div>
 
-        <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-          <span>
-            {isStreaming && 'Agent thinking...'}
-            {isLoading && !isStreaming && 'Sending...'}
-          </span>
-          <span>
-            {messageText.length}/{characterLimit}
-          </span>
-        </div>
+        {(isStreaming || isLoading || messageText.length > 0) && (
+          <div className="flex items-center justify-between text-xs text-gray-400 dark:text-gray-500">
+            <span className="text-gray-500 dark:text-gray-400">
+              {isStreaming && 'Agent thinking...'}
+              {isLoading && !isStreaming && 'Sending...'}
+            </span>
+            {messageText.length > 0 && (
+              <span className={messageText.length > characterLimit * 0.9 ? 'text-warning-500' : ''}>
+                {messageText.length}/{characterLimit}
+              </span>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

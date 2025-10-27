@@ -1,11 +1,86 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
+  Workspace,
   ThreadView,
   Branch,
-  MessageProps,
   ContextGroup,
   ContextReferenceProps,
+  Thread,
+  File,
+  FileData,
+  type AgentEvent,
 } from '@centrid/ui/features';
+
+// Use static timestamps to avoid hydration errors
+const FIXED_BASE_TIME = new Date('2025-10-26T11:00:00Z').getTime();
+
+interface Message {
+  id: string;
+  role: 'user' | 'assistant';
+  content?: string;
+  events?: AgentEvent[];
+  timestamp: Date;
+  isStreaming?: boolean;
+}
+
+// Tool templates for random generation
+const TOOL_TEMPLATES = [
+  {
+    name: 'search_code',
+    description: 'Searching codebase',
+    inputGen: () => ({ pattern: 'RAG', path: './src' }),
+    outputGen: () => `Found 12 matches`,
+  },
+  {
+    name: 'read_file',
+    description: 'Reading rag-best-practices.md',
+    inputGen: () => ({ file_path: './docs/rag-best-practices.md' }),
+    outputGen: () => `File contents retrieved (234 lines)`,
+  },
+  {
+    name: 'analyze_patterns',
+    description: 'Analyzing chunking patterns',
+    inputGen: () => ({ focus: 'chunking strategies' }),
+    outputGen: () => `Found 3 different approaches`,
+  },
+];
+
+function generateStreamingEvents(): AgentEvent[] {
+  const events: AgentEvent[] = [];
+  let eventId = 0;
+
+  // Start with text
+  events.push({
+    type: 'text',
+    id: `event-${eventId++}`,
+    content: "Great question! Let me analyze the RAG implementation to find the best chunking strategies.",
+  });
+
+  // Add 2-3 tool calls
+  const numTools = Math.floor(Math.random() * 2) + 2;
+  for (let i = 0; i < numTools && i < TOOL_TEMPLATES.length; i++) {
+    const template = TOOL_TEMPLATES[i];
+    events.push({
+      type: 'tool_call',
+      id: `event-${eventId++}`,
+      name: template.name,
+      description: template.description,
+      status: 'completed',
+      input: template.inputGen(),
+      output: template.outputGen(),
+      duration: Math.floor(Math.random() * 2000) + 800,
+    });
+  }
+
+  // End with conclusion
+  events.push({
+    type: 'text',
+    id: `event-${eventId++}`,
+    content: 'Based on my analysis, here are the key chunking approaches:\n\n1. **Fixed-size chunks** (512 tokens): Simple but may split context\n2. **Semantic chunking**: Split by paragraphs/sections\n3. **Overlapping chunks**: 50-100 token overlap preserves context\n\nThe codebase currently uses fixed-size with overlap, which is a solid approach!',
+  });
+
+  return events;
+}
 
 // Mock data
 const mockBranches: Branch[] = [
@@ -15,7 +90,7 @@ const mockBranches: Branch[] = [
     parentId: null,
     depth: 0,
     artifactCount: 2,
-    lastActivity: new Date(Date.now() - 1000 * 60 * 30), // 30 min ago
+    lastActivity: new Date(FIXED_BASE_TIME - 1000 * 60 * 30),
     summary: 'Exploring AI agent architecture approaches',
   },
   {
@@ -24,76 +99,110 @@ const mockBranches: Branch[] = [
     parentId: 'main',
     depth: 1,
     artifactCount: 5,
-    lastActivity: new Date(Date.now() - 1000 * 60 * 10), // 10 min ago
-    summary: 'Detailed exploration of RAG best practices and implementation patterns',
+    lastActivity: new Date(FIXED_BASE_TIME - 1000 * 60 * 10),
+    summary: 'Detailed exploration of RAG best practices',
+  },
+  {
+    id: 'rag-chunking',
+    title: 'Chunking Strategies',
+    parentId: 'rag-deep-dive',
+    depth: 2,
+    artifactCount: 3,
+    lastActivity: new Date(FIXED_BASE_TIME - 1000 * 60 * 8),
+    summary: 'Comparing different chunking approaches',
+  },
+  {
+    id: 'rag-embeddings',
+    title: 'Embedding Models',
+    parentId: 'rag-deep-dive',
+    depth: 2,
+    artifactCount: 2,
+    lastActivity: new Date(FIXED_BASE_TIME - 1000 * 60 * 12),
+    summary: 'Evaluating embedding model performance',
   },
   {
     id: 'orchestration',
     title: 'Orchestration Patterns',
     parentId: 'main',
     depth: 1,
-    artifactCount: 3,
-    lastActivity: new Date(Date.now() - 1000 * 60 * 60), // 1 hour ago
+    artifactCount: 4,
+    lastActivity: new Date(FIXED_BASE_TIME - 1000 * 60 * 60),
     summary: 'Multi-agent orchestration strategies',
   },
   {
-    id: 'rag-performance',
-    title: 'RAG Performance',
-    parentId: 'rag-deep-dive',
+    id: 'sequential-orchestration',
+    title: 'Sequential Chains',
+    parentId: 'orchestration',
     depth: 2,
-    artifactCount: 1,
-    lastActivity: new Date(Date.now() - 1000 * 60 * 5), // 5 min ago
-    summary: 'Optimizing RAG performance and latency',
+    artifactCount: 2,
+    lastActivity: new Date(FIXED_BASE_TIME - 1000 * 60 * 55),
+    summary: 'Linear agent chains',
+  },
+  {
+    id: 'parallel-orchestration',
+    title: 'Parallel Execution',
+    parentId: 'orchestration',
+    depth: 2,
+    artifactCount: 3,
+    lastActivity: new Date(FIXED_BASE_TIME - 1000 * 60 * 50),
+    summary: 'Concurrent agent execution patterns',
+  },
+  {
+    id: 'memory-systems',
+    title: 'Memory Systems',
+    parentId: 'main',
+    depth: 1,
+    artifactCount: 6,
+    lastActivity: new Date(FIXED_BASE_TIME - 1000 * 60 * 90),
+    summary: 'Context and memory management',
+  },
+  {
+    id: 'short-term-memory',
+    title: 'Short-term Context',
+    parentId: 'memory-systems',
+    depth: 2,
+    artifactCount: 2,
+    lastActivity: new Date(FIXED_BASE_TIME - 1000 * 60 * 85),
+    summary: 'Working memory strategies',
+  },
+  {
+    id: 'long-term-memory',
+    title: 'Long-term Storage',
+    parentId: 'memory-systems',
+    depth: 2,
+    artifactCount: 4,
+    lastActivity: new Date(FIXED_BASE_TIME - 1000 * 60 * 88),
+    summary: 'Persistent knowledge management',
+  },
+  {
+    id: 'vector-db-comparison',
+    title: 'Vector DB Comparison',
+    parentId: 'long-term-memory',
+    depth: 3,
+    artifactCount: 5,
+    lastActivity: new Date(FIXED_BASE_TIME - 1000 * 60 * 87),
+    summary: 'Comparing pgvector, Pinecone, and Qdrant',
   },
 ];
 
-const mockMessages: MessageProps[] = [
-  {
-    role: 'user',
-    content: 'Can you explain how RAG works in AI agent systems?',
-    timestamp: new Date(Date.now() - 1000 * 60 * 15),
-  },
-  {
-    role: 'assistant',
-    content:
-      'RAG (Retrieval-Augmented Generation) combines vector search with LLMs. It works by:\n\n1. **Indexing**: Documents are split into chunks and converted to embeddings\n2. **Retrieval**: User queries are embedded and matched against the vector database\n3. **Generation**: Relevant chunks are provided as context to the LLM for answer generation\n\nThis approach allows AI agents to reference external knowledge without retraining.',
-    timestamp: new Date(Date.now() - 1000 * 60 * 14),
-  },
-  {
-    role: 'user',
-    content: 'What are the best practices for chunking strategies?',
-    timestamp: new Date(Date.now() - 1000 * 60 * 5),
-  },
-];
-
-const mockExplicitContext: ContextReferenceProps[] = [
+const mockExplicitContext: Omit<ContextReferenceProps, 'isExpanded'>[] = [
   {
     referenceType: 'file',
     name: 'rag-best-practices.md',
     sourceBranch: 'RAG Deep Dive',
     priorityTier: 1,
-    timestamp: new Date(Date.now() - 1000 * 60 * 120),
-    isExpanded: true,
+    timestamp: new Date(FIXED_BASE_TIME - 1000 * 60 * 120),
   },
   {
     referenceType: 'file',
     name: 'architecture-overview.md',
     sourceBranch: 'Main',
     priorityTier: 1,
-    timestamp: new Date(Date.now() - 1000 * 60 * 180),
-    isExpanded: true,
-  },
-  {
-    referenceType: 'thread',
-    name: 'Orchestration Patterns',
-    sourceBranch: 'Main',
-    priorityTier: 1,
-    timestamp: new Date(Date.now() - 1000 * 60 * 60),
-    isExpanded: true,
+    timestamp: new Date(FIXED_BASE_TIME - 1000 * 60 * 180),
   },
 ];
 
-const mockSemanticContext: ContextReferenceProps[] = [
+const mockSemanticContext: Omit<ContextReferenceProps, 'isExpanded'>[] = [
   {
     referenceType: 'file',
     name: 'chunking-strategies.md',
@@ -101,148 +210,412 @@ const mockSemanticContext: ContextReferenceProps[] = [
     relevanceScore: 0.95,
     relationship: 'sibling',
     priorityTier: 2,
-    timestamp: new Date(Date.now() - 1000 * 60 * 90),
-    isExpanded: true,
-  },
-  {
-    referenceType: 'file',
-    name: 'embedding-models.md',
-    sourceBranch: 'RAG Deep Dive',
-    relevanceScore: 0.87,
-    relationship: 'sibling',
-    priorityTier: 2,
-    timestamp: new Date(Date.now() - 1000 * 60 * 100),
-    isExpanded: true,
+    timestamp: new Date(FIXED_BASE_TIME - 1000 * 60 * 90),
   },
 ];
 
-const mockArtifactsContext: ContextReferenceProps[] = [
+const mockArtifactsContext: Omit<ContextReferenceProps, 'isExpanded'>[] = [
   {
     referenceType: 'file',
     name: 'rag-analysis-output.md',
     sourceBranch: 'RAG Deep Dive',
     priorityTier: 1,
-    timestamp: new Date(Date.now() - 1000 * 60 * 5),
-    isExpanded: true,
+    timestamp: new Date(FIXED_BASE_TIME - 1000 * 60 * 5),
   },
 ];
 
-export function AiAgentSystemMock() {
-  const [currentBranchId, setCurrentBranchId] = useState('rag-deep-dive');
-  const [messageText, setMessageText] = useState('');
-  const [messages, setMessages] = useState(mockMessages);
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [expandedSections, setExpandedSections] = useState({
-    explicit: true,
-    'frequently-used': false,
-    semantic: true,
-    branch: false,
-    artifacts: false,
-    excluded: false,
-  });
-  const [pendingToolCall, setPendingToolCall] = useState<any>(null);
+const mockThreads: Thread[] = [
+  {
+    id: 'main',
+    title: 'Main',
+    artifactCount: 2,
+    lastActivity: new Date(FIXED_BASE_TIME - 1000 * 60 * 30),
+    parentId: null,
+    depth: 0,
+  },
+  {
+    id: 'rag-deep-dive',
+    title: 'RAG Deep Dive',
+    artifactCount: 5,
+    lastActivity: new Date(FIXED_BASE_TIME - 1000 * 60 * 10),
+    isActive: true,
+    parentId: 'main',
+    depth: 1,
+  },
+  {
+    id: 'rag-chunking',
+    title: 'Chunking Strategies',
+    artifactCount: 3,
+    lastActivity: new Date(FIXED_BASE_TIME - 1000 * 60 * 8),
+    parentId: 'rag-deep-dive',
+    depth: 2,
+  },
+  {
+    id: 'rag-embeddings',
+    title: 'Embedding Models',
+    artifactCount: 2,
+    lastActivity: new Date(FIXED_BASE_TIME - 1000 * 60 * 12),
+    parentId: 'rag-deep-dive',
+    depth: 2,
+  },
+  {
+    id: 'orchestration',
+    title: 'Orchestration Patterns',
+    artifactCount: 4,
+    lastActivity: new Date(FIXED_BASE_TIME - 1000 * 60 * 60),
+    parentId: 'main',
+    depth: 1,
+  },
+  {
+    id: 'sequential-orchestration',
+    title: 'Sequential Chains',
+    artifactCount: 2,
+    lastActivity: new Date(FIXED_BASE_TIME - 1000 * 60 * 55),
+    parentId: 'orchestration',
+    depth: 2,
+  },
+  {
+    id: 'parallel-orchestration',
+    title: 'Parallel Execution',
+    artifactCount: 3,
+    lastActivity: new Date(FIXED_BASE_TIME - 1000 * 60 * 50),
+    parentId: 'orchestration',
+    depth: 2,
+  },
+  {
+    id: 'memory-systems',
+    title: 'Memory Systems',
+    artifactCount: 6,
+    lastActivity: new Date(FIXED_BASE_TIME - 1000 * 60 * 90),
+    parentId: 'main',
+    depth: 1,
+  },
+  {
+    id: 'short-term-memory',
+    title: 'Short-term Context',
+    artifactCount: 2,
+    lastActivity: new Date(FIXED_BASE_TIME - 1000 * 60 * 85),
+    parentId: 'memory-systems',
+    depth: 2,
+  },
+  {
+    id: 'long-term-memory',
+    title: 'Long-term Storage',
+    artifactCount: 4,
+    lastActivity: new Date(FIXED_BASE_TIME - 1000 * 60 * 88),
+    parentId: 'memory-systems',
+    depth: 2,
+  },
+  {
+    id: 'vector-db-comparison',
+    title: 'Vector DB Comparison',
+    artifactCount: 5,
+    lastActivity: new Date(FIXED_BASE_TIME - 1000 * 60 * 87),
+    parentId: 'long-term-memory',
+    depth: 3,
+  },
+];
 
-  const currentBranch = mockBranches.find((b) => b.id === currentBranchId) || mockBranches[1];
+const mockFiles: File[] = [
+  {
+    id: 'workspace',
+    name: 'workspace',
+    path: '/workspace',
+    lastModified: new Date(FIXED_BASE_TIME - 1000 * 60 * 200),
+    type: 'folder',
+    parentId: null,
+    depth: 0,
+  },
+  {
+    id: 'file-1',
+    name: 'rag-best-practices.md',
+    path: '/workspace/rag-best-practices.md',
+    lastModified: new Date(FIXED_BASE_TIME - 1000 * 60 * 120),
+    type: 'file',
+    parentId: 'workspace',
+    depth: 1,
+  },
+];
+
+const mockFileContent: FileData = {
+  id: 'file-1',
+  name: 'rag-best-practices.md',
+  content: `# RAG Best Practices\n\n## Chunking Strategies\n\n1. **Fixed-size chunks**: 512-1024 tokens\n2. **Semantic chunking**: Split by paragraphs\n3. **Overlapping chunks**: 50-100 token overlap`,
+  provenance: {
+    createdAt: new Date(FIXED_BASE_TIME - 1000 * 60 * 120),
+    createdBy: 'agent',
+    sourceBranch: 'RAG Deep Dive',
+    sourceThreadId: 'rag-deep-dive',
+    sourceMessageId: 'msg-123',
+    lastEditedAt: new Date(FIXED_BASE_TIME - 1000 * 60 * 60),
+    lastEditedBy: 'agent',
+    lastEditSourceThreadId: 'rag-deep-dive',
+  },
+};
+
+const initialMessages: Message[] = [
+  {
+    id: 'msg-1',
+    role: 'user',
+    content: 'Can you explain how RAG works in AI agent systems?',
+    timestamp: new Date(FIXED_BASE_TIME - 1000 * 60 * 15),
+  },
+  {
+    id: 'msg-2',
+    role: 'assistant',
+    content: 'RAG (Retrieval-Augmented Generation) combines vector search with LLMs. It works by indexing documents, retrieving relevant chunks, and generating responses with that context.',
+    timestamp: new Date(FIXED_BASE_TIME - 1000 * 60 * 14),
+  },
+  {
+    id: 'msg-3',
+    role: 'user',
+    content: 'What are the best practices for chunking strategies?',
+    timestamp: new Date(FIXED_BASE_TIME - 1000 * 60 * 5),
+  },
+];
+
+export function AiAgentSystemMock({ showFileEditor = false }: { showFileEditor?: boolean }) {
+  const [currentBranchId, setCurrentBranchId] = useState('vector-db-comparison');
+  const [messageText, setMessageText] = useState('');
+  const [messages, setMessages] = useState<Message[]>(initialMessages);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [sidebarActiveTab, setSidebarActiveTab] = useState<'files' | 'threads'>('threads');
+  const [isFileEditorOpen, setIsFileEditorOpen] = useState(showFileEditor);
+  const [currentFile, setCurrentFile] = useState<FileData | null>(showFileEditor ? mockFileContent : null);
+  const [isContextExpanded, setIsContextExpanded] = useState(true);
+  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('light');
+  const hasAutoStarted = useRef(false);
+
+  const simulateStreaming = useCallback((allEvents: AgentEvent[], messageId: string) => {
+    let currentIndex = 0;
+    setIsStreaming(true);
+
+    const streamInterval = setInterval(() => {
+      if (currentIndex >= allEvents.length) {
+        clearInterval(streamInterval);
+        setIsStreaming(false);
+        setMessages(prev => prev.map(msg =>
+          msg.id === messageId ? { ...msg, isStreaming: false } : msg
+        ));
+        return;
+      }
+
+      const event = allEvents[currentIndex];
+
+      if (event.type === 'tool_call') {
+        const runningEvent = { ...event, status: 'running' as const };
+        setMessages(prev => prev.map(msg =>
+          msg.id === messageId
+            ? { ...msg, events: [...(msg.events || []), runningEvent] }
+            : msg
+        ));
+
+        setTimeout(() => {
+          setMessages(prev => prev.map(msg => {
+            if (msg.id === messageId) {
+              const updatedEvents = [...(msg.events || [])];
+              updatedEvents[updatedEvents.length - 1] = event;
+              return { ...msg, events: updatedEvents };
+            }
+            return msg;
+          }));
+        }, Math.floor(Math.random() * 1200) + 600);
+      } else {
+        setMessages(prev => prev.map(msg =>
+          msg.id === messageId
+            ? { ...msg, events: [...(msg.events || []), event] }
+            : msg
+        ));
+      }
+
+      currentIndex++;
+    }, Math.floor(Math.random() * 600) + 500);
+  }, []);
+
+  // Auto-start streaming response on mount
+  useEffect(() => {
+    if (hasAutoStarted.current) return;
+    hasAutoStarted.current = true;
+
+    const agentEvents = generateStreamingEvents();
+    const agentMessageId = `msg-${Date.now()}`;
+
+    const agentMessage: Message = {
+      id: agentMessageId,
+      role: 'assistant',
+      events: [],
+      timestamp: new Date(FIXED_BASE_TIME),
+      isStreaming: true,
+    };
+
+    setTimeout(() => {
+      setMessages(prev => [...prev, agentMessage]);
+      setTimeout(() => {
+        simulateStreaming(agentEvents, agentMessageId);
+      }, 300);
+    }, 1000);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount
+
+  const handleToggleTheme = () => {
+    setTheme((prev) => {
+      if (prev === 'light') return 'dark';
+      if (prev === 'dark') return 'system';
+      return 'light';
+    });
+  };
+
+  const handleToggleContext = () => {
+    setIsContextExpanded((prev) => !prev);
+  };
+
+  const currentBranch = mockBranches.find((b) => b.id === currentBranchId) || mockBranches[0];
 
   const contextGroups: ContextGroup[] = [
     {
       type: 'explicit',
       title: 'Explicit Context',
       items: mockExplicitContext,
-      isExpanded: expandedSections.explicit,
       emptyMessage: 'No explicit context added',
     },
     {
       type: 'frequently-used',
       title: 'Frequently Used',
       items: [],
-      isExpanded: expandedSections['frequently-used'],
-      emptyMessage: 'No frequently used files yet',
+      emptyMessage: 'No frequently used files',
     },
     {
       type: 'semantic',
       title: 'Semantic Matches',
       items: mockSemanticContext,
-      isExpanded: expandedSections.semantic,
-      emptyMessage: 'No semantic matches found',
+      emptyMessage: 'No semantic matches',
     },
     {
       type: 'branch',
       title: 'Branch Context',
       items: [],
-      isExpanded: expandedSections.branch,
-      emptyMessage: 'No branch context inherited',
+      emptyMessage: 'No branch context',
     },
     {
       type: 'artifacts',
-      title: 'Artifacts from this Thread',
+      title: 'Artifacts',
       items: mockArtifactsContext,
-      isExpanded: expandedSections.artifacts,
-      emptyMessage: 'No artifacts created yet',
+      emptyMessage: 'No artifacts',
     },
     {
       type: 'excluded',
-      title: 'Excluded from Context',
+      title: 'Excluded',
       items: [],
-      isExpanded: expandedSections.excluded,
-      emptyMessage: 'All items fit in context budget',
+      emptyMessage: 'All items fit',
     },
   ];
 
   const handleSendMessage = (text: string) => {
-    // Add user message
-    const userMessage: MessageProps = {
+    if (!text.trim() || isStreaming) return;
+
+    const userMessage: Message = {
+      id: `msg-${Date.now()}`,
       role: 'user',
       content: text,
       timestamp: new Date(),
     };
-    setMessages([...messages, userMessage]);
+
+    setMessages(prev => [...prev, userMessage]);
     setMessageText('');
-    setIsLoading(true);
 
-    // Simulate agent response
     setTimeout(() => {
-      setIsLoading(false);
-      setIsStreaming(true);
+      const agentEvents = generateStreamingEvents();
+      const agentMessageId = `msg-${Date.now()}`;
 
-      // Simulate streaming
+      const agentMessage: Message = {
+        id: agentMessageId,
+        role: 'assistant',
+        events: [],
+        timestamp: new Date(),
+        isStreaming: true,
+      };
+
+      setMessages(prev => [...prev, agentMessage]);
       setTimeout(() => {
-        const agentMessage: MessageProps = {
-          role: 'assistant',
-          content:
-            'Great question! Chunking strategies are crucial for RAG performance. Here are the key approaches:\n\n1. **Fixed-size chunks** (e.g., 512 tokens): Simple but may split context\n2. **Semantic chunking**: Split by paragraphs/sections for better context\n3. **Overlapping chunks**: Add overlap (50-100 tokens) to preserve context\n\nI can create a detailed analysis document about this. Would you like me to create a file?',
-          timestamp: new Date(),
-        };
-        setMessages((prev) => [...prev, agentMessage]);
-        setIsStreaming(false);
-
-        // Simulate tool call approval
-        setTimeout(() => {
-          setPendingToolCall({
-            toolName: 'create_file',
-            toolInput: {
-              path: 'chunking-strategies-analysis.md',
-              content: '# Chunking Strategies Analysis\n\n## Overview\n...',
-            },
-            previewContent:
-              '# Chunking Strategies Analysis\n\n## Overview\n\nThis document analyzes different chunking strategies for RAG systems.\n\n## Fixed-Size Chunks\n\nFixed-size chunking splits text into uniform segments...\n\n## Semantic Chunking\n\nSemantic chunking preserves logical boundaries...',
-          });
-        }, 1000);
-      }, 2000);
+        simulateStreaming(agentEvents, agentMessageId);
+      }, 300);
     }, 500);
   };
 
-  const handleApproveToolCall = () => {
-    setPendingToolCall(null);
-    // Mock file creation success
-    console.log('Tool call approved');
+  const handleFileClick = (fileId: string) => {
+    setCurrentFile(mockFileContent);
+    setIsFileEditorOpen(true);
   };
 
-  const handleRejectToolCall = () => {
-    setPendingToolCall(null);
-    console.log('Tool call rejected');
+  const handleThreadClick = (threadId: string) => {
+    setCurrentBranchId(threadId);
   };
+
+  const handleCreateThread = () => {
+    console.log('Create new thread');
+    // In real app: Open modal/form to create new thread
+  };
+
+  const handleCreateFile = () => {
+    console.log('Create new file');
+    // In real app: Open file creation modal
+  };
+
+  const handleCreateFolder = () => {
+    console.log('Create new folder');
+    // In real app: Open folder creation modal
+  };
+
+  const handleBranchThread = () => {
+    console.log('Branch from current thread');
+    // In real app: Create a new branch from current conversation point
+  };
+
+  if (showFileEditor) {
+    return (
+      <Workspace
+        sidebarActiveTab={sidebarActiveTab}
+        onSidebarTabChange={setSidebarActiveTab}
+        files={mockFiles}
+        threads={mockThreads}
+        onFileClick={handleFileClick}
+        onThreadClick={handleThreadClick}
+        onCreateThread={handleCreateThread}
+        onCreateFile={handleCreateFile}
+        onCreateFolder={handleCreateFolder}
+        currentFile={currentFile}
+        isFileEditorOpen={isFileEditorOpen}
+        onCloseFileEditor={() => setIsFileEditorOpen(false)}
+        onGoToSource={(branchId, messageId) => console.log('Go to source:', branchId, messageId)}
+        onToggleSidebar={() => console.log('Toggle sidebar')}
+        onToggleTheme={handleToggleTheme}
+        onNotificationsClick={() => console.log('Notifications')}
+        theme={theme}
+        unreadNotificationsCount={3}
+        userInitial="D"
+        currentBranch={currentBranch}
+        branches={mockBranches}
+        messages={messages}
+        contextGroups={contextGroups}
+        messageText={messageText}
+        isStreaming={isStreaming}
+        isLoading={false}
+        pendingToolCall={null}
+        isContextExpanded={isContextExpanded}
+        onSelectBranch={(id) => setCurrentBranchId(id)}
+        onToggleContextPanel={handleToggleContext}
+        onMessageChange={setMessageText}
+        onSendMessage={handleSendMessage}
+        onStopStreaming={() => setIsStreaming(false)}
+        onApproveToolCall={() => {}}
+        onRejectToolCall={() => {}}
+        onAddToExplicit={(item) => console.log('Add:', item)}
+        onRemove={(item) => console.log('Remove:', item)}
+        onDismiss={(item) => console.log('Dismiss:', item)}
+        onBranchThread={handleBranchThread}
+      />
+    );
+  }
 
   return (
     <div className="h-screen">
@@ -253,21 +626,18 @@ export function AiAgentSystemMock() {
         contextGroups={contextGroups}
         messageText={messageText}
         isStreaming={isStreaming}
-        isLoading={isLoading}
-        pendingToolCall={pendingToolCall}
+        isLoading={false}
+        pendingToolCall={null}
+        isContextExpanded={isContextExpanded}
         onSelectBranch={(id) => setCurrentBranchId(id)}
-        onToggleContextSection={(type) =>
-          setExpandedSections((prev) => ({ ...prev, [type]: !prev[type as keyof typeof prev] }))
-        }
+        onToggleContextPanel={handleToggleContext}
         onMessageChange={setMessageText}
         onSendMessage={handleSendMessage}
         onStopStreaming={() => setIsStreaming(false)}
-        onApproveToolCall={handleApproveToolCall}
-        onRejectToolCall={handleRejectToolCall}
-        onFileClick={(item) => console.log('File clicked:', item)}
-        onAddToExplicit={(item) => console.log('Add to explicit:', item)}
-        onRemove={(item) => console.log('Remove:', item)}
-        onDismiss={(item) => console.log('Dismiss:', item)}
+        onApproveToolCall={() => {}}
+        onRejectToolCall={() => {}}
+        onWidgetClick={(type) => console.log('Widget clicked:', type)}
+        onBranchThread={handleBranchThread}
       />
     </div>
   );

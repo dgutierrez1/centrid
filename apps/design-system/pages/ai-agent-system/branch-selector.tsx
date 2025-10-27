@@ -1,66 +1,65 @@
 import React from 'react';
 import { DesignSystemFrame } from '../../components/DesignSystemFrame';
-import { BranchSelector } from '@centrid/ui/features';
+import { BranchSelector, type Branch } from '@centrid/ui/features';
 
-const mockBranches = [
+const mockBranches: Branch[] = [
   {
     id: 'main',
     title: 'Main Discussion',
     parentId: null,
-    messageCount: 12,
+    depth: 0,
     artifactCount: 3,
-    createdAt: '2025-10-20T10:00:00Z',
-    children: ['branch-1', 'branch-2'],
+    lastActivity: new Date('2025-10-20T10:00:00Z'),
+    summary: 'Initial project planning and architecture discussions',
   },
   {
     id: 'branch-1',
     title: 'Authentication Approach',
     parentId: 'main',
-    messageCount: 8,
+    depth: 1,
     artifactCount: 2,
-    createdAt: '2025-10-21T14:30:00Z',
-    children: ['branch-1-1'],
+    lastActivity: new Date('2025-10-21T14:30:00Z'),
+    summary: 'Exploring different authentication strategies',
   },
   {
     id: 'branch-1-1',
     title: 'OAuth Implementation',
     parentId: 'branch-1',
-    messageCount: 5,
+    depth: 2,
     artifactCount: 1,
-    createdAt: '2025-10-22T09:15:00Z',
-    children: [],
+    lastActivity: new Date('2025-10-22T09:15:00Z'),
+    summary: 'Implementing OAuth 2.0 with Supabase Auth',
   },
   {
     id: 'branch-2',
     title: 'Database Design',
     parentId: 'main',
-    messageCount: 10,
+    depth: 1,
     artifactCount: 4,
-    createdAt: '2025-10-21T16:00:00Z',
-    children: ['branch-2-1', 'branch-2-2'],
+    lastActivity: new Date('2025-10-21T16:00:00Z'),
+    summary: 'Database schema and migration strategy',
   },
   {
     id: 'branch-2-1',
     title: 'Schema Migrations',
     parentId: 'branch-2',
-    messageCount: 6,
+    depth: 2,
     artifactCount: 2,
-    createdAt: '2025-10-23T11:00:00Z',
-    children: [],
+    lastActivity: new Date('2025-10-23T11:00:00Z'),
   },
   {
     id: 'branch-2-2',
     title: 'RLS Policies',
     parentId: 'branch-2',
-    messageCount: 4,
+    depth: 2,
     artifactCount: 1,
-    createdAt: '2025-10-23T13:30:00Z',
-    children: [],
+    lastActivity: new Date('2025-10-23T13:30:00Z'),
   },
 ];
 
 export default function BranchSelectorPage() {
   const [currentBranchId, setCurrentBranchId] = React.useState('branch-1-1');
+  const currentBranch = mockBranches.find((b) => b.id === currentBranchId) || mockBranches[0];
 
   return (
     <DesignSystemFrame title="AI Agent System - Branch Selector">
@@ -81,8 +80,8 @@ export default function BranchSelectorPage() {
               Branch Selector (Click to open dropdown)
             </label>
             <BranchSelector
+              currentBranch={currentBranch}
               branches={mockBranches}
-              currentBranchId={currentBranchId}
               onSelectBranch={setCurrentBranchId}
             />
           </div>
@@ -92,11 +91,7 @@ export default function BranchSelectorPage() {
               Current Branch Details
             </h3>
             <pre className="text-xs text-gray-600 dark:text-gray-400 overflow-auto">
-              {JSON.stringify(
-                mockBranches.find((b) => b.id === currentBranchId),
-                null,
-                2
-              )}
+              {JSON.stringify(currentBranch, null, 2)}
             </pre>
           </div>
         </div>

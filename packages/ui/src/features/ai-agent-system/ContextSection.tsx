@@ -78,34 +78,34 @@ export function ContextSection({
         </div>
       </button>
 
-      {/* Content */}
-      <div
-        className="overflow-hidden transition-all duration-300"
-        style={{
-          maxHeight: isExpanded ? '500px' : '0px',
-          opacity: isExpanded ? 1 : 0,
-        }}
-      >
-        {count === 0 ? (
+      {/* Content - Always visible, widgets inherit section collapse state */}
+      {count === 0 ? (
+        <div
+          className="overflow-hidden transition-all duration-300"
+          style={{
+            maxHeight: isExpanded ? '100px' : '0px',
+            opacity: isExpanded ? 1 : 0,
+          }}
+        >
           <div className="px-3 pb-3 text-sm text-gray-500 dark:text-gray-400">
             {emptyMessage}
           </div>
-        ) : (
-          <div className="px-3 pb-3">
-            {/* Horizontal scrollable widget container */}
-            <ScrollArea className="w-full">
-              <div className="flex items-center gap-3" data-testid="widget-container">
-                {children}
-                {hasMore && (
-                  <div className="shrink-0 flex items-center justify-center h-20 px-4 text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 rounded-lg">
-                    +{hasMore} more
-                  </div>
-                )}
-              </div>
-            </ScrollArea>
-          </div>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="px-3 pb-3">
+          {/* Horizontal scrollable widget container - always visible */}
+          <ScrollArea className="w-full">
+            <div className="flex items-center gap-3" data-testid="widget-container">
+              {children}
+              {hasMore && (
+                <div className="shrink-0 flex items-center justify-center h-20 px-4 text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 rounded-lg">
+                  +{hasMore} more
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+        </div>
+      )}
     </div>
   );
 }

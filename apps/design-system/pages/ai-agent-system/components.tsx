@@ -2,44 +2,9 @@ import React, { useState } from 'react';
 import { DesignSystemFrame } from '../../components/DesignSystemFrame';
 import { Message, ThreadInput, ToolCallApproval } from '@centrid/ui/features';
 
-const mockUserMessage = {
-  id: 'msg-1',
-  role: 'user' as const,
-  content: 'Can you help me implement OAuth authentication with Google?',
-  timestamp: '2025-10-26T10:30:00Z',
-};
-
-const mockAgentMessage = {
-  id: 'msg-2',
-  role: 'assistant' as const,
-  content:
-    "I'll help you implement OAuth authentication with Google using Supabase Auth. First, let me create a configuration file for the OAuth providers.",
-  timestamp: '2025-10-26T10:30:15Z',
-  toolCalls: [
-    {
-      id: 'tool-1',
-      name: 'write_file',
-      status: 'completed' as const,
-      args: {
-        path: '/workspace/oauth-config.ts',
-        content: 'export const oauthProviders = ["google", "github"];',
-      },
-    },
-  ],
-};
-
-const mockToolCallPending = {
-  id: 'tool-2',
-  name: 'write_file',
-  status: 'pending' as const,
-  args: {
-    path: '/workspace/new-feature.md',
-    content: '# New Feature\n\nThis is a new feature document...',
-  },
-};
-
 export default function ComponentsPage() {
   const [inputValue, setInputValue] = useState('');
+  const [isStreaming, setIsStreaming] = useState(false);
 
   return (
     <DesignSystemFrame title="AI Agent System - Components">
@@ -64,13 +29,33 @@ export default function ComponentsPage() {
                 <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   User Message
                 </h3>
-                <Message message={mockUserMessage} />
+                <Message
+                  role="user"
+                  content="Can you help me implement OAuth authentication with Google?"
+                  timestamp={new Date('2025-10-26T10:30:00Z')}
+                />
               </div>
               <div>
                 <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Agent Message (with tool calls)
+                  Agent Message
                 </h3>
-                <Message message={mockAgentMessage} />
+                <Message
+                  role="assistant"
+                  content="I'll help you implement OAuth authentication with Google using Supabase Auth. First, let me create a configuration file for the OAuth providers."
+                  timestamp={new Date('2025-10-26T10:30:15Z')}
+                />
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Streaming Message
+                </h3>
+                <Message
+                  role="assistant"
+                  content=""
+                  timestamp={new Date()}
+                  isStreaming={true}
+                  streamingBuffer="Let me think about that..."
+                />
               </div>
             </div>
           </section>
@@ -82,16 +67,18 @@ export default function ComponentsPage() {
             </h2>
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
               <ThreadInput
-                value={inputValue}
+                messageText={inputValue}
                 onChange={setInputValue}
-                onSubmit={() => {
-                  console.log('Submit:', inputValue);
+                onSendMessage={(text) => {
+                  console.log('Submit:', text);
                   setInputValue('');
                 }}
-                onStop={() => console.log('Stop streaming')}
-                isStreaming={false}
-                disabled={false}
-                placeholder="Type @ to mention files or conversations..."
+                onStopStreaming={() => {
+                  console.log('Stop streaming');
+                  setIsStreaming(false);
+                }}
+                isStreaming={isStreaming}
+                placeholder="Ask a question..."
               />
               <div className="mt-4 text-sm text-gray-600 dark:text-gray-400">
                 <p className="mb-2">Features:</p>
@@ -112,9 +99,14 @@ export default function ComponentsPage() {
             </h2>
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
               <ToolCallApproval
-                toolCall={mockToolCallPending}
+                toolName="create_file"
+                toolInput={{
+                  path: '/workspace/new-feature.md',
+                  content: '# New Feature\n\nThis is a new feature document...',
+                }}
+                previewContent="# New Feature\n\nThis is a new feature document that will be created in the workspace."
                 onApprove={() => console.log('Approved')}
-                onReject={() => console.log('Rejected')}
+                onReject={(reason) => console.log('Rejected:', reason)}
               />
               <div className="mt-4 text-sm text-gray-600 dark:text-gray-400">
                 <p className="mb-2">Features:</p>
@@ -140,12 +132,10 @@ export default function ComponentsPage() {
                     Input - Default
                   </h3>
                   <ThreadInput
-                    value=""
+                    messageText=""
                     onChange={() => {}}
-                    onSubmit={() => {}}
-                    onStop={() => {}}
+                    onSendMessage={() => {}}
                     isStreaming={false}
-                    disabled={false}
                   />
                 </div>
                 <div>
@@ -153,25 +143,22 @@ export default function ComponentsPage() {
                     Input - Streaming
                   </h3>
                   <ThreadInput
-                    value=""
+                    messageText=""
                     onChange={() => {}}
-                    onSubmit={() => {}}
-                    onStop={() => {}}
+                    onSendMessage={() => {}}
+                    onStopStreaming={() => {}}
                     isStreaming={true}
-                    disabled={false}
                   />
                 </div>
                 <div>
                   <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Input - Disabled
+                    Input - Loading
                   </h3>
                   <ThreadInput
-                    value=""
+                    messageText=""
                     onChange={() => {}}
-                    onSubmit={() => {}}
-                    onStop={() => {}}
-                    isStreaming={false}
-                    disabled={true}
+                    onSendMessage={() => {}}
+                    isLoading={true}
                   />
                 </div>
               </div>

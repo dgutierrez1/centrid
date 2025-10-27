@@ -1,86 +1,112 @@
 import React, { useState } from 'react';
 import { DesignSystemFrame } from '../../components/DesignSystemFrame';
-import { ContextPanel } from '@centrid/ui/features';
-
-const mockExplicitContext = [
-  {
-    id: 'file-1',
-    type: 'file' as const,
-    title: 'product-requirements.md',
-    path: '/workspace/product-requirements.md',
-    relevanceScore: 1.0,
-    excerpt: 'Core features: user authentication, file upload, real-time collaboration...',
-  },
-  {
-    id: 'conv-1',
-    type: 'conversation' as const,
-    title: 'Authentication Discussion',
-    path: '/chat/conv-1',
-    relevanceScore: 1.0,
-    excerpt: 'User: How should we handle OAuth? Agent: I recommend using Supabase Auth...',
-  },
-];
-
-const mockSemanticMatches = [
-  {
-    id: 'file-2',
-    type: 'file' as const,
-    title: 'database-schema.sql',
-    path: '/workspace/db/schema.sql',
-    relevanceScore: 0.87,
-    excerpt: 'CREATE TABLE users (id UUID PRIMARY KEY, email TEXT NOT NULL...',
-    branchName: 'Backend Setup',
-  },
-  {
-    id: 'file-3',
-    type: 'file' as const,
-    title: 'api-design.md',
-    path: '/workspace/api-design.md',
-    relevanceScore: 0.82,
-    excerpt: 'REST endpoints: GET /users, POST /auth/login, PUT /profile...',
-    branchName: 'API Planning',
-  },
-];
-
-const mockBranchContext = [
-  {
-    id: 'summary-1',
-    type: 'summary' as const,
-    title: 'Parent Branch: Feature Planning',
-    content: 'Discussed project scope, tech stack decisions (Next.js, Supabase, TypeScript). Decided on MVP features and timeline.',
-    relevanceScore: 0.9,
-  },
-];
-
-const mockArtifacts = [
-  {
-    id: 'artifact-1',
-    type: 'file' as const,
-    title: 'user-flow-diagram.md',
-    path: '/workspace/user-flow-diagram.md',
-    relevanceScore: 0.95,
-    excerpt: 'Login → Dashboard → Upload File → Real-time Collaboration',
-  },
-];
-
-const mockExcludedContext = [
-  {
-    id: 'file-4',
-    type: 'file' as const,
-    title: 'old-notes.md',
-    path: '/workspace/archive/old-notes.md',
-    relevanceScore: 0.45,
-    excerpt: 'Initial brainstorming notes from early project phase...',
-    reason: 'Low relevance score (0.45)',
-  },
-];
+import { ContextPanel, type ContextGroup } from '@centrid/ui/features';
 
 export default function ContextPanelPage() {
   const [expandedSections, setExpandedSections] = useState<string[]>(['explicit', 'semantic']);
 
-  const handleToggleSection = (sectionId: string) => {
+  const contextGroups: ContextGroup[] = [
+    {
+      type: 'explicit',
+      title: 'Explicit Context (@-mentioned)',
+      items: [
+        {
+          id: 'file-1',
+          type: 'file',
+          title: 'product-requirements.md',
+          excerpt: 'Core features: user authentication, file upload, real-time collaboration...',
+          priorityTier: 1,
+        },
+        {
+          id: 'conv-1',
+          type: 'conversation',
+          title: 'Authentication Discussion',
+          excerpt: 'User: How should we handle OAuth? Agent: I recommend using Supabase Auth...',
+          priorityTier: 1,
+        },
+      ],
+      isExpanded: expandedSections.includes('explicit'),
+    },
+    {
+      type: 'frequently-used',
+      title: 'Frequently Used',
+      items: [],
+      isExpanded: expandedSections.includes('frequently-used'),
+      emptyMessage: 'No frequently used items yet',
+    },
+    {
+      type: 'semantic',
+      title: 'Semantic Matches',
+      items: [
+        {
+          id: 'file-2',
+          type: 'file',
+          title: 'database-schema.sql',
+          excerpt: 'CREATE TABLE users (id UUID PRIMARY KEY, email TEXT NOT NULL...',
+          priorityTier: 3,
+          relevanceScore: 0.87,
+          branchName: 'Backend Setup',
+        },
+        {
+          id: 'file-3',
+          type: 'file',
+          title: 'api-design.md',
+          excerpt: 'REST endpoints: GET /users, POST /auth/login, PUT /profile...',
+          priorityTier: 3,
+          relevanceScore: 0.82,
+          branchName: 'API Planning',
+        },
+      ],
+      isExpanded: expandedSections.includes('semantic'),
+    },
+    {
+      type: 'branch',
+      title: 'Branch Context',
+      items: [
+        {
+          id: 'summary-1',
+          type: 'summary',
+          title: 'Parent Branch: Feature Planning',
+          excerpt: 'Discussed project scope, tech stack decisions (Next.js, Supabase, TypeScript). Decided on MVP features and timeline.',
+          priorityTier: 4,
+        },
+      ],
+      isExpanded: expandedSections.includes('branch'),
+    },
+    {
+      type: 'artifacts',
+      title: 'Artifacts from This Chat',
+      items: [
+        {
+          id: 'artifact-1',
+          type: 'file',
+          title: 'user-flow-diagram.md',
+          excerpt: 'Login → Dashboard → Upload File → Real-time Collaboration',
+          priorityTier: 5,
+        },
+      ],
+      isExpanded: expandedSections.includes('artifacts'),
+    },
+    {
+      type: 'excluded',
+      title: 'Excluded Context',
+      items: [
+        {
+          id: 'file-4',
+          type: 'file',
+          title: 'old-notes.md',
+          excerpt: 'Initial brainstorming notes from early project phase...',
+          priorityTier: 6,
+          relevanceScore: 0.45,
+        },
+      ],
+      isExpanded: expandedSections.includes('excluded'),
+    },
+  ];
+
+  const handleToggleSection = (sectionType: string) => {
     setExpandedSections((prev) =>
-      prev.includes(sectionId) ? prev.filter((id) => id !== sectionId) : [...prev, sectionId]
+      prev.includes(sectionType) ? prev.filter((id) => id !== sectionType) : [...prev, sectionType]
     );
   };
 
@@ -111,13 +137,7 @@ export default function ContextPanelPage() {
 
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
           <ContextPanel
-            explicitContext={mockExplicitContext}
-            frequentlyUsed={[]}
-            semanticMatches={mockSemanticMatches}
-            branchContext={mockBranchContext}
-            artifacts={mockArtifacts}
-            excludedContext={mockExcludedContext}
-            expandedSections={expandedSections}
+            contextGroups={contextGroups}
             onToggleSection={handleToggleSection}
           />
         </div>

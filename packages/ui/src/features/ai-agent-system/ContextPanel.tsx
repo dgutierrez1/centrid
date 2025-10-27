@@ -1,84 +1,86 @@
 import React from 'react';
-import { ContextSection } from './ContextSection';
-import { ContextReference, ContextReferenceProps } from './ContextReference';
+import { ScrollArea } from '../../components/scroll-area';
+import { ContextTypeWidget } from './ContextTypeWidget';
+import { ContextReferenceProps } from './ContextReference';
 
 export interface ContextGroup {
   type: 'explicit' | 'frequently-used' | 'semantic' | 'branch' | 'artifacts' | 'excluded';
   title: string;
-  items: ContextReferenceProps[];
-  isExpanded: boolean;
+  /** Context items without isExpanded (they inherit from section) */
+  items: Omit<ContextReferenceProps, 'isExpanded'>[];
   emptyMessage?: string;
 }
 
 export interface ContextPanelProps {
-  /** All context groups with their state */
+  /** All context groups */
   contextGroups: ContextGroup[];
-  /** Toggle section expansion */
-  onToggleSection: (sectionType: string) => void;
-  /** Handle file/thread click */
-  onItemClick?: (item: ContextReferenceProps) => void;
-  /** Handle add to explicit */
-  onAddToExplicit?: (item: ContextReferenceProps) => void;
-  /** Handle remove */
-  onRemove?: (item: ContextReferenceProps) => void;
-  /** Handle dismiss */
-  onDismiss?: (item: ContextReferenceProps) => void;
+  /** Unified collapse state for entire context panel */
+  isExpanded: boolean;
+  /** Toggle panel expansion */
+  onTogglePanel: () => void;
+  /** Handle widget click */
+  onWidgetClick?: (type: string) => void;
   className?: string;
 }
 
 export function ContextPanel({
   contextGroups,
-  onToggleSection,
-  onItemClick,
-  onAddToExplicit,
-  onRemove,
-  onDismiss,
+  isExpanded,
+  onTogglePanel,
+  onWidgetClick,
   className = '',
 }: ContextPanelProps) {
+  // Calculate total items across all groups
+  const totalCount = contextGroups.reduce((sum, group) => sum + group.items.length, 0);
+
   return (
     <div
       className={`bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 ${className}`}
       data-testid="context-panel"
     >
-      <div className="p-4 space-y-4">
-        <div className="flex items-center justify-between">
+      {/* Unified Context Header */}
+      <button
+        onClick={onTogglePanel}
+        className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+        data-testid="context-header"
+      >
+        <div className="flex items-center gap-3">
+          <span
+            className="text-gray-600 dark:text-gray-400 transition-transform"
+            style={{ transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </span>
           <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
             Context
           </h3>
-          <span className="text-xs text-gray-500 dark:text-gray-400">
-            What the AI sees
+          <span className="text-xs px-2 py-1 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+            {totalCount}
           </span>
         </div>
+        <span className="text-xs text-gray-500 dark:text-gray-400">
+          What the AI sees
+        </span>
+      </button>
 
-        <div className="space-y-3">
-          {contextGroups.map((group) => (
-            <ContextSection
-              key={group.type}
-              title={group.title}
-              count={group.items.length}
-              isExpanded={group.isExpanded}
-              onToggle={() => onToggleSection(group.type)}
-              sectionType={group.type}
-              emptyMessage={group.emptyMessage}
-            >
-              {group.items.map((item, index) => (
-                <ContextReference
-                  key={index}
-                  {...item}
-                  isExpanded={group.isExpanded}
-                  onClick={() => onItemClick?.(item)}
-                  onAddToExplicit={
-                    onAddToExplicit && item.priorityTier !== 1
-                      ? () => onAddToExplicit(item)
-                      : undefined
-                  }
-                  onRemove={onRemove ? () => onRemove(item) : undefined}
-                  onDismiss={onDismiss ? () => onDismiss(item) : undefined}
-                />
-              ))}
-            </ContextSection>
-          ))}
-        </div>
+      {/* Context Type Widgets - Always visible, widgets change their display based on isExpanded */}
+      <div className="px-4 pb-4">
+        <ScrollArea className="w-full">
+          <div className="flex items-start gap-3" data-testid="context-type-widgets">
+            {contextGroups.map((group) => (
+              <ContextTypeWidget
+                key={group.type}
+                type={group.type}
+                title={group.title}
+                items={group.items}
+                isExpanded={isExpanded}
+                onClick={() => onWidgetClick?.(group.type)}
+              />
+            ))}
+          </div>
+        </ScrollArea>
       </div>
     </div>
   );

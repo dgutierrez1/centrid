@@ -7,17 +7,17 @@ export default function WorkspacePage() {
 
   return (
     <DesignSystemFrame title="AI Agent System - Workspace">
-      <div className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">
+      <div className="h-screen overflow-y-auto">
+        <div className="px-4 pt-4 pb-3">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
             Workspace (3-Panel Adaptive Layout)
           </h1>
-          <p className="text-lg text-gray-600 dark:text-gray-400 mb-4">
+          <p className="text-base text-gray-600 dark:text-gray-400 mb-3">
             Primary exploration interface with adaptive 3-panel layout prioritizing thread
             interface (center), with closeable file editor (right).
           </p>
 
-          <div className="flex gap-4 mb-6">
+          <div className="flex gap-4 mb-3">
             <button
               onClick={() => setLayout('3-panel')}
               className={`px-4 py-2 rounded-md ${
@@ -41,11 +41,11 @@ export default function WorkspacePage() {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden h-[800px]">
+        <div className="bg-white dark:bg-gray-800 overflow-auto w-full" style={{ height: '1200px' }}>
           <AiAgentSystemMock showFileEditor={layout === '3-panel'} />
         </div>
 
-        <div className="mt-8 p-6 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+        <div className="mt-6 mx-4 mb-8 p-6 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
           <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-100 mb-2">
             Layout Behavior
           </h3>
