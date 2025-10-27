@@ -1096,6 +1096,30 @@ export default function DesignShowcase() {
                 </CardContent>
               </Card>
             </a>
+
+            <a href="/ai-agent-system" className="block">
+              <Card className="hover:shadow-lg transition-shadow cursor-pointer border-l-4 border-l-primary-600">
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <CardTitle className="text-xl">AI-Powered Exploration Workspace</CardTitle>
+                      <CardDescription>
+                        Branching threads, persistent filesystem, provenance tracking, and cross-branch discovery (6 screens)
+                      </CardDescription>
+                    </div>
+                    <Badge className="bg-primary-600 text-white">New</Badge>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Thread view with message streaming, context panel (6 sections), branch selector, tool approval workflow, file editor panel
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">
+                    Feature: 004-ai-agent-system
+                  </p>
+                </CardContent>
+              </Card>
+            </a>
           </div>
         </section>
       </div>
