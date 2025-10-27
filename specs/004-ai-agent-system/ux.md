@@ -19,8 +19,8 @@
 - Navigate exploration history through transparent provenance links
 
 **Design Approach**:
-- **Adaptive 3-panel workspace**: Left sidebar (Files/Threads navigation) + Center panel (Chat interface, always visible) + Right panel (File editor when opened, closeable)
-- **Thread-first UX**: Chat always visible in center (primary), file editing optional on right (closeable panel)
+- **Adaptive 3-panel workspace**: Left sidebar (Files/Threads navigation) + Center panel (Thread interface, always visible) + Right panel (File editor when opened, closeable)
+- **Thread-first UX**: Thread interface always visible in center (primary), file editing optional on right (closeable panel)
 - **Progressive disclosure**: Context complexity hidden behind section-level collapsible panels with horizontal widget layout
 - **Task-oriented flow**: Primary actions (send message, create branch, approve tool) front and center
 - **Transparency**: Always show what AI sees (context panel with inline widgets) and where content came from (provenance)
@@ -30,17 +30,17 @@
 
 ## Screen-by-Screen UX Flows
 
-### Chat Interface (Primary Screen)
+### Thread Interface (Primary Screen)
 
 **Purpose**: Primary conversation UI where users interact with AI agent, manage context, and navigate branches.
 
-**Route**: `/chat/:threadId`
+**Route**: `/thread/:threadId`
 
 **Priority**: P1
 
 **Entry Points**:
-- Default landing screen (`/chat/main`)
-- Deep link to specific thread (`/chat/:threadId`)
+- Default landing screen (`/thread/main`)
+- Deep link to specific thread (`/thread/:threadId`)
 - Navigation from branch selector dropdown
 - "Go to source" link from file provenance
 
@@ -59,7 +59,7 @@
 
 1. **User types message in input field**
 
-   - **Component**: `ChatInput` (see Component Library)
+   - **Component**: `ThreadInput` (see Component Library)
    - **Interaction**: Type (keyboard input)
    - **What Happens**: Character count updates, send button enables when text length > 0
    - **Data Required**: `{ messageText: string, characterLimit: number, isLoading: boolean }`
@@ -68,12 +68,12 @@
 
 2. **User clicks "Send" button**
 
-   - **Component**: `ChatInput` (see Component Library)
+   - **Component**: `ThreadInput` (see Component Library)
    - **Interaction**: Click (mouse or Enter key)
-   - **What Happens**: Input field clears and disables, send button shows loading spinner, loading indicator appears in message stream
-   - **Data Required**: `{ messageText: string, isLoading: boolean }`
+   - **What Happens**: Input field remains enabled for typing next message, send button transforms to stop button (⏹ icon), loading indicator appears in message stream
+   - **Data Required**: `{ messageText: string, isStreaming: boolean }`
    - **Callback**: `onSendMessage(text: string)` - Triggers optimistic message add + API call
-   - **Visual Feedback**: Button shows spinner icon, input field disabled with gray background, loading indicator "Agent is thinking..." appears
+   - **Visual Feedback**: Send button → Stop button (coral → red), input field stays enabled, loading indicator "Agent is thinking..." appears
 
 3. **System adds user message to conversation (optimistic)**
 
@@ -97,14 +97,25 @@
    - **Component Updated**: `MessageStream` → `Message` component (see Component Library)
    - **Data Flow**: SSE stream → Valtio `streamingBuffer` → Message renders incrementally with markdown formatting
 
-6. **Agent requests tool approval (e.g., `write_file`)**
+6. **Agent requests tool approval (for filesystem/thread operations)**
 
    - **Trigger**: SSE event `tool_call` with `approval_required: true`
-   - **What Happens**: Stream pauses, inline approval prompt appears with file preview, approve/reject buttons
+   - **When Approval Required**: ALL agent actions that interact with filesystem (files/folders) or threads require approval:
+     - ✅ **Create operations**: `create_file`, `create_folder`, `create_branch` (any file, folder, or branch creation by agent)
+     - ✅ **Edit operations**: `edit_file`, `update_file` (any file modification by agent)
+     - ✅ **Delete operations**: `delete_file`, `delete_folder`, `delete_branch` (any file, folder, or branch deletion by agent)
+     - ❌ **Manual UI actions**: User creates/edits/deletes directly through UI controls (New File button, New Folder button, file editor, delete button) → No approval, executes immediately
+   - **What Happens**: Stream pauses, inline approval prompt appears showing operation details (action type, target file/folder/branch, preview of changes), approve/reject buttons
    - **Component**: `ToolCallApproval` (see Component Library)
    - **Data Required**: `{ toolName: string, toolInput: object, previewContent?: string, isLoading: boolean }`
    - **Callbacks**: `onApprove(toolCallId: string)`, `onReject(toolCallId: string, reason?: string)`
-   - **Visual Feedback**: Approval prompt shows file path, content preview (first 10 lines), buttons with loading states during approval processing
+   - **Visual Feedback**: Approval prompt shows operation details: action type ("Create file", "Create folder", "Edit file", "Delete folder"), target path, content preview (for create/edit), or deletion confirmation (for delete)
+   - **Examples**:
+     - **Create file**: User: "create a file about RAG" → Agent: "Create file: `rag-guide.md` with content: [preview]. Approve?"
+     - **Create folder**: User: "organize these into a docs folder" → Agent: "Create folder: `docs/`. Approve?"
+     - **Edit file**: User: "update the README" → Agent: "Edit file: `README.md`. Changes: [diff preview]. Approve?"
+     - **Delete folder**: User: "remove the old experiments folder" → Agent: "Delete folder: `old-experiments/` (contains 5 files). Approve?"
+     - **NO approval**: User clicks "New File" button in sidebar → Opens form → Creates immediately
 
 7. **User approves tool call**
 
@@ -126,9 +137,20 @@
 9. **Agent completes response**
 
    - **Trigger**: SSE event `completion`
-   - **What Happens**: SSE connection closes, streaming buffer moved to final message, input field re-enables, send button ready
-   - **Component Updated**: `ChatInput` (re-enables), `MessageStream` (final message rendered) (see Component Library)
-   - **Data Flow**: SSE complete → Move buffer to messages → Close connection → Enable input
+   - **What Happens**: SSE connection closes, streaming buffer moved to final message, stop button transforms back to send button
+   - **Component Updated**: `ThreadInput` (stop → send button), `MessageStream` (final message rendered) (see Component Library)
+   - **Data Flow**: SSE complete → Move buffer to messages → Close connection → Transform stop button back to send button
+
+**Alternative Flow: User Cancels Request**
+
+9a. **User clicks stop button during streaming/approval**
+
+   - **Component**: `ThreadInput` → Stop button (see Component Library)
+   - **Interaction**: Click stop button
+   - **What Happens**: SSE connection closes immediately, partial response discarded, agent request marked as cancelled in database, stop button transforms back to send button
+   - **Data Required**: `{ requestId: string }`
+   - **Callback**: `onCancelRequest(requestId: string)` - Closes SSE, cancels backend processing
+   - **Visual Feedback**: Stop button spinner (100ms) → Send button enabled, "Request cancelled" status shows briefly (2s), streaming buffer cleared, user can send new message
 
 **Error Scenarios**:
 
@@ -146,12 +168,15 @@
   - **Recovery**: Discard partial message, user must retry request (FR-053a - MVP simplicity)
   - **Test Data**: Close SSE connection after 3 text chunks sent
 
-- **Tool Approval Timeout (10 minutes)**
-  - **Trigger**: User doesn't approve/reject within 10 minutes (FR-048b)
-  - **Component**: `ToolCallApproval` → timeout overlay (see Component Library)
-  - **Display**: "Approval timed out after 10 minutes. Please retry your request."
-  - **Recovery**: SSE stream terminated, user must send message again from beginning
-  - **Test Data**: Mock approval with `autoTimeout: 600000` (10 min)
+- **Tool Approval Timeout or User Cancellation**
+  - **Trigger**: User doesn't approve/reject within 10 minutes (FR-048b) OR user clicks stop button during approval wait
+  - **Component**: `ToolCallApproval` → timeout overlay OR `ThreadInput` → stop button (see Component Library)
+  - **Display**:
+    - **Timeout**: "Approval timed out after 10 minutes. Please retry your request."
+    - **User cancelled**: "Request cancelled. You can send a new message."
+  - **Recovery**: SSE stream terminated, agent request marked as cancelled/timeout, user can send new message
+  - **Cost Optimization Note**: User can click stop button anytime to close SSE connection and cancel request, avoiding unnecessary API costs during long approval waits. Backend should close LLM streaming when approval is pending to minimize costs - only resume when approval received.
+  - **Test Data**: Mock approval with `autoTimeout: 600000` (10 min) or trigger stop button during approval
 
 - **Context Budget Overflow (>200K tokens)**
   - **Trigger**: Prime context exceeds limit during assembly
@@ -220,9 +245,9 @@
 5. **System navigates to new branch**
 
    - **Trigger**: API success response
-   - **What Happens**: Modal closes, URL updates to `/chat/:newThreadId`, branch selector updates to show new branch, context panel loads inherited context, message stream shows empty state with welcome message
+   - **What Happens**: Modal closes, URL updates to `/thread/:newThreadId`, branch selector updates to show new branch, context panel loads inherited context, message stream shows empty state with welcome message
    - **Component Updated**: `BranchSelector`, `ContextPanel`, `MessageStream` (see Component Library)
-   - **Data Flow**: Thread created → Navigate (`/chat/:newThreadId`) → Load thread data → Render UI
+   - **Data Flow**: Thread created → Navigate (`/thread/:newThreadId`) → Load thread data → Render UI
 
 6. **System shows inherited context in context panel**
 
@@ -267,28 +292,28 @@
 
 **Steps**:
 
-1. **User is in Branch B, typing message about "RAG"**
+1. **User sends message about "RAG" in Branch B**
 
-   - **Component**: `ChatInput` (see Component Library)
-   - **Interaction**: Type
-   - **What Happens**: As user types, debounced semantic search triggers in background (300ms delay)
+   - **Component**: `ThreadInput` (see Component Library)
+   - **Interaction**: Click send button
+   - **What Happens**: Message sent, context assembly begins (includes semantic search as part of priming)
    - **Data Required**: `{ messageText: string }`
-   - **Callback**: `onChange(text: string)` - Debounced call to semantic search
-   - **Visual Feedback**: No visible feedback during typing (search is background operation)
+   - **Callback**: `onSendMessage(text: string)` - Triggers message send + context assembly
+   - **Visual Feedback**: Send button → stop button, "Building context..." status appears
 
-2. **System runs semantic search across shadow entities**
+2. **System runs semantic search during context assembly**
 
-   - **Trigger**: Debounced onChange (300ms after user stops typing)
-   - **What Happens**: POST `/shadow-domain/search` with query="RAG", entityTypes=['file', 'thread'], limit=10
+   - **Trigger**: Context assembly phase after message sent (part of prime context building)
+   - **What Happens**: Backend analyzes message content, runs semantic search across shadow entities with query extracted from message, entityTypes=['file', 'thread'], limit=10
    - **Component Updated**: None (backend operation)
-   - **Data Flow**: Query shadow_entities table → Cosine similarity on embeddings → Apply relationship modifiers (+0.15 for sibling Branch A) → Return top 10 matches
+   - **Data Flow**: Extract semantic meaning from message → Query shadow_entities table → Cosine similarity on embeddings → Apply relationship modifiers (+0.15 for sibling Branch A) → Return top 10 matches → Include in prime context
 
 3. **System updates context panel with semantic matches**
 
-   - **Trigger**: Search API responds with ranked results
-   - **What Happens**: Context panel "Semantic matches" section updates with horizontal widget array showing files from Branch A, sorted by relevance score
+   - **Trigger**: Context assembly completes, SSE event `context_ready`
+   - **What Happens**: Context panel "Semantic matches" section updates with horizontal widget array showing files from Branch A that are semantically related to user's message, sorted by relevance score
    - **Component Updated**: `ContextPanel` → "Semantic matches" section (see Component Library)
-   - **Data Flow**: Search results → Map to ContextReference widgets → Render in horizontal layout with provenance badges ("From: RAG Deep Dive [Sibling branch]")
+   - **Data Flow**: Context assembly results → Map semantic matches to ContextReference widgets → Render in horizontal layout with provenance badges ("From: RAG Deep Dive [Sibling branch]")
    - **Visual Feedback**: "Semantic matches" section auto-expands, widgets display horizontally with relevance score badges, if >5 matches show "+X more" truncation indicator
 
 4. **User hovers over semantic match widget**
@@ -311,13 +336,13 @@
    - **What Happens**: File editor panel opens (right panel) with provenance header showing: "Created in: RAG Deep Dive branch (sibling), 2 hours ago, Context: RAG best practices discussion", file content rendered below
    - **Data Required**: File content, provenance metadata (created_in_conversation_id, context_summary, creation_timestamp)
    - **Callback**: `onFileClick(fileId: string)` - Opens file editor panel
-   - **Visual Feedback**: Right panel slides in from right (300ms), chat panel shrinks from 80% to 50%, provenance header at top with coral accent
+   - **Visual Feedback**: Right panel slides in from right (300ms), thread interface shrinks from 80% to 50%, provenance header at top with coral accent
 
 6. **User clicks "Go to source" link in provenance header**
 
    - **Component**: `ProvenanceHeader` in `FileEditorPanel` (see Component Library)
    - **Interaction**: Click
-   - **What Happens**: Navigate to source branch (`/chat/:sourceBranchId`), scroll to message where file was created, highlight that message briefly (2s), file editor panel closes
+   - **What Happens**: Navigate to source branch (`/thread/:sourceBranchId`), scroll to message where file was created, highlight that message briefly (2s), file editor panel closes
    - **Data Required**: `{ sourceBranchId: string, creationMessageId: string }`
    - **Callback**: `onGoToSource(branchId: string, messageId: string)` - Navigation + scroll
    - **Visual Feedback**: URL changes, branch selector updates, message highlighted with yellow background flash (2s fade), file editor panel closes
@@ -330,6 +355,14 @@
    - **Data Required**: `{ fileId: string, currentPriorityTier: number }`
    - **Callback**: `onAddToExplicit(fileId: string)` - Updates context_references table
    - **Visual Feedback**: Widget animates vertically from Semantic section to Explicit section (500ms slide), priority badge updates from "Semantic" to "Explicit", "Explicit context" section auto-expands if collapsed
+
+8. **System updates semantic relationships after agent completes response**
+
+   - **Trigger**: Agent response completes, any files created or modified
+   - **What Happens**: Backend updates shadow_entities embeddings for new/modified content, recalculates semantic relationships across conversation tree, updates shadow graph, triggers real-time updates to UI
+   - **Component Updated**: `ContextPanel` → "Semantic matches" section (via real-time subscription)
+   - **Data Flow**: Agent completion → Extract embeddings from new content → Update shadow_entities → Recalculate cosine similarities → Update relationship weights → Real-time subscription event → Context panel updates with new semantic matches
+   - **Visual Feedback**: Context panel "Semantic matches" section updates automatically via real-time subscription when new relationships are calculated (widgets fade in for new matches, 200ms)
 
 **Error Scenarios**:
 
@@ -456,10 +489,10 @@
 
 **Desktop (1440px+)** - Adaptive 3-Panel Workspace Layout:
 
-**State 1: No file open** (chat expands to fill space):
+**State 1: No file open** (thread interface expands to fill space):
 ```
 ┌──────────────┬───────────────────────────────────────────────────────┐
-│ ┌──────────┐ │ [Chat Header: Branch Actions | Settings]             │
+│ ┌──────────┐ │ [Thread Header: Branch Actions | Settings]           │
 │ │ Files    │ ├───────────────────────────────────────────────────────┤
 │ │ Threads  │ │ [Message Stream - scrollable]                         │
 │ └──────────┘ │ ┌───────────────────────────────────────────────────┐ │
@@ -478,7 +511,7 @@
 │ │  Fine-t  │ │   [📄][📄][📄] +2 more (horizontal widgets)         │
 │ └──────────┘ │ ▶ Excluded from context (5 items - collapsed)         │
 │              │ ─────────────────────────────────────────────────────│
-│              │ [Chat Input: Text area | Send button]                 │
+│              │ [Thread Input: Text area | Send/Stop button]          │
 │              │                                                       │
 │   (20%)      │                    (80%)                              │
 └──────────────┴───────────────────────────────────────────────────────┘
@@ -487,7 +520,7 @@
 **State 2: File open** (file editor appears on right):
 ```
 ┌──────────────┬─────────────────────────┬──────────────────────────────┐
-│ ┌──────────┐ │ [Chat Header]           │ [File Editor]          [X]  │
+│ ┌──────────┐ │ [Thread Header]         │ [File Editor]          [X]  │
 │ │ Files    │ ├─────────────────────────┤──────────────────────────────┤
 │ │ Threads  │ │ [Message Stream]        │ Provenance Header:           │
 │ └──────────┘ │ ┌───────────────────┐   │ Created in: RAG branch      │
@@ -505,7 +538,7 @@
 │ │  RAG     │ │ ▼ Semantic (3)          │ 3. Retrieval scoring         │
 │ │  Fine-t  │ │   [📄][📄][📄]         │                              │
 │ └──────────┘ │ ─────────────────────── │ [Markdown editor]            │
-│              │ [Chat Input]            │                              │
+│              │ [Thread Input]          │                              │
 │              │                         │                              │
 │   (20%)      │        (50%)            │           (30%)              │
 └──────────────┴─────────────────────────┴──────────────────────────────┘
@@ -513,8 +546,8 @@
 
 **Panel Behavior**:
 - **Left Sidebar (20% fixed)**: Tabs: Files | Threads, defaults to Threads on open, always visible
-- **Center Panel (50-80% adaptive)**: Chat interface (messages, context panel, input), ALWAYS VISIBLE, shrinks when file open
-- **Right Panel (0-30% adaptive)**: File editor appears when user clicks file, only ONE file at a time, CLOSEABLE with [X] button, chat never closes
+- **Center Panel (50-80% adaptive)**: Thread interface (messages, context panel, input), ALWAYS VISIBLE, shrinks when file open
+- **Right Panel (0-30% adaptive)**: File editor appears when user clicks file, only ONE file at a time, CLOSEABLE with [X] button, thread interface never closes
 
 **Dimensions**:
 - Left sidebar: 20% width (fixed)
@@ -531,7 +564,7 @@
 
 **Mobile (375px)** - Vertical Stack:
 
-**Chat Interface**:
+**Thread Interface**:
 ```
 ┌───────────────────┐
 │ [Header]          │
@@ -549,7 +582,7 @@
 │ ▶ Explicit (2)    │
 │ ▶ Semantic (3)    │
 ├───────────────────┤
-│ [Input + Send]    │
+│ [Input + Send/Stop]│
 └───────────────────┘
 ```
 
@@ -565,11 +598,11 @@
 
 **Responsive Breakpoints**:
 - **Mobile** (`< 768px`): Single-column vertical stack, sidebar drawer, file editor full-screen modal, context collapsed, sticky input
-- **Tablet** (`768px - 1024px`): 2-panel (sidebar 25% + chat 75%), file editor full-screen modal
-- **Desktop** (`> 1024px`): 3-panel adaptive (sidebar 20% + file 0-40% + chat 40-80%), file editor inline panel
+- **Tablet** (`768px - 1024px`): 2-panel (sidebar 25% + thread interface 75%), file editor full-screen modal
+- **Desktop** (`> 1024px`): 3-panel adaptive (sidebar 20% + thread interface 50-80% + file editor 0-30%), file editor inline panel on right
 
 **Components Used in Layout**:
-- `WorkspaceSidebar`, `FileEditorPanel`, `ChatView` (see Component Library)
+- `WorkspaceSidebar`, `FileEditorPanel`, `ThreadView` (see Component Library)
 
 ---
 
@@ -611,7 +644,7 @@
 
    - **Component**: `BranchSelector` → tree node item (see Component Library)
    - **Interaction**: Click
-   - **What Happens**: Dropdown closes, URL updates (`/chat/:newBranchId`), thread data loads, message stream updates, context panel updates with new branch context
+   - **What Happens**: Dropdown closes, URL updates (`/thread/:newBranchId`), thread data loads, message stream updates, context panel updates with new branch context
    - **Data Required**: `{ branchId: string, branchTitle: string }`
    - **Callback**: `onBranchSelect(branchId: string)` - Navigation
    - **Visual Feedback**: Dropdown closes (200ms), loading state shows in message stream, smooth transition
@@ -665,7 +698,7 @@
    - **What Happens**: File editor panel opens (slides from right on desktop, full-screen on mobile), provenance header at top, markdown content below
    - **Data Required**: `{ fileId: string, isOpen: boolean }`
    - **Callback**: `onFileClick(fileId: string)` - Loads file data, opens panel
-   - **Visual Feedback**: Panel transition (300ms slide from right), chat panel shrinks from 80% to 50%, focus moves to close button
+   - **Visual Feedback**: Panel transition (300ms slide from right), thread interface shrinks from 80% to 50%, focus moves to close button
 
 2. **System loads file content and provenance**
 
@@ -686,7 +719,7 @@
 
    - **Component**: `ProvenanceHeader` → "Go to source" link (see Component Library)
    - **Interaction**: Click
-   - **What Happens**: Navigate to source branch (`/chat/:sourceBranchId`), scroll to message where file was created, highlight message (2s yellow flash), panel closes
+   - **What Happens**: Navigate to source branch (`/thread/:sourceBranchId`), scroll to message where file was created, highlight message (2s yellow flash), panel closes
    - **Data Required**: `{ sourceBranchId: string, creationMessageId: string }`
    - **Callback**: `onGoToSource(branchId: string, messageId: string)` - Navigation + scroll + highlight
    - **Visual Feedback**: Panel closes, URL changes, message stream scrolls to creation message, message background flashes yellow (2s fade)
@@ -695,10 +728,10 @@
 
    - **Component**: `FileEditorPanel` (see Component Library)
    - **Interaction**: Click X button or press Escape
-   - **What Happens**: Panel closes (slide out transition to right), chat panel expands from 50% to 80%, focus returns to chat input
+   - **What Happens**: Panel closes (slide out transition to right), thread interface expands from 50% to 80%, focus returns to thread input
    - **Data Required**: None
    - **Callback**: `onClose()` - Closes panel
-   - **Visual Feedback**: Panel slides out to right (300ms), chat panel expands smoothly (300ms), focus restored to input
+   - **Visual Feedback**: Panel slides out to right (300ms), thread interface expands smoothly (300ms), focus restored to input
 
 **Error Scenarios**:
 
@@ -733,24 +766,25 @@
 
 **Existing components checked** (from `packages/ui/src/components/`):
 - `Button` - ✅ Reused (send button, approve/reject buttons)
-- `Input` - ✅ Reused (chat input, branch name input)
+- `Input` - ✅ Reused (thread input, branch name input)
 - `Card` - ✅ Reused (context sections, file cards)
 - `Badge` - ✅ Reused (priority indicators, provenance badges)
 - `Modal` - ✅ Extended (create branch modal, consolidate modal)
 - `ErrorBanner` - ✅ Reused (error states)
 - `Tooltip` - ✅ Reused (provenance tooltips, file metadata)
+- `MarkdownEditor` - ✅ Reused (file editor, wrapped in FileEditorPanel with provenance header)
 
 **New components categorized**:
 
 | Component | Location | Reusability Rationale |
 |-----------|----------|----------------------|
 | `WorkspaceSidebar` | `features/ai-agent-system/` | Feature-specific screen (3-panel workspace) |
-| `FileEditorPanel` | `features/ai-agent-system/` | Feature-specific panel with provenance |
-| `ChatView` | `features/ai-agent-system/` | Feature-specific screen composition |
+| `FileEditorPanel` | `features/ai-agent-system/` | Feature-specific wrapper with provenance header + existing MarkdownEditor |
+| `ThreadView` | `features/ai-agent-system/` | Feature-specific screen composition |
 | `BranchSelector` | `features/ai-agent-system/` | Feature-specific hierarchical tree |
 | `ContextPanel` | `features/ai-agent-system/` | Feature-specific multi-section layout |
 | `MessageStream` | `features/ai-agent-system/` | Feature-specific message rendering |
-| `ChatInput` | `features/ai-agent-system/` | Feature-specific with @-mention autocomplete |
+| `ThreadInput` | `features/ai-agent-system/` | Feature-specific with @-mention autocomplete + send/stop toggle |
 | `ToolCallApproval` | `features/ai-agent-system/` | Feature-specific approval flow |
 | `CreateBranchModal` | `features/ai-agent-system/` | Feature-specific modal |
 | `ConsolidateModal` | `features/ai-agent-system/` | Feature-specific modal with tree preview |
@@ -847,11 +881,11 @@ interface WorkspaceSidebarProps {
 
 **Location**: `packages/ui/src/features/ai-agent-system/FileEditorPanel.tsx` (created during design)
 
-**Purpose**: Right panel that appears when file is opened, shows provenance header + file content editor. Chat interface remains visible and accessible in center panel.
+**Purpose**: Right panel that appears when file is opened, shows provenance header + file content using existing MarkdownEditor. Thread interface remains visible and accessible in center panel.
 
-**Reusability**: Feature-specific (1 feature)
+**Reusability**: Wrapper component (uses existing MarkdownEditor from `@centrid/ui/components`)
 
-**Rationale**: Complex panel with provenance-aware file viewing specific to exploration workspace. Positioned on right to keep chat (primary UI) always visible.
+**Rationale**: Thin wrapper around existing reusable MarkdownEditor component, adds provenance header and right-side panel behavior specific to exploration workspace. Positioned on right to keep thread interface (primary UI) always visible.
 
 **Props Interface**:
 
@@ -898,14 +932,15 @@ interface FileEditorPanelProps {
 ```
 
 **States to Design**:
-- Hidden (isVisible=false, takes 0% width, chat panel at 80% width)
-- Visible (isVisible=true, slides in from right, takes 30% width, chat shrinks to 50%)
+- Hidden (isVisible=false, takes 0% width, thread interface at 80% width)
+- Visible (isVisible=true, slides in from right, takes 30% width, thread interface shrinks to 50%)
 - Loading (file content loading, skeleton UI)
 - Error (file load failed, error message with retry)
 - With provenance (agent-created file, show full provenance header)
 - Without provenance (manually created file, minimal header with file path only)
 
 **Composed From**:
+- `MarkdownEditor` (from `@centrid/ui/components` - existing reusable component for file editing)
 - `Button` (close button [X], "Go to source" button)
 - `Badge` (source branch badge in provenance header)
 
@@ -917,7 +952,7 @@ interface FileEditorPanelProps {
 **NOT component state** (defined in arch.md):
 - File content → Loaded from API, stored in global state during panel lifetime
 - Provenance metadata → Global state (from API)
-- Panel visibility (isVisible) → Global state (Valtio, controls panel width animation and chat panel resize)
+- Panel visibility (isVisible) → Global state (Valtio, controls panel width animation and thread interface resize)
 
 **Interaction Patterns Used**:
 - Panel Slide Pattern (see Interaction Patterns section - adapted for right-side panel)
@@ -931,11 +966,11 @@ interface FileEditorPanelProps {
 
 ---
 
-**`ChatView.tsx`** - Main Chat Interface
+**`ThreadView.tsx`** - Main Thread Interface
 
-**Location**: `packages/ui/src/features/ai-agent-system/ChatView.tsx` (created during design)
+**Location**: `packages/ui/src/features/ai-agent-system/ThreadView.tsx` (created during design)
 
-**Purpose**: Main presentational component for chat interface, orchestrates header, messages, context panel, and input.
+**Purpose**: Main presentational component for thread interface, orchestrates header, messages, context panel, and input.
 
 **Reusability**: Feature-specific (1 feature)
 
@@ -944,7 +979,7 @@ interface FileEditorPanelProps {
 **Props Interface**:
 
 ```typescript
-interface ChatViewProps {
+interface ThreadViewProps {
   // Thread data
   currentThread: {
     threadId: string;
@@ -973,6 +1008,7 @@ interface ChatViewProps {
 
   // Callbacks
   onSendMessage: (text: string) => void;
+  onCancelRequest: (requestId: string) => void;
   onCreateBranch: () => void;
   onBranchSelect: (branchId: string) => void;
   onFileClick: (fileId: string) => void;
@@ -990,13 +1026,14 @@ interface ChatViewProps {
 **Example Usage**:
 
 ```typescript
-<ChatView
+<ThreadView
   currentThread={{ threadId: '123', branchTitle: 'Main' }}
   messages={messages}
   primeContext={contextData}
   isLoading={false}
   isStreaming={true}
   onSendMessage={handleSendMessage}
+  onCancelRequest={handleCancelRequest}
   onCreateBranch={handleCreateBranch}
   // ... other callbacks
 />
@@ -1010,7 +1047,7 @@ interface ChatViewProps {
 - Error (failed to load thread)
 
 **Composed From**:
-- `BranchSelector`, `MessageStream`, `ContextPanel`, `ChatInput` (see Component Library)
+- `BranchSelector`, `MessageStream`, `ContextPanel`, `ThreadInput` (see Component Library)
 - `Button`, `Badge`, `Card` (from primitives)
 
 **Component UI State** (local, ephemeral):
@@ -1321,32 +1358,33 @@ interface MessageStreamProps {
 
 ---
 
-**`ChatInput.tsx`** - Text Input with Autocomplete
+**`ThreadInput.tsx`** - Text Input with Send/Stop Button
 
-**Location**: `packages/ui/src/features/ai-agent-system/ChatInput.tsx` (created during design)
+**Location**: `packages/ui/src/features/ai-agent-system/ThreadInput.tsx` (created during design)
 
-**Purpose**: Text input with send button, character counter, @-mention autocomplete.
+**Purpose**: Text input with send/stop button (toggles during streaming), character counter, @-mention autocomplete.
 
-**Reusability**: Feature-specific (could be generalized but has @-mention autocomplete specific to this feature)
+**Reusability**: Feature-specific (could be generalized but has @-mention autocomplete and streaming-aware send/stop toggle specific to this feature)
 
-**Rationale**: Complex autocomplete for files and threads specific to agent system.
+**Rationale**: Complex autocomplete for files and threads specific to agent system, plus send/stop button toggle during streaming.
 
 **Props Interface**:
 
 ```typescript
-interface ChatInputProps {
+interface ThreadInputProps {
   // Data
   messageText: string;
   characterLimit: number;
   autocompleteOptions?: AutocompleteOption[]; // Files and threads for @-mention
 
   // UI state
-  isLoading: boolean; // Disable during message send
+  isStreaming: boolean; // When true, shows stop button instead of send button
   showAutocomplete: boolean;
 
   // Callbacks
   onChange: (text: string) => void;
   onSendMessage: (text: string) => void;
+  onCancelRequest: (requestId: string) => void; // Called when stop button clicked
   onAutocompleteSelect: (option: AutocompleteOption) => void;
 
   // Styling
@@ -1357,14 +1395,15 @@ interface ChatInputProps {
 **Example Usage**:
 
 ```typescript
-<ChatInput
+<ThreadInput
   messageText={text}
   characterLimit={5000}
   autocompleteOptions={autocompleteOptions}
-  isLoading={isLoading}
+  isStreaming={isStreaming}
   showAutocomplete={showAutocomplete}
   onChange={handleChange}
   onSendMessage={handleSendMessage}
+  onCancelRequest={handleCancelRequest}
   onAutocompleteSelect={handleAutocompleteSelect}
 />
 ```
@@ -1372,21 +1411,21 @@ interface ChatInputProps {
 **States to Design**:
 - Default (empty input, send button disabled)
 - Typing (text entered, send button enabled)
-- Loading (message sending, input disabled)
+- Streaming (agent streaming, input enabled for typing next message, send button → stop button in red)
 - Autocomplete (dropdown showing @-mention options)
-- Error (message send failed, show retry)
+- Error (message send failed, show retry in input area)
 
 **Composed From**:
 - `Input` (text area)
-- `Button` (send button)
+- `Button` (send/stop button - toggles based on streaming state)
 
 **Component UI State** (local, ephemeral):
-- `inputValue`: string - Current text in input field
+- `inputValue`: string - Current text in input field (can hold draft of next message while streaming)
 - `characterCount`: number - Length of inputValue for display
 - `showAutocomplete`: boolean - Whether @-mention dropdown is visible
 - `autocompleteQuery`: string - Query for filtering autocomplete options
 
-**Why Component State**: UI-only state, not persisted, no other component needs this data. Input value is local until user sends message (then moves to global state).
+**Why Component State**: UI-only state, not persisted, no other component needs this data. Input value is local until user sends message (then moves to global state). Allows user to draft next message while agent is streaming.
 
 **NOT component state** (defined in arch.md):
 - Messages array → Global state (Valtio)
@@ -1408,11 +1447,16 @@ interface ChatInputProps {
 
 **Location**: `packages/ui/src/features/ai-agent-system/ToolCallApproval.tsx` (created during design)
 
-**Purpose**: Inline approval prompt during agent streaming, shows tool details and preview.
+**Purpose**: Inline approval prompt during agent streaming for filesystem and thread operations. Shows operation details and preview. Required for ALL agent actions that:
+- Create files, folders, or branches (`create_file`, `create_folder`, `create_branch`)
+- Edit files (`edit_file`, `update_file`)
+- Delete files, folders, or branches (`delete_file`, `delete_folder`, `delete_branch`)
+
+Does NOT appear when user manually performs these operations through UI controls (New File button, New Folder button, file editor, delete button).
 
 **Reusability**: Feature-specific (1 feature)
 
-**Rationale**: Complex approval flow specific to agent tool calls.
+**Rationale**: Safety mechanism for all agent filesystem/thread operations. Ensures user reviews and approves before agent makes any changes to files, folders, or conversation structure. Manual user actions through UI bypass this entirely (user already controls those actions directly).
 
 **Props Interface**:
 
@@ -1421,14 +1465,18 @@ interface ToolCallApprovalProps {
   // Data
   toolCall: {
     toolCallId: string;
-    toolName: string; // 'write_file', 'create_branch', etc.
+    toolName: string; // 'create_file', 'create_folder', 'edit_file', 'delete_file', 'delete_folder', 'create_branch', 'delete_branch'
+    operationType: 'create' | 'edit' | 'delete'; // Operation type for UI display
+    resourceType: 'file' | 'folder' | 'branch'; // Resource being operated on
     toolInput: {
-      path?: string;
-      content?: string;
-      title?: string;
+      path?: string; // File/folder/branch path
+      content?: string; // File content (for create/edit file)
+      title?: string; // Branch title (for create_branch)
+      diff?: string; // Diff preview (for edit operations)
+      fileCount?: number; // Number of files in folder (for delete_folder)
       // ... other tool-specific fields
     };
-    previewContent?: string; // First 10 lines of file content
+    previewContent?: string; // First 10 lines of file content (create) or diff (edit)
   };
 
   // UI state
@@ -1448,21 +1496,69 @@ interface ToolCallApprovalProps {
 **Example Usage**:
 
 ```typescript
+// Create file approval
 <ToolCallApproval
-  toolCall={toolCallData}
+  toolCall={{
+    toolCallId: '123',
+    toolName: 'create_file',
+    operationType: 'create',
+    resourceType: 'file',
+    toolInput: { path: 'rag-guide.md', content: '# RAG Guide...' },
+    previewContent: '# RAG Guide\n\nBest practices...'
+  }}
   isLoading={false}
   isExpanded={false}
   onApprove={handleApprove}
   onReject={handleReject}
   onExpandPreview={handleExpandPreview}
 />
+
+// Create folder approval
+<ToolCallApproval
+  toolCall={{
+    toolCallId: '124',
+    toolName: 'create_folder',
+    operationType: 'create',
+    resourceType: 'folder',
+    toolInput: { path: 'docs/' }
+  }}
+  // ... other props
+/>
+
+// Edit file approval
+<ToolCallApproval
+  toolCall={{
+    toolCallId: '125',
+    toolName: 'edit_file',
+    operationType: 'edit',
+    resourceType: 'file',
+    toolInput: { path: 'README.md', diff: '- old line\n+ new line' },
+    previewContent: 'Diff preview...'
+  }}
+  // ... other props
+/>
+
+// Delete folder approval
+<ToolCallApproval
+  toolCall={{
+    toolCallId: '126',
+    toolName: 'delete_folder',
+    operationType: 'delete',
+    resourceType: 'folder',
+    toolInput: { path: 'old-experiments/', fileCount: 5 }
+  }}
+  // ... other props
+/>
 ```
 
 **States to Design**:
-- Default (preview collapsed, buttons enabled)
-- Loading (approval processing, buttons disabled)
-- Expanded (full content preview shown)
-- Rejected (rejection reason input shown)
+- Create operation (file/folder/branch path + content preview for files, approve/reject buttons)
+- Edit operation (file path + diff preview, approve/reject buttons)
+- Delete operation (file/folder/branch path + deletion warning, approve/reject buttons with "Are you sure?")
+  - Delete folder shows file count warning: "Delete folder: `old-experiments/` (contains 5 files). Are you sure?"
+- Loading (approval processing, buttons disabled with spinner)
+- Expanded preview (full content/diff shown, collapse button)
+- Rejected (rejection reason input shown, can revise and retry)
 - Timeout warning (countdown shown, 10 minutes remaining)
 
 **Composed From**:
@@ -1736,20 +1832,20 @@ interface ConsolidateModalProps {
 2. SSE connection opens, "Building context..." status shows
 3. Agent response starts streaming (text chunks appear incrementally)
 4. Mixed content: text → tool call approval → text → tool call → text
-5. Stream pauses at tool approval prompts, waits for user action
+5. Stream pauses at tool approval prompts, waits for user action (user can still type, can't send new message)
 6. Stream resumes after approval/rejection
-7. Stream completes, SSE connection closes, input re-enables
+7. Stream completes, SSE connection closes, stop button → send button
 
 **Components Involved**:
-- `ChatInput` - Disabled during streaming
+- `ThreadInput` - Input stays enabled, send button → stop button during streaming
 - `MessageStream` - Renders incremental chunks
 - `ToolCallApproval` - Inline approval prompts
 - `ContextPanel` - Updates when context ready
 
 **State Changes**:
-- **Before**: Input enabled, no streaming
-- **During**: Input disabled, `streamingMessage` buffer updates, tool approvals pause stream
-- **After**: Input re-enabled, streaming buffer moved to final message
+- **Before**: Input enabled, send button enabled (if text entered)
+- **During**: Input stays enabled (user can type next message), send button → stop button (red), `streamingMessage` buffer updates, tool approvals pause stream
+- **After**: Stop button → send button, streaming buffer moved to final message, user can send queued message
 
 **Visual Feedback**:
 - Loading indicator ("Agent is thinking...")
@@ -1800,40 +1896,51 @@ interface ConsolidateModalProps {
 
 1. User clicks file reference or file in tree
 2. Right panel slides in from right (300ms animation)
-3. Chat panel shrinks from 80% to 50% width (smooth transition)
+3. Thread interface shrinks from 80% to 50% width (smooth transition)
 4. File content and provenance header render
 5. User can close panel via X button or Escape key
-6. Panel slides out to right (300ms), chat panel expands back to 80%
+6. Panel slides out to right (300ms), thread interface expands back to 80%
 
 **Components Involved**:
 - `FileEditorPanel` - Sliding panel with provenance (right side)
-- `ChatView` - Shrinks/expands responsively (remains visible in center)
+- `ThreadView` - Shrinks/expands responsively (remains visible in center)
 
 **State Changes**:
-- **Before**: Panel hidden (0% width), chat at 80%
-- **During**: Panel slides in from right to 30%, chat shrinks to 50%
-- **After**: Panel visible at 30%, chat at 50%
-- **On close**: Panel slides out to 0% (right), chat expands to 80%
+- **Before**: Panel hidden (0% width), thread interface at 80%
+- **During**: Panel slides in from right to 30%, thread interface shrinks to 50%
+- **After**: Panel visible at 30%, thread interface at 50%
+- **On close**: Panel slides out to 0% (right), thread interface expands to 80%
 
 **Visual Feedback**:
 - Smooth width transitions (300ms cubic-bezier easing)
 - Provenance header fades in with panel
 - Focus moves to close button when panel opens
-- Chat remains interactive during file viewing (no backdrop overlay)
+- Thread interface remains interactive during file viewing (no backdrop overlay)
 
 ---
 
 ### Approval Workflow
 
-**Where Used**: Tool call approvals (file creation, branch creation)
+**Where Used**: ALL agent filesystem and thread operations (create, edit, delete)
+
+**When Approval Required**:
+- ✅ **Agent create operations**: Agent creates files, folders, or branches via tool calls (`create_file`, `create_folder`, `create_branch`)
+- ✅ **Agent edit operations**: Agent modifies files via tool calls (`edit_file`, `update_file`)
+- ✅ **Agent delete operations**: Agent deletes files, folders, or branches via tool calls (`delete_file`, `delete_folder`, `delete_branch`)
+- ❌ **Manual UI actions**: User creates/edits/deletes directly through UI controls (New File button, New Folder button, file editor, delete button) → No agent involved, no approval needed
 
 **Behavior**:
 
-1. Agent requests tool approval during streaming
-2. Stream pauses, approval prompt appears inline in message
-3. User reviews preview (file content, branch details)
+1. Agent requests tool approval during streaming (any filesystem/thread operation)
+2. Stream pauses, approval prompt appears inline in message showing operation details
+3. User reviews operation:
+   - **Create file**: File path + content preview
+   - **Create folder**: Folder path (e.g., `docs/`)
+   - **Edit file**: File path + diff preview showing changes
+   - **Delete file**: File path + deletion confirmation warning
+   - **Delete folder**: Folder path + file count warning (e.g., "contains 5 files")
 4. User clicks Approve or Reject
-5. If Reject: Optional reason input shown
+5. If Reject: Optional reason input shown (agent will revise or skip operation)
 6. Approval/rejection sent to backend
 7. Stream resumes with agent's response to approval status
 
@@ -1862,19 +1969,20 @@ interface ConsolidateModalProps {
 - [x] All screens from arch.md have detailed flows (3-panel workspace with 4 primary flows)
 - [x] All P1/P2/P3 user stories from spec.md covered (US-1 branching, US-2 provenance, US-3 cross-branch discovery, US-4 consolidation)
 - [x] All acceptance criteria from spec.md mapped to flows (AC-001 to AC-004 covered)
-- [x] All components have prop specifications (10 components: WorkspaceSidebar, FileEditorPanel, ChatView, BranchSelector, ContextPanel, MessageStream, ChatInput, ToolCallApproval, CreateBranchModal, ConsolidateModal)
+- [x] All components have prop specifications (10 components: WorkspaceSidebar, FileEditorPanel, ThreadView, BranchSelector, ContextPanel, MessageStream, ThreadInput, ToolCallApproval, CreateBranchModal, ConsolidateModal)
 - [x] All error scenarios documented with test data (network errors, validation, timeouts, context overflow, file deletion race conditions)
 - [x] Each screen has layout diagrams (desktop 3-panel adaptive + mobile vertical stack, inline with screens)
-- [x] Interaction patterns documented (5 patterns: modal, dropdown, streaming, context management, panel slide, approval - separate section, referenced from screens/components)
+- [x] Interaction patterns documented (6 patterns: modal, dropdown, streaming, context management, panel slide, approval - separate section, referenced from screens/components)
 - [x] Each component has UI state specified (inline with components, not global/URL state)
 - [x] Interaction patterns referenced from screens and components where used
 
 ### Component Architecture Check
 
-- [x] Component hierarchy matches arch.md (ChatView → Header, MessageStream, ContextPanel, ChatInput)
+- [x] Component hierarchy matches arch.md (ThreadView → Header, MessageStream, ContextPanel, ThreadInput)
 - [x] Props follow data-in/callbacks-out pattern (all components use this pattern)
 - [x] No business logic in presentational component specs (only UI concerns specified)
 - [x] Component locations specified (all in `packages/ui/src/features/ai-agent-system/`)
+- [x] Reusable components identified and imported (MarkdownEditor reused in FileEditorPanel)
 - [x] Reusability assessment complete (all marked feature-specific due to complexity)
 
 ### Flow Verification
@@ -1930,12 +2038,12 @@ interface ConsolidateModalProps {
 
 - **Feature-specific** (all in `packages/ui/src/features/ai-agent-system/`):
   - `WorkspaceSidebar.tsx` - Left sidebar with Files/Threads tabs
-  - `FileEditorPanel.tsx` - Center panel with provenance header + file editor
-  - `ChatView.tsx` - Right panel chat interface composition
-  - `BranchSelector.tsx` - Hierarchical branch dropdown (in chat header)
-  - `ContextPanel.tsx` - Multi-section context display (in chat panel)
-  - `MessageStream.tsx` - Message history with streaming (in chat panel)
-  - `ChatInput.tsx` - Input with @-mention autocomplete (in chat panel)
+  - `FileEditorPanel.tsx` - Right panel with provenance header + file editor (closeable)
+  - `ThreadView.tsx` - Center panel thread interface composition (always visible)
+  - `BranchSelector.tsx` - Hierarchical branch dropdown (in thread header)
+  - `ContextPanel.tsx` - Multi-section context display with horizontal widgets (in thread panel)
+  - `MessageStream.tsx` - Message history with streaming (in thread panel)
+  - `ThreadInput.tsx` - Input with @-mention autocomplete + send/stop toggle (in thread panel)
   - `ToolCallApproval.tsx` - Inline approval prompt (in message stream)
   - `CreateBranchModal.tsx` - Branch creation modal
   - `ConsolidateModal.tsx` - Consolidation preview modal
@@ -1953,20 +2061,21 @@ interface ConsolidateModalProps {
 - **Pattern**: Import presentational components from `packages/ui/features/ai-agent-system`, add business logic
 - **Example**:
   ```typescript
-  import { ChatView } from '@centrid/ui/features/ai-agent-system';
-  import { useChatState } from '@/hooks/useChatState';
+  import { ThreadView } from '@centrid/ui/features/ai-agent-system';
+  import { useThreadState } from '@/hooks/useThreadState';
 
-  export function ChatController() {
-    const { thread, messages, primeContext, isLoading, isStreaming, handleSendMessage, ... } = useChatState();
+  export function ThreadController() {
+    const { thread, messages, primeContext, isLoading, isStreaming, handleSendMessage, handleCancelRequest, ... } = useThreadState();
 
     return (
-      <ChatView
+      <ThreadView
         currentThread={thread}
         messages={messages}
         primeContext={primeContext}
         isLoading={isLoading}
         isStreaming={isStreaming}
         onSendMessage={handleSendMessage}
+        onCancelRequest={handleCancelRequest}
         // ... other callbacks
       />
     );
@@ -1977,8 +2086,15 @@ interface ConsolidateModalProps {
 
 ---
 
-**UX Specification Complete**: 2025-10-26 (Updated with new template structure)
-**Layout**: Adaptive 3-panel workspace - Left sidebar (Files/Threads tabs) + Center panel (File editor) + Right panel (Chat)
-**Components**: 10 presentational components specified (WorkspaceSidebar, FileEditorPanel, ChatView, BranchSelector, ContextPanel, MessageStream, ChatInput, ToolCallApproval, CreateBranchModal, ConsolidateModal)
+**UX Specification Complete**: 2025-10-26 (Updated with new template structure + refined for context widgets, thread terminology, semantic search timing, file editor reusability, and approval scoping)
+**Layout**: Adaptive 3-panel workspace - Left sidebar (Files/Threads tabs) + Center panel (Thread interface, always visible) + Right panel (File editor with existing MarkdownEditor, closeable)
+**Components**: 10 presentational components specified (WorkspaceSidebar, FileEditorPanel wrapper, ThreadView, BranchSelector, ContextPanel, MessageStream, ThreadInput, ToolCallApproval, CreateBranchModal, ConsolidateModal)
+**Key UX Patterns**:
+- Context panel with section-level collapse, horizontal widgets, custom tooltips
+- Thread input with send/stop button toggle during streaming (user can type next message while agent responds)
+- File editor on right (closeable, uses existing MarkdownEditor), thread interface always visible in center
+- Cost optimization: Stop button cancels SSE connection anytime
+- Semantic search: Runs during context assembly (post-message-send), not on typing. Relationships updated after agent completion via real-time subscriptions (UI updates automatically).
+- Tool approvals: ALL agent filesystem/thread operations (create/edit/delete files/folders/branches) require approval. Manual UI actions (clicking "New File"/"New Folder" button, using file editor, clicking delete) execute immediately without approval.
 **Ready for Design Phase**: Yes - All flows, components, interactions, and layouts documented
 **Next Command**: `/speckit.design` to create pixel-perfect visual designs using these UX flows
