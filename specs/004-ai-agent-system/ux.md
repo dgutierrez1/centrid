@@ -9,28 +9,28 @@
 
 ## Overview
 
-**Feature Summary**: An exploration workspace where users can branch threads to explore multiple approaches in parallel, capture findings as persistent files with provenance, and consolidate insights from the entire exploration tree.
+**Feature Summary**: An exploration workspace where users branch threads to explore multiple approaches in parallel, capture findings as persistent files with provenance, and consolidate insights from the entire exploration tree.
 
 **User Goals**:
 - Explore complex topics through branching conversations without losing context
 - Capture insights as persistent artifacts with automatic provenance tracking
-- Discover and reference relevant content across all branches
+- Discover and reference relevant content across all branches via semantic search
 - Consolidate findings from multiple exploration paths into comprehensive outputs
 - Navigate exploration history through transparent provenance links
 
 **Design Approach**:
-- **Adaptive 3-panel workspace**: Left sidebar (Files/Threads navigation) + Center panel (Thread interface, always visible) + Right panel (File editor when opened, closeable)
-- **Thread-first UX**: Thread interface always visible in center (primary), file editing optional on right (closeable panel)
-- **Progressive disclosure**: Context complexity hidden behind section-level collapsible panels with horizontal widget layout
+- **Adaptive 3-panel workspace**: Left sidebar (Files/Threads tabs, 20%) + Center panel (Thread interface, 40-80%) + Right panel (File editor when opened, 0-40%)
+- **Thread-first UX**: Thread interface always visible (primary), file editing optional (closeable right panel)
+- **Progressive disclosure**: Context complexity hidden in collapsible sections with horizontal widget layout
 - **Task-oriented flow**: Primary actions (send message, create branch, approve tool) front and center
-- **Transparency**: Always show what AI sees (context panel with inline widgets) and where content came from (provenance)
-- **Mobile-first responsive**: Adapts from 375px mobile (vertical stack) to 1440px+ desktop (3-panel layout)
+- **Transparency**: Always show what AI sees (context panel) and where content came from (provenance)
+- **Mobile-first responsive**: 375px mobile (vertical stack) to 1440px+ desktop (3-panel)
 
 ---
 
 ## Screen-by-Screen UX Flows
 
-### Thread Interface (Primary Screen)
+### Chat Interface (Primary Screen)
 
 **Purpose**: Primary conversation UI where users interact with AI agent, manage context, and navigate branches.
 
@@ -39,113 +39,57 @@
 **Priority**: P1
 
 **Entry Points**:
-- Default landing screen (`/thread/main`)
-- Deep link to specific thread (`/thread/:threadId`)
-- Navigation from branch selector dropdown
+- Default landing (`/thread/main`)
+- Deep link to specific thread
+- Branch selector dropdown navigation
 - "Go to source" link from file provenance
 
 **Exit Points**:
 - File editor (click file reference)
-- Visual tree view (desktop only, Phase 3)
-- Settings/profile (header navigation)
+- Visual tree view (Phase 3, desktop)
+- Settings/profile
 
 #### Primary Flow 1: Send Message with Agent Streaming
 
 **User Story**: US-2 (Capture Artifacts with Provenance)
 
-**Acceptance Criteria**: AC-002 (User types message, clicks send, message appears, AI responds)
+**Acceptance Criteria**: AC-002 (User types message, clicks send, AI responds with streaming)
 
 **Steps**:
 
-1. **User types message in input field**
+| # | Action/Response | Component | Interaction | What Happens | Data | Callback | Feedback |
+|---|-----------------|-----------|-------------|--------------|------|----------|----------|
+| 1 | User types message | `ThreadInput` | Type | Character count updates, send button enables when text > 0 | `{messageText: string, characterLimit: number, isLoading: bool}` | `onChange(text)` | Counter `${length}/${limit}`, button coral when enabled |
+| 2 | User clicks Send | `ThreadInput` | Click/Enter | Input stays enabled, send button → stop button, loading indicator | `{messageText: string, isStreaming: bool}` | `onSendMessage(text)` | Send→Stop button (coral→red), input enabled, "Agent thinking..." |
+| 3 | System adds user message (optimistic) | `MessageStream` | Auto (onSend) | User message appears at bottom with timestamp, scroll to bottom | `{messages: Message[]}` | - | Smooth scroll, message fade in |
+| 4 | System opens SSE, builds context | `ContextPanel` | SSE event `context_ready` | Context panel above input updates with prime context sections (horizontal widgets) | `{primeContext: PrimeContext}` | - | Sections expand showing horizontal widget arrays |
+| 5 | Agent streams response chunks | `MessageStream` → `Message` | SSE events (`text_chunk`, `tool_call`) | Text chunks appear incrementally in assistant message bubble, markdown formatted | `{streamingBuffer: string}` | - | Incremental rendering, <500ms between chunks |
+| 6 | Agent requests tool approval | `ToolCallApproval` | SSE `tool_call` with `approval_required: true` | Stream pauses, inline approval prompt shows operation details (action, target, preview) | `{toolName: string, toolInput: object, previewContent?: string, isLoading: bool}` | `onApprove(toolCallId)`, `onReject(toolCallId, reason?)` | Approval prompt inline, approve/reject buttons |
+| 7 | User approves tool call | `ToolCallApproval` | Click Approve | Button spinner, POST `/agent-requests/:id/approve`, stream resumes after server confirms | `{toolCallId: string, approved: bool}` | `onApprove(toolCallId)` | Button disabled with spinner, "Executing...", then collapse prompt |
+| 8 | System creates file | `ContextPanel` → Artifacts section | Realtime subscription | File appears in "Artifacts from this thread" as new horizontal widget with provenance badge | `{file: File, provenance: Provenance}` | - | Widget fades in (200ms), section auto-expands if collapsed |
+| 9 | Agent completes response | `ThreadInput`, `MessageStream` | SSE `completion` | SSE closes, streaming buffer → final message, stop→send button | - | - | Stop→Send button transform, input ready for next message |
 
-   - **Component**: `ThreadInput` (see Component Library)
-   - **Interaction**: Type (keyboard input)
-   - **What Happens**: Character count updates, send button enables when text length > 0
-   - **Data Required**: `{ messageText: string, characterLimit: number, isLoading: boolean }`
-   - **Callback**: `onChange(text: string)` - Updates local input state
-   - **Visual Feedback**: Character counter shows `${length}/${limit}`, send button transitions from disabled (gray) to enabled (coral)
+**Step 6 - Approval Rules Detail**:
 
-2. **User clicks "Send" button**
+**When Approval Required**: ALL agent actions that interact with filesystem (files/folders) or threads require approval:
+- ✅ **Create operations**: `create_file`, `create_folder`, `create_branch` (any file, folder, or branch creation by agent)
+- ✅ **Edit operations**: `edit_file`, `update_file` (any file modification by agent)
+- ✅ **Delete operations**: `delete_file`, `delete_folder`, `delete_branch` (any file, folder, or branch deletion by agent)
+- ❌ **Manual UI actions**: User creates/edits/deletes directly through UI controls (New File button, New Folder button, file editor, delete button) → **NO approval**, executes immediately
 
-   - **Component**: `ThreadInput` (see Component Library)
-   - **Interaction**: Click (mouse or Enter key)
-   - **What Happens**: Input field remains enabled for typing next message, send button transforms to stop button (⏹ icon), loading indicator appears in message stream
-   - **Data Required**: `{ messageText: string, isStreaming: boolean }`
-   - **Callback**: `onSendMessage(text: string)` - Triggers optimistic message add + API call
-   - **Visual Feedback**: Send button → Stop button (coral → red), input field stays enabled, loading indicator "Agent is thinking..." appears
+**Examples**:
+- **Create file (agent)**: User: "create a file about RAG" → Agent: "Create file: `rag-guide.md` with content: [preview]. Approve?"
+- **Create folder (agent)**: User: "organize these into a docs folder" → Agent: "Create folder: `docs/`. Approve?"
+- **Edit file (agent)**: User: "update the README" → Agent: "Edit file: `README.md`. Changes: [diff preview]. Approve?"
+- **Delete folder (agent)**: User: "remove the old experiments folder" → Agent: "Delete folder: `old-experiments/` (contains 5 files). Approve?"
+- **NO approval (UI)**: User clicks "New File" button in sidebar → Opens form → Creates immediately (no agent involved)
 
-3. **System adds user message to conversation (optimistic)**
-
-   - **Trigger**: `onSendMessage` callback fires
-   - **What Happens**: User message appears at bottom of conversation with timestamp, smooth scroll to bottom
-   - **Component Updated**: `MessageStream` (see Component Library)
-   - **Data Flow**: Valtio state (optimistic) → `messages` array → MessageStream renders → Scroll to bottom
-
-4. **System opens SSE connection and starts context assembly (backend)**
-
-   - **Trigger**: API POST `/threads/:id/messages` responds with SSE endpoint
-   - **What Happens**: "Building context..." status shows below input, context panel (above input) updates with prime context sections displayed as horizontal widgets
-   - **Component Updated**: `ContextPanel` (see Component Library)
-   - **Data Flow**: SSE event `context_ready` → Update Valtio `primeContext` → ContextPanel shows sections with horizontal widget layout: Explicit context (files @-mentioned), Frequently used (from preferences), Semantic matches (cross-branch), Branch context (parent summary), Artifacts (files from this thread)
-   - **Visual Feedback**: Sections expand to show horizontal widget arrays, each widget shows file icon + name (collapsed) or full metadata card (expanded)
-
-5. **Agent streams response chunks (text + tool calls mixed)**
-
-   - **Trigger**: SSE events arrive (type: `text_chunk`, `tool_call`, `status_update`)
-   - **What Happens**: Text chunks appear incrementally in assistant message bubble, tool calls show as inline approval prompts when encountered
-   - **Component Updated**: `MessageStream` → `Message` component (see Component Library)
-   - **Data Flow**: SSE stream → Valtio `streamingBuffer` → Message renders incrementally with markdown formatting
-
-6. **Agent requests tool approval (for filesystem/thread operations)**
-
-   - **Trigger**: SSE event `tool_call` with `approval_required: true`
-   - **When Approval Required**: ALL agent actions that interact with filesystem (files/folders) or threads require approval:
-     - ✅ **Create operations**: `create_file`, `create_folder`, `create_branch` (any file, folder, or branch creation by agent)
-     - ✅ **Edit operations**: `edit_file`, `update_file` (any file modification by agent)
-     - ✅ **Delete operations**: `delete_file`, `delete_folder`, `delete_branch` (any file, folder, or branch deletion by agent)
-     - ❌ **Manual UI actions**: User creates/edits/deletes directly through UI controls (New File button, New Folder button, file editor, delete button) → No approval, executes immediately
-   - **What Happens**: Stream pauses, inline approval prompt appears showing operation details (action type, target file/folder/branch, preview of changes), approve/reject buttons
-   - **Component**: `ToolCallApproval` (see Component Library)
-   - **Data Required**: `{ toolName: string, toolInput: object, previewContent?: string, isLoading: boolean }`
-   - **Callbacks**: `onApprove(toolCallId: string)`, `onReject(toolCallId: string, reason?: string)`
-   - **Visual Feedback**: Approval prompt shows operation details: action type ("Create file", "Create folder", "Edit file", "Delete folder"), target path, content preview (for create/edit), or deletion confirmation (for delete)
-   - **Examples**:
-     - **Create file**: User: "create a file about RAG" → Agent: "Create file: `rag-guide.md` with content: [preview]. Approve?"
-     - **Create folder**: User: "organize these into a docs folder" → Agent: "Create folder: `docs/`. Approve?"
-     - **Edit file**: User: "update the README" → Agent: "Edit file: `README.md`. Changes: [diff preview]. Approve?"
-     - **Delete folder**: User: "remove the old experiments folder" → Agent: "Delete folder: `old-experiments/` (contains 5 files). Approve?"
-     - **NO approval**: User clicks "New File" button in sidebar → Opens form → Creates immediately
-
-7. **User approves tool call**
-
-   - **Component**: `ToolCallApproval` (see Component Library)
-   - **Interaction**: Click "Approve" button
-   - **What Happens**: Button shows spinner, POST `/agent-requests/:id/approve`, stream resumes after server confirms execution
-   - **Data Required**: `{ toolCallId: string, approved: boolean }`
-   - **Callback**: `onApprove(toolCallId)` - Sends approval to backend, waits for SSE resume
-   - **Visual Feedback**: Button disabled with spinner, "Executing..." status shows, then approval prompt collapses and stream continues
-
-8. **System creates file and shows completion**
-
-   - **Trigger**: Tool execution completes, file created in database
-   - **What Happens**: File appears in "Artifacts from this thread" section in context panel as a new widget in the horizontal layout, provenance stored (source thread, creation context)
-   - **Component Updated**: `ContextPanel` → "Artifacts from this thread" section (see Component Library)
-   - **Data Flow**: Realtime subscription (file created) → Valtio state → ContextPanel adds new file widget to horizontal array with provenance badge
-   - **Visual Feedback**: New widget fades in (200ms), section auto-expands if collapsed to show new artifact
-
-9. **Agent completes response**
-
-   - **Trigger**: SSE event `completion`
-   - **What Happens**: SSE connection closes, streaming buffer moved to final message, stop button transforms back to send button
-   - **Component Updated**: `ThreadInput` (stop → send button), `MessageStream` (final message rendered) (see Component Library)
-   - **Data Flow**: SSE complete → Move buffer to messages → Close connection → Transform stop button back to send button
+**Cost Optimization**: User can click stop button anytime during approval wait to close SSE connection and cancel request, avoiding unnecessary API costs. Backend should close LLM streaming when approval is pending to minimize costs - only resume when approval received.
 
 **Alternative Flow: User Cancels Request**
 
 9a. **User clicks stop button during streaming/approval**
-
-   - **Component**: `ThreadInput` → Stop button (see Component Library)
+   - **Component**: `ThreadInput` → Stop button
    - **Interaction**: Click stop button
    - **What Happens**: SSE connection closes immediately, partial response discarded, agent request marked as cancelled in database, stop button transforms back to send button
    - **Data Required**: `{ requestId: string }`
@@ -154,39 +98,15 @@
 
 **Error Scenarios**:
 
-- **Network Request Fails**
-  - **Trigger**: SSE connection timeout (>30s) or 500 error from backend
-  - **Component**: `ErrorBanner` (see Component Library) (appears above input)
-  - **Display**: "Unable to send message. Please check your connection and try again. [Retry]"
-  - **Recovery**: "Retry" button calls `onSendMessage` again with same text (from Valtio state), reconnects SSE
-  - **Test Data**: Mock SSE endpoint with `networkError: true` flag
-
-- **SSE Stream Interrupts Mid-Response**
-  - **Trigger**: Network disconnect, server error during streaming
-  - **Component**: `ErrorBanner` inline in message stream (see Component Library)
-  - **Display**: "Response interrupted. Your message was sent but the response was incomplete. [Retry from beginning]"
-  - **Recovery**: Discard partial message, user must retry request (FR-053a - MVP simplicity)
-  - **Test Data**: Close SSE connection after 3 text chunks sent
-
-- **Tool Approval Timeout or User Cancellation**
-  - **Trigger**: User doesn't approve/reject within 10 minutes (FR-048b) OR user clicks stop button during approval wait
-  - **Component**: `ToolCallApproval` → timeout overlay OR `ThreadInput` → stop button (see Component Library)
-  - **Display**:
-    - **Timeout**: "Approval timed out after 10 minutes. Please retry your request."
-    - **User cancelled**: "Request cancelled. You can send a new message."
-  - **Recovery**: SSE stream terminated, agent request marked as cancelled/timeout, user can send new message
-  - **Cost Optimization Note**: User can click stop button anytime to close SSE connection and cancel request, avoiding unnecessary API costs during long approval waits. Backend should close LLM streaming when approval is pending to minimize costs - only resume when approval received.
-  - **Test Data**: Mock approval with `autoTimeout: 600000` (10 min) or trigger stop button during approval
-
-- **Context Budget Overflow (>200K tokens)**
-  - **Trigger**: Prime context exceeds limit during assembly
-  - **Component**: `ContextPanel` → "Excluded from context" section expands automatically (see Component Library)
-  - **Display**: Shows items that didn't fit with manual re-prime buttons, warning banner: "Some context excluded due to size limits. Review excluded items below."
-  - **Recovery**: User clicks items in excluded section to manually re-prime (moves to explicit context with 1.0 weight)
-  - **Test Data**: Mock context with 250K tokens worth of files
+| Error | Trigger | Component | Display | Recovery | Test Data |
+|-------|---------|-----------|---------|----------|-----------|
+| Network fail | Timeout >30s or 500 error | `ErrorBanner` (above input) | "Unable to send message. Check your connection. [Retry]" | Retry button → `onSendMessage` with same text | Mock SSE endpoint with `networkError: true` |
+| SSE interrupts mid-response | Network disconnect, server error during stream | `ErrorBanner` (inline in stream) | "Response interrupted. Your message was sent but response incomplete. [Retry from beginning]" | Discard partial message, user retries (FR-053a) | Close SSE after 3 text chunks |
+| Tool approval timeout | No action within 10min (FR-048b) OR user clicks stop during approval | `ToolCallApproval` or `ThreadInput` stop button | "Approval timed out after 10 minutes" OR "Request cancelled" | SSE terminated, request marked cancelled/timeout, user sends new message | Mock with `autoTimeout: 600000` or trigger stop during approval |
+| Context budget overflow | Prime context >200K tokens during assembly | `ContextPanel` → "Excluded from context" section auto-expands | "Some context excluded due to size limits. Review excluded items below." | User clicks items in excluded section to manually re-prime (moves to explicit with 1.0 weight) | Mock context with 250K tokens worth of files |
 
 **Success Criteria** (from SC-015):
-- ✅ User message appears with timestamp in <100ms
+- ✅ User message appears with timestamp <100ms
 - ✅ "Sending..." indicator shows immediately
 - ✅ Agent response starts streaming within 5s (p95 latency)
 - ✅ Text chunks render incrementally (<500ms between chunks)
@@ -194,9 +114,7 @@
 - ✅ File creation completes and appears in artifacts within 2s
 - ✅ Input field re-enables after response completes
 
-**Interaction Patterns Used**:
-- Streaming Response Pattern (see Interaction Patterns section)
-- Approval Workflow (see Interaction Patterns section)
+**Interaction Patterns Used**: Streaming Response Pattern, Approval Workflow
 
 ---
 
@@ -208,79 +126,29 @@
 
 **Steps**:
 
-1. **User clicks "Create Branch" button in header**
-
-   - **Component**: `BranchActions` (see Component Library)
-   - **Interaction**: Click
-   - **What Happens**: Modal opens with branch name input field pre-focused
-   - **Data Required**: `{ currentThreadTitle: string }`
-   - **Callback**: `onCreateBranch()` - Opens modal
-   - **Visual Feedback**: Modal slides in from top with backdrop overlay, focus trapped inside modal
-
-2. **User types branch name**
-
-   - **Component**: `CreateBranchModal` (see Component Library)
-   - **Interaction**: Type
-   - **What Happens**: Input field updates, character counter shows, create button enables when length > 0
-   - **Data Required**: `{ branchName: string, characterLimit: number }`
-   - **Callback**: `onChange(name: string)` - Updates modal state
-   - **Visual Feedback**: Character counter `${length}/100`, create button transitions from disabled to enabled
-
-3. **User clicks "Create" button**
-
-   - **Component**: `CreateBranchModal` (see Component Library)
-   - **Interaction**: Click (or Enter key)
-   - **What Happens**: Button shows spinner, POST `/threads` with parent_id, modal stays open showing "Creating..."
-   - **Data Required**: `{ branchName: string, parentId: string, isLoading: boolean }`
-   - **Callback**: `onConfirmCreate(name: string)` - API call to create branch
-   - **Visual Feedback**: Button disabled with spinner, input disabled, "Creating branch..." status text
-
-4. **System creates branch with inherited context**
-
-   - **Trigger**: API responds with new thread_id
-   - **What Happens**: New branch created in database with: parent_id set, inherited_files copied from parent (context references only, not message history), parent_summary copied, parent's last message copied
-   - **Component Updated**: None (backend operation)
-   - **Data Flow**: POST `/threads` → Create thread record → Copy explicit_files from parent → Generate initial summary → Return thread_id
-
-5. **System navigates to new branch**
-
-   - **Trigger**: API success response
-   - **What Happens**: Modal closes, URL updates to `/thread/:newThreadId`, branch selector updates to show new branch, context panel loads inherited context, message stream shows empty state with welcome message
-   - **Component Updated**: `BranchSelector`, `ContextPanel`, `MessageStream` (see Component Library)
-   - **Data Flow**: Thread created → Navigate (`/thread/:newThreadId`) → Load thread data → Render UI
-
-6. **System shows inherited context in context panel**
-
-   - **Trigger**: Thread data loaded
-   - **What Happens**: Context panel shows: "Branch context" section expanded with parent summary and horizontal widget array of inherited files, empty "Explicit context" (user hasn't @-mentioned anything yet)
-   - **Component Updated**: `ContextPanel` → "Branch context" section (see Component Library)
-   - **Data Flow**: Thread.inherited_files → Map to ContextReference widgets → Render in horizontal layout with "Inherited" badge on each widget
-   - **Visual Feedback**: "Branch context" section auto-expands to show inherited files as horizontal widgets
+| # | Action/Response | Component | Interaction | What Happens | Data | Callback | Feedback |
+|---|-----------------|-----------|-------------|--------------|------|----------|----------|
+| 1 | User clicks "Create Branch" | `BranchActions` | Click | Modal opens with branch name input pre-focused | `{currentThreadTitle: string}` | `onCreateBranch()` | Modal slides in from top with backdrop, focus trapped |
+| 2 | User types branch name | `CreateBranchModal` | Type | Input updates, character counter shows, create button enables when length > 0 | `{branchName: string, characterLimit: number}` | `onChange(name)` | Counter `${length}/100`, create button enables |
+| 3 | User clicks Create | `CreateBranchModal` | Click/Enter | Button spinner, POST `/threads` with parent_id, modal shows "Creating..." | `{branchName: string, parentId: string, isLoading: bool}` | `onConfirmCreate(name)` | Button disabled with spinner, "Creating branch..." |
+| 4 | System creates branch with inherited context | Backend | API response | New branch created with parent_id, inherited_files (context references only, not messages), parent_summary, parent's last message | - | - | - |
+| 5 | System navigates to new branch | `BranchSelector`, `ContextPanel`, `MessageStream` | API success | Modal closes, URL → `/thread/:newThreadId`, branch selector updates, context panel loads inherited context | `{thread: Thread}` | - | Navigation transition, UI updates |
+| 6 | System shows inherited context | `ContextPanel` → Branch context section | Thread data loaded | "Branch context" section shows parent summary + horizontal widget array of inherited files (each with "Inherited" badge) | `{inheritedFiles: ContextReference[]}` | - | Section auto-expands, widgets display horizontally |
 
 **Error Scenarios**:
 
-- **Branch Name Validation Fails**
-  - **Trigger**: User enters invalid name (empty, >100 chars, special chars)
-  - **Component**: `CreateBranchModal` → validation error below input (see Component Library)
-  - **Display**: "Branch name required (1-100 characters, letters/numbers/spaces/-/_)"
-  - **Recovery**: User edits name, validation re-runs on change
-  - **Test Data**: Try empty string, 101 characters, "Branch@#$%"
-
-- **Network Error During Creation**
-  - **Trigger**: POST `/threads` fails (timeout, 500 error)
-  - **Component**: `CreateBranchModal` → error banner (see Component Library)
-  - **Display**: "Failed to create branch. Please try again. [Retry]"
-  - **Recovery**: "Retry" button re-attempts POST with same name, or user can "Cancel" to close modal
-  - **Test Data**: Mock POST with `networkError: true`
+| Error | Trigger | Component | Display | Recovery | Test Data |
+|-------|---------|-----------|---------|----------|-----------|
+| Branch name validation fail | Empty, >100 chars, special chars | `CreateBranchModal` → validation error below input | "Branch name required (1-100 characters, letters/numbers/spaces/-/_)" | User edits name, validation re-runs on change | Try empty, 101 chars, "Branch@#$%" |
+| Network error during creation | POST `/threads` timeout or 500 error | `CreateBranchModal` → error banner | "Failed to create branch. Please try again. [Retry]" | Retry button re-attempts POST with same name, or Cancel closes modal | Mock POST with `networkError: true` |
 
 **Success Criteria** (from SC-001):
-- ✅ 70% of users create at least one branch within first week
-- ✅ Branch creation completes in <2s (latency target)
+- ✅ 70% of users create ≥1 branch within first week
+- ✅ Branch creation completes <2s (latency target)
 - ✅ Inherited context shows parent files and summary correctly
 - ✅ Branch selector updates immediately (optimistic) with new branch
 
-**Interaction Patterns Used**:
-- Modal Workflow (see Interaction Patterns section)
+**Interaction Patterns Used**: Modal Workflow
 
 ---
 
@@ -292,102 +160,31 @@
 
 **Steps**:
 
-1. **User sends message about "RAG" in Branch B**
-
-   - **Component**: `ThreadInput` (see Component Library)
-   - **Interaction**: Click send button
-   - **What Happens**: Message sent, context assembly begins (includes semantic search as part of priming)
-   - **Data Required**: `{ messageText: string }`
-   - **Callback**: `onSendMessage(text: string)` - Triggers message send + context assembly
-   - **Visual Feedback**: Send button → stop button, "Building context..." status appears
-
-2. **System runs semantic search during context assembly**
-
-   - **Trigger**: Context assembly phase after message sent (part of prime context building)
-   - **What Happens**: Backend analyzes message content, runs semantic search across shadow entities with query extracted from message, entityTypes=['file', 'thread'], limit=10
-   - **Component Updated**: None (backend operation)
-   - **Data Flow**: Extract semantic meaning from message → Query shadow_entities table → Cosine similarity on embeddings → Apply relationship modifiers (+0.15 for sibling Branch A) → Return top 10 matches → Include in prime context
-
-3. **System updates context panel with semantic matches**
-
-   - **Trigger**: Context assembly completes, SSE event `context_ready`
-   - **What Happens**: Context panel "Semantic matches" section updates with horizontal widget array showing files from Branch A that are semantically related to user's message, sorted by relevance score
-   - **Component Updated**: `ContextPanel` → "Semantic matches" section (see Component Library)
-   - **Data Flow**: Context assembly results → Map semantic matches to ContextReference widgets → Render in horizontal layout with provenance badges ("From: RAG Deep Dive [Sibling branch]")
-   - **Visual Feedback**: "Semantic matches" section auto-expands, widgets display horizontally with relevance score badges, if >5 matches show "+X more" truncation indicator
-
-4. **User hovers over semantic match widget**
-
-   - **Component**: `ContextReference` widget in "Semantic matches" section (see Component Library)
-   - **Interaction**: Hover (mouse)
-   - **What Happens**:
-     - **If section is collapsed**: Custom tooltip appears showing file name, source branch, creation timestamp, relevance score (0.87), relationship type (sibling +0.15)
-     - **If section is expanded**: Widget already shows metadata, hover reveals action buttons (View, Add to Explicit, Dismiss)
-   - **Data Required**: `{ fileName: string, sourceBranch: string, createdAt: Date, relevanceScore: number, relationshipModifier: number }`
-   - **Callback**: None for tooltip (pure UI), callbacks for action buttons
-   - **Visual Feedback**:
-     - **Collapsed**: Tooltip fades in (200ms), positioned above/below widget
-     - **Expanded**: Action buttons slide in from right edge of widget (150ms)
-
-5. **User clicks semantic match file to view provenance**
-
-   - **Component**: `ContextReference` (clickable) (see Component Library)
-   - **Interaction**: Click
-   - **What Happens**: File editor panel opens (right panel) with provenance header showing: "Created in: RAG Deep Dive branch (sibling), 2 hours ago, Context: RAG best practices discussion", file content rendered below
-   - **Data Required**: File content, provenance metadata (created_in_conversation_id, context_summary, creation_timestamp)
-   - **Callback**: `onFileClick(fileId: string)` - Opens file editor panel
-   - **Visual Feedback**: Right panel slides in from right (300ms), thread interface shrinks from 80% to 50%, provenance header at top with coral accent
-
-6. **User clicks "Go to source" link in provenance header**
-
-   - **Component**: `ProvenanceHeader` in `FileEditorPanel` (see Component Library)
-   - **Interaction**: Click
-   - **What Happens**: Navigate to source branch (`/thread/:sourceBranchId`), scroll to message where file was created, highlight that message briefly (2s), file editor panel closes
-   - **Data Required**: `{ sourceBranchId: string, creationMessageId: string }`
-   - **Callback**: `onGoToSource(branchId: string, messageId: string)` - Navigation + scroll
-   - **Visual Feedback**: URL changes, branch selector updates, message highlighted with yellow background flash (2s fade), file editor panel closes
-
-7. **User manually adds semantic match to explicit context**
-
-   - **Component**: `ContextReference` widget in "Semantic matches" → "Add to Explicit" button (appears on hover if expanded, or in tooltip menu if collapsed) (see Component Library)
-   - **Interaction**: Click "Add to Explicit" button
-   - **What Happens**: Widget moves from "Semantic matches" section (0.5 weight) to "Explicit context" section (1.0 weight), will be included in next agent request with full priority
-   - **Data Required**: `{ fileId: string, currentPriorityTier: number }`
-   - **Callback**: `onAddToExplicit(fileId: string)` - Updates context_references table
-   - **Visual Feedback**: Widget animates vertically from Semantic section to Explicit section (500ms slide), priority badge updates from "Semantic" to "Explicit", "Explicit context" section auto-expands if collapsed
-
-8. **System updates semantic relationships after agent completes response**
-
-   - **Trigger**: Agent response completes, any files created or modified
-   - **What Happens**: Backend updates shadow_entities embeddings for new/modified content, recalculates semantic relationships across conversation tree, updates shadow graph, triggers real-time updates to UI
-   - **Component Updated**: `ContextPanel` → "Semantic matches" section (via real-time subscription)
-   - **Data Flow**: Agent completion → Extract embeddings from new content → Update shadow_entities → Recalculate cosine similarities → Update relationship weights → Real-time subscription event → Context panel updates with new semantic matches
-   - **Visual Feedback**: Context panel "Semantic matches" section updates automatically via real-time subscription when new relationships are calculated (widgets fade in for new matches, 200ms)
+| # | Action/Response | Component | Interaction | What Happens | Data | Callback | Feedback |
+|---|-----------------|-----------|-------------|--------------|------|----------|----------|
+| 1 | User sends message about "RAG" in Branch B | `ThreadInput` | Click send | Message sent, context assembly begins (includes semantic search as part of priming) | `{messageText: string}` | `onSendMessage(text)` | Send→Stop button, "Building context..." |
+| 2 | System runs semantic search during context assembly | Backend | Context assembly phase | Extract semantic meaning from message → Query shadow_entities table → Cosine similarity → Apply relationship modifiers (+0.15 sibling) → Return top 10 matches | - | - | - |
+| 3 | System updates context panel with semantic matches | `ContextPanel` → Semantic matches section | SSE `context_ready` | Section updates with horizontal widget array showing files from Branch A semantically related to user's message, sorted by relevance | `{semanticMatches: SemanticMatch[]}` | - | Section auto-expands, widgets display horizontally with relevance badges, "+X more" if >5 |
+| 4 | User hovers over semantic match widget | `ContextReference` widget in Semantic matches | Hover | **If collapsed**: Tooltip shows file name, source branch, timestamp, relevance (0.87), relationship (sibling +0.15). **If expanded**: Widget shows metadata, hover reveals action buttons (View, Add to Explicit, Dismiss) | `{fileName: string, sourceBranch: string, createdAt: Date, relevanceScore: number}` | - | **Collapsed**: Tooltip fades in (200ms). **Expanded**: Action buttons slide in from right (150ms) |
+| 5 | User clicks semantic match file | `ContextReference` (clickable) | Click | Right panel opens with file editor showing provenance header: "Created in: RAG Deep Dive (sibling), 2h ago, Context: RAG best practices discussion", file content below | `{file: File, provenance: Provenance}` | `onFileClick(fileId)` | Right panel slides in from right (300ms), thread shrinks 80%→50% |
+| 6 | User clicks "Go to source" | `ProvenanceHeader` in `FileEditorPanel` | Click | Navigate to source branch (`/thread/:sourceBranchId`), scroll to message where file created, highlight message briefly (2s), file editor closes | `{sourceBranchId: string, creationMessageId: string}` | `onGoToSource(branchId, messageId)` | URL changes, branch selector updates, message highlighted yellow flash (2s fade), panel closes |
+| 7 | User manually adds semantic match to explicit | `ContextReference` → "Add to Explicit" button (hover/tooltip menu) | Click | Widget moves from Semantic (0.5 weight) to Explicit (1.0 weight) section, will be included in next agent request with full priority | `{fileId: string, currentPriorityTier: number}` | `onAddToExplicit(fileId)` | Widget animates vertically from Semantic→Explicit (500ms slide), priority badge updates, Explicit section auto-expands |
+| 8 | System updates semantic relationships after agent completes | `ContextPanel` → Semantic matches | Agent completion + Realtime subscription | Backend updates shadow_entities embeddings for new/modified content, recalculates semantic relationships, triggers real-time UI update | `{newMatches: SemanticMatch[]}` | - | Context panel semantic matches update automatically (new widgets fade in 200ms) |
 
 **Error Scenarios**:
 
-- **Semantic Search Returns No Results**
-  - **Trigger**: Query doesn't match any files (cosine similarity <0.3 for all entities)
-  - **Component**: `ContextPanel` → "Semantic matches" section (see Component Library)
-  - **Display**: "No relevant files found across branches. Try different keywords or add files manually."
-  - **Recovery**: User can @-mention files manually, or continue without semantic matches
-  - **Test Data**: Query text with no embedding matches
-
-- **File Deleted After Semantic Match Shown**
-  - **Trigger**: User clicks file that was deleted in another session (race condition)
-  - **Component**: `FileEditorPanel` → error state (see Component Library)
-  - **Display**: "File no longer exists. It may have been deleted." [Close]
-  - **Recovery**: Close panel, remove file from semantic matches list
-  - **Test Data**: Mock file_id that returns 404 from GET `/files/:id`
+| Error | Trigger | Component | Display | Recovery | Test Data |
+|-------|---------|-----------|---------|----------|-----------|
+| Semantic search returns no results | Query doesn't match any files (cosine similarity <0.3 for all) | `ContextPanel` → Semantic matches section | "No relevant files found across branches. Try different keywords or add files manually." | User can @-mention files manually or continue without semantic matches | Query text with no embedding matches |
+| File deleted after semantic match shown | User clicks file deleted in another session (race condition) | `FileEditorPanel` → error state | "File no longer exists. It may have been deleted. [Close]" | Close panel, remove file from semantic matches list | Mock file_id returning 404 from GET `/files/:id` |
 
 **Success Criteria** (from SC-006, SC-017):
-- ✅ 30% of branches reference files from sibling branches (validates cross-branch discovery works)
-- ✅ Semantic search returns results in <1s for 1000 entities
-- ✅ 85% of semantic matches rated as relevant (measured via dismiss button usage - if <15% dismissed, meets target)
-- ✅ Provenance navigation works (clicking "Go to source" navigates correctly)
+- ✅ 30% of branches reference files from sibling branches (validates cross-branch discovery)
+- ✅ Semantic search returns results <1s for 1000 entities
+- ✅ 85% of semantic matches rated relevant (if <15% dismissed, meets target)
+- ✅ Provenance navigation works ("Go to source" navigates correctly)
 
-**Interaction Patterns Used**:
-- Context Management Pattern (see Interaction Patterns section)
+**Interaction Patterns Used**: Context Management Pattern
 
 ---
 
@@ -399,364 +196,423 @@
 
 **Steps**:
 
-1. **User returns to Main branch and clicks "Consolidate" button**
-
-   - **Component**: `BranchActions` → "Consolidate" button (only visible in Main branch or branches with children) (see Component Library)
-   - **Interaction**: Click
-   - **What Happens**: Confirmation modal opens showing branch tree preview (Main → RAG Deep Dive → Fine-tuning → Prompting), checkbox to select which branches to consolidate, input for consolidated file name
-   - **Data Required**: `{ currentBranch: Thread, childBranches: Thread[] }`
-   - **Callback**: `onConsolidate()` - Opens consolidation modal
-   - **Visual Feedback**: Modal with tree diagram, checkboxes pre-checked for all children, file name input pre-filled with "consolidated-analysis.md"
-
-2. **User reviews branch selection and confirms**
-
-   - **Component**: `ConsolidateModal` (see Component Library)
-   - **Interaction**: Review checkboxes, click "Consolidate" button
-   - **What Happens**: Button shows spinner, POST `/threads/:id/consolidate` with selected branch IDs, modal shows progress: "Traversing tree → Gathering artifacts (0/3 branches) → Consolidating → Generating document"
-   - **Data Required**: `{ branchIds: string[], fileName: string, isLoading: boolean, progress: { step: string, current: number, total: number } }`
-   - **Callback**: `onConfirmConsolidate(branchIds: string[], fileName: string)` - API call
-   - **Visual Feedback**: Progress bar shows steps, status text updates ("Gathering artifacts (1/3 branches)"), button disabled during processing
-
-3. **System traverses tree and gathers artifacts**
-
-   - **Trigger**: POST `/threads/:id/consolidate` backend processing
-   - **What Happens**: Tree traversal (recursive CTE), access all files created in child branches (via created_in_conversation_id), load thread summaries from each branch, build context with multi-branch provenance
-   - **Component Updated**: `ConsolidateModal` → progress updates via SSE events (see Component Library)
-   - **Data Flow**: Traverse tree → Load files from child branches → Load summaries → Build prime context → Send to agent
-
-4. **Agent generates consolidated document with citations**
-
-   - **Trigger**: Context assembled, sent to Claude 3.5 Sonnet
-   - **What Happens**: Agent generates document with: Section headers from different topics, Provenance citations in content (e.g., "RAG approach [from RAG Deep Dive branch]"), Consolidated recommendations with conflict resolution (e.g., "Using PostgreSQL [from Database Selection, most recent]")
-   - **Component Updated**: `ConsolidateModal` → progress shows "Generating document (streaming...)" (see Component Library)
-   - **Data Flow**: Agent streams response → Modal shows preview (first 20 lines) → Complete document prepared for approval
-
-5. **System shows approval prompt with consolidated document preview**
-
-   - **Trigger**: Agent completes document generation
-   - **What Happens**: Modal updates to show: Full document preview (scrollable), Provenance summary (which branches contributed), File path input (editable), Approve/Reject buttons
-   - **Component**: `ConsolidateModal` → approval state (see Component Library)
-   - **Data Required**: `{ consolidatedContent: string, sourceProvenanceMap: { [sectionId]: branchId }, fileName: string }`
-   - **Callbacks**: `onApproveConsolidation(fileName: string)`, `onRejectConsolidation()`
-   - **Visual Feedback**: Preview with syntax highlighting, provenance badges inline in text, approve button prominent (coral)
-
-6. **User approves consolidated document**
-
-   - **Component**: `ConsolidateModal` (see Component Library)
-   - **Interaction**: Click "Approve" button
-   - **What Happens**: Button shows spinner, file created via `write_file` tool execution, provenance stored with multiple source_conversation_ids array (Main + RAG + Fine-tuning + Prompting), modal closes, success toast appears
-   - **Data Required**: `{ fileName: string, content: string, sourceConversationIds: string[] }`
-   - **Callback**: `onApproveConsolidation(fileName)` - Creates file with multi-branch provenance
-   - **Visual Feedback**: Button spinner → Success toast "Consolidated document created: consolidated-analysis.md" (3s) → Modal closes → File appears in "Artifacts from this thread"
-
-7. **System shows consolidated file in context with multi-branch provenance**
-
-   - **Trigger**: File created via Realtime subscription
-   - **What Happens**: File widget appears in context panel "Artifacts from this thread" section with special badge "Consolidated from 3 branches", added to horizontal widget array
-   - **Component Updated**: `ContextPanel` → "Artifacts from this thread" section (see Component Library)
-   - **Data Flow**: Realtime event (file created) → Valtio state → Add widget to horizontal array with multi-branch provenance badge
-   - **Visual Feedback**: New consolidated file widget fades in (200ms), section auto-expands to show artifact, special coral border on widget indicates consolidation
+| # | Action/Response | Component | Interaction | What Happens | Data | Callback | Feedback |
+|---|-----------------|-----------|-------------|--------------|------|----------|----------|
+| 1 | User clicks "Consolidate" button | `BranchActions` → Consolidate button (only visible in Main or branches with children) | Click | Confirmation modal opens showing branch tree preview (Main→RAG→Fine-tuning→Prompting), checkboxes for branch selection, input for consolidated file name | `{currentBranch: Thread, childBranches: Thread[]}` | `onConsolidate()` | Modal with tree diagram, checkboxes pre-checked, file name input pre-filled "consolidated-analysis.md" |
+| 2 | User reviews branch selection and confirms | `ConsolidateModal` | Review + Click Consolidate | Button spinner, POST `/threads/:id/consolidate` with selected branch IDs, modal shows progress: "Traversing tree → Gathering artifacts (0/3) → Consolidating → Generating" | `{branchIds: string[], fileName: string, isLoading: bool, progress: {step: string, current: number, total: number}}` | `onConfirmConsolidate(branchIds, fileName)` | Progress bar shows steps, status text updates ("Gathering 1/3"), button disabled |
+| 3 | System traverses tree and gathers artifacts | Backend | POST processing | Tree traversal (recursive CTE), access files from child branches (via created_in_conversation_id), load thread summaries, build context with multi-branch provenance | - | - | - |
+| 4 | Agent generates consolidated document with citations | Backend + `ConsolidateModal` | Context assembled → Claude 3.5 Sonnet | Agent generates document: section headers from topics, provenance citations in content ("RAG approach [from RAG Deep Dive]"), consolidated recommendations with conflict resolution ("Using PostgreSQL [from Database Selection, most recent]") | - | - | Modal shows "Generating document (streaming...)", preview (first 20 lines) |
+| 5 | System shows approval prompt with preview | `ConsolidateModal` → approval state | Agent completes | Modal updates: full document preview (scrollable), provenance summary (which branches contributed), file path input (editable), Approve/Reject buttons | `{consolidatedContent: string, sourceProvenanceMap: {[sectionId]: branchId}, fileName: string}` | `onApproveConsolidation(fileName)`, `onRejectConsolidation()` | Preview with syntax highlighting, provenance badges inline, approve button prominent (coral) |
+| 6 | User approves consolidated document | `ConsolidateModal` | Click Approve | Button spinner, file created via `write_file` tool execution, provenance stored with multiple source_conversation_ids (Main+RAG+Fine-tuning+Prompting), modal closes, success toast | `{fileName: string, content: string, sourceConversationIds: string[]}` | `onApproveConsolidation(fileName)` | Button spinner → Success toast "Consolidated document created: consolidated-analysis.md" (3s) → Modal closes |
+| 7 | System shows consolidated file with multi-branch provenance | `ContextPanel` → Artifacts section | Realtime subscription (file created) | File widget appears in "Artifacts from this thread" with special badge "Consolidated from 3 branches", added to horizontal widget array | `{file: File, provenance: MultiProvenance}` | - | Widget fades in (200ms), section auto-expands, special coral border on widget |
 
 **Error Scenarios**:
 
-- **Child Branch File Deleted Before Consolidation**
-  - **Trigger**: File referenced in child branch deleted between traversal and consolidation
-  - **Component**: `ConsolidateModal` → warning in document preview (see Component Library)
-  - **Display**: Agent includes note in consolidated output: "Note: 2 referenced files unavailable (may have been deleted)"
-  - **Recovery**: Consolidation continues without deleted files (FR-035b), user can retry if critical files missing
-  - **Test Data**: Mock tree with deleted file references
-
-- **Context Budget Overflow During Consolidation**
-  - **Trigger**: Total artifacts from all branches exceed 200K tokens
-  - **Component**: `ConsolidateModal` → warning banner before approval (see Component Library)
-  - **Display**: "Some artifacts excluded due to size limits. Review excluded items in context panel after approval."
-  - **Recovery**: System prioritizes by relevance score, shows excluded items in context panel for manual review
-  - **Test Data**: Mock 5 branches with 50K tokens each (250K total)
+| Error | Trigger | Component | Display | Recovery | Test Data |
+|-------|---------|-----------|---------|----------|-----------|
+| Child branch file deleted before consolidation | File referenced in child deleted between traversal and consolidation | `ConsolidateModal` → warning in document preview | Agent includes note: "Note: 2 referenced files unavailable (may have been deleted)" | Consolidation continues without deleted files (FR-035b), user can retry if critical files missing | Mock tree with deleted file references |
+| Context budget overflow during consolidation | Total artifacts from all branches >200K tokens | `ConsolidateModal` → warning banner before approval | "Some artifacts excluded due to size limits. Review excluded items in context panel after approval." | System prioritizes by relevance score, shows excluded items in context panel for manual review | Mock 5 branches with 50K tokens each (250K total) |
 
 **Success Criteria** (from SC-007):
-- ✅ 20% of users perform consolidation from 2+ branches by Week 8
-- ✅ Consolidation from 5 branches completes in <10s (p95 latency)
+- ✅ 20% of users perform consolidation from ≥2 branches by Week 8
+- ✅ Consolidation from 5 branches completes <10s (p95 latency)
 - ✅ Provenance citations appear in >80% of consolidated documents
 - ✅ Users report consolidation saves time vs manual synthesis (survey feedback)
 
-**Interaction Patterns Used**:
-- Modal Workflow (see Interaction Patterns section)
-- Streaming Response Pattern (see Interaction Patterns section)
+**Interaction Patterns Used**: Modal Workflow, Streaming Response Pattern
 
 ---
 
 #### Layout & Spatial Design
 
-**Desktop (1440px+)** - Adaptive 3-Panel Workspace Layout:
-
-**State 1: No file open** (thread interface expands to fill space):
-```
-┌──────────────┬───────────────────────────────────────────────────────┐
-│ ┌──────────┐ │ [Thread Header: Branch Actions | Settings]           │
-│ │ Files    │ ├───────────────────────────────────────────────────────┤
-│ │ Threads  │ │ [Message Stream - scrollable]                         │
-│ └──────────┘ │ ┌───────────────────────────────────────────────────┐ │
-│              │ │ User: How do I implement RAG?           10:23 AM │ │
-│ [Files Tab]  │ └───────────────────────────────────────────────────┘ │
-│ ┌──────────┐ │ ┌───────────────────────────────────────────────────┐ │
-│ │📁 docs   │ │ │ Assistant: Here's how to implement RAG...         │ │
-│ │📁 src    │ │ │   [Tool Call Approval - inline]                   │ │
-│ │📄 README │ │ └───────────────────────────────────────────────────┘ │
-│ └──────────┘ │                                                       │
-│              │ ─────────────────────────────────────────────────────│
-│ [Threads]    │ [Context Panel - collapsible sections]                │
-│ ┌──────────┐ │ ▼ Explicit context (2)                                │
-│ │ Main     │ │   [📄][📄] (widgets displayed horizontally)          │
-│ │  RAG     │ │ ▼ Semantic matches (3)                                │
-│ │  Fine-t  │ │   [📄][📄][📄] +2 more (horizontal widgets)         │
-│ └──────────┘ │ ▶ Excluded from context (5 items - collapsed)         │
-│              │ ─────────────────────────────────────────────────────│
-│              │ [Thread Input: Text area | Send/Stop button]          │
-│              │                                                       │
-│   (20%)      │                    (80%)                              │
-└──────────────┴───────────────────────────────────────────────────────┘
-```
-
-**State 2: File open** (file editor appears on right):
-```
-┌──────────────┬─────────────────────────┬──────────────────────────────┐
-│ ┌──────────┐ │ [Thread Header]         │ [File Editor]          [X]  │
-│ │ Files    │ ├─────────────────────────┤──────────────────────────────┤
-│ │ Threads  │ │ [Message Stream]        │ Provenance Header:           │
-│ └──────────┘ │ ┌───────────────────┐   │ Created in: RAG branch      │
-│              │ │ User msg 10:23 AM │   │ 2 hours ago                 │
-│ [Files Tab]  │ └───────────────────┘   │ [Go to source]              │
-│ ┌──────────┐ │ ┌───────────────────┐   │──────────────────────────────│
-│ │📁 docs   │ │ │ Assistant msg     │   │                              │
-│ │📁 src    │ │ │  [Tool approval]  │   │ # RAG Analysis               │
-│ │📄 README │ │ └───────────────────┘   │                              │
-│ └──────────┘ │                         │ Best practices for           │
-│              │ ─────────────────────── │ implementing RAG:            │
-│ [Threads]    │ [Context Panel]         │                              │
-│ ┌──────────┐ │ ▼ Explicit (2)          │ 1. Document chunking         │
-│ │ Main     │ │   [📄][📄]             │ 2. Embedding strategy        │
-│ │  RAG     │ │ ▼ Semantic (3)          │ 3. Retrieval scoring         │
-│ │  Fine-t  │ │   [📄][📄][📄]         │                              │
-│ └──────────┘ │ ─────────────────────── │ [Markdown editor]            │
-│              │ [Thread Input]          │                              │
-│              │                         │                              │
-│   (20%)      │        (50%)            │           (30%)              │
-└──────────────┴─────────────────────────┴──────────────────────────────┘
-```
+**Layout Type**: Adaptive 3-panel workspace
 
 **Panel Behavior**:
-- **Left Sidebar (20% fixed)**: Tabs: Files | Threads, defaults to Threads on open, always visible
-- **Center Panel (50-80% adaptive)**: Thread interface (messages, context panel, input), ALWAYS VISIBLE, shrinks when file open
-- **Right Panel (0-30% adaptive)**: File editor appears when user clicks file, only ONE file at a time, CLOSEABLE with [X] button, thread interface never closes
+
+| Panel | Desktop (1440px+) | Mobile (375px) | Purpose | Closeable |
+|-------|-------------------|----------------|---------|-----------|
+| Left | 20% fixed | Hidden (drawer) | Files/Threads navigation (tabs) | No |
+| Center | 40-80% adaptive (shrinks when right panel opens) | 100% | Thread interface (always visible) | No |
+| Right | 0-40% adaptive (hidden by default, slides in when file opened) | Full-screen modal | File editor with provenance | Yes (X button) |
 
 **Dimensions**:
-- Left sidebar: 20% width (fixed)
-- Center panel: 80% (no file open) or 50% (file open)
-- Right panel: 0% (hidden) or 30% (file open)
-- Header: Full width, 64px height
+
+| Element | Desktop | Mobile | Notes |
+|---------|---------|--------|-------|
+| Header | Full width, 64px | Full width, 56px | Branch actions, settings |
+| Left sidebar | 20% width (fixed, min 240px) | Hidden | Drawer toggles on hamburger menu |
+| Center content | 40% (file open) to 80% (no file) | 100% | Thread interface adaptive |
+| Right panel | 0% (hidden) or 40% (max 600px) | Full-screen modal | Slides in from right |
+| Context panel | Between messages and input (not above messages) | Same | Positioned for visibility while typing |
 
 **Component Spacing**:
-- Message gaps: gap-4 (16px) between messages
-- Context panel sections: gap-6 (24px) between section headers
-- Context widgets: gap-2 (8px) between horizontal widgets within a section
-- Input padding: p-6 (24px) on desktop
-- Section margins: mb-8 (32px) between major sections
 
-**Mobile (375px)** - Vertical Stack:
-
-**Thread Interface**:
-```
-┌───────────────────┐
-│ [Header]          │
-│ ☰ | Threads       │
-├───────────────────┤
-│ [Messages]        │
-│ ┌───────────────┐ │
-│ │ User msg      │ │
-│ └───────────────┘ │
-│ ┌───────────────┐ │
-│ │ Assistant msg │ │
-│ └───────────────┘ │
-├───────────────────┤
-│ [Context Panel]   │
-│ ▶ Explicit (2)    │
-│ ▶ Semantic (3)    │
-├───────────────────┤
-│ [Input + Send/Stop]│
-└───────────────────┘
-```
-
-**Dimensions**:
-- Header: Full width, 56px height
-- Main content: Full width
-- Input: Full width, 72px height, sticky at bottom
-
-**Component Spacing**:
-- Message gaps: gap-3 (12px) between messages (tighter than desktop)
-- Section margins: mb-6 (24px) between sections
-- Input padding: p-4 (16px) on mobile
+| Context | Desktop | Mobile |
+|---------|---------|--------|
+| Component gaps | gap-6 (24px) | gap-4 (16px) |
+| Section margins | mb-8 (32px) | mb-6 (24px) |
+| Internal padding | p-6 (24px) | p-4 (16px) |
+| Widget gaps (in horizontal arrays) | gap-4 (16px) | gap-3 (12px) |
 
 **Responsive Breakpoints**:
-- **Mobile** (`< 768px`): Single-column vertical stack, sidebar drawer, file editor full-screen modal, context collapsed, sticky input
-- **Tablet** (`768px - 1024px`): 2-panel (sidebar 25% + thread interface 75%), file editor full-screen modal
-- **Desktop** (`> 1024px`): 3-panel adaptive (sidebar 20% + thread interface 50-80% + file editor 0-30%), file editor inline panel on right
+- **Mobile** (`< 768px`): Vertical stack, hide sidebar, sticky input at bottom, reduced spacing, full-screen modals for file editor
+- **Tablet** (`768px - 1024px`): Sidebar as overlay (not inline), moderate spacing, right panel as modal (not inline)
+- **Desktop** (`> 1024px`): Full 3-panel layout, maximum spacing, right panel inline (slides in from right, shrinks center panel)
 
-**Components Used in Layout**:
-- `WorkspaceSidebar`, `FileEditorPanel`, `ThreadView` (see Component Library)
+**Components in Layout**: `WorkspaceSidebar`, `ThreadView`, `FileEditorPanel`, `ContextPanel`
 
 ---
 
-### Branch Selector (Dropdown Component)
+### Branch Selector
 
-**Purpose**: Navigate between branches in hierarchical tree structure, showing parent-child relationships.
+**Purpose**: Hierarchical dropdown showing current branch, parent, siblings, and children for navigation.
 
-**Route**: N/A (component in chat header)
+**Route**: Component in `/thread/:threadId` header
 
 **Priority**: P1
 
-**Entry Points**: Always visible in chat header (except mobile where it's in hamburger menu)
+**Entry Points**:
+- Click dropdown in thread header
 
-**Exit Points**: Selecting branch navigates to that thread
+**Exit Points**:
+- Navigate to selected branch
 
 #### Primary Flow: Switch Between Branches
 
+**User Story**: US-1 (Branch Threads for Parallel Exploration)
+
+**Acceptance Criteria**: AC-003 (User switches between branches, each maintains separate thread history)
+
 **Steps**:
 
-1. **User clicks branch selector dropdown**
-
-   - **Component**: `BranchSelector` (see Component Library)
-   - **Interaction**: Click
-   - **What Happens**: Dropdown opens showing hierarchical tree with indentation (Main → RAG Deep Dive → RAG Performance), current branch highlighted
-   - **Data Required**: `{ currentBranchId: string, branchTree: BranchTreeNode[], isOpen: boolean }`
-   - **Callback**: `onToggle()` - Opens/closes dropdown
-   - **Visual Feedback**: Dropdown slides down (200ms), backdrop overlay on mobile, current branch has coral left border
-
-2. **User hovers over branch in dropdown**
-
-   - **Component**: `BranchSelector` → tree node item (see Component Library)
-   - **Interaction**: Hover
-   - **What Happens**: Branch highlights, tooltip shows metadata (created 2h ago, 5 messages, 2 artifacts)
-   - **Data Required**: `{ branchTitle: string, createdAt: Date, messageCount: number, artifactCount: number }`
-   - **Callback**: None (tooltip is pure UI)
-   - **Visual Feedback**: Background changes to light gray, tooltip fades in
-
-3. **User clicks branch to navigate**
-
-   - **Component**: `BranchSelector` → tree node item (see Component Library)
-   - **Interaction**: Click
-   - **What Happens**: Dropdown closes, URL updates (`/thread/:newBranchId`), thread data loads, message stream updates, context panel updates with new branch context
-   - **Data Required**: `{ branchId: string, branchTitle: string }`
-   - **Callback**: `onBranchSelect(branchId: string)` - Navigation
-   - **Visual Feedback**: Dropdown closes (200ms), loading state shows in message stream, smooth transition
+| # | Action/Response | Component | Interaction | What Happens | Data | Callback | Feedback |
+|---|-----------------|-----------|-------------|--------------|------|----------|----------|
+| 1 | User clicks branch selector dropdown | `BranchSelector` | Click | Dropdown opens showing hierarchical tree structure with indentation for nested branches (Main → RAG Deep Dive → RAG Performance) | `{currentBranchId: string, branches: Thread[]}` | `onOpen()` | Dropdown slides down (200ms), current branch highlighted |
+| 2 | User hovers over branch in dropdown | `BranchSelector` → branch item | Hover | Hovered branch highlighted, shows preview tooltip with branch summary (topics, artifact count, last activity) | `{branch: Thread}` | - | Background highlight, tooltip fades in (300ms) |
+| 3 | User clicks branch | `BranchSelector` → branch item | Click | Dropdown closes, navigate to `/thread/:selectedBranchId`, thread interface updates with selected branch messages and context | `{branchId: string}` | `onSelectBranch(branchId)` | Dropdown closes (100ms), URL updates, branch selector shows new branch, thread interface loads |
 
 **Error Scenarios**:
 
-- **Branch Deleted in Another Session**
-  - **Trigger**: User clicks branch that was deleted by another session (race condition)
-  - **Component**: Error toast from navigation handler
-  - **Display**: "Branch no longer exists. It may have been deleted." [Dismiss]
-  - **Recovery**: Stay on current branch, refresh branch tree dropdown
-  - **Test Data**: Mock branch_id that returns 404 from GET `/threads/:id`
+| Error | Trigger | Component | Display | Recovery | Test Data |
+|-------|---------|-----------|---------|----------|-----------|
+| Branch deleted by another session | User clicks branch that was deleted (race condition) | `BranchSelector` → error toast | "Branch no longer exists. It may have been deleted." | Dropdown closes, selector refreshes to show updated branch list | Mock branchId returning 404 from GET `/threads/:id` |
 
 **Success Criteria**:
-- ✅ Branch selector renders <200ms with 50 branches
-- ✅ Hierarchical indentation shows parent-child relationships clearly
-- ✅ Current branch visually distinct (highlighted)
-- ✅ Navigation completes in <500ms (thread load time)
+- ✅ Branch selector shows hierarchical indentation correctly
+- ✅ Navigation between branches <500ms
+- ✅ Current branch always highlighted in dropdown
 
-**Interaction Patterns Used**:
-- Dropdown Workflow (see Interaction Patterns section)
+**Interaction Patterns Used**: Dropdown Navigation Pattern
 
 ---
 
-### File Editor (Panel Component)
+#### Layout & Spatial Design
 
-**Purpose**: View file content with provenance header showing source conversation context.
+**Layout Type**: Dropdown menu with hierarchical tree structure
 
-**Route**: N/A (right panel in workspace, opens when file clicked, chat remains visible in center)
+**Dimensions**:
+
+| Element | Desktop | Mobile | Notes |
+|---------|---------|--------|-------|
+| Trigger button | min-width: 200px, height: 40px | min-width: 150px, height: 36px | Shows current branch name + chevron icon |
+| Dropdown menu | min-width: 300px, max-height: 400px | min-width: 250px, max-height: 300px | Scrollable if >10 branches |
+| Branch item | Full width, height: 36px, padding-left: 16px * depth | Full width, height: 32px, padding-left: 12px * depth | Indented by nesting level |
+
+**Component Spacing**:
+- Item vertical gap: `gap-1` (4px)
+- Section dividers: `my-2` (8px)
+
+**Components in Layout**: `BranchSelector`, `BranchSelectorDropdown`, `BranchSelectorItem`
+
+---
+
+### Context Panel
+
+**Purpose**: Shows context being sent to AI agent (explicit files, semantic matches, branch context, artifacts, excluded items).
+
+**Route**: Component in `/thread/:threadId` (positioned below messages, above input)
+
+**Priority**: P1
+
+**Entry Points**:
+- Always visible in thread interface (collapsible sections)
+
+**Exit Points**:
+- Click file to open file editor
+
+#### Primary Flow: Manage Context References
+
+**User Story**: US-3 (Cross-Branch Context Discovery)
+
+**Acceptance Criteria**: AC-003, AC-004 (Context assembly shows what AI sees, user can manually adjust)
+
+**Steps**:
+
+| # | Action/Response | Component | Interaction | What Happens | Data | Callback | Feedback |
+|---|-----------------|-----------|-------------|--------------|------|----------|----------|
+| 1 | User expands "Explicit context" section | `ContextPanel` → section header | Click | Section expands to show horizontal widget array of explicitly @-mentioned files and threads (each with metadata card: name, source, last edited) | `{explicitContextRefs: ContextReference[]}` | `onToggleSection(sectionId)` | Section height animates to reveal widgets (300ms), chevron icon rotates |
+| 2 | User hovers over file widget | `ContextReference` widget | Hover | Widget shows action buttons: View (opens editor), Remove (removes from explicit context), Show provenance (tooltip) | `{contextRef: ContextReference}` | - | Action buttons slide in from right edge (150ms) |
+| 3 | User clicks "Remove" on explicit file | `ContextReference` → Remove button | Click | Widget fades out (200ms), file removed from explicit context (but still searchable semantically), next agent request won't include it | `{contextRefId: string}` | `onRemoveFromExplicit(contextRefId)` | Widget fade out + collapse (300ms), section collapses if empty |
+| 4 | User scrolls to "Excluded from context" section | `ContextPanel` → Excluded section | Scroll | Section shows items that didn't fit in 200K budget after priming (with "Add to Explicit" buttons for manual re-priming) | `{excludedItems: ContextReference[]}` | - | Items displayed horizontally, "+X more" if >10 |
+| 5 | User clicks "Add to Explicit" on excluded item | `ContextReference` → Add to Explicit button | Click | Widget moves from Excluded to Explicit section (animated), promoted to 1.0 weight for next request | `{contextRefId: string}` | `onAddToExplicit(contextRefId)` | Widget animates vertically from Excluded→Explicit (500ms), Explicit section auto-expands |
+
+**Error Scenarios**:
+
+| Error | Trigger | Component | Display | Recovery | Test Data |
+|-------|---------|-----------|---------|----------|-----------|
+| Context reference file deleted | File referenced in context deleted in another session | `ContextPanel` → invalid reference indicator | File widget shows "File unavailable" with red border, "Remove" button offered | User clicks Remove to clean up invalid reference | Mock contextRefId referencing deleted file |
+
+**Success Criteria**:
+- ✅ Context panel shows all 6 sections correctly (Explicit, Frequently used, Semantic, Branch, Artifacts, Excluded)
+- ✅ Horizontal widget layout displays metadata cards clearly
+- ✅ Manual re-priming from excluded section works (<500ms transition)
+
+**Interaction Patterns Used**: Collapsible Section Pattern, Context Management Pattern
+
+---
+
+#### Layout & Spatial Design
+
+**Layout Type**: Collapsible section container with horizontal widget arrays
+
+**Dimensions**:
+
+| Element | Desktop | Mobile | Notes |
+|---------|---------|--------|-------|
+| Panel container | Full width of center panel, min-height: 120px, max-height: 400px | Full width, min-height: 100px, max-height: 300px | Positioned below messages, above input |
+| Section header | Full width, height: 40px, padding: 12px 16px | Full width, height: 36px, padding: 10px 12px | Clickable to expand/collapse |
+| Widget array container | Horizontal scroll (overflow-x: auto), padding: 12px 0 | Horizontal scroll, padding: 8px 0 | Shows 3-5 widgets before scrolling needed |
+| Widget card | width: 200px, height: 80px, padding: 12px | width: 160px, height: 70px, padding: 10px | Fixed width for horizontal layout |
+
+**Component Spacing**:
+- Section vertical gaps: `gap-4` (16px)
+- Widget horizontal gaps: `gap-4` (16px)
+- Internal card padding: `p-3` (12px)
+
+**Components in Layout**: `ContextPanel`, `ContextSection`, `ContextReference` (widget), `PriorityTierIndicator`
+
+---
+
+### File Editor Panel
+
+**Purpose**: Display file content with provenance header showing source conversation and creation context.
+
+**Route**: Right panel in `/thread/:threadId` OR modal on mobile
 
 **Priority**: P2
 
 **Entry Points**:
-- Click file in context panel
-- Click file in artifacts section
-- Click file in sidebar file tree
-- Click consolidated file (shows multi-branch provenance)
+- Click file reference in context panel
+- Click file in semantic matches
+- Click artifact in "Artifacts from this thread"
 
 **Exit Points**:
-- Close panel (X button, Escape key)
-- "Go to source" link (navigates to source branch)
+- Close button (X) in header
+- Navigate to source conversation ("Go to source" link)
 
 #### Primary Flow: View File with Provenance
 
+**User Story**: US-5 (Provenance Transparency & Navigation)
+
+**Acceptance Criteria**: AC-001 (User views file, sees provenance metadata, can navigate to source thread)
+
 **Steps**:
 
-1. **User clicks file reference in context panel**
-
-   - **Component**: `ContextReference` (clickable) (see Component Library)
-   - **Interaction**: Click
-   - **What Happens**: File editor panel opens (slides from right on desktop, full-screen on mobile), provenance header at top, markdown content below
-   - **Data Required**: `{ fileId: string, isOpen: boolean }`
-   - **Callback**: `onFileClick(fileId: string)` - Loads file data, opens panel
-   - **Visual Feedback**: Panel transition (300ms slide from right), thread interface shrinks from 80% to 50%, focus moves to close button
-
-2. **System loads file content and provenance**
-
-   - **Trigger**: Panel opened, GET `/files/:id` called
-   - **What Happens**: File content loads, provenance metadata loads (created_in_conversation_id, context_summary, last_edited info), markdown rendered in editor
-   - **Component Updated**: `FileEditorPanel` → content pane and provenance header (see Component Library)
-   - **Data Flow**: API response → Parse markdown → Render with syntax highlighting → Show provenance header
-
-3. **User views provenance header**
-
-   - **Component**: `ProvenanceHeader` in `FileEditorPanel` (see Component Library)
-   - **Interaction**: View (no interaction yet)
-   - **What Happens**: Header shows: Source branch name (pill), Creation timestamp ("2 hours ago"), Context summary (2-3 sentences about what thread was exploring), Last edit info (if edited: "Last edited by agent in Fine-tuning branch"), "Go to source" link
-   - **Data Required**: `{ sourceBranch: { id: string, title: string }, createdAt: Date, contextSummary: string, lastEditedBy?: 'user' | 'agent', editedInConversation?: { id: string, title: string } }`
-   - **Visual Feedback**: Header with coral accent, source branch pill clickable (coral background), context summary in muted text
-
-4. **User clicks "Go to source" link**
-
-   - **Component**: `ProvenanceHeader` → "Go to source" link (see Component Library)
-   - **Interaction**: Click
-   - **What Happens**: Navigate to source branch (`/thread/:sourceBranchId`), scroll to message where file was created, highlight message (2s yellow flash), panel closes
-   - **Data Required**: `{ sourceBranchId: string, creationMessageId: string }`
-   - **Callback**: `onGoToSource(branchId: string, messageId: string)` - Navigation + scroll + highlight
-   - **Visual Feedback**: Panel closes, URL changes, message stream scrolls to creation message, message background flashes yellow (2s fade)
-
-5. **User closes panel**
-
-   - **Component**: `FileEditorPanel` (see Component Library)
-   - **Interaction**: Click X button or press Escape
-   - **What Happens**: Panel closes (slide out transition to right), thread interface expands from 50% to 80%, focus returns to thread input
-   - **Data Required**: None
-   - **Callback**: `onClose()` - Closes panel
-   - **Visual Feedback**: Panel slides out to right (300ms), thread interface expands smoothly (300ms), focus restored to input
+| # | Action/Response | Component | Interaction | What Happens | Data | Callback | Feedback |
+|---|-----------------|-----------|-------------|--------------|------|----------|----------|
+| 1 | User clicks file reference | `ContextReference` (clickable) | Click | Right panel slides in from right (desktop) or modal opens (mobile), thread interface shrinks from 80% to 50% width (desktop) | `{fileId: string}` | `onFileClick(fileId)` | Right panel slides in (300ms), thread shrinks with animation |
+| 2 | System loads file with provenance | `FileEditorPanel` → `ProvenanceHeader` + `EditorContent` | Data load | Provenance header shows: "Created in: RAG Deep Dive (sibling), 2 hours ago, Context: RAG best practices discussion", last edit info if applicable ("Last edited by agent in Branch B"), "Go to source" link; file content rendered below with syntax highlighting | `{file: File, provenance: Provenance}` | - | Content renders with markdown/syntax highlighting |
+| 3 | User clicks "Go to source" link | `ProvenanceHeader` → Go to source link | Click | Navigate to source branch (`/thread/:sourceBranchId`), scroll to message where file was created, highlight message briefly (yellow flash 2s), file editor panel closes | `{sourceBranchId: string, creationMessageId: string}` | `onGoToSource(branchId, messageId)` | URL changes, branch selector updates, message highlighted yellow flash (2s fade), panel closes (300ms) |
+| 4 | User clicks close button | `FileEditorPanel` → close button (X) | Click | Right panel slides out (desktop) or modal dismisses (mobile), thread interface expands back to 80% width | - | `onClose()` | Panel slides out (300ms), thread expands with animation |
 
 **Error Scenarios**:
 
-- **File Content Load Fails**
-  - **Trigger**: GET `/files/:id` returns 500 error or timeout
-  - **Component**: `FileEditorPanel` → error state (see Component Library)
-  - **Display**: "Failed to load file content. [Retry] [Close]"
-  - **Recovery**: "Retry" button re-calls GET `/files/:id`, or user clicks "Close" to dismiss panel
-  - **Test Data**: Mock file_id with 500 error response
-
-- **Source Branch Deleted (Provenance Navigation Fails)**
-  - **Trigger**: User clicks "Go to source" but source branch deleted
-  - **Component**: Error toast from navigation handler
-  - **Display**: "Source branch no longer exists. It may have been deleted." [Dismiss]
-  - **Recovery**: Stay in file editor panel, disable "Go to source" link
-  - **Test Data**: Mock created_in_conversation_id that returns 404
+| Error | Trigger | Component | Display | Recovery | Test Data |
+|-------|---------|-----------|---------|----------|-----------|
+| File content load fail | GET `/files/:id` timeout or 500 error | `FileEditorPanel` → error state | "Unable to load file content. Please try again. [Retry] [Close]" | Retry button re-fetches file, or Close button dismisses panel | Mock GET with `networkError: true` |
+| Source conversation deleted | User clicks "Go to source" for file with deleted source conversation | Navigation → error toast | "Source conversation no longer exists. It may have been deleted." | Toast dismisses (3s), panel stays open showing file content | Mock sourceBranchId returning 404 |
 
 **Success Criteria** (from SC-009, SC-010):
 - ✅ 50% of users interact with provenance indicators (click/hover) within first week
 - ✅ Provenance navigation ("Go to source") used by 30% of users
-- ✅ File editor panel opens in <300ms
-- ✅ Markdown rendering completes in <500ms for 10KB file
+- ✅ File editor opens <300ms, provenance header renders immediately
 
-**Interaction Patterns Used**:
-- Panel Slide Pattern (see Interaction Patterns section)
+**Interaction Patterns Used**: Sliding Panel Pattern, Provenance Navigation Pattern
+
+---
+
+#### Layout & Spatial Design
+
+**Layout Type**: Sliding panel (desktop) OR full-screen modal (mobile)
+
+**Panel Behavior**:
+
+| State | Desktop | Mobile | Notes |
+|-------|---------|--------|-------|
+| Closed (default) | 0% width (hidden) | Hidden | Thread occupies 80% of center space |
+| Open | 40% width (max 600px), slides in from right | 100% full-screen modal | Thread shrinks to 50% on desktop |
+
+**Dimensions**:
+
+| Element | Desktop | Mobile | Notes |
+|---------|---------|--------|-------|
+| Provenance header | Full panel width, height: 80px, padding: 16px | Full screen width, height: 70px, padding: 12px | Coral accent border-left |
+| Editor content | Full panel width, height: calc(100vh - 144px) | Full screen height, height: calc(100vh - 126px) | Scrollable, syntax highlighting |
+| Close button (X) | Top-right, 32x32px | Top-right, 28x28px | Icon button |
+
+**Component Spacing**:
+- Provenance header internal: `p-4` (16px)
+- Editor content padding: `p-6` (24px) desktop, `p-4` (16px) mobile
+- Provenance metadata vertical gaps: `gap-2` (8px)
+
+**Components in Layout**: `FileEditorPanel`, `ProvenanceHeader`, `EditorContent`, `GoToSourceLink`
+
+---
+
+### Approval Modal
+
+**Purpose**: Show agent tool call approval prompt with operation details, preview, and approve/reject options.
+
+**Route**: Inline component during agent streaming in `/thread/:threadId`
+
+**Priority**: P2
+
+**Entry Points**:
+- Agent requests tool approval during streaming response
+
+**Exit Points**:
+- User approves → stream resumes
+- User rejects → stream pauses, agent revises plan
+
+#### Primary Flow: Approve Tool Call
+
+**User Story**: US-2 (Capture Artifacts with Provenance)
+
+**Acceptance Criteria**: AC-001 (User sees approval prompt, can approve/reject, agent executes after approval)
+
+**Steps**:
+
+| # | Action/Response | Component | Interaction | What Happens | Data | Callback | Feedback |
+|---|-----------------|-----------|-------------|--------------|------|----------|----------|
+| 1 | Agent requests tool approval | `ToolCallApproval` (inline in message stream) | SSE `tool_call` event | Stream pauses, approval prompt appears inline showing: operation type ("Create file", "Edit file", "Delete folder"), target path, content preview (for create/edit) or deletion confirmation (for delete), approve/reject buttons | `{toolName: string, toolInput: object, previewContent?: string, isLoading: bool}` | - | Prompt slides in (200ms), stream paused indicator |
+| 2 | User reviews preview | `ToolCallApproval` → preview section | Scroll (if needed) | Preview shows first 20 lines of content (create/edit) or list of files to delete (delete), syntax highlighted | `{previewContent: string}` | - | Scrollable preview with line numbers |
+| 3 | User clicks Approve | `ToolCallApproval` → Approve button | Click | Button shows spinner, POST `/agent-requests/:id/approve` with `{toolCallId, approved: true}`, stream resumes after server confirms execution | `{toolCallId: string, approved: bool}` | `onApprove(toolCallId)` | Button disabled with spinner, "Executing...", prompt collapses after execution confirmed |
+| 4 | Tool executes | Backend | POST processing | File created/edited/deleted with provenance metadata, realtime subscription updates UI | - | - | - |
+| 5 | Stream resumes | `MessageStream` | SSE resumes | Agent continues streaming response text after tool execution | - | - | Streaming continues, next text chunk appears |
+
+**Alternative Flow: User Rejects**:
+
+3a. **User clicks Reject**
+   - **Component**: `ToolCallApproval` → Reject button
+   - **Interaction**: Click (optional rejection reason input)
+   - **What Happens**: Button shows spinner, POST `/agent-requests/:id/approve` with `{toolCallId, approved: false, reason}`, agent receives rejection context, stream pauses briefly, agent sends revised plan
+   - **Data**: `{toolCallId: string, approved: bool, reason?: string}`
+   - **Callback**: `onReject(toolCallId, reason)`
+   - **Visual Feedback**: Button disabled with spinner, prompt collapses, stream shows "Agent revising plan...", subsequent pending tool calls discarded (agent may propose different approach)
+
+**Error Scenarios**:
+
+| Error | Trigger | Component | Display | Recovery | Test Data |
+|-------|---------|-----------|---------|----------|-----------|
+| Approval timeout | No user action within 10 minutes (FR-048b) | `ToolCallApproval` → timeout overlay | "Approval timed out after 10 minutes. Please retry your request." | SSE stream terminated, request marked as timeout, user must send new message | Mock approval with `autoTimeout: 600000` (10min) |
+| User cancels during approval | User clicks stop button while waiting for approval | `ThreadInput` → stop button | "Request cancelled. You can send a new message." | SSE stream terminated, approval discarded, request marked as cancelled | Trigger stop button during approval wait |
+
+**Success Criteria**:
+- ✅ Approval prompt appears inline <100ms after tool call requested
+- ✅ Preview shows first 20 lines of content (create/edit operations)
+- ✅ Stream pauses correctly until user approves/rejects
+- ✅ Rejection triggers agent revision (not termination)
+
+**Interaction Patterns Used**: Approval Workflow
+
+---
+
+#### Layout & Spatial Design
+
+**Layout Type**: Inline prompt within message stream
+
+**Dimensions**:
+
+| Element | Desktop | Mobile | Notes |
+|---------|---------|--------|-------|
+| Prompt container | Full message width, max-width: 600px, padding: 16px | Full message width, padding: 12px | Bordered card with coral accent |
+| Preview section | Full container width, max-height: 300px | Full width, max-height: 200px | Scrollable if content >20 lines |
+| Action buttons | Right-aligned, height: 40px, gap: 12px | Full-width stacked, height: 36px, gap: 8px | Approve (coral), Reject (gray) |
+
+**Component Spacing**:
+- Prompt internal padding: `p-4` (16px)
+- Section vertical gaps: `gap-3` (12px)
+- Button horizontal gap: `gap-3` (12px) desktop, stacked mobile
+
+**Components in Layout**: `ToolCallApproval`, `PreviewSection`, `ApprovalActions`
+
+---
+
+### Visual Tree View (Phase 3)
+
+**Purpose**: Interactive graph showing branch hierarchy, artifact counts, and provenance relationships.
+
+**Route**: `/tree` OR sidebar toggle in `/thread/:threadId`
+
+**Priority**: P5 (Phase 3)
+
+**Entry Points**:
+- Click "Tree View" button in branch actions (desktop only)
+
+**Exit Points**:
+- Click branch node to navigate to thread
+
+#### Primary Flow: Navigate via Tree View
+
+**User Story**: US-5 (Provenance Transparency & Navigation)
+
+**Acceptance Criteria**: AC-004 (Visual tree view shows branch hierarchy, user can click nodes to navigate)
+
+**Steps**:
+
+| # | Action/Response | Component | Interaction | What Happens | Data | Callback | Feedback |
+|---|-----------------|-----------|-------------|--------------|------|----------|----------|
+| 1 | User clicks "Tree View" button | `BranchActions` → Tree View button (desktop only) | Click | Tree view panel opens showing interactive graph: branch nodes with titles, artifact counts, creation timestamps; edges showing parent-child relationships; current branch highlighted | `{branches: Thread[], currentBranchId: string}` | `onOpenTreeView()` | Tree view slides in (300ms), current branch highlighted coral |
+| 2 | User hovers over branch node | `TreeView` → `BranchNode` | Hover | Hovered node highlighted, tooltip shows: branch summary (topics, decisions, artifacts), creation timestamp, creator (user/agent/system), artifact count | `{branch: Thread}` | - | Node border highlight, tooltip fades in (200ms) |
+| 3 | User clicks branch node | `TreeView` → `BranchNode` | Click | Navigate to `/thread/:branchId`, tree view stays open, clicked branch becomes highlighted | `{branchId: string}` | `onNavigateToBranch(branchId)` | URL updates, branch selector updates, tree view current branch highlight moves |
+| 4 | User clicks file node in tree | `TreeView` → `FileNode` | Click | Highlights all threads that referenced this file (provenance graph visualization) | `{fileId: string}` | `onHighlightProvenance(fileId)` | Threads with this file glow coral, edges show relationships |
+| 5 | User closes tree view | `TreeView` → close button (X) | Click | Tree view panel closes | - | `onCloseTreeView()` | Panel slides out (300ms) |
+
+**Error Scenarios**:
+
+| Error | Trigger | Component | Display | Recovery | Test Data |
+|-------|---------|-----------|---------|----------|-----------|
+| Tree view render timeout | >100 branches cause rendering lag (>2s) | `TreeView` → loading state | "Loading tree view... (rendering 150 branches)" with spinner | View renders when complete (or times out after 5s with "Unable to render tree view") | Mock 150+ branches |
+
+**Success Criteria** (from Phase 3 targets):
+- ✅ Tree view renders <1s for 50 branches
+- ✅ 40% of users who enable tree view continue using it
+- ✅ Clicking branch node navigates correctly
+- ✅ Provenance graph highlights threads referencing clicked file
+
+**Interaction Patterns Used**: Graph Navigation Pattern
+
+---
+
+#### Layout & Spatial Design
+
+**Layout Type**: Overlay panel (desktop only)
+
+**Dimensions**:
+
+| Element | Desktop | Mobile | Notes |
+|---------|---------|--------|-------|
+| Tree view panel | 40% width (min 500px, max 800px), height: 100vh | Not supported | Overlays right side of screen |
+| Canvas area | Full panel width, height: calc(100vh - 64px) | - | Scrollable and zoomable (D3.js or React Flow) |
+| Branch node | width: 180px, height: 60px, border-radius: 8px | - | Shows title + artifact count + timestamp |
+| File node | width: 120px, height: 40px, border-radius: 6px | - | Shows file name + provenance indicator |
+
+**Component Spacing**:
+- Node vertical gaps: 80px (allows for edge curves)
+- Node horizontal gaps: 200px (tree level spacing)
+- Internal node padding: `p-3` (12px)
+
+**Components in Layout**: `TreeView`, `TreeViewCanvas`, `BranchNode`, `FileNode`, `TreeViewControls` (zoom, pan, reset)
 
 ---
 
@@ -765,998 +621,494 @@
 ### Component Reusability Assessment
 
 **Existing components checked** (from `packages/ui/src/components/`):
-- `Button` - ✅ Reused (send button, approve/reject buttons)
-- `Input` - ✅ Reused (thread input, branch name input)
-- `Card` - ✅ Reused (context sections, file cards)
-- `Badge` - ✅ Reused (priority indicators, provenance badges)
-- `Modal` - ✅ Extended (create branch modal, consolidate modal)
+- `Button` - ✅ Reused (variants: default, secondary, ghost)
+- `Input` - ✅ Reused (with validation states)
+- `Card` - ✅ Reused (container primitive)
+- `Badge` - ✅ Reused (status indicators)
+- `Modal/Dialog` - ✅ Reused (modal primitives)
+- `Tooltip` - ✅ Reused (hover info)
 - `ErrorBanner` - ✅ Reused (error states)
-- `Tooltip` - ✅ Reused (provenance tooltips, file metadata)
-- `MarkdownEditor` - ✅ Reused (file editor, wrapped in FileEditorPanel with provenance header)
+- `Dropdown` - ⚡ Extended (hierarchical tree variant needed)
+- `Tabs` - ✅ Reused (Files/Threads sidebar tabs)
 
 **New components categorized**:
 
 | Component | Location | Reusability Rationale |
 |-----------|----------|----------------------|
-| `WorkspaceSidebar` | `features/ai-agent-system/` | Feature-specific screen (3-panel workspace) |
-| `FileEditorPanel` | `features/ai-agent-system/` | Feature-specific wrapper with provenance header + existing MarkdownEditor |
-| `ThreadView` | `features/ai-agent-system/` | Feature-specific screen composition |
-| `BranchSelector` | `features/ai-agent-system/` | Feature-specific hierarchical tree |
-| `ContextPanel` | `features/ai-agent-system/` | Feature-specific multi-section layout |
-| `MessageStream` | `features/ai-agent-system/` | Feature-specific message rendering |
-| `ThreadInput` | `features/ai-agent-system/` | Feature-specific with @-mention autocomplete + send/stop toggle |
-| `ToolCallApproval` | `features/ai-agent-system/` | Feature-specific approval flow |
-| `CreateBranchModal` | `features/ai-agent-system/` | Feature-specific modal |
-| `ConsolidateModal` | `features/ai-agent-system/` | Feature-specific modal with tree preview |
+| `ThreadView` | `features/ai-agent-system/` | Feature-specific screen (thread interface) |
+| `ThreadInput` | `features/ai-agent-system/` | Feature-specific (agent streaming interaction) |
+| `MessageStream` | `features/ai-agent-system/` | Feature-specific (message display with streaming) |
+| `Message` | `features/ai-agent-system/` | Feature-specific (message bubble with markdown) |
+| `ToolCallApproval` | `features/ai-agent-system/` | Feature-specific (agent tool approval) |
+| `ContextPanel` | `features/ai-agent-system/` | Feature-specific (context assembly visualization) |
+| `ContextSection` | `features/ai-agent-system/` | Feature-specific (collapsible section in context panel) |
+| `ContextReference` | `features/ai-agent-system/` | Feature-specific (file/thread reference widget) |
+| `BranchSelector` | `features/ai-agent-system/` | Feature-specific (hierarchical branch navigation) |
+| `BranchActions` | `features/ai-agent-system/` | Feature-specific (create branch, consolidate) |
+| `CreateBranchModal` | `features/ai-agent-system/` | Feature-specific (branch creation form) |
+| `ConsolidateModal` | `features/ai-agent-system/` | Feature-specific (consolidation workflow) |
+| `FileEditorPanel` | `features/ai-agent-system/` | Feature-specific (file editor with provenance) |
+| `ProvenanceHeader` | `features/ai-agent-system/` | Feature-specific (provenance metadata display) |
+| `TreeView` | `features/ai-agent-system/` | Feature-specific (visual branch tree) |
+| `BranchNode` | `features/ai-agent-system/` | Feature-specific (branch node in tree) |
+| `FileNode` | `features/ai-agent-system/` | Feature-specific (file node in tree) |
+| `WorkspaceSidebar` | `features/ai-agent-system/` | Feature-specific (Files/Threads tabs) |
 
 ### Component Specifications
 
 #### Screen Components (Feature-Specific)
 
-**`WorkspaceSidebar.tsx`** - Left Sidebar Navigation
+**`ThreadView.tsx`** - Chat Interface Screen
 
-**Location**: `packages/ui/src/features/ai-agent-system/WorkspaceSidebar.tsx` (created during design)
+**Location**: `packages/ui/src/features/ai-agent-system/ThreadView.tsx`
 
-**Purpose**: Left sidebar with tabs for switching between file tree view and thread tree view.
+**Purpose**: Main thread interface container orchestrating message stream, context panel, and input
 
-**Reusability**: Feature-specific (1 feature)
+**Reusability**: Feature-specific (thread interface is unique to this feature)
 
-**Rationale**: Complex navigation component specific to exploration workspace layout.
-
-**Props Interface**:
-
+**Props**:
 ```typescript
-interface WorkspaceSidebarProps {
-  // Active tab
-  activeTab: 'files' | 'threads';
-
-  // File tree data
-  fileTree: FileTreeNode[];
-
-  // Thread tree data
-  threadTree: ThreadTreeNode[];
-  currentThreadId: string;
-
-  // Callbacks
-  onTabChange: (tab: 'files' | 'threads') => void;
-  onFileSelect: (filePath: string) => void;
-  onThreadSelect: (threadId: string) => void;
-  onCreateBranch: () => void;
-
-  // Styling
-  className?: string;
+{
+  thread: Thread,
+  messages: Message[],
+  primeContext: PrimeContext,
+  isStreaming: bool,
+  streamingBuffer: string,
+  onSendMessage: (text: string) => void,
+  onCancelRequest: (requestId: string) => void,
+  onFileClick: (fileId: string) => void,
+  className?: string
 }
 ```
 
-**Example Usage**:
+**States**: Loading (initial load), Active (messages displaying), Streaming (agent responding), Error (network fail)
 
-```typescript
-<WorkspaceSidebar
-  activeTab="threads"
-  fileTree={fileTreeData}
-  threadTree={threadTreeData}
-  currentThreadId="thread-123"
-  onTabChange={handleTabChange}
-  onFileSelect={handleFileSelect}
-  onThreadSelect={handleThreadSelect}
-  onCreateBranch={handleCreateBranch}
-/>
-```
+**Component UI State**:
+- `isContextPanelExpanded: bool` - Context panel collapsed/expanded
+- `selectedFileId: string|null` - File editor open state
 
-**States to Design**:
-- Files tab active (file tree shown)
-- Threads tab active (thread tree shown)
-- Loading (tree data loading)
-- Empty files (no files yet, show "No files" placeholder)
-- Empty threads (only Main thread exists)
+**Interaction Patterns**: Streaming Response Pattern, Context Management Pattern
 
-**Composed From**:
-- `Button` (tab buttons, create branch button)
-- `Badge` (provenance badges on files)
-
-**Component UI State** (local, ephemeral):
-- `activeTab`: 'files' | 'threads' - Which tab is currently visible
-- `expandedFolders`: string[] - Which folders are expanded in file tree
-- `expandedThreads`: string[] - Which threads are expanded in thread tree
-
-**Why Component State**: Tab selection and tree expansion are per-session UI preferences, not persisted.
-
-**NOT component state** (defined in arch.md):
-- File tree data → Global state (Valtio, from filesystem)
-- Thread tree data → Global state (Valtio, from database)
-- Current thread ID → Global state (Valtio, from URL)
-
-**Interaction Patterns Used**:
-- Dropdown Workflow (see Interaction Patterns section - tree expansion)
-
-**Accessibility Requirements**:
-- [x] Keyboard navigation (Tab to switch tabs, Arrow keys to navigate trees)
-- [x] ARIA labels ("Files tab", "Threads tab", "File tree", "Thread tree")
-- [x] Focus management (focus on first item when tab switches)
-- [x] Screen reader support (tree structure announced)
+**Accessibility**: See shared checklist below
 
 ---
 
-**`FileEditorPanel.tsx`** - Right Panel File Editor (Closeable)
+**`BranchSelector.tsx`** - Branch Navigation Dropdown
 
-**Location**: `packages/ui/src/features/ai-agent-system/FileEditorPanel.tsx` (created during design)
+**Location**: `packages/ui/src/features/ai-agent-system/BranchSelector.tsx`
 
-**Purpose**: Right panel that appears when file is opened, shows provenance header + file content using existing MarkdownEditor. Thread interface remains visible and accessible in center panel.
+**Purpose**: Hierarchical dropdown showing branch tree structure for navigation
 
-**Reusability**: Wrapper component (uses existing MarkdownEditor from `@centrid/ui/components`)
+**Reusability**: Feature-specific (branch hierarchy is unique to this feature)
 
-**Rationale**: Thin wrapper around existing reusable MarkdownEditor component, adds provenance header and right-side panel behavior specific to exploration workspace. Positioned on right to keep thread interface (primary UI) always visible.
-
-**Props Interface**:
-
+**Props**:
 ```typescript
-interface FileEditorPanelProps {
-  // File data
-  file: {
-    fileId: string;
-    path: string;
-    content: string;
-    provenance?: {
-      sourceBranch: { id: string; title: string };
-      createdAt: Date;
-      contextSummary: string;
-      lastEditedBy?: 'user' | 'agent';
-      editedInConversation?: { id: string; title: string };
-    };
-  };
-
-  // UI state
-  isVisible: boolean; // Panel shown/hidden
-  isLoading: boolean;
-
-  // Callbacks
-  onClose: () => void;
-  onGoToSource: (branchId: string, messageId: string) => void;
-  onContentChange?: (content: string) => void; // Optional editing
-
-  // Styling
-  className?: string;
+{
+  currentBranchId: string,
+  branches: Thread[],
+  onSelectBranch: (branchId: string) => void,
+  className?: string
 }
 ```
 
-**Example Usage**:
+**States**: Closed (default), Open (dropdown visible), Loading (branch list loading), Hover (branch preview)
 
-```typescript
-<FileEditorPanel
-  file={fileData}
-  isVisible={isFileOpen}
-  isLoading={false}
-  onClose={handleCloseFile}
-  onGoToSource={handleGoToSource}
-/>
-```
+**Component UI State**:
+- `isOpen: bool` - Dropdown open/closed
+- `hoveredBranchId: string|null` - Hovered branch for preview tooltip
 
-**States to Design**:
-- Hidden (isVisible=false, takes 0% width, thread interface at 80% width)
-- Visible (isVisible=true, slides in from right, takes 30% width, thread interface shrinks to 50%)
-- Loading (file content loading, skeleton UI)
-- Error (file load failed, error message with retry)
-- With provenance (agent-created file, show full provenance header)
-- Without provenance (manually created file, minimal header with file path only)
+**Interaction Patterns**: Dropdown Navigation Pattern
 
-**Composed From**:
-- `MarkdownEditor` (from `@centrid/ui/components` - existing reusable component for file editing)
-- `Button` (close button [X], "Go to source" button)
-- `Badge` (source branch badge in provenance header)
-
-**Component UI State** (local, ephemeral):
-- `scrollPosition`: number - Scroll position in file content (restored if user re-opens same file)
-
-**Why Component State**: Scroll position is UX convenience (restore on re-open), not critical data.
-
-**NOT component state** (defined in arch.md):
-- File content → Loaded from API, stored in global state during panel lifetime
-- Provenance metadata → Global state (from API)
-- Panel visibility (isVisible) → Global state (Valtio, controls panel width animation and thread interface resize)
-
-**Interaction Patterns Used**:
-- Panel Slide Pattern (see Interaction Patterns section - adapted for right-side panel)
-
-**Accessibility Requirements**:
-- [x] Keyboard navigation (Tab through close button, "Go to source" link, file content)
-- [x] ARIA labels ("File editor panel", "Close panel", "Go to source branch")
-- [x] Focus management (focus on close button when panel opens, return focus to triggering element when closed)
-- [x] Escape key closes panel
-- [x] Panel announced to screen readers when opened ("File editor opened: [filename]")
+**Accessibility**: See shared checklist below
 
 ---
 
-**`ThreadView.tsx`** - Main Thread Interface
+**`FileEditorPanel.tsx`** - File Editor with Provenance
 
-**Location**: `packages/ui/src/features/ai-agent-system/ThreadView.tsx` (created during design)
+**Location**: `packages/ui/src/features/ai-agent-system/FileEditorPanel.tsx`
 
-**Purpose**: Main presentational component for thread interface, orchestrates header, messages, context panel, and input.
+**Purpose**: Display file content with provenance header showing source conversation
 
-**Reusability**: Feature-specific (1 feature)
+**Reusability**: Feature-specific (provenance integration is unique to this feature)
 
-**Rationale**: Complex composition specific to AI agent system, not reusable in other features.
-
-**Props Interface**:
-
+**Props**:
 ```typescript
-interface ThreadViewProps {
-  // Thread data
-  currentThread: {
-    threadId: string;
-    branchTitle: string;
-    parentId?: string;
-  };
-  messages: Message[];
-  streamingMessage?: StreamingMessage;
-
-  // Context data
-  primeContext: {
-    explicitContext: ContextReference[];
-    frequentlyUsed: ContextReference[];
-    semanticMatches: ContextReference[];
-    branchContext: {
-      parentSummary: string;
-      inheritedFiles: ContextReference[];
-    };
-    artifacts: ContextReference[];
-    excludedItems: ContextReference[];
-  };
-
-  // UI state
-  isLoading: boolean;
-  isStreaming: boolean;
-
-  // Callbacks
-  onSendMessage: (text: string) => void;
-  onCancelRequest: (requestId: string) => void;
-  onCreateBranch: () => void;
-  onBranchSelect: (branchId: string) => void;
-  onFileClick: (fileId: string) => void;
-  onAddToExplicit: (itemId: string) => void;
-  onRePrime: (itemId: string) => void;
-  onDismissMatch: (fileId: string) => void;
-  onApproveToolCall: (toolCallId: string) => void;
-  onRejectToolCall: (toolCallId: string, reason?: string) => void;
-
-  // Styling
-  className?: string;
+{
+  file: File,
+  provenance: Provenance|null,
+  isOpen: bool,
+  onClose: () => void,
+  onGoToSource: (branchId: string, messageId: string) => void,
+  className?: string
 }
 ```
 
-**Example Usage**:
+**States**: Closed (hidden), Loading (file content loading), Open (content displayed), Error (load fail)
 
+**Component UI State**:
+- `isEditing: bool` - Edit mode (Phase 2+ feature, read-only for MVP)
+
+**Interaction Patterns**: Sliding Panel Pattern, Provenance Navigation Pattern
+
+**Accessibility**: See shared checklist below
+
+---
+
+**`ConsolidateModal.tsx`** - Consolidation Workflow
+
+**Location**: `packages/ui/src/features/ai-agent-system/ConsolidateModal.tsx`
+
+**Purpose**: Multi-step modal for consolidating artifacts from multiple branches
+
+**Reusability**: Feature-specific (consolidation is unique to this feature)
+
+**Props**:
 ```typescript
-<ThreadView
-  currentThread={{ threadId: '123', branchTitle: 'Main' }}
-  messages={messages}
-  primeContext={contextData}
-  isLoading={false}
-  isStreaming={true}
-  onSendMessage={handleSendMessage}
-  onCancelRequest={handleCancelRequest}
-  onCreateBranch={handleCreateBranch}
-  // ... other callbacks
-/>
+{
+  isOpen: bool,
+  currentBranch: Thread,
+  childBranches: Thread[],
+  onConfirmConsolidate: (branchIds: string[], fileName: string) => void,
+  onApproveConsolidation: (fileName: string) => void,
+  onRejectConsolidation: () => void,
+  onClose: () => void,
+  consolidationProgress: {step: string, current: number, total: number}|null,
+  consolidatedContent: string|null,
+  className?: string
+}
 ```
 
-**States to Design**:
-- Default (messages loaded, input ready)
-- Loading (thread data loading)
-- Streaming (agent response streaming in progress)
-- Empty (no messages yet, welcome state)
-- Error (failed to load thread)
+**States**: Branch Selection (step 1), Processing (progress bar), Preview (approval step), Complete (success), Error (fail)
 
-**Composed From**:
-- `BranchSelector`, `MessageStream`, `ContextPanel`, `ThreadInput` (see Component Library)
-- `Button`, `Badge`, `Card` (from primitives)
+**Component UI State**:
+- `selectedBranchIds: string[]` - Checked branches for consolidation
+- `fileName: string` - Editable file name for consolidated document
 
-**Component UI State** (local, ephemeral):
-- None (all state managed by child components or global state)
+**Interaction Patterns**: Modal Workflow, Streaming Response Pattern
 
-**Why Component State**: Pure composition component, no local state needed.
+**Accessibility**: See shared checklist below
 
-**NOT component state** (defined in arch.md):
-- Thread data → Global state (Valtio)
-- Messages → Global state (Valtio)
-- Prime context → Global state (Valtio)
-- Streaming buffer → Global state (Valtio)
+---
 
-**Interaction Patterns Used**:
-- Streaming Response Pattern (see Interaction Patterns section)
-- Context Management Pattern (see Interaction Patterns section)
+**`TreeView.tsx`** - Visual Tree View (Phase 3)
 
-**Accessibility Requirements**:
-- [x] Keyboard navigation (Tab through messages, input, buttons)
-- [x] ARIA labels ("Chat messages", "Message input", "Send message button")
-- [x] Focus management (focus on input after send, focus on approval prompt when appears)
-- [x] Screen reader announcements (new messages via aria-live)
+**Location**: `packages/ui/src/features/ai-agent-system/TreeView.tsx`
+
+**Purpose**: Interactive graph visualization of branch hierarchy and provenance
+
+**Reusability**: Feature-specific (tree view is unique to this feature)
+
+**Props**:
+```typescript
+{
+  branches: Thread[],
+  files: File[],
+  currentBranchId: string,
+  onNavigateToBranch: (branchId: string) => void,
+  onHighlightProvenance: (fileId: string) => void,
+  onClose: () => void,
+  className?: string
+}
+```
+
+**States**: Loading (rendering graph), Active (interactive), Highlighting (provenance visualization)
+
+**Component UI State**:
+- `zoomLevel: number` - Canvas zoom state
+- `panOffset: {x: number, y: number}` - Canvas pan position
+- `highlightedFileId: string|null` - File node clicked for provenance highlight
+
+**Interaction Patterns**: Graph Navigation Pattern
+
+**Accessibility**: See shared checklist below
 
 ---
 
 #### Shared Feature Components
 
-**`BranchSelector.tsx`** - Hierarchical Branch Dropdown
+**`MessageStream.tsx`** - Message Display Container
 
-**Location**: `packages/ui/src/features/ai-agent-system/BranchSelector.tsx` (created during design)
+**Location**: `packages/ui/src/features/ai-agent-system/MessageStream.tsx`
 
-**Purpose**: Dropdown showing hierarchical branch tree with indentation, allows branch navigation.
+**Purpose**: Scrollable container displaying message history with streaming support
 
-**Reusability**: Feature-specific (1 feature)
+**Reusability**: Feature-specific (used in ThreadView only)
 
-**Rationale**: Complex tree visualization specific to branching conversation model.
+**Props**: `{ messages: Message[], streamingBuffer: string|null, onScrollToBottom: () => void, className?: string }`
 
-**Props Interface**:
+**States**: Empty (no messages), Loading (initial load), Active (messages visible), Streaming (incremental render)
 
-```typescript
-interface BranchSelectorProps {
-  // Data
-  currentBranchId: string;
-  branchTree: BranchTreeNode[]; // Recursive structure
+**Component UI State**: `scrollPosition: number`
 
-  // UI state
-  isOpen: boolean;
+**Interaction Patterns**: Streaming Response Pattern
 
-  // Callbacks
-  onToggle: () => void;
-  onBranchSelect: (branchId: string) => void;
-
-  // Styling
-  className?: string;
-}
-```
-
-**Example Usage**:
-
-```typescript
-<BranchSelector
-  currentBranchId="123"
-  branchTree={branchTreeData}
-  isOpen={isOpen}
-  onToggle={handleToggle}
-  onBranchSelect={handleBranchSelect}
-/>
-```
-
-**States to Design**:
-- Closed (button shows current branch title)
-- Open (dropdown expanded with tree)
-- Empty (no branches yet, show "Main" only)
-- Loading (fetching branch tree)
-
-**Composed From**:
-- `Button` (dropdown trigger)
-- `Badge` (metadata badges: message count, artifact count)
-
-**Component UI State** (local, ephemeral):
-- `isOpen`: boolean - Whether dropdown is expanded
-- `highlightedIndex`: number - Currently highlighted option (for keyboard nav)
-
-**Why Component State**: Dropdown open/closed is transient UI state, no persistence needed. Highlighted index is keyboard nav feedback only.
-
-**NOT component state**:
-- Branch tree data → Global state (Valtio)
-- Current branch ID → Global state (Valtio)
-
-**Interaction Patterns Used**:
-- Dropdown Workflow (see Interaction Patterns section)
-
-**Accessibility Requirements**:
-- [x] Keyboard navigation (Arrow keys to navigate tree, Enter to select)
-- [x] ARIA labels ("Branch selector", "Current branch", "Select branch")
-- [x] Focus management (trap focus in dropdown when open)
-- [x] Screen reader support (tree structure announced)
+**Accessibility**: See shared checklist below
 
 ---
 
-**`ContextPanel.tsx`** - Multi-Section Context Display
+**`Message.tsx`** - Individual Message Bubble
 
-**Location**: `packages/ui/src/features/ai-agent-system/ContextPanel.tsx` (created during design)
+**Location**: `packages/ui/src/features/ai-agent-system/Message.tsx`
 
-**Purpose**: Show what context AI sees, organized into section-level collapsible sections with horizontal widget layout for each context type.
+**Purpose**: Display single message with role-specific styling and markdown rendering
 
-**Reusability**: Feature-specific (1 feature)
+**Reusability**: Feature-specific (used in MessageStream only)
 
-**Rationale**: Complex multi-section layout specific to context assembly feature with custom widget display per context type.
+**Props**: `{ message: Message, isStreaming: bool, className?: string }`
 
-**Props Interface**:
+**States**: Default (complete message), Streaming (incremental content), Error (failed message)
 
-```typescript
-interface ContextPanelProps {
-  // Context data (each section contains multiple items)
-  explicitContext: ContextReference[];
-  frequentlyUsed: ContextReference[];
-  semanticMatches: ContextReference[];
-  branchContext: {
-    parentSummary: string;
-    inheritedFiles: ContextReference[];
-  };
-  artifacts: ContextReference[];
-  excludedItems: ContextReference[];
+**Component UI State**: None (stateless presentation)
 
-  // UI state
-  expandedSections: string[]; // Section IDs that are expanded
+**Interaction Patterns**: None (display only)
 
-  // Callbacks
-  onToggleSection: (sectionId: string) => void;
-  onFileClick: (fileId: string) => void;
-  onAddToExplicit: (itemId: string) => void;
-  onRePrime: (itemId: string) => void;
-  onDismissMatch: (fileId: string) => void;
-
-  // Styling
-  className?: string;
-}
-```
-
-**Example Usage**:
-
-```typescript
-<ContextPanel
-  explicitContext={explicitFiles}
-  frequentlyUsed={frequentFiles}
-  semanticMatches={semanticFiles}
-  branchContext={{ parentSummary, inheritedFiles }}
-  artifacts={artifactFiles}
-  excludedItems={excludedFiles}
-  expandedSections={['explicit', 'semantic']}
-  onToggleSection={handleToggleSection}
-  onFileClick={handleFileClick}
-  onAddToExplicit={handleAddToExplicit}
-  onRePrime={handleRePrime}
-  onDismissMatch={handleDismissMatch}
-/>
-```
-
-**Section Collapse Behavior** (CRITICAL UX PATTERN):
-
-Each section (Explicit context, Semantic matches, Branch context, Artifacts, Excluded) is **collapsible at the SECTION level** - NOT at individual widget level:
-
-**When Section is COLLAPSED** (▶ icon):
-- **All widgets in section are collapsed** to compact inline view
-- **Context types display horizontally** in a single row (all widgets must fit horizontally)
-- **Widget appearance varies by context type** (file icon + filename, document icon + title, thread icon + name)
-- **Information visible through custom tooltips** on hover over collapsed widgets
-- **Tooltip shows**: Full filename, source branch, creation timestamp, relevance score (for semantic matches)
-- **Example collapsed section**:
-  ```
-  ▶ Explicit context (2)
-    [📄 readme.md] [📄 api-guide.md]   (hover shows full metadata)
-  ```
-
-**When Section is EXPANDED** (▼ icon):
-- **All widgets expand** to show more detailed information
-- **Widgets remain horizontal** but take more space (larger cards/pills)
-- **Expanded widget shows**: Full filename, file size, creation date, relevance score, action buttons (view, add to explicit, dismiss)
-- **If more items than visible**: Show first N items + truncation indicator "**+X more**" button
-  - Clicking "+X more" expands to show all items inline
-  - Alternative: Show scroll indicator if horizontal scrolling enabled
-- **Example expanded section**:
-  ```
-  ▼ Explicit context (2)
-    ┌─────────────────┐ ┌─────────────────┐
-    │ 📄 readme.md    │ │ 📄 api-guide.md │
-    │ 2.5 KB          │ │ 8.1 KB          │
-    │ Created 2h ago  │ │ Created 5h ago  │
-    │ [View] [Remove] │ │ [View] [Remove] │
-    └─────────────────┘ └─────────────────┘
-  ```
-
-**Widget Types by Context Type**:
-- **Files** (Explicit, Artifacts): File icon, filename, file size, creation date, [View] [Remove] buttons
-- **Threads** (Branch context): Thread icon, thread title, message count, [View] button
-- **Semantic Matches**: File icon, filename, relevance score badge, source branch pill, [View] [Add to Explicit] [Dismiss] buttons
-- **Excluded Items**: Grayed out file icon, filename, reason (token limit), [Re-prime] button
-
-**States to Design**:
-- Section collapsed (▶ icon, horizontal compact widgets, tooltips on hover)
-- Section expanded (▼ icon, horizontal detailed widgets, action buttons visible)
-- Section with truncation ("+5 more" indicator when expanded but not all items fit)
-- Section empty (show "No items" placeholder)
-- Loading (context assembly in progress, skeleton widgets)
-- Error (context assembly failed, error message)
-- Budget exceeded (warning banner shown above sections)
-
-**Composed From**:
-- `Card` (section containers and expanded widgets)
-- `Badge` (priority tier indicators, relevance scores)
-- `Button` (expand/collapse section header, widget action buttons)
-- `Tooltip` (custom tooltips on collapsed widgets)
-
-**Component UI State** (local, ephemeral):
-- `expandedSections`: string[] - Which sections are expanded (e.g., ['explicit', 'semantic'])
-- `showAllItems`: { [sectionId: string]: boolean } - Whether "+X more" has been clicked to show all items
-
-**Why Component State**: Section expansion and "show all" state are user preferences per session, not persisted across sessions.
-
-**NOT component state**:
-- Context items → Global state (Valtio, from prime context assembly)
-- Priority tiers → Backend calculation, reflected in global state
-
-**Interaction Patterns Used**:
-- Context Management Pattern (see Interaction Patterns section)
-
-**Accessibility Requirements**:
-- [x] Keyboard navigation (Tab through sections, Enter to expand/collapse, Arrow keys to navigate widgets)
-- [x] ARIA labels ("Context panel", "Explicit context section collapsed/expanded", "Expand section")
-- [x] Focus management (focus on newly expanded section's first widget)
-- [x] Screen reader support (section states announced, widget count announced)
-- [x] Tooltip keyboard access (tooltips appear on focus, not just hover)
+**Accessibility**: See shared checklist below
 
 ---
 
-**`MessageStream.tsx`** - Message History with Streaming
+**`ThreadInput.tsx`** - Message Input Field with Send/Stop
 
-**Location**: `packages/ui/src/features/ai-agent-system/MessageStream.tsx` (created during design)
+**Location**: `packages/ui/src/features/ai-agent-system/ThreadInput.tsx`
 
-**Purpose**: Render message history and streaming messages with tool call approvals inline.
+**Purpose**: Text input with character counter, send button (transforms to stop during streaming), autocomplete
 
-**Reusability**: Feature-specific (1 feature)
+**Reusability**: Feature-specific (used in ThreadView only)
 
-**Rationale**: Complex message rendering with inline tool approvals specific to agent system.
+**Props**: `{ messageText: string, isStreaming: bool, characterLimit: number, onSendMessage: (text: string) => void, onCancelRequest: (requestId: string) => void, onChange: (text: string) => void, className?: string }`
 
-**Props Interface**:
+**States**: Default (send button), Typing (character counter), Streaming (stop button), Disabled (loading)
 
-```typescript
-interface MessageStreamProps {
-  // Data
-  messages: Message[];
-  streamingMessage?: StreamingMessage;
+**Component UI State**: `inputValue: string`, `characterCount: number`
 
-  // UI state
-  highlightedMessageId?: string; // For "Go to source" navigation
+**Interaction Patterns**: Streaming Response Pattern
 
-  // Callbacks
-  onApproveToolCall: (toolCallId: string) => void;
-  onRejectToolCall: (toolCallId: string, reason?: string) => void;
-
-  // Styling
-  className?: string;
-}
-```
-
-**Example Usage**:
-
-```typescript
-<MessageStream
-  messages={messages}
-  streamingMessage={streamingData}
-  highlightedMessageId="msg-123"
-  onApproveToolCall={handleApprove}
-  onRejectToolCall={handleReject}
-/>
-```
-
-**States to Design**:
-- Default (messages rendered, scrollable)
-- Streaming (incremental chunks appearing)
-- Empty (no messages, welcome state)
-- Loading (message history loading)
-- Highlighted (message with yellow flash for "Go to source")
-
-**Composed From**:
-- `ToolCallApproval` (inline approval prompts)
-- `Card` (message containers)
-
-**Component UI State** (local, ephemeral):
-- `scrolledToBottom`: boolean - Whether user is at bottom of message stream (for auto-scroll behavior)
-
-**Why Component State**: Scroll position tracking for UX (don't auto-scroll if user scrolled up to read history).
-
-**NOT component state**:
-- Messages → Global state (Valtio)
-- Streaming buffer → Global state (Valtio)
-
-**Interaction Patterns Used**:
-- Streaming Response Pattern (see Interaction Patterns section)
-- Approval Workflow (see Interaction Patterns section)
-
-**Accessibility Requirements**:
-- [x] Keyboard navigation (messages are focusable for screen readers)
-- [x] ARIA labels ("Message from user", "Message from assistant", "Tool approval required")
-- [x] Focus management (scroll to new message, focus on approval prompt when appears)
-- [x] Screen reader announcements (new messages via aria-live)
+**Accessibility**: See shared checklist below
 
 ---
 
-**`ThreadInput.tsx`** - Text Input with Send/Stop Button
+**`ToolCallApproval.tsx`** - Tool Call Approval Prompt
 
-**Location**: `packages/ui/src/features/ai-agent-system/ThreadInput.tsx` (created during design)
+**Location**: `packages/ui/src/features/ai-agent-system/ToolCallApproval.tsx`
 
-**Purpose**: Text input with send/stop button (toggles during streaming), character counter, @-mention autocomplete.
+**Purpose**: Inline approval prompt showing tool call details and preview
 
-**Reusability**: Feature-specific (could be generalized but has @-mention autocomplete and streaming-aware send/stop toggle specific to this feature)
+**Reusability**: Feature-specific (used in MessageStream during streaming)
 
-**Rationale**: Complex autocomplete for files and threads specific to agent system, plus send/stop button toggle during streaming.
+**Props**: `{ toolName: string, toolInput: object, previewContent?: string, isLoading: bool, onApprove: (toolCallId: string) => void, onReject: (toolCallId: string, reason?: string) => void, className?: string }`
 
-**Props Interface**:
+**States**: Pending (awaiting user decision), Approving (spinner on approve), Rejected (rejection reason input), Timeout (10min timeout)
 
-```typescript
-interface ThreadInputProps {
-  // Data
-  messageText: string;
-  characterLimit: number;
-  autocompleteOptions?: AutocompleteOption[]; // Files and threads for @-mention
+**Component UI State**: `rejectionReason: string`
 
-  // UI state
-  isStreaming: boolean; // When true, shows stop button instead of send button
-  showAutocomplete: boolean;
+**Interaction Patterns**: Approval Workflow
 
-  // Callbacks
-  onChange: (text: string) => void;
-  onSendMessage: (text: string) => void;
-  onCancelRequest: (requestId: string) => void; // Called when stop button clicked
-  onAutocompleteSelect: (option: AutocompleteOption) => void;
-
-  // Styling
-  className?: string;
-}
-```
-
-**Example Usage**:
-
-```typescript
-<ThreadInput
-  messageText={text}
-  characterLimit={5000}
-  autocompleteOptions={autocompleteOptions}
-  isStreaming={isStreaming}
-  showAutocomplete={showAutocomplete}
-  onChange={handleChange}
-  onSendMessage={handleSendMessage}
-  onCancelRequest={handleCancelRequest}
-  onAutocompleteSelect={handleAutocompleteSelect}
-/>
-```
-
-**States to Design**:
-- Default (empty input, send button disabled)
-- Typing (text entered, send button enabled)
-- Streaming (agent streaming, input enabled for typing next message, send button → stop button in red)
-- Autocomplete (dropdown showing @-mention options)
-- Error (message send failed, show retry in input area)
-
-**Composed From**:
-- `Input` (text area)
-- `Button` (send/stop button - toggles based on streaming state)
-
-**Component UI State** (local, ephemeral):
-- `inputValue`: string - Current text in input field (can hold draft of next message while streaming)
-- `characterCount`: number - Length of inputValue for display
-- `showAutocomplete`: boolean - Whether @-mention dropdown is visible
-- `autocompleteQuery`: string - Query for filtering autocomplete options
-
-**Why Component State**: UI-only state, not persisted, no other component needs this data. Input value is local until user sends message (then moves to global state). Allows user to draft next message while agent is streaming.
-
-**NOT component state** (defined in arch.md):
-- Messages array → Global state (Valtio)
-- Thread data → Global state (Valtio)
-- Streaming buffer → Global state (Valtio)
-
-**Interaction Patterns Used**:
-- Dropdown Workflow (see Interaction Patterns section - autocomplete)
-
-**Accessibility Requirements**:
-- [x] Keyboard navigation (Tab to send button, Enter to send)
-- [x] ARIA labels ("Message input", "Send message button", "Character count")
-- [x] Focus management (focus on input after send, restore focus after autocomplete select)
-- [x] Screen reader announcements (character limit warning, autocomplete results)
+**Accessibility**: See shared checklist below
 
 ---
 
-**`ToolCallApproval.tsx`** - Inline Approval Prompt
+**`ContextPanel.tsx`** - Context Assembly Visualization
 
-**Location**: `packages/ui/src/features/ai-agent-system/ToolCallApproval.tsx` (created during design)
+**Location**: `packages/ui/src/features/ai-agent-system/ContextPanel.tsx`
 
-**Purpose**: Inline approval prompt during agent streaming for filesystem and thread operations. Shows operation details and preview. Required for ALL agent actions that:
-- Create files, folders, or branches (`create_file`, `create_folder`, `create_branch`)
-- Edit files (`edit_file`, `update_file`)
-- Delete files, folders, or branches (`delete_file`, `delete_folder`, `delete_branch`)
+**Purpose**: Display 6 collapsible sections showing context sent to AI (Explicit, Frequently used, Semantic, Branch, Artifacts, Excluded)
 
-Does NOT appear when user manually performs these operations through UI controls (New File button, New Folder button, file editor, delete button).
+**Reusability**: Feature-specific (used in ThreadView only)
 
-**Reusability**: Feature-specific (1 feature)
+**Props**: `{ primeContext: PrimeContext, onToggleSection: (sectionId: string) => void, onFileClick: (fileId: string) => void, onAddToExplicit: (contextRefId: string) => void, onRemoveFromExplicit: (contextRefId: string) => void, className?: string }`
 
-**Rationale**: Safety mechanism for all agent filesystem/thread operations. Ensures user reviews and approves before agent makes any changes to files, folders, or conversation structure. Manual user actions through UI bypass this entirely (user already controls those actions directly).
+**States**: Collapsed (default for some sections), Expanded (sections showing widgets), Empty (no items in section)
 
-**Props Interface**:
+**Component UI State**: `expandedSections: Set<string>`
 
-```typescript
-interface ToolCallApprovalProps {
-  // Data
-  toolCall: {
-    toolCallId: string;
-    toolName: string; // 'create_file', 'create_folder', 'edit_file', 'delete_file', 'delete_folder', 'create_branch', 'delete_branch'
-    operationType: 'create' | 'edit' | 'delete'; // Operation type for UI display
-    resourceType: 'file' | 'folder' | 'branch'; // Resource being operated on
-    toolInput: {
-      path?: string; // File/folder/branch path
-      content?: string; // File content (for create/edit file)
-      title?: string; // Branch title (for create_branch)
-      diff?: string; // Diff preview (for edit operations)
-      fileCount?: number; // Number of files in folder (for delete_folder)
-      // ... other tool-specific fields
-    };
-    previewContent?: string; // First 10 lines of file content (create) or diff (edit)
-  };
+**Interaction Patterns**: Collapsible Section Pattern, Context Management Pattern
 
-  // UI state
-  isLoading: boolean;
-  isExpanded: boolean; // Preview expanded to full content
-
-  // Callbacks
-  onApprove: (toolCallId: string) => void;
-  onReject: (toolCallId: string, reason?: string) => void;
-  onExpandPreview: () => void;
-
-  // Styling
-  className?: string;
-}
-```
-
-**Example Usage**:
-
-```typescript
-// Create file approval
-<ToolCallApproval
-  toolCall={{
-    toolCallId: '123',
-    toolName: 'create_file',
-    operationType: 'create',
-    resourceType: 'file',
-    toolInput: { path: 'rag-guide.md', content: '# RAG Guide...' },
-    previewContent: '# RAG Guide\n\nBest practices...'
-  }}
-  isLoading={false}
-  isExpanded={false}
-  onApprove={handleApprove}
-  onReject={handleReject}
-  onExpandPreview={handleExpandPreview}
-/>
-
-// Create folder approval
-<ToolCallApproval
-  toolCall={{
-    toolCallId: '124',
-    toolName: 'create_folder',
-    operationType: 'create',
-    resourceType: 'folder',
-    toolInput: { path: 'docs/' }
-  }}
-  // ... other props
-/>
-
-// Edit file approval
-<ToolCallApproval
-  toolCall={{
-    toolCallId: '125',
-    toolName: 'edit_file',
-    operationType: 'edit',
-    resourceType: 'file',
-    toolInput: { path: 'README.md', diff: '- old line\n+ new line' },
-    previewContent: 'Diff preview...'
-  }}
-  // ... other props
-/>
-
-// Delete folder approval
-<ToolCallApproval
-  toolCall={{
-    toolCallId: '126',
-    toolName: 'delete_folder',
-    operationType: 'delete',
-    resourceType: 'folder',
-    toolInput: { path: 'old-experiments/', fileCount: 5 }
-  }}
-  // ... other props
-/>
-```
-
-**States to Design**:
-- Create operation (file/folder/branch path + content preview for files, approve/reject buttons)
-- Edit operation (file path + diff preview, approve/reject buttons)
-- Delete operation (file/folder/branch path + deletion warning, approve/reject buttons with "Are you sure?")
-  - Delete folder shows file count warning: "Delete folder: `old-experiments/` (contains 5 files). Are you sure?"
-- Loading (approval processing, buttons disabled with spinner)
-- Expanded preview (full content/diff shown, collapse button)
-- Rejected (rejection reason input shown, can revise and retry)
-- Timeout warning (countdown shown, 10 minutes remaining)
-
-**Composed From**:
-- `Button` (approve, reject, expand preview)
-- `Input` (rejection reason textarea)
-
-**Component UI State** (local, ephemeral):
-- `isExpanded`: boolean - Whether preview is expanded to show full content
-- `rejectionReason`: string - Text input for rejection reason (if user rejects)
-
-**Why Component State**: Preview expansion is transient UI. Rejection reason is temporary until submitted (then sent to backend).
-
-**NOT component state**:
-- Tool call data → Passed as props from streaming buffer (global state)
-- Approval status → Tracked in backend, reflected in global state
-
-**Interaction Patterns Used**:
-- Approval Workflow (see Interaction Patterns section)
-
-**Accessibility Requirements**:
-- [x] Keyboard navigation (Tab to approve/reject buttons, Enter to confirm)
-- [x] ARIA labels ("Tool approval required", "Approve file creation", "Reject tool call")
-- [x] Focus management (focus on approve button when prompt appears)
-- [x] Screen reader announcements (approval status updates)
+**Accessibility**: See shared checklist below
 
 ---
 
-**`CreateBranchModal.tsx`** - Branch Creation Modal
+**`ContextSection.tsx`** - Collapsible Section in Context Panel
 
-**Location**: `packages/ui/src/features/ai-agent-system/CreateBranchModal.tsx` (created during design)
+**Location**: `packages/ui/src/features/ai-agent-system/ContextSection.tsx`
 
-**Purpose**: Modal for creating new branch with name input and confirmation.
+**Purpose**: Collapsible section header + horizontal widget array container
 
-**Reusability**: Feature-specific (1 feature)
+**Reusability**: Feature-specific (used in ContextPanel only)
 
-**Rationale**: Specific to branching workflow, includes branch-specific validation.
+**Props**: `{ sectionId: string, title: string, itemCount: number, isExpanded: bool, onToggle: () => void, children: ReactNode, className?: string }`
 
-**Props Interface**:
+**States**: Collapsed (chevron down), Expanded (chevron up, children visible)
 
-```typescript
-interface CreateBranchModalProps {
-  // UI state
-  isOpen: boolean;
-  isLoading: boolean;
+**Component UI State**: None (controlled by parent)
 
-  // Data
-  parentBranchTitle: string;
+**Interaction Patterns**: Collapsible Section Pattern
 
-  // Callbacks
-  onClose: () => void;
-  onConfirm: (branchName: string) => void;
-
-  // Styling
-  className?: string;
-}
-```
-
-**Example Usage**:
-
-```typescript
-<CreateBranchModal
-  isOpen={isModalOpen}
-  isLoading={isCreating}
-  parentBranchTitle="Main"
-  onClose={handleCloseModal}
-  onConfirm={handleCreateBranch}
-/>
-```
-
-**States to Design**:
-- Default (input empty, create button disabled)
-- Typing (name entered, create button enabled)
-- Loading (creating branch, showing spinner)
-- Error (validation or network error shown)
-
-**Composed From**:
-- `Modal` (base modal component)
-- `Input` (branch name input)
-- `Button` (create, cancel)
-
-**Component UI State** (local, ephemeral):
-- `branchName`: string - Input value
-- `validationError`: string | null - Validation error message
-
-**Why Component State**: Temporary input value until modal confirms/cancels.
-
-**NOT component state**:
-- Branch tree data → Global state (Valtio)
-
-**Interaction Patterns Used**:
-- Modal Workflow (see Interaction Patterns section)
-
-**Accessibility Requirements**:
-- [x] Keyboard navigation (Tab between input and buttons, Enter to submit)
-- [x] ARIA labels ("Create branch modal", "Branch name input")
-- [x] Focus management (focus on input when modal opens, return to trigger on close)
-- [x] Escape key closes modal
+**Accessibility**: See shared checklist below
 
 ---
 
-**`ConsolidateModal.tsx`** - Consolidation Preview Modal
+**`ContextReference.tsx`** - File/Thread Reference Widget
 
-**Location**: `packages/ui/src/features/ai-agent-system/ConsolidateModal.tsx` (created during design)
+**Location**: `packages/ui/src/features/ai-agent-system/ContextReference.tsx`
 
-**Purpose**: Modal showing branch tree preview, consolidation progress, and document approval.
+**Purpose**: Display file or thread reference as horizontal widget card with metadata and actions
 
-**Reusability**: Feature-specific (1 feature)
+**Reusability**: Feature-specific (used in ContextPanel sections)
 
-**Rationale**: Complex consolidation workflow specific to multi-branch exploration.
+**Props**: `{ contextRef: ContextReference, showActions: bool, onFileClick: (fileId: string) => void, onAddToExplicit?: (contextRefId: string) => void, onRemoveFromExplicit?: (contextRefId: string) => void, onDismiss?: (contextRefId: string) => void, className?: string }`
 
-**Props Interface**:
+**States**: Default (metadata card), Hover (action buttons visible), Loading (action in progress)
 
-```typescript
-interface ConsolidateModalProps {
-  // UI state
-  isOpen: boolean;
-  isLoading: boolean;
-  progress?: {
-    step: string;
-    current: number;
-    total: number;
-  };
+**Component UI State**: None (stateless presentation)
 
-  // Data
-  childBranches: BranchTreeNode[];
-  consolidatedContent?: string;
-  sourceProvenanceMap?: { [sectionId: string]: string };
+**Interaction Patterns**: Context Management Pattern
 
-  // Callbacks
-  onClose: () => void;
-  onConfirm: (branchIds: string[], fileName: string) => void;
-  onApprove: (fileName: string) => void;
-  onReject: () => void;
+**Accessibility**: See shared checklist below
 
-  // Styling
-  className?: string;
-}
-```
+---
 
-**Example Usage**:
+**`BranchActions.tsx`** - Branch Action Buttons
 
-```typescript
-<ConsolidateModal
-  isOpen={isModalOpen}
-  isLoading={isConsolidating}
-  progress={{ step: 'Gathering artifacts', current: 2, total: 5 }}
-  childBranches={childBranchData}
-  onClose={handleCloseModal}
-  onConfirm={handleStartConsolidation}
-  onApprove={handleApproveDocument}
-  onReject={handleRejectDocument}
-/>
-```
+**Location**: `packages/ui/src/features/ai-agent-system/BranchActions.tsx`
 
-**States to Design**:
-- Selection (branch tree with checkboxes, file name input)
-- Progress (progress bar, status updates)
-- Preview (consolidated document preview, approve/reject)
-- Loading (processing, buttons disabled)
-- Error (consolidation failed)
+**Purpose**: Header action buttons (Create Branch, Consolidate, Tree View)
 
-**Composed From**:
-- `Modal` (base modal component)
-- `Button` (consolidate, approve, reject, cancel)
-- `Input` (file name input)
-- `Badge` (provenance badges in preview)
+**Reusability**: Feature-specific (used in ThreadView header)
 
-**Component UI State** (local, ephemeral):
-- `selectedBranches`: string[] - Checked branch IDs
-- `fileName`: string - Output file name
+**Props**: `{ currentBranch: Thread, hasChildren: bool, onCreateBranch: () => void, onConsolidate: () => void, onOpenTreeView: () => void, className?: string }`
 
-**Why Component State**: Temporary selections until modal confirms.
+**States**: Default (all buttons visible), Disabled (consolidate disabled if no children)
 
-**NOT component state**:
-- Branch tree data → Global state (Valtio)
-- Consolidation result → Global state (Valtio)
+**Component UI State**: None (stateless presentation)
 
-**Interaction Patterns Used**:
-- Modal Workflow (see Interaction Patterns section)
-- Streaming Response Pattern (see Interaction Patterns section - preview generation)
+**Interaction Patterns**: None (button group)
 
-**Accessibility Requirements**:
-- [x] Keyboard navigation (Tab through tree, checkboxes, buttons)
-- [x] ARIA labels ("Consolidate modal", "Select branches", "File name input")
-- [x] Focus management (focus on tree when modal opens)
-- [x] Escape key closes modal
+**Accessibility**: See shared checklist below
+
+---
+
+**`CreateBranchModal.tsx`** - Branch Creation Form
+
+**Location**: `packages/ui/src/features/ai-agent-system/CreateBranchModal.tsx`
+
+**Purpose**: Modal form for creating new branch with name input and validation
+
+**Reusability**: Feature-specific (used via BranchActions)
+
+**Props**: `{ isOpen: bool, currentThreadTitle: string, onConfirmCreate: (name: string) => void, onCancel: () => void, isLoading: bool, validationError: string|null, className?: string }`
+
+**States**: Input (entering name), Validating (checking name), Creating (API call), Error (validation fail)
+
+**Component UI State**: `branchName: string`, `characterCount: number`
+
+**Interaction Patterns**: Modal Workflow
+
+**Accessibility**: See shared checklist below
+
+---
+
+**`ProvenanceHeader.tsx`** - File Provenance Metadata
+
+**Location**: `packages/ui/src/features/ai-agent-system/ProvenanceHeader.tsx`
+
+**Purpose**: Display file provenance metadata with "Go to source" link
+
+**Reusability**: Feature-specific (used in FileEditorPanel)
+
+**Props**: `{ provenance: Provenance, onGoToSource: (branchId: string, messageId: string) => void, className?: string }`
+
+**States**: Default (provenance visible), Missing (no provenance for manually created files)
+
+**Component UI State**: None (stateless presentation)
+
+**Interaction Patterns**: Provenance Navigation Pattern
+
+**Accessibility**: See shared checklist below
+
+---
+
+**`BranchNode.tsx`** - Branch Node in Tree View
+
+**Location**: `packages/ui/src/features/ai-agent-system/BranchNode.tsx`
+
+**Purpose**: Visual representation of branch in tree graph
+
+**Reusability**: Feature-specific (used in TreeView)
+
+**Props**: `{ branch: Thread, isCurrent: bool, isHighlighted: bool, onNavigate: (branchId: string) => void, className?: string }`
+
+**States**: Default (normal), Current (highlighted coral), Hovered (tooltip), Highlighted (provenance visualization)
+
+**Component UI State**: None (stateless presentation)
+
+**Interaction Patterns**: Graph Navigation Pattern
+
+**Accessibility**: See shared checklist below
+
+---
+
+**`FileNode.tsx`** - File Node in Tree View
+
+**Location**: `packages/ui/src/features/ai-agent-system/FileNode.tsx`
+
+**Purpose**: Visual representation of file in tree graph with provenance links
+
+**Reusability**: Feature-specific (used in TreeView)
+
+**Props**: `{ file: File, isHighlighted: bool, onHighlightProvenance: (fileId: string) => void, className?: string }`
+
+**States**: Default (normal), Hovered (tooltip), Highlighted (provenance visualization showing connected threads)
+
+**Component UI State**: None (stateless presentation)
+
+**Interaction Patterns**: Graph Navigation Pattern
+
+**Accessibility**: See shared checklist below
+
+---
+
+**`WorkspaceSidebar.tsx`** - Files/Threads Tabs Navigation
+
+**Location**: `packages/ui/src/features/ai-agent-system/WorkspaceSidebar.tsx`
+
+**Purpose**: Left sidebar with tabs for Files and Threads navigation
+
+**Reusability**: Feature-specific (used in workspace layout)
+
+**Props**: `{ activeTab: 'files'|'threads', onTabChange: (tab: 'files'|'threads') => void, files: File[], threads: Thread[], onFileClick: (fileId: string) => void, onThreadClick: (threadId: string) => void, className?: string }`
+
+**States**: Files Tab Active, Threads Tab Active
+
+**Component UI State**: `searchQuery: string` (for filtering files/threads)
+
+**Interaction Patterns**: Tab Navigation Pattern
+
+**Accessibility**: See shared checklist below
+
+---
+
+### Shared Accessibility Checklist
+
+**All components must meet these requirements** (referenced above):
+- [x] **Keyboard navigation**: Tab (focus next), Shift+Tab (focus previous), Enter (activate), Escape (close modal/dropdown), Arrow keys (dropdown/list navigation)
+- [x] **ARIA labels**: `aria-label` for icon buttons, `aria-describedby` for inputs with validation, `role` for custom widgets (e.g., `role="tree"` for branch selector)
+- [x] **Focus management**: Initial focus on primary action (modal open), focus trap for modals (Tab cycles within modal), focus restoration (return to trigger after modal close)
+- [x] **Color contrast**: WCAG AA minimum - 4.5:1 for text (black on white, coral on white), 3:1 for UI components (borders, icons)
+- [x] **Screen reader announcements**: `aria-live="polite"` for non-critical updates (context panel updates), `aria-live="assertive"` for errors (network fail), status messages for streaming ("Agent is responding...")
 
 ---
 
 ### Primitives Used (from @centrid/ui/components)
 
-- `Button` (variants: default, secondary, ghost)
-- `Input` (with validation states)
-- `Card` (for containers)
-- `Badge` (for status indicators)
-- `Modal` (for modals)
-- `Tooltip` (for provenance tooltips)
-- `ErrorBanner` (for error states)
+- **Button** (variants: default, secondary, ghost) - Used in all action buttons
+- **Input** (with validation states) - Used in ThreadInput, CreateBranchModal, ConsolidateModal
+- **Card** - Used for ContextReference widgets, Message bubbles
+- **Badge** - Used for priority tier indicators, provenance badges
+- **Modal/Dialog** - Used for CreateBranchModal, ConsolidateModal
+- **Tooltip** - Used for provenance hover info, branch preview tooltips
+- **ErrorBanner** - Used for error states (network fail, SSE interrupts)
+- **Dropdown** (extended with hierarchical variant) - Used for BranchSelector
+- **Tabs** - Used for WorkspaceSidebar (Files/Threads tabs)
+- **Spinner** - Used for loading states (button spinners, streaming indicators)
 
 ---
 
@@ -1764,201 +1116,127 @@ interface ConsolidateModalProps {
 
 ### Modal Workflow
 
-**Where Used**: Create branch modal, consolidate modal, file editor modal
+**Where Used**: Create Branch, Consolidate, File conflicts (future)
 
-**Behavior**:
+**Brief Description**: User triggers modal → Modal opens with backdrop and focus trap → User interacts (form/confirmation) → User dismisses (Escape/Cancel/Submit) → Modal closes, focus returns to trigger element.
 
-1. User clicks trigger button/link (file reference, "Create Branch" button)
-2. Modal opens with backdrop overlay (desktop: slide from right/top, mobile: full-screen)
-3. Focus trapped inside modal (Tab cycles between modal elements only)
-4. User interacts with modal content (view file, enter branch name, review consolidation)
-5. User dismisses via Escape key, backdrop click, Cancel button, or Submit button
-6. Modal closes (reverse animation), focus returns to trigger element
+**Components**: `Modal`, `ModalHeader`, `ModalBody`, `ModalFooter` (from @centrid/ui), `CreateBranchModal`, `ConsolidateModal`
 
-**Components Involved**:
-- `CreateBranchModal` - Branch creation form
-- `ConsolidateModal` - Consolidation preview and approval
-- `Modal` base component (from `packages/ui/src/components/Modal.tsx`) - Shared modal primitives
+**State Changes**: Hidden → Visible (backdrop blocks background, focus trapped inside modal) → Hidden (focus restored to trigger)
 
-**State Changes**:
-- **Before**: Modal hidden (`isOpen: false`), trigger visible
-- **During**: Modal visible (`isOpen: true`), backdrop blocks background interaction, focus inside modal
-- **After**: Modal hidden, focus restored to trigger element
-
-**Keyboard Shortcuts**:
-- `Escape` - Close modal without saving
-- `Enter` - Submit form (if single input field like branch name)
-- `Tab` - Navigate between focusable elements (trapped in modal)
-- `Shift+Tab` - Navigate backwards
-
----
-
-### Dropdown Workflow
-
-**Where Used**: Branch selector dropdown, @-mention autocomplete dropdown
-
-**Behavior**:
-
-1. User clicks dropdown trigger (branch selector button, types "@" in input)
-2. Dropdown opens below trigger with smooth slide-down animation (200ms)
-3. User navigates options via mouse hover or keyboard arrow keys
-4. User selects option via click or Enter key
-5. Dropdown closes immediately, selected action executes
-
-**Components Involved**:
-- `BranchSelector` - Branch navigation dropdown
-- `ChatInput` → autocomplete dropdown - File/thread @-mention
-
-**State Changes**:
-- **Before**: Dropdown hidden, trigger shows current selection
-- **During**: Dropdown open, options highlighted on hover/keyboard nav
-- **After**: Dropdown hidden, selection applied (navigation or @-mention inserted)
-
-**Keyboard Shortcuts**:
-- `ArrowDown` - Next option
-- `ArrowUp` - Previous option
-- `Enter` - Select highlighted option
-- `Escape` - Close dropdown without selection
+**Keyboard**: `Escape` (close modal), `Enter` (submit if single input field), `Tab` (navigate between focusable elements, trapped in modal)
 
 ---
 
 ### Streaming Response Pattern
 
-**Where Used**: Agent message streaming in chat interface, consolidation document generation
+**Where Used**: Agent message streaming, Consolidation document generation
 
-**Behavior**:
+**Brief Description**: User sends message → Loading indicator appears → SSE connection opens → Text chunks arrive incrementally → UI renders chunks as they arrive → Tool calls inline during stream → Stream completes → Final message rendered.
 
-1. User sends message, loading indicator appears
-2. SSE connection opens, "Building context..." status shows
-3. Agent response starts streaming (text chunks appear incrementally)
-4. Mixed content: text → tool call approval → text → tool call → text
-5. Stream pauses at tool approval prompts, waits for user action (user can still type, can't send new message)
-6. Stream resumes after approval/rejection
-7. Stream completes, SSE connection closes, stop button → send button
+**Components**: `ThreadInput` (Send→Stop button), `MessageStream` (incremental render), `Message` (markdown rendering), `ToolCallApproval` (inline during stream)
 
-**Components Involved**:
-- `ThreadInput` - Input stays enabled, send button → stop button during streaming
-- `MessageStream` - Renders incremental chunks
-- `ToolCallApproval` - Inline approval prompts
-- `ContextPanel` - Updates when context ready
+**State Changes**: Idle (send button) → Streaming (stop button, incremental content) → Paused (approval prompt) → Streaming (resume) → Complete (send button)
 
-**State Changes**:
-- **Before**: Input enabled, send button enabled (if text entered)
-- **During**: Input stays enabled (user can type next message), send button → stop button (red), `streamingMessage` buffer updates, tool approvals pause stream
-- **After**: Stop button → send button, streaming buffer moved to final message, user can send queued message
-
-**Visual Feedback**:
-- Loading indicator ("Agent is thinking...")
-- Text chunks fade in as they arrive (100ms fade)
-- Tool approval prompts slide in (200ms)
-- Stream pause status ("Waiting for approval...")
-
----
-
-### Context Management Pattern
-
-**Where Used**: Context panel sections (add to explicit, re-prime, dismiss, section collapse/expand)
-
-**Behavior**:
-
-1. **Section Collapse/Expand**: User clicks section header to toggle between collapsed (horizontal compact widgets with tooltips) and expanded (horizontal detailed widgets with action buttons)
-2. **Widget Interaction**: User hovers over widget (reveals tooltip if collapsed, reveals actions if expanded) or clicks action button
-3. **Widget Movement**: Widget moves between sections (semantic → explicit, excluded → explicit)
-4. **Priority Update**: Priority tier updates (visual indicator changes color/border)
-5. **Context Refresh**: Next agent request includes updated context with new priorities
-
-**Components Involved**:
-- `ContextPanel` - Main container with section-level collapse state
-- `ContextReference` - Individual widgets with horizontal layout and custom tooltips
-- Backend context assembly service (recalculates priorities)
-
-**State Changes**:
-- **Section Collapsed**: Widgets show as compact pills with icon + filename, info via tooltip on hover
-- **Section Expanded**: Widgets show as detailed cards with metadata and action buttons
-- **Widget Movement**: Widget animates vertically from source section to target section (500ms), target section auto-expands
-
-**Visual Feedback**:
-- Section collapse/expand animation (200ms height transition)
-- Horizontal widget layout in both collapsed and expanded states (never vertical)
-- Smooth slide animation when widget moves between sections (500ms)
-- Priority badge updates (color changes: blue → coral for explicit)
-- "+X more" truncation indicator when expanded section has >5 widgets
-- Custom tooltips on collapsed widgets (fade in 200ms)
-- Target section auto-expands when widget moves into it
-
----
-
-### Panel Slide Pattern
-
-**Where Used**: File editor panel (right panel in 3-panel workspace)
-
-**Behavior**:
-
-1. User clicks file reference or file in tree
-2. Right panel slides in from right (300ms animation)
-3. Thread interface shrinks from 80% to 50% width (smooth transition)
-4. File content and provenance header render
-5. User can close panel via X button or Escape key
-6. Panel slides out to right (300ms), thread interface expands back to 80%
-
-**Components Involved**:
-- `FileEditorPanel` - Sliding panel with provenance (right side)
-- `ThreadView` - Shrinks/expands responsively (remains visible in center)
-
-**State Changes**:
-- **Before**: Panel hidden (0% width), thread interface at 80%
-- **During**: Panel slides in from right to 30%, thread interface shrinks to 50%
-- **After**: Panel visible at 30%, thread interface at 50%
-- **On close**: Panel slides out to 0% (right), thread interface expands to 80%
-
-**Visual Feedback**:
-- Smooth width transitions (300ms cubic-bezier easing)
-- Provenance header fades in with panel
-- Focus moves to close button when panel opens
-- Thread interface remains interactive during file viewing (no backdrop overlay)
+**Keyboard**: `Escape` (cancel request, close SSE stream)
 
 ---
 
 ### Approval Workflow
 
-**Where Used**: ALL agent filesystem and thread operations (create, edit, delete)
+**Where Used**: Agent tool calls (file operations, branch creation)
 
-**When Approval Required**:
-- ✅ **Agent create operations**: Agent creates files, folders, or branches via tool calls (`create_file`, `create_folder`, `create_branch`)
-- ✅ **Agent edit operations**: Agent modifies files via tool calls (`edit_file`, `update_file`)
-- ✅ **Agent delete operations**: Agent deletes files, folders, or branches via tool calls (`delete_file`, `delete_folder`, `delete_branch`)
-- ❌ **Manual UI actions**: User creates/edits/deletes directly through UI controls (New File button, New Folder button, file editor, delete button) → No agent involved, no approval needed
+**Brief Description**: Agent requests tool approval → Stream pauses → Inline approval prompt shows operation details and preview → User approves/rejects → If approved: tool executes, stream resumes. If rejected: agent receives rejection context, revises plan, stream resumes with new strategy.
 
-**Behavior**:
+**Components**: `ToolCallApproval`, `PreviewSection`, `ApprovalActions` (Approve/Reject buttons)
 
-1. Agent requests tool approval during streaming (any filesystem/thread operation)
-2. Stream pauses, approval prompt appears inline in message showing operation details
-3. User reviews operation:
-   - **Create file**: File path + content preview
-   - **Create folder**: Folder path (e.g., `docs/`)
-   - **Edit file**: File path + diff preview showing changes
-   - **Delete file**: File path + deletion confirmation warning
-   - **Delete folder**: Folder path + file count warning (e.g., "contains 5 files")
-4. User clicks Approve or Reject
-5. If Reject: Optional reason input shown (agent will revise or skip operation)
-6. Approval/rejection sent to backend
-7. Stream resumes with agent's response to approval status
+**State Changes**: Streaming → Paused (approval prompt) → Approved (tool executing) → Streaming (resume) OR Rejected (agent revising) → Streaming (resume with new plan)
 
-**Components Involved**:
-- `ToolCallApproval` - Inline approval prompt
-- `MessageStream` - Hosts approval prompts
+**Keyboard**: `Tab` (navigate between Approve/Reject buttons), `Enter` (trigger focused button)
 
-**State Changes**:
-- **Before**: Streaming active
-- **During**: Stream paused, approval prompt visible, buttons enabled
-- **After Approve**: Stream resumes, tool executes, result shown
-- **After Reject**: Stream resumes, agent revises plan
+---
 
-**Visual Feedback**:
-- Approval prompt slides in (200ms)
-- Buttons show loading state during processing
-- Prompt collapses after approval/rejection (500ms)
-- Stream continuation indicator
+### Context Management Pattern
+
+**Where Used**: Context panel (explicit files, semantic matches, excluded items)
+
+**Brief Description**: Context panel shows collapsible sections with horizontal widget arrays → User expands section to see widgets → Widget hover shows action buttons (View, Add to Explicit, Remove, Dismiss) → User clicks action → Widget animates to new section or removed → Next agent request uses updated context.
+
+**Components**: `ContextPanel`, `ContextSection`, `ContextReference` (widget)
+
+**State Changes**: Collapsed (section hidden) → Expanded (widgets visible, horizontal scroll) → Action (widget animates to new section or removed)
+
+**Keyboard**: `Enter` (expand/collapse section header), `Tab` (navigate between widgets), `Enter` (activate widget action)
+
+---
+
+### Dropdown Navigation Pattern
+
+**Where Used**: Branch selector (hierarchical tree)
+
+**Brief Description**: User clicks dropdown trigger → Dropdown opens showing hierarchical list with indentation for nesting → User hovers over branch to see preview tooltip → User clicks branch → Navigate to selected branch, dropdown closes.
+
+**Components**: `BranchSelector`, `BranchSelectorDropdown`, `BranchSelectorItem`
+
+**State Changes**: Closed (chevron down) → Open (chevron up, dropdown visible) → Hovered (branch preview tooltip) → Navigated (dropdown closes, URL updates)
+
+**Keyboard**: `Enter`/`Space` (open dropdown), `Arrow Up`/`Down` (navigate items), `Enter` (select branch), `Escape` (close dropdown)
+
+---
+
+### Sliding Panel Pattern
+
+**Where Used**: File editor panel (desktop)
+
+**Brief Description**: User clicks file reference → Right panel slides in from right edge (300ms) → Thread interface shrinks from 80% to 50% width → Panel shows file content with provenance → User clicks close (X) → Panel slides out, thread expands back to 80%.
+
+**Components**: `FileEditorPanel`, `ProvenanceHeader`, `EditorContent`
+
+**State Changes**: Closed (0% width, hidden) → Opening (animating slide-in) → Open (40% width, visible) → Closing (animating slide-out) → Closed
+
+**Keyboard**: `Escape` (close panel), `Tab` (navigate within panel content)
+
+---
+
+### Collapsible Section Pattern
+
+**Where Used**: Context panel sections (Explicit, Semantic, Branch, Artifacts, Excluded)
+
+**Brief Description**: Section header shows title + item count + chevron icon → User clicks header → Section expands/collapses with height animation (300ms) → Chevron icon rotates → Expanded state shows horizontal widget array with scroll if >5 widgets.
+
+**Components**: `ContextSection`, `ContextReference` (widgets)
+
+**State Changes**: Collapsed (chevron down, height 40px) → Expanded (chevron up, height auto, widgets visible)
+
+**Keyboard**: `Enter`/`Space` (toggle section), `Tab` (navigate to first widget when expanded)
+
+---
+
+### Provenance Navigation Pattern
+
+**Where Used**: File editor "Go to source" link, File provenance tooltips
+
+**Brief Description**: User clicks "Go to source" link in provenance header → Navigate to source branch (`/thread/:sourceBranchId`) → Scroll to message where file was created → Highlight message briefly (yellow flash 2s fade) → File editor panel closes.
+
+**Components**: `ProvenanceHeader`, `GoToSourceLink`, `MessageStream` (scroll + highlight)
+
+**State Changes**: File editor open → Navigation triggered → URL changes → Message highlighted → File editor closes
+
+**Keyboard**: `Enter` (activate "Go to source" link when focused)
+
+---
+
+### Graph Navigation Pattern
+
+**Where Used**: Visual tree view (Phase 3)
+
+**Brief Description**: User opens tree view → Interactive graph shows branch nodes and file nodes → User hovers over node to see tooltip → User clicks branch node → Navigate to thread, tree view stays open → User clicks file node → Highlights all threads that referenced this file (provenance visualization).
+
+**Components**: `TreeView`, `BranchNode`, `FileNode`, `TreeViewControls`
+
+**State Changes**: Tree view closed → Open (graph renders) → Hovered (node tooltip) → Navigated (URL updates, highlight moves) OR Provenance highlighted (related threads glow)
+
+**Keyboard**: `Tab` (navigate between nodes), `Enter` (activate node), `Escape` (close tree view), `+`/`-` (zoom in/out), Arrow keys (pan canvas)
 
 ---
 
@@ -1966,135 +1244,97 @@ interface ConsolidateModalProps {
 
 ### Completeness Check
 
-- [x] All screens from arch.md have detailed flows (3-panel workspace with 4 primary flows)
-- [x] All P1/P2/P3 user stories from spec.md covered (US-1 branching, US-2 provenance, US-3 cross-branch discovery, US-4 consolidation)
-- [x] All acceptance criteria from spec.md mapped to flows (AC-001 to AC-004 covered)
-- [x] All components have prop specifications (10 components: WorkspaceSidebar, FileEditorPanel, ThreadView, BranchSelector, ContextPanel, MessageStream, ThreadInput, ToolCallApproval, CreateBranchModal, ConsolidateModal)
-- [x] All error scenarios documented with test data (network errors, validation, timeouts, context overflow, file deletion race conditions)
-- [x] Each screen has layout diagrams (desktop 3-panel adaptive + mobile vertical stack, inline with screens)
-- [x] Interaction patterns documented (6 patterns: modal, dropdown, streaming, context management, panel slide, approval - separate section, referenced from screens/components)
-- [x] Each component has UI state specified (inline with components, not global/URL state)
-- [x] Interaction patterns referenced from screens and components where used
+- [x] All screens from arch.md have detailed flows (ALL priorities: Chat Interface P1, Branch Selector P1, Context Panel P1, File Editor P2, Approval Modal P2, Tree View P5)
+- [x] All user stories from spec.md covered (US-1 Branching P1, US-2 Provenance P2, US-3 Cross-Branch Discovery P3, US-4 Consolidation P4, US-5 Provenance Transparency P5)
+- [x] All acceptance criteria from spec.md mapped to flows (AC-001 Create Branch, AC-002 Send Message, AC-003 Semantic Search, AC-004 Consolidate)
+- [x] All components have prop specifications (18 components with inline TypeScript props)
+- [x] All error scenarios documented with test data and recovery paths (Network fail, SSE interrupts, Approval timeout, Context overflow, Branch name validation, File deleted, Semantic search no results, Tree view render timeout)
+- [x] Each screen has layout dimensions table (Desktop/Mobile columns with specific pixel values)
+- [x] Interaction patterns documented (8 patterns: Modal Workflow, Streaming Response, Approval Workflow, Context Management, Dropdown Navigation, Sliding Panel, Collapsible Section, Provenance Navigation, Graph Navigation)
+- [x] Component UI state specified (not global/URL state - e.g., isModalOpen, selectedId, inputValue, isContextPanelExpanded)
 
 ### Component Architecture Check
 
-- [x] Component hierarchy matches arch.md (ThreadView → Header, MessageStream, ContextPanel, ThreadInput)
-- [x] Props follow data-in/callbacks-out pattern (all components use this pattern)
-- [x] No business logic in presentational component specs (only UI concerns specified)
-- [x] Component locations specified (all in `packages/ui/src/features/ai-agent-system/`)
-- [x] Reusable components identified and imported (MarkdownEditor reused in FileEditorPanel)
-- [x] Reusability assessment complete (all marked feature-specific due to complexity)
+- [x] Component hierarchy matches arch.md (ChatController/ChatView → MessageStream → Message, FileEditorController → FileEditorView → ProvenanceHeader + EditorContent)
+- [x] Props follow data-in/callbacks-out pattern (all props interfaces show data props + callback props `on[Action]`)
+- [x] Component locations specified (all feature-specific components → `packages/ui/src/features/ai-agent-system/`)
+- [x] Reusability assessment complete (18 components categorized as feature-specific, 9 primitives reused from @centrid/ui)
+- [x] Shared accessibility checklist referenced (all components reference checklist: keyboard nav, ARIA, focus management, color contrast, screen reader)
 
 ### Flow Verification
 
-- [x] Each flow maps to acceptance criteria from spec.md (AC-001, AC-002, AC-003, AC-004 covered)
-- [x] Error scenarios have recovery paths (retry buttons, fallback states, graceful degradation)
-- [x] Success criteria defined for each flow (from SC-001, SC-006, SC-007, SC-009, SC-015)
-- [x] Navigation paths complete (entry + exit points documented for each screen)
-- [x] Keyboard navigation specified for all interactive patterns
+- [x] Each flow maps to acceptance criteria from spec.md (US-1→AC-001 Create Branch, US-2→AC-002 Send Message, US-3→AC-003 Semantic Search, US-4→AC-004 Consolidate, US-5→AC-001 Provenance View)
+- [x] Error scenarios have recovery paths (all error tables include "Recovery" column with specific user actions or automatic retries)
+- [x] Success criteria defined for each flow (from spec.md SC-001 to SC-017: adoption metrics, performance targets, quality thresholds)
+- [x] Navigation paths complete (entry + exit points for all 6 screens)
+- [x] Keyboard navigation specified for all interactive patterns (8 patterns include Keyboard section with specific key bindings)
 
 ### Design System Alignment
 
-- [x] Uses existing components where possible (Modal, ErrorBanner, Button, Input, Card, Badge, Tooltip from `packages/ui/src/components/`)
-- [x] New components justified (complex AI agent system features, not duplicating existing)
-- [x] Spacing uses design system tokens (gap-4, p-6, mb-8 using 8px grid)
-- [x] Interaction patterns align with existing (modal workflow, dropdown workflow familiar)
+- [x] Checked existing components in `packages/ui/src/components/` (Button, Input, Card, Badge, Modal, Tooltip, ErrorBanner, Dropdown, Tabs all reused)
+- [x] New components justified (18 feature-specific components for AI agent system, not duplicating existing)
+- [x] Spacing uses design system tokens (8px grid system: gap-3 12px, gap-4 16px, gap-6 24px, mb-6 24px, mb-8 32px, p-4 16px, p-6 24px)
+- [x] Interaction patterns align with existing patterns (Modal Workflow, Dropdown Navigation follow standard patterns, new patterns documented for feature-specific interactions)
 
 ---
 
 ## Notes
 
-**Open Questions**: None - all UX decisions resolved during flow creation.
+**Open Questions**: None - all UX decisions resolved through spec.md clarifications (Session 2025-10-26: summary generation, branch limits, file structure metadata, approval timeout, context exclusion UI, memory chunking, etc.)
 
 **Assumptions**:
-- Users understand branching metaphor (tree structure with parent-child relationships)
-- Users comfortable with @-mention syntax for file/thread references
-- Provenance transparency builds trust (not overwhelming with metadata)
-- Context panel positioned below messages (not above) for optimal UX during composition
+- Users will understand hierarchical branch selector tree structure within 5 minutes (progressive disclosure)
+- Context panel positioned below messages (not above) keeps context visible while typing without obscuring chat history
+- Horizontal widget layout with scrolling scales better than vertical stacking for 10+ context items
+- Semantic search relevance scores (0.0-1.0) are meaningful to users when displayed as badges
+- "Go to source" provenance navigation is discoverable via clickable links in provenance header
+- Tool approval timeout (10 minutes) is sufficient for users to review and decide on agent actions
 
 **Deferred**:
-- Visual Tree View (Phase 3, desktop only) - complex graph visualization
-- Advanced semantic filtering (Phase 2+ - relevance tuning UI)
-- Collaborative editing (Phase 4+ - multi-user real-time editing)
+- **Phase 2**: Thread embeddings (searchable branches by semantic similarity), Advanced semantic search (thread history search, concept search), User profile learning (style, preferences), Interaction tracking (copy rate, regenerate rate)
+- **Phase 3**: Visual tree view (interactive graph), Divergence penalty (reduce sibling pollution), Concept extraction (NER, topic modeling)
+- **Phase 4+**: Templates (save exploration patterns), Collaboration (multi-user), Marketplace (community templates), Temporal reasoning, Meta-learning
 
-**Design System Gaps**: None - existing primitives (Modal, Button, Input, Card, ErrorBanner, Badge, Tooltip) sufficient for feature needs.
-
----
-
-## Component Flow Through Workflow
-
-### 1. UX Phase (Current - `/speckit.ux`) ✅
-
-**Deliverables**:
-- Component prop specifications complete (10 components with TypeScript interfaces)
-- Component reusability assessment done (all feature-specific due to complexity)
-- Component placement decisions documented (all in `packages/ui/src/features/ai-agent-system/`)
-
-**NOT created**: No actual component files yet, only specifications
-
-### 2. Design Phase (`/speckit.design`) - Next Step
-
-**Presentational Components to Create**:
-
-- **Feature-specific** (all in `packages/ui/src/features/ai-agent-system/`):
-  - `WorkspaceSidebar.tsx` - Left sidebar with Files/Threads tabs
-  - `FileEditorPanel.tsx` - Right panel with provenance header + file editor (closeable)
-  - `ThreadView.tsx` - Center panel thread interface composition (always visible)
-  - `BranchSelector.tsx` - Hierarchical branch dropdown (in thread header)
-  - `ContextPanel.tsx` - Multi-section context display with horizontal widgets (in thread panel)
-  - `MessageStream.tsx` - Message history with streaming (in thread panel)
-  - `ThreadInput.tsx` - Input with @-mention autocomplete + send/stop toggle (in thread panel)
-  - `ToolCallApproval.tsx` - Inline approval prompt (in message stream)
-  - `CreateBranchModal.tsx` - Branch creation modal
-  - `ConsolidateModal.tsx` - Consolidation preview modal
-  - All exported from `packages/ui/src/features/ai-agent-system/index.ts`
-
-**Mock Containers to Create** (for visual showcase only):
-- **Location**: `apps/design-system/components/ai-agent-system/`
-- **Purpose**: Wrap presentational components with hardcoded sample data for design iteration
-- **NOT used in production**: These are ONLY for the design-system app
-
-### 3. Implementation Phase (`/speckit.tasks` → `/speckit.implement`) - Final Step
-
-**Production Containers to Create**:
-- **Location**: `apps/web/src/components/ai-agent-system/`
-- **Pattern**: Import presentational components from `packages/ui/features/ai-agent-system`, add business logic
-- **Example**:
-  ```typescript
-  import { ThreadView } from '@centrid/ui/features/ai-agent-system';
-  import { useThreadState } from '@/hooks/useThreadState';
-
-  export function ThreadController() {
-    const { thread, messages, primeContext, isLoading, isStreaming, handleSendMessage, handleCancelRequest, ... } = useThreadState();
-
-    return (
-      <ThreadView
-        currentThread={thread}
-        messages={messages}
-        primeContext={primeContext}
-        isLoading={isLoading}
-        isStreaming={isStreaming}
-        onSendMessage={handleSendMessage}
-        onCancelRequest={handleCancelRequest}
-        // ... other callbacks
-      />
-    );
-  }
-  ```
-
-**CRITICAL**: Implementation tasks should **IMPORT** presentational components, **NOT rebuild them**.
+**Design System Gaps**: None - all primitives available in @centrid/ui/components (Button, Input, Card, Badge, Modal, Tooltip, ErrorBanner, Dropdown, Tabs, Spinner). Dropdown extended with hierarchical tree variant (BranchSelector) but uses existing Dropdown primitive as base.
 
 ---
 
-**UX Specification Complete**: 2025-10-26 (Updated with new template structure + refined for context widgets, thread terminology, semantic search timing, file editor reusability, and approval scoping)
-**Layout**: Adaptive 3-panel workspace - Left sidebar (Files/Threads tabs) + Center panel (Thread interface, always visible) + Right panel (File editor with existing MarkdownEditor, closeable)
-**Components**: 10 presentational components specified (WorkspaceSidebar, FileEditorPanel wrapper, ThreadView, BranchSelector, ContextPanel, MessageStream, ThreadInput, ToolCallApproval, CreateBranchModal, ConsolidateModal)
-**Key UX Patterns**:
-- Context panel with section-level collapse, horizontal widgets, custom tooltips
-- Thread input with send/stop button toggle during streaming (user can type next message while agent responds)
-- File editor on right (closeable, uses existing MarkdownEditor), thread interface always visible in center
-- Cost optimization: Stop button cancels SSE connection anytime
-- Semantic search: Runs during context assembly (post-message-send), not on typing. Relationships updated after agent completion via real-time subscriptions (UI updates automatically).
-- Tool approvals: ALL agent filesystem/thread operations (create/edit/delete files/folders/branches) require approval. Manual UI actions (clicking "New File"/"New Folder" button, using file editor, clicking delete) execute immediately without approval.
-**Ready for Design Phase**: Yes - All flows, components, interactions, and layouts documented
-**Next Command**: `/speckit.design` to create pixel-perfect visual designs using these UX flows
+**UX Specification Complete**: 2025-10-26
+
+**Summary**:
+- **6 screens** specified with detailed flows (Chat Interface, Branch Selector, Context Panel, File Editor, Approval Modal, Tree View)
+- **5 user stories** covered (US-1 to US-5, all priorities P1-P5)
+- **18 components** specified with inline props and states
+- **8 interaction patterns** documented (condensed format)
+- **Layout dimensions** provided for all screens (Desktop 1440px+ / Mobile 375px)
+- **Error scenarios** with recovery paths (8 error types across flows)
+- **Accessibility** requirements shared checklist for all components
+
+**Next Steps**:
+1. ✅ **UX specification complete** - ux.md ready for design handoff
+2. **Run `/speckit.design`** - Create high-fidelity visual designs in `apps/design-system`
+3. **Screenshot with Playwright MCP** - Capture mobile (375×812) + desktop (1440×900) screenshots
+4. **Iterate on designs** - Get feedback, adjust visuals, re-screenshot
+5. **Approve designs** - Finalize component library in `packages/ui/src/features/ai-agent-system/`
+6. **Run `/speckit.tasks`** - Generate implementation task list
+7. **Run `/speckit.implement`** - Execute implementation
+
+**Design Handoff Context**:
+- Condensed table format reduces verbosity while maintaining completeness
+- Component prop specifications inline (TypeScript signature format)
+- Error scenarios table for quick reference during design
+- Layout dimensions table for responsive design implementation
+- Interaction patterns condensed (no verbose step-by-step, reference from flows)
+- Accessibility checklist shared (not duplicated per component)
+
+**Architecture Alignment**:
+- All components match arch.md hierarchy (ChatController/ChatView → MessageStream → Message, etc.)
+- All user stories from spec.md mapped to flows (US-1 to US-5)
+- All acceptance criteria from spec.md covered (AC-001 to AC-004)
+- All error scenarios from spec.md Edge Cases section addressed
+- All success criteria from spec.md tracked (SC-001 to SC-017)
+
+---
+
+**Authored by**: Claude Code (Sonnet 4.5)
+**Reviewed by**: Aligned with spec.md (2025-10-26), arch.md (2025-10-26), data-model.md (2025-10-26)
