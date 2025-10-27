@@ -227,6 +227,125 @@
 
 **Layout Type**: Adaptive 3-panel workspace
 
+**ASCII Layout Diagram (Desktop 1440px+ with file open)**:
+
+```
+┌──────────────┬────────────────────────────────────────┬──────────────────────┐
+│              │                                        │                      │
+│ WorkspaceSid │ ThreadView (50%)                      │ FileEditorPanel      │
+│ ebar (20%)   │                                        │ (30%)                │
+│              │ ┌────────────────────────────────────┐ │                      │
+│ Threads │Files│ │ BranchSelector (dropdown)         │ │ ┌──────────────────┐ │
+│ ─────────────││ └────────────────────────────────────┘ │ │ Provenance       │ │
+│ [active]     ││                                        │ │ Header           │ │
+│              ││ MessageStream                          │ └──────────────────┘ │
+│ • Main       ││   [U] Message                          │                      │
+│   2 artifacts││   [A] Response                         │ Editor Content       │
+│ • RAG Deep   ││                                        │ (Markdown)           │
+│   Dive       ││ ContextPanel                           │                      │
+│   5 artifacts││ ┌──────────────────────────────────┐   │                      │
+│ • Orchestr.. ││ │▼ EXPLICIT (3)                    │   │                      │
+│   3 artifacts││ │ ┌────┐ ┌────┐ ┌────┐ >          │   │                      │
+│              ││ │ │doc1│ │doc2│ │thr1│            │   │ [X] Close            │
+│              ││ │ └────┘ └────┘ └────┘            │   │                      │
+│              ││ └──────────────────────────────────┘   │                      │
+│              ││ ▶ SEMANTIC (2) [match1] [match2]       │                      │
+│              ││                                        │                      │
+│              ││ ThreadInput                            │                      │
+│              ││ [Ask question...            ] [Send]   │                      │
+└──────────────┴────────────────────────────────────────┴──────────────────────┘
+
+Legend:
+  ▼ = Section expanded (widgets show full cards 80px height)
+  ▶ = Section collapsed (widgets show compact pills 32px height inline)
+  ┌────┐ = Expanded widget card with metadata
+  [match1] = Collapsed widget pill with tooltip
+  > = Horizontal scroll indicator (+X more)
+```
+
+**ASCII Layout Diagram (Desktop 1440px+ without file open)**:
+
+```
+┌──────────────┬────────────────────────────────────────────────────────────┐
+│              │                                                            │
+│ WorkspaceSid │ ThreadView (80%)                                          │
+│ ebar (20%)   │                                                            │
+│              │ ┌────────────────────────────────────────────────────────┐ │
+│ Threads │Files│ │ BranchSelector (dropdown)                             │ │
+│ ─────────────││ └────────────────────────────────────────────────────────┘ │
+│ [active]     ││                                                            │
+│              ││ MessageStream (expanded)                                   │
+│ • Main       ││   [U] Message                                              │
+│   2 artifacts││   [A] Response                                             │
+│ • RAG Deep   ││   [U] Message                                              │
+│   Dive       ││   [A] Response with tool call                              │
+│   5 artifacts││                                                            │
+│ • Orchestr.. ││ ContextPanel                                               │
+│   3 artifacts││ ┌────────────────────────────────────────────────────────┐ │
+│              ││ │▼ EXPLICIT (3)                                          │ │
+│              ││ │ ┌──────┐ ┌──────┐ ┌──────┐                            │ │
+│              ││ │ │doc1  │ │doc2  │ │thread│                            │ │
+│              ││ │ │coral │ │coral │ │coral │                            │ │
+│              ││ │ └──────┘ └──────┘ └──────┘                            │ │
+│              ││ └────────────────────────────────────────────────────────┘ │
+│              ││ ▶ SEMANTIC (2) [📄 match1·95%] [📄 match2·87%]             │
+│              ││ ▶ ARTIFACTS (1) [📋 output.md]                              │
+│              ││                                                            │
+│              ││ ThreadInput                                                │
+│              ││ [Ask question...                            ] [Send]       │
+└──────────────┴────────────────────────────────────────────────────────────┘
+
+Legend:
+  ▼ = Section expanded (full widget cards with metadata visible)
+  ▶ = Section collapsed (compact pills inline, metadata in tooltips)
+  ┌──────┐
+  │doc1  │ = Expanded widget card (80px height, shows name + metadata)
+  │coral │   "coral" = tier color indicator
+  └──────┘
+  [📄 match1·95%] = Collapsed widget (32px height, icon+name+score)
+```
+
+**ASCII Layout Diagram (Mobile 375px)**:
+
+```
+┌────────────────────┐
+│ ≡  RAG Deep Dive ▼│
+├────────────────────┤
+│                    │
+│ MessageStream      │
+│ (full width)       │
+│ ┌────────────────┐ │
+│ │ [U] Message    │ │
+│ └────────────────┘ │
+│ ┌────────────────┐ │
+│ │ [A] Response   │ │
+│ └────────────────┘ │
+│                    │
+│ ContextPanel       │
+│┌──────────────────┐│
+││▼ EXPLICIT (3)    ││
+││┌────┐┌────┐┌────┐││
+│││doc1││doc2││thr1│││
+││└────┘└────┘└────┘││
+│└──────────────────┘│
+│▶ SEMANTIC (2)      │
+│ [📄m1][📄m2]       │
+│▶ ARTIFACTS (1)     │
+│ [📋out] +2 more    │
+│                    │
+├────────────────────┤
+│ [Ask...      ] [►] │
+└────────────────────┘
+
+Legend:
+  ▼ = Expanded (cards)
+  ▶ = Collapsed (pills)
+  ┌────┐
+  │doc1│ = 70px card
+  └────┘
+  [📄m1] = 28px pill
+```
+
 **Panel Behavior**:
 
 | Panel | Desktop (1440px+) | Mobile (375px) | Purpose | Closeable |
@@ -334,11 +453,21 @@
 
 **Priority**: P1
 
+**Key Behavior**:
+- **Section-level collapse ONLY**: Each of the 6 context sections (Explicit, Frequently Used, Semantic, Branch, Artifacts, Excluded) has TWO states: collapsed or expanded
+- **Widgets inherit section state**: ALL widgets within a section inherit the section's collapse state. Widgets have NO independent collapse state.
+  - When section is **collapsed** → ALL widgets in that section render in collapsed state (compact 32px pills)
+  - When section is **expanded** → ALL widgets in that section render in expanded state (full 80px cards)
+- **Horizontal widget layout**: All widgets display inline horizontally with horizontal scroll if overflow
+- **Context-type-specific styling**: Each context type (Explicit/Semantic/Frequently Used/Branch/Artifacts/Excluded) has distinct visual styling (tier colors, badges, metadata displayed)
+- **Chat always visible**: Context panel positioned below messages, above input to keep thread interface always visible
+- **File panel interaction**: Clicking any widget opens file in closeable right panel (chat remains visible)
+
 **Entry Points**:
 - Always visible in thread interface (collapsible sections)
 
 **Exit Points**:
-- Click file to open file editor
+- Click file to open file editor in right panel
 
 #### Primary Flow: Manage Context References
 
@@ -350,11 +479,15 @@
 
 | # | Action/Response | Component | Interaction | What Happens | Data | Callback | Feedback |
 |---|-----------------|-----------|-------------|--------------|------|----------|----------|
-| 1 | User expands "Explicit context" section | `ContextPanel` → section header | Click | Section expands to show horizontal widget array of explicitly @-mentioned files and threads (each with metadata card: name, source, last edited) | `{explicitContextRefs: ContextReference[]}` | `onToggleSection(sectionId)` | Section height animates to reveal widgets (300ms), chevron icon rotates |
-| 2 | User hovers over file widget | `ContextReference` widget | Hover | Widget shows action buttons: View (opens editor), Remove (removes from explicit context), Show provenance (tooltip) | `{contextRef: ContextReference}` | - | Action buttons slide in from right edge (150ms) |
-| 3 | User clicks "Remove" on explicit file | `ContextReference` → Remove button | Click | Widget fades out (200ms), file removed from explicit context (but still searchable semantically), next agent request won't include it | `{contextRefId: string}` | `onRemoveFromExplicit(contextRefId)` | Widget fade out + collapse (300ms), section collapses if empty |
-| 4 | User scrolls to "Excluded from context" section | `ContextPanel` → Excluded section | Scroll | Section shows items that didn't fit in 200K budget after priming (with "Add to Explicit" buttons for manual re-priming) | `{excludedItems: ContextReference[]}` | - | Items displayed horizontally, "+X more" if >10 |
-| 5 | User clicks "Add to Explicit" on excluded item | `ContextReference` → Add to Explicit button | Click | Widget moves from Excluded to Explicit section (animated), promoted to 1.0 weight for next request | `{contextRefId: string}` | `onAddToExplicit(contextRefId)` | Widget animates vertically from Excluded→Explicit (500ms), Explicit section auto-expands |
+| 1 | User views "Semantic Matches" section in collapsed state | `ContextPanel` → `ContextSection` (semantic) | View | Section shows header (chevron ▶, title, count badge "5", purple left border) with horizontal row of compact widget pills. ALL widgets inherit collapsed state (32px height, icon+filename only). Metadata hidden, shown in tooltips on hover. | `{semanticMatches: ContextReference[]}` | - | Compact purple-bordered pills display inline, "+3 more" if >8 widgets |
+| 2 | User expands "Semantic Matches" section | `ContextSection` → header | Click | Section state changes from collapsed→expanded. ALL child widgets receive `isExpanded={true}` prop and morph to full cards (80px height) showing relevance badges, branch indicators, timestamps. Section height animates to reveal widget container. | `{isExpanded: true}` | `onToggleSection('semantic')` | Section height animates (300ms), chevron ▶→▼, ALL widgets morph simultaneously (200ms), purple border on all widgets |
+| 3 | User hovers over expanded semantic match widget | `ContextReference` (expanded state) | Hover | Widget shows action buttons: View, Add to Explicit, Dismiss. Widget border highlights (purple glow). Relevance badge "87%" and branch pill "RAG Deep Dive" visible inline. | `{contextRef: ContextReference, isExpanded: true}` | - | Action buttons slide in from right (150ms), purple border highlights |
+| 4 | User clicks "View" on widget | `ContextReference` → View button | Click | File opens in right panel. Thread shrinks 80%→50%. Widget remains in context panel (highlighted while file open). Chat always visible. | `{fileId: string}` | `onFileClick(fileId)` | Right panel slides in (300ms), thread width transition (300ms), widget gets "active" border |
+| 5 | User scrolls through "Explicit" section (expanded, 15 items) | `ContextSection` (explicit) → widget container | Horizontal scroll | Container shows 5-6 coral-bordered widget cards at a time. "+9 more" badge at end. All widgets expanded (80px) with coral borders and "Explicit" badges visible. | `{explicitContextRefs: ContextReference[], isExpanded: true}` | - | Smooth horizontal scroll, "+X more" badge updates dynamically |
+| 6 | User clicks "Remove" on explicit widget | `ContextReference` → Remove button | Click | Widget fades out (200ms), removed from explicit tier. May appear in semantic section if semantically relevant. If last widget, section shows empty state "No explicit context". | `{contextRefId: string}` | `onRemoveFromExplicit(contextRefId)` | Widget fade+collapse (300ms), toast: "Removed from explicit context" |
+| 7 | User collapses "Explicit" section | `ContextSection` (explicit) → header | Click | Section state changes expanded→collapsed. ALL child widgets receive `isExpanded={false}` and morph to compact pills (32px). Metadata hidden (tooltips only). Action buttons hidden. Section height shrinks to 40px. | `{isExpanded: false}` | `onToggleSection('explicit')` | Section height animates to 40px (300ms), chevron ▼→▶, ALL widgets morph to pills simultaneously (200ms) |
+
+**State Inheritance Key Point**: Widgets have NO independent collapse state. When section toggles, ALL widgets in that section morph together (collapsed ↔ expanded).
 
 **Error Scenarios**:
 
@@ -373,23 +506,29 @@
 
 #### Layout & Spatial Design
 
-**Layout Type**: Collapsible section container with horizontal widget arrays
+**Layout Type**: Collapsible section container with horizontal widget arrays, section-level collapse affecting all widgets
 
 **Dimensions**:
 
 | Element | Desktop | Mobile | Notes |
 |---------|---------|--------|-------|
 | Panel container | Full width of center panel, min-height: 120px, max-height: 400px | Full width, min-height: 100px, max-height: 300px | Positioned below messages, above input |
-| Section header | Full width, height: 40px, padding: 12px 16px | Full width, height: 36px, padding: 10px 12px | Clickable to expand/collapse |
-| Widget array container | Horizontal scroll (overflow-x: auto), padding: 12px 0 | Horizontal scroll, padding: 8px 0 | Shows 3-5 widgets before scrolling needed |
-| Widget card | width: 200px, height: 80px, padding: 12px | width: 160px, height: 70px, padding: 10px | Fixed width for horizontal layout |
+| Section header | Full width, height: 40px, padding: 12px 16px | Full width, height: 36px, padding: 10px 12px | Clickable to expand/collapse entire section |
+| Section (collapsed) | Full width, height: 40px (header only) | Full width, height: 36px (header only) | Compact widgets inline in header (32px height) |
+| Section (expanded) | Full width, height: auto (min 120px) | Full width, height: auto (min 100px) | Full-size widgets in horizontal scroll container |
+| Widget array container | Horizontal scroll (overflow-x: auto), padding: 12px 16px | Horizontal scroll, padding: 8px 12px | Shows 5-6 expanded widgets or 8-10 collapsed widgets before scrolling |
+| Widget (collapsed) | width: auto (fit content, ~80-120px), height: 32px, padding: 6px 12px | width: auto (fit content, ~60-100px), height: 28px, padding: 4px 10px | Icon + truncated filename only, tooltip on hover |
+| Widget (expanded) | width: 200px, height: 80px, padding: 12px | width: 160px, height: 70px, padding: 10px | Full metadata card with hover actions |
+| "+X more" indicator | width: 60px, height: match widget height, padding: 8px | width: 50px, height: match widget height, padding: 6px | Badge showing overflow count |
 
 **Component Spacing**:
-- Section vertical gaps: `gap-4` (16px)
-- Widget horizontal gaps: `gap-4` (16px)
-- Internal card padding: `p-3` (12px)
+- Section vertical gaps: `gap-4` (16px) between different sections
+- Widget horizontal gaps (collapsed): `gap-2` (8px) for compact inline display
+- Widget horizontal gaps (expanded): `gap-4` (16px) for full card layout
+- Internal card padding (collapsed): `p-1.5` (6px)
+- Internal card padding (expanded): `p-3` (12px)
 
-**Components in Layout**: `ContextPanel`, `ContextSection`, `ContextReference` (widget), `PriorityTierIndicator`
+**Components in Layout**: `ContextPanel`, `ContextSection`, `ContextReference` (widget), `PriorityTierIndicator`, `OverflowIndicator` (+X more badge)
 
 ---
 
@@ -930,15 +1069,49 @@
 
 **Location**: `packages/ui/src/features/ai-agent-system/ContextSection.tsx`
 
-**Purpose**: Collapsible section header + horizontal widget array container
+**Purpose**: Section container controlling collapse state for ALL child widgets. Section has TWO states (collapsed/expanded). ALL child widgets inherit this state via `isExpanded` prop. No individual widget collapse.
 
 **Reusability**: Feature-specific (used in ContextPanel only)
 
-**Props**: `{ sectionId: string, title: string, itemCount: number, isExpanded: bool, onToggle: () => void, children: ReactNode, className?: string }`
+**Props**: `{ sectionId: 'explicit' | 'semantic' | 'frequentlyUsed' | 'branch' | 'artifacts' | 'excluded', title: string, itemCount: number, tierColor: string, isExpanded: bool, onToggle: () => void, children: ReactNode, className?: string }`
 
-**States**: Collapsed (chevron down), Expanded (chevron up, children visible)
+**Two Section States**:
 
-**Component UI State**: None (controlled by parent)
+**1. Collapsed** (`isExpanded=false`, chevron ▶):
+- Section height: 40px desktop, 36px mobile (header only)
+- Widget container: Horizontal inline layout in header row
+- Child widgets: ALL render collapsed (32px pills) - state inherited via `isExpanded={false}` prop
+- Widget metadata: Hidden, visible in tooltips on hover
+- Action buttons: Hidden on all widgets
+- Horizontal scroll: Smooth, shows 8-10 widgets before scroll (desktop)
+
+**2. Expanded** (`isExpanded=true`, chevron ▼):
+- Section height: Auto (min 120px desktop, 100px mobile)
+- Widget container: Horizontal scroll container below header
+- Child widgets: ALL render expanded (80px cards) - state inherited via `isExpanded={true}` prop
+- Widget metadata: Visible inline (badges, scores, timestamps)
+- Action buttons: Appear on widget hover (slide in from right)
+- Horizontal scroll: Smooth, shows 5-6 widgets before scroll (desktop)
+
+**3. Empty** (`itemCount=0`):
+- Section header: Shows "0" badge, disabled (no toggle)
+- Grayed out, no interaction
+
+**State Propagation Mechanism**:
+- Parent `ContextSection` receives `isExpanded` from `ContextPanel` (global section state)
+- Section passes `isExpanded` prop to ALL child `ContextReference` widgets
+- ALL widgets in section morph simultaneously when section toggles (200ms transition)
+- **No widget has independent collapse state** - section controls all children atomically
+
+**Tier Color Indicators** (left border on section header + widgets):
+- Explicit: `border-l-primary-500` (coral)
+- Frequently Used: `border-l-blue-500`
+- Semantic Matches: `border-l-purple-500`
+- Branch Context: `border-l-orange-500`
+- Artifacts: `border-l-green-500`
+- Excluded: `border-l-gray-400`
+
+**Component UI State**: None (controlled by parent `ContextPanel`)
 
 **Interaction Patterns**: Collapsible Section Pattern
 
@@ -950,15 +1123,102 @@
 
 **Location**: `packages/ui/src/features/ai-agent-system/ContextReference.tsx`
 
-**Purpose**: Display file or thread reference as horizontal widget card with metadata and actions
+**Purpose**: Stateless presentational widget displaying file or thread reference. Visual state (collapsed/expanded) is INHERITED from parent `ContextSection` via `isExpanded` prop. Widget has NO independent collapse mechanism.
 
 **Reusability**: Feature-specific (used in ContextPanel sections)
 
-**Props**: `{ contextRef: ContextReference, showActions: bool, onFileClick: (fileId: string) => void, onAddToExplicit?: (contextRefId: string) => void, onRemoveFromExplicit?: (contextRefId: string) => void, onDismiss?: (contextRefId: string) => void, className?: string }`
+**Props**: `{ contextRef: ContextReference, isExpanded: bool, contextType: 'explicit' | 'semantic' | 'frequentlyUsed' | 'branch' | 'artifacts' | 'excluded', onFileClick: (fileId: string) => void, onAddToExplicit?: (contextRefId: string) => void, onRemoveFromExplicit?: (contextRefId: string) => void, onDismiss?: (contextRefId: string) => void, className?: string }`
 
-**States**: Default (metadata card), Hover (action buttons visible), Loading (action in progress)
+**States** (all controlled by parent section):
+- **Collapsed** (`isExpanded=false` from parent):
+  - Compact horizontal pill (32px height, auto width ~80-120px)
+  - Shows: Icon + filename (truncated 20 chars)
+  - Hidden metadata: Revealed via tooltip on hover (relevance score, branch source, timestamp, full path)
+  - No action buttons visible
+  - Tier color border (4px left border)
 
-**Component UI State**: None (stateless presentation)
+- **Expanded** (`isExpanded=true` from parent):
+  - Full metadata card (80px height, 200px width desktop / 160px mobile)
+  - Shows: Icon, filename (truncated 30 chars), metadata badges (relevance/usage/branch), timestamp
+  - Action buttons: Appear on hover (slide in from right, 150ms)
+  - Tier color border (4px left border)
+
+- **Hover** (mouse interaction):
+  - Collapsed: Styled tooltip with full metadata
+  - Expanded: Action buttons slide in from right edge
+
+- **Loading** (action in progress):
+  - Spinner replaces action buttons
+  - Widget dimmed (opacity: 0.7)
+
+**Widget Variants by Context Type** (visual differentiation):
+
+Each context type uses distinct styling to communicate priority tier and metadata at a glance:
+
+**1. Explicit Context** (Tier 1 - User-selected files):
+- **Color**: `border-l-4 border-l-primary-500` (coral #ff4d4d)
+- **Collapsed**: Icon + filename, tooltip shows "Explicitly added via @-mention"
+- **Expanded**: Icon + filename + "Explicit" badge (coral) + timestamp + file path
+- **Actions**: View (opens in right panel), Remove (demotes to semantic)
+- **Example**: `📄 architecture.md · Explicit · 2h ago`
+
+**2. Semantic Matches** (Tier 3 - AI-surfaced related files):
+- **Color**: `border-l-4 border-l-purple-500` (purple)
+- **Collapsed**: Icon + filename, tooltip shows relevance score + source branch
+- **Expanded**: Icon + filename + relevance badge (e.g., "87%") + branch indicator pill (e.g., "from RAG Deep Dive") + timestamp
+- **Actions**: View, Add to Explicit (promotes to tier 1), Dismiss (excludes from this request)
+- **Example**: `📄 rag-best-practices.md · 87% · RAG Deep Dive · 1d ago`
+
+**3. Frequently Used** (Tier 2 - Usage-based recommendations):
+- **Color**: `border-l-4 border-l-blue-500` (blue)
+- **Collapsed**: Icon + filename, tooltip shows usage count
+- **Expanded**: Icon + filename + usage badge (e.g., "Used 8x") + last accessed timestamp
+- **Actions**: View, Add to Explicit
+- **Example**: `📄 prompting-guide.md · Used 8x · Last: 3h ago`
+
+**4. Branch Context** (Tier 4 - Inherited from parent):
+- **Color**: `border-l-4 border-l-orange-500` (orange)
+- **Collapsed**: Icon + filename, tooltip shows "Inherited from [Parent Branch Name]"
+- **Expanded**: Icon + filename + "Inherited" badge (orange) + parent branch name pill + inheritance timestamp
+- **Actions**: View only (cannot remove inherited context)
+- **Example**: `📄 initial-research.md · Inherited · Main Thread · 1w ago`
+
+**5. Artifacts** (Tier 5 - Created in this thread):
+- **Color**: `border-l-4 border-l-green-500` (green)
+- **Collapsed**: Icon + filename, tooltip shows artifact type
+- **Expanded**: Icon + filename + type badge (e.g., "Markdown", "JSON") + creation timestamp + "Created here" indicator
+- **Actions**: View, Remove (removes from context, file still exists)
+- **Example**: `📋 analysis.md · Markdown · Created here · 30m ago`
+
+**6. Excluded from Context** (Tier 6 - Budget overflow):
+- **Color**: `border-l-4 border-l-gray-400` (gray, dimmed)
+- **Collapsed**: Icon + filename, tooltip shows "Excluded (budget limit)"
+- **Expanded**: Icon + filename + "Excluded" badge (gray) + reason ("200K token limit") + timestamp
+- **Actions**: Add to Explicit (forces inclusion with 1.0 weight, overrides budget)
+- **Example**: `📄 long-document.md · Excluded · Budget · 5m ago`
+
+**Visual Hierarchy Rationale**:
+- **Color coding** allows instant tier recognition without reading text
+- **Badges** communicate state/metadata in expanded view
+- **Icons** indicate file type (📄 document, 📋 markdown, 📊 data, 🧵 thread)
+- **Tooltips** reveal full metadata in collapsed state (no click required)
+
+**Tooltip Styling** (collapsed state only):
+- Background: `bg-gray-900` (dark mode) / `bg-white` (light mode)
+- Border: `border border-gray-700` (dark) / `border-gray-200` (light)
+- Padding: `p-3` (12px)
+- Max width: 300px
+- Content: Full filename, metadata rows (relevance/branch/timestamp as applicable), file path
+- Position: Above widget (preferred), below if insufficient space
+- Arrow indicator pointing to widget center
+
+**Truncation Behavior**:
+- Collapsed: Filename truncated to 20 characters with "..." ellipsis
+- Expanded: Filename truncated to 30 characters with "..." ellipsis
+- Tooltip: Full filename, no truncation (wraps if >300px)
+- Horizontal overflow: When section has >8 widgets (desktop) or >4 (mobile), show "+X more" badge at end of visible widgets. Scroll horizontally to reveal remaining items.
+
+**Component UI State**: None (stateless presentation, state controlled by parent `ContextPanel`)
 
 **Interaction Patterns**: Context Management Pattern
 
@@ -1158,15 +1418,43 @@
 
 ### Context Management Pattern
 
-**Where Used**: Context panel (explicit files, semantic matches, excluded items)
+**Where Used**: Context panel (6 sections: Explicit, Frequently Used, Semantic, Branch, Artifacts, Excluded)
 
-**Brief Description**: Context panel shows collapsible sections with horizontal widget arrays → User expands section to see widgets → Widget hover shows action buttons (View, Add to Explicit, Remove, Dismiss) → User clicks action → Widget animates to new section or removed → Next agent request uses updated context.
+**Brief Description**: User manages AI context by toggling sections and taking actions on widgets. Section state (collapsed/expanded) controls ALL child widgets atomically. No individual widget collapse.
 
-**Components**: `ContextPanel`, `ContextSection`, `ContextReference` (widget)
+**User Flow**:
+1. **View context**: Panel shows 6 sections, each with tier color border (coral/blue/purple/orange/green/gray)
+2. **Toggle section**: Click header → Section state changes → ALL widgets inherit new state and morph simultaneously
+3. **Inspect widget** (collapsed): Hover → Tooltip shows full metadata
+4. **Inspect widget** (expanded): Hover → Action buttons slide in
+5. **Take action**: View (open file), Add to Explicit (promote), Remove/Dismiss (demote/exclude)
+6. **Cross-section movement**: Widget animates vertically to new section (500ms), target section auto-expands
 
-**State Changes**: Collapsed (section hidden) → Expanded (widgets visible, horizontal scroll) → Action (widget animates to new section or removed)
+**Section State Behavior**:
+- **Collapsed section**: Header only (40px), ALL widgets = compact pills (32px, icon+filename), metadata in tooltips
+- **Expanded section**: Header + container (auto height), ALL widgets = full cards (80px, badges+metadata visible)
+- **State inheritance**: ALL widgets receive `isExpanded` prop from parent section, morph simultaneously (200ms)
 
-**Keyboard**: `Enter` (expand/collapse section header), `Tab` (navigate between widgets), `Enter` (activate widget action)
+**Widget Actions by Context Type**:
+- **Explicit** (coral): View, Remove
+- **Semantic** (purple): View, Add to Explicit, Dismiss
+- **Frequently Used** (blue): View, Add to Explicit
+- **Branch** (orange): View only
+- **Artifacts** (green): View, Remove
+- **Excluded** (gray): Add to Explicit
+
+**Cross-Section Movement**:
+- User clicks "Add to Explicit" on semantic match widget
+- Widget animates vertically: Semantic section → Explicit section (500ms)
+- Explicit section auto-expands if collapsed
+- Widget updates: purple border → coral border, relevance badge → "Explicit" badge
+- Next agent request includes file with 1.0 weight (tier 1)
+
+**Components**: `ContextPanel` (6 sections), `ContextSection` (state controller), `ContextReference` (stateless widget)
+
+**State Flow**: Section collapsed → User toggles → Section expanded → ALL widgets expand → User hovers widget → Action buttons appear → User clicks action → Widget moves/removes → Section re-stabilizes
+
+**Keyboard**: `Enter` (toggle section), `Tab` (navigate widgets), `Arrow Left/Right` (scroll), `Enter` (activate action)
 
 ---
 
@@ -1200,15 +1488,39 @@
 
 ### Collapsible Section Pattern
 
-**Where Used**: Context panel sections (Explicit, Semantic, Branch, Artifacts, Excluded)
+**Where Used**: Context panel sections (Explicit, Frequently Used, Semantic, Branch, Artifacts, Excluded)
 
-**Brief Description**: Section header shows title + item count + chevron icon → User clicks header → Section expands/collapses with height animation (300ms) → Chevron icon rotates → Expanded state shows horizontal widget array with scroll if >5 widgets.
+**Brief Description**: Section has TWO states: collapsed or expanded. User clicks section header → Section state toggles → ALL child widgets inherit new state and morph simultaneously (no individual widget collapse).
 
-**Components**: `ContextSection`, `ContextReference` (widgets)
+**State Inheritance Flow**:
+1. User clicks `ContextSection` header
+2. `ContextPanel` updates section state: `expandedSections.toggle(sectionId)`
+3. `ContextSection` receives new `isExpanded` prop from parent
+4. `ContextSection` passes `isExpanded` to ALL child `ContextReference` widgets
+5. ALL widgets morph simultaneously (200ms): collapsed (32px) ↔ expanded (80px)
 
-**State Changes**: Collapsed (chevron down, height 40px) → Expanded (chevron up, height auto, widgets visible)
+**Two Section States**:
 
-**Keyboard**: `Enter`/`Space` (toggle section), `Tab` (navigate to first widget when expanded)
+**Collapsed** (chevron ▶, `isExpanded=false`):
+- Section: Header only (40px height), tier color left border
+- Widget container: Horizontal inline row in header
+- ALL widgets: Compact pills (32px, icon+filename), metadata in tooltips, no action buttons
+- Scroll: Shows 8-10 widgets before horizontal scroll
+
+**Expanded** (chevron ▼, `isExpanded=true`):
+- Section: Header + container (auto height, min 120px), tier color left border
+- Widget container: Horizontal scroll container below header
+- ALL widgets: Full cards (80px, metadata badges visible), action buttons on hover
+- Scroll: Shows 5-6 widgets before horizontal scroll
+
+**Critical Constraint**:
+- **Widgets have NO independent collapse state**
+- Widget appearance is purely controlled by `isExpanded` prop from parent section
+- When section toggles, ALL widgets morph atomically (no staggered animation)
+
+**Components**: `ContextSection` (state controller), `ContextReference` (stateless widget), `OverflowIndicator`
+
+**Keyboard**: `Enter`/`Space` (toggle section), `Tab` (navigate widgets), `Arrow Left/Right` (horizontal scroll)
 
 ---
 

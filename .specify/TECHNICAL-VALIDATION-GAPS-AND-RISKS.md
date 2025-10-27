@@ -661,10 +661,330 @@ function shouldUpdateEmbedding(file: File, changes: FileChange): boolean {
 
 ---
 
+## Industry Patterns: Proven Context Management Techniques
+
+**Source**: Competitive analysis of Cursor, Claude Code, Windsurf, and RAG research (Jan 2025)
+
+### Pattern 1: Multi-Stage Retrieval (RAG 2.0)
+
+**What competitors do**: Initial broad search → semantic re-ranking → contextual filtering
+
+**Overlap with existing gaps**: Improves **sibling pollution filter** (Gap #3) and **embedding accuracy** (Gap #4)
+
+**Implementation**:
+```typescript
+interface MultiStageRetrieval {
+  query: string
+  stages: {
+    broad: { results: DocumentChunk[], score_threshold: number }
+    rerank: { results: DocumentChunk[], semantic_scores: number[] }
+    final: { results: DocumentChunk[], confidence: number }
+  }
+}
+
+// Stage 1: Broad search (pgvector + tsvector)
+const broadResults = await hybridSearch(query, limit=50)
+
+// Stage 2: Semantic re-ranking (apply divergence penalty)
+const reranked = broadResults.map(r => ({
+  ...r,
+  adjustedScore: r.semanticScore * Math.pow(branchSimilarity, 2) // Exponential penalty
+}))
+
+// Stage 3: Contextual filtering (branch context + user activity signals)
+const final = filterByBranchContext(reranked, currentBranch)
+```
+
+**Recommendation**: Implement in MVP (Week 2-3) - enhances sibling pollution fix
+
+---
+
+### Pattern 2: Context Budget Awareness (Claude Code)
+
+**What competitors do**: Model tracks remaining tokens, dynamically selects context to fit budget
+
+**Overlap with existing gaps**: Directly addresses **parent context inheritance explosion** (Gap #1)
+
+**Implementation**:
+```typescript
+const CONTEXT_BUDGET = {
+  explicitContext: 80_000,  // 40% - user-specified files (never truncated)
+  semanticMatches: 40_000,  // 20% - discovered files
+  parentContext: 20_000,    // 10% - inherited from parent (CAPPED)
+  branchContext: 20_000,    // 10% - sibling/child context
+  threadHistory: 20_000,    // 10% - conversation messages
+  agentResponse: 40_000,    // 20% - reserved for AI output
+}
+
+function selectChunksWithBudget(
+  query: string,
+  budget: ContextBudget
+): DocumentChunk[] {
+  const ranked = await retrieveAndRank(query)
+  const selected: DocumentChunk[] = []
+  let tokensUsed = 0
+
+  for (const chunk of ranked) {
+    const chunkTokens = estimateTokens(chunk.content)
+    if (tokensUsed + chunkTokens <= budget.available_tokens) {
+      selected.push(chunk)
+      tokensUsed += chunkTokens
+    } else break
+  }
+
+  return selected
+}
+```
+
+**Recommendation**: Implement in v2 (Month 2-3) - complements lazy loading approach
+
+---
+
+### Pattern 3: Activity-Based Context Signals (Windsurf Cascade)
+
+**What competitors do**: Track user actions (file edits, commands, queries) to infer intent and auto-fetch context
+
+**New capability**: Proactive context suggestions based on user behavior
+
+**Implementation**:
+```typescript
+interface ContextSignal {
+  type: 'document_opened' | 'query_submitted' | 'chunk_referenced' | 'file_edited'
+  document_id: string
+  timestamp: Date
+  weight: number  // Decay over time
+}
+
+// Add to existing usage_events table
+ALTER TABLE usage_events ADD COLUMN context_weight DECIMAL DEFAULT 1.0;
+
+// Auto-suggest related documents
+async function getContextSuggestions(userId: string): Promise<Document[]> {
+  const recentSignals = await db
+    .select()
+    .from(usage_events)
+    .where(and(
+      eq(usage_events.user_id, userId),
+      gte(usage_events.timestamp, subDays(new Date(), 7))
+    ))
+    .orderBy(desc(usage_events.context_weight))
+
+  const relatedDocs = await findRelatedDocuments(recentSignals)
+  return relatedDocs
+}
+```
+
+**UI Example**: "Based on your recent work, you might need: `rag-analysis.md`, `cost-model.md`"
+
+**Recommendation**: Defer to v2 (Month 2-3) - nice-to-have, not critical for MVP
+
+---
+
+### Pattern 4: Conversation Linking with Summaries (Windsurf + Claude Code)
+
+**What competitors do**: @-mention past conversations, retrieve summaries/checkpoints (not full history)
+
+**Overlap with existing gaps**: Enhances **thread summary quality** (Gap #7) by exposing cross-session context
+
+**Implementation**:
+```typescript
+// Add to existing agent_sessions table
+interface SessionLink {
+  source_session_id: string
+  target_session_id: string
+  link_type: 'reference' | 'continuation' | 'related'
+  relevance_score: number
+  created_at: Date
+}
+
+// Enable @-mention syntax in queries
+// "Continue from @previous-session about RAG implementation"
+async function resolveSessionReference(mention: string): Promise<SessionContext> {
+  const session = await findSessionByName(mention)
+  return {
+    summary: session.summary,        // Condensed (500 tokens)
+    keyInsights: session.insights,   // Extracted facts (5-10)
+    relevantFiles: session.files     // Top 3 most-referenced files
+    // NOT full conversation history (context explosion)
+  }
+}
+```
+
+**Recommendation**: Implement in v2 (Month 2-3) - requires session naming/search UX
+
+---
+
+### Pattern 5: Hybrid Search (Dense + Sparse) (Industry Standard)
+
+**What competitors do**: Combine semantic embeddings (pgvector) with keyword search (BM25/tsvector)
+
+**Overlap with existing gaps**: Addresses **embedding accuracy** (Gap #4 - negation, specificity, recency)
+
+**Implementation** (you already have both systems!):
+```sql
+-- Current: Single score from pgvector OR tsvector
+-- Improved: Weighted combination
+SELECT
+  dc.*,
+  (ts_rank(dc.search_vector, query) * 0.3 +           -- Keyword weight (exact matches)
+   (1 - (dc.embedding <=> query_embedding)) * 0.5 +   -- Semantic weight (topic overlap)
+   dc.interaction_score * 0.2) as combined_score      -- User behavior weight (clicks, refs)
+FROM document_chunks dc
+WHERE dc.search_vector @@ query  -- Sparse filter first (fast)
+ORDER BY combined_score DESC
+LIMIT 20;
+```
+
+**Tuning weights by use case**:
+- Exact matches (code, APIs): `keyword=0.6, semantic=0.3, behavior=0.1`
+- Exploratory search: `keyword=0.2, semantic=0.6, behavior=0.2`
+- Personalized: `keyword=0.3, semantic=0.4, behavior=0.3`
+
+**Recommendation**: Implement in MVP (Week 2-3) - SQL-only change, high ROI
+
+---
+
+### Pattern 6: Subagent Delegation (Claude Code)
+
+**What competitors do**: Delegate sub-tasks to isolated contexts with separate token budgets
+
+**Application to Centrid**: Complex workflows (e.g., research across 10 branches → synthesize)
+
+**Implementation**:
+```typescript
+// Your agent_requests table already supports this!
+// Add parent_request_id for hierarchical agents
+
+interface AgentRequest {
+  id: string
+  parent_request_id?: string  // NEW: for sub-agents
+  agent_type: 'create' | 'edit' | 'research' | 'synthesize'
+  context_documents: string[]
+  status: 'pending' | 'in_progress' | 'completed'
+}
+
+// Example: Research agent spawns sub-agents per branch
+async function researchWithSubAgents(query: string, branches: string[]) {
+  const parent = await createAgentRequest({
+    type: 'research',
+    query,
+    context_documents: []
+  })
+
+  // Each sub-agent gets isolated context (avoids 69K token explosion)
+  const subAgents = await Promise.all(
+    branches.map(branchId =>
+      createAgentRequest({
+        type: 'synthesize',
+        parent_request_id: parent.id,
+        context_documents: await getBranchFiles(branchId)  // Isolated context
+      })
+    )
+  )
+
+  // Parent agent combines results (each sub-agent result = 2K tokens)
+  const synthesis = await combineResults(subAgents)  // 20 branches × 2K = 40K tokens
+  return synthesis
+}
+```
+
+**Pro**: Scales to 50+ branches without context explosion (each sub-agent has isolated 80K budget)
+**Con**: Adds complexity (orchestration, error handling, progress tracking)
+
+**Recommendation**: Defer to v2 (Month 2-3) - not critical for MVP (20 branch target)
+
+---
+
+### Pattern 7: Memory System Outside Context Window (Claude Code + Windsurf)
+
+**What competitors do**: Persistent storage for facts/preferences/insights that survive session boundaries
+
+**Your advantage**: Knowledge graph architecture ALREADY does this (but not exposed as "Memories")
+
+**Implementation** (expose existing capability):
+```typescript
+interface Memory {
+  id: string
+  user_id: string
+  memory_type: 'fact' | 'preference' | 'decision' | 'insight'
+  content: string  // "User prefers PostgreSQL over MongoDB for transactional data"
+  source_session_id: string
+  confidence: number  // 0.0-1.0
+  created_at: Date
+  last_validated: Date
+}
+
+// Auto-generate memories from completed sessions (LLM extraction)
+async function generateMemoriesFromSession(sessionId: string) {
+  const session = await getSession(sessionId)
+  const prompt = `Extract 3-5 key insights/decisions from this conversation.
+  Format: One sentence per insight.
+  Examples:
+  - "User decided to use RAG over fine-tuning for cost reasons"
+  - "Team prefers TypeScript strict mode for type safety"`
+
+  const insights = await callLLM(prompt, session.messages)
+
+  await Promise.all(
+    insights.map(insight =>
+      createMemory({
+        user_id: session.user_id,
+        memory_type: 'insight',
+        content: insight,
+        source_session_id: sessionId,
+        confidence: 0.8
+      })
+    )
+  )
+}
+```
+
+**UI**: Show memories in sidebar: "💡 Memories: 5 insights from past conversations → [View All]"
+
+**Recommendation**: Implement in v2 (Month 2-3) - killer differentiator but not MVP-critical
+
+---
+
+## Key Takeaways from Industry Research
+
+### What Competitors Struggle With (Your Opportunities)
+
+1. **Context loss between sessions** → Your persistent knowledge graph solves this
+2. **Manual context specification** → Activity signals + auto-suggestions reduce burden
+3. **Token budget limitations** → Multi-stage retrieval + budget awareness optimize quality
+4. **Cross-conversation knowledge** → Conversation linking + memories enable synthesis
+
+### Proven Patterns to Adopt (Priority Order)
+
+**MVP (Week 1-4)**:
+1. ✅ **Hybrid search** (dense + sparse) - SQL change only, high ROI
+2. ✅ **Multi-stage retrieval** - Enhances sibling pollution filter
+3. ✅ **Context budget awareness** - Complements lazy loading for parent context
+
+**v2 (Month 2-3)**:
+4. **Activity-based suggestions** - Proactive context assembly
+5. **Conversation linking** - @-mention past sessions
+6. **Memory auto-generation** - LLM-extracted insights
+7. **Subagent delegation** - Complex multi-branch workflows
+
+### Validation Metrics (Benchmark Against Competitors)
+
+| Metric | Cursor | Claude Code | Windsurf | Centrid Target |
+|--------|--------|-------------|----------|----------------|
+| Context per request | 200K tokens | 200K tokens | ~150K tokens | 80K tokens (optimized) |
+| Cross-session context | ❌ Per-project | ⚠️ Memory files | ⚠️ Auto-summaries | ✅ Knowledge graph |
+| Auto-discovery quality | ⚠️ Shallow (manual) | ⚠️ Subagent-based | ✅ Activity tracking | ✅ Multi-stage retrieval |
+| Context persistence | ❌ Session-only | ⚠️ File-based | ⚠️ Summary-based | ✅ Graph-based (forever) |
+
+**Your Differentiation**: "Upload once, use forever" - persistent knowledge graph that competitors lack
+
+---
+
 ## Pre-Implementation Checklist
 
 ### Must Address in MVP (Week 1-4)
 
+**Critical Fixes** (Existing Gaps):
 - [ ] **Parent context lazy loading** - Cap at top 5 files + summary + last message (11K tokens)
 - [ ] **Hybrid model routing** - Haiku for simple, Sonnet for consolidation (COGS fix)
 - [ ] **Exponential divergence penalty** - Replace threshold filter (FR-021c)
@@ -672,22 +992,38 @@ function shouldUpdateEmbedding(file: File, changes: FileChange): boolean {
 - [ ] **Real-time conflict detection** - Multi-device file sync conflicts (Week 3-4)
 - [ ] **Token counting infrastructure** - Monitor context usage, validate COGS
 
-### Validate During Beta (Week 1-4)
+**Industry Patterns** (High ROI):
+- [ ] **Hybrid search (Pattern 5)** - Combine pgvector + tsvector with weighted scoring (SQL-only, 1-2 days)
+- [ ] **Multi-stage retrieval (Pattern 1)** - Broad search → re-rank → contextual filter (2-3 days)
+- [ ] **Context budget awareness (Pattern 2)** - Dynamic chunk selection based on token budget (3-4 days)
 
-- [ ] **Semantic match relevance** - >80% of top 10 results rated relevant
+### Validate During Beta (Week 5-8)
+
+**Quality Metrics**:
+- [ ] **Semantic match relevance** - >80% of top 10 results rated relevant (benchmark: Cursor ~60-70%)
 - [ ] **Parent context utilization** - <15% of total context budget
-- [ ] **COGS per request** - $0.10-0.30/request (validates $3.72/user/month)
+- [ ] **COGS per request** - $0.10-0.30/request (validates $3.72/user/month target)
 - [ ] **Consolidation satisfaction** - >4/5 rating on synthesis quality
 - [ ] **Thread summary quality** - Monitor for generic summaries in long threads (>200 msgs)
 
+**Competitive Benchmarks**:
+- [ ] **Context efficiency** - 80K tokens vs competitors' 150-200K (40-60% reduction)
+- [ ] **Cross-session retrieval** - Users can recall context from >1 month ago (vs competitors' session-only)
+- [ ] **Auto-discovery accuracy** - >70% relevant without manual @-mentions (Cursor baseline: ~50%)
+
 ### Defer to v2 (Month 2-3)
 
-- [ ] **Parent context budget** - Explicit 20K token allocation with overflow handling
+**Advanced Context Management**:
+- [ ] **Parent context budget (Pattern 2)** - Explicit 20K token allocation with overflow handling
+- [ ] **Activity-based suggestions (Pattern 3)** - Proactive context assembly from user behavior
+- [ ] **Conversation linking (Pattern 4)** - @-mention past sessions with summary retrieval
+- [ ] **Memory auto-generation (Pattern 7)** - LLM-extracted insights from completed sessions
+
+**Quality Enhancements**:
 - [ ] **Hierarchical thread summaries** - If beta shows generic summaries (current/archive/overall)
 - [ ] **Content-aware embedding triggers** - If 20% threshold misses important edits
-- [ ] **Hybrid search** - Embeddings + keywords + metadata (0.5 + 0.3 + 0.2 weights)
-- [ ] **Last-edited bias** - Boost recently edited files for freshness
 - [ ] **Structured consolidation templates** - Multi-template library for different synthesis types
+- [ ] **Subagent delegation (Pattern 6)** - Complex multi-branch workflows with isolated contexts
 
 ---
 

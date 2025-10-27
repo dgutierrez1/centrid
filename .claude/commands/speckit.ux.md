@@ -24,7 +24,7 @@ description: Create detailed UX specification bridging architecture and visual d
 - ✅ Component props → Inline format `{ prop: Type, onAction: () => void }`
 - ✅ States → Inline comma-separated `State1 (brief), State2 (brief)`
 - ✅ Interaction patterns → Brief description + key points (no verbose step-by-step)
-- ✅ Layout → Tables for dimensions/spacing (no ASCII art - created in design phase)
+- ✅ Layout → ASCII diagrams (desktop + mobile) + tables for dimensions/spacing
 - ✅ Accessibility → Shared checklist referenced by all components
 - ❌ Removed: Example usage code, "Composed From" lists, "Why Component State" explanations, redundant workflow guidance
 
@@ -360,25 +360,50 @@ List states as comma-separated inline with brief description in parentheses:
 
 ### 6. Define Layout & Spatial Relationships
 
-**CONDENSED TABLE FORMAT** (to reduce token usage):
-
 For each screen, document:
-1. **Layout Type** (brief description - e.g., "3-panel adaptive workspace")
-2. **Panel Behavior Table** (if multi-panel layout)
-3. **Dimensions Table** (key measurements)
-4. **Component Spacing Table** (gap/margin/padding)
-5. **Responsive Breakpoints** (brief inline list)
+1. **ASCII Layout Diagrams** (desktop + mobile)
+2. **Layout Type** (brief description - e.g., "3-panel adaptive workspace")
+3. **Panel Behavior Table** (if multi-panel layout)
+4. **Dimensions Table** (key measurements)
+5. **Component Spacing Table** (gap/margin/padding)
+6. **Responsive Breakpoints** (brief inline list)
 
 **Example**:
 
 ```
-// OLD (verbose ASCII art + paragraphs - ~60 lines):
-[Large ASCII diagrams for desktop and mobile]
-[Multiple paragraphs describing dimensions]
-[Spacing descriptions in prose]
-[Responsive behavior in multiple bullet points]
+**ASCII Layout**:
 
-// NEW (condensed tables - ~20 lines):
+Desktop (1440px):
+┌──────────────────────────────────────────────────────────────┐
+│ Header (64px)                                    [User] [⚙] │
+├─────────────┬─────────────────────────────┬──────────────────┤
+│             │                             │                  │
+│  Sidebar    │  Main Content               │  Right Panel     │
+│  (20%)      │  (50-80% adaptive)          │  (0-30%)         │
+│             │                             │  [Closeable]     │
+│  - Nav      │  - Thread Messages          │  - File Editor   │
+│  - Files    │  - Input Field (sticky)     │  - Preview       │
+│             │                             │                  │
+│             │                             │                  │
+└─────────────┴─────────────────────────────┴──────────────────┘
+
+Mobile (375px):
+┌─────────────────────────┐
+│ Header (56px)     [≡] │
+├─────────────────────────┤
+│                         │
+│  Main Content (100%)    │
+│                         │
+│  - Thread Messages      │
+│  - Vertical Stack       │
+│                         │
+│                         │
+│                         │
+├─────────────────────────┤
+│ Input Field (sticky)    │
+└─────────────────────────┘
+Note: Sidebar hidden in drawer, Right panel opens as full-screen modal
+
 **Layout Type**: 3-panel adaptive workspace
 
 **Panel Behavior**:
@@ -404,8 +429,6 @@ For each screen, document:
 
 **Responsive**: Mobile (`< 768px`): Vertical stack, hide sidebar, sticky input | Tablet (`768px-1024px`): Sidebar overlay | Desktop (`> 1024px`): Full 3-panel
 ```
-
-**Key benefits**: 70% reduction, removes ASCII art (created in design phase), preserves all dimension data.
 
 ### 7. Document Component UI State
 
@@ -496,7 +519,7 @@ For each screen, document:
 - [ ] ALL user stories from spec.md covered (ALL priorities)
 - [ ] All presentational components have prop specs
 - [ ] Error scenarios documented for all flows
-- [ ] Layout diagrams complete (desktop + mobile)
+- [ ] ASCII layout diagrams complete (desktop + mobile)
 - [ ] Spacing and responsive behavior specified
 - [ ] Component UI state documented (not global - that's in arch.md)
 - [ ] Design Handoff Checklist complete
@@ -554,7 +577,7 @@ For each screen, document:
 - ❌ Define container components (deferred to implementation)
 - ❌ Skip accessibility requirements (keyboard nav, ARIA, focus)
 - ❌ Use vague steps ("user interacts" - be specific!)
-- ❌ Create ASCII layout diagrams (those go in design.md)
+- ✅ Create ASCII layout diagrams (desktop + mobile per screen)
 - ❌ Duplicate global state strategy (reference arch.md instead)
 - ❌ Skip Design Handoff Checklist validation
 

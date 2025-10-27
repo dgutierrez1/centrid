@@ -7,18 +7,69 @@
 
 ---
 
-## Purpose
+## Executive Summary
 
-This document resolves research questions identified during technical planning for the AI-Powered Exploration Workspace. Research findings inform technology choices, implementation patterns, and architectural decisions documented in arch.md (Key Architectural Decisions sections).
+This research document resolves 7 critical technical questions for the AI agent system, covering streaming infrastructure, vector search optimization, context assembly, user personalization, memory management, real-time synchronization, and multi-provider LLM strategy.
 
-**Research Scope**:
-1. Server-Sent Events (SSE) best practices for agent streaming
-2. pgvector performance optimization for shadow domain
-3. Context assembly algorithms across multiple domains
-4. User preference derivation from behavioral patterns
-5. Memory chunking strategies for long threads
-6. Supabase Realtime patterns with optimistic updates
-7. Claude 3.5 Sonnet streaming with tool approval flows
+### Key Decisions at a Glance
+
+| Research Area | Decision | Impact |
+|---------------|----------|--------|
+| **SSE Streaming** | Server-Sent Events over WebSocket | Simpler HTTP-based protocol, automatic reconnection, debuggable |
+| **Vector Search** | ivfflat index (100 lists) | <1s queries for 1000+ entities, 768-dim embeddings |
+| **Context Assembly** | 6 domains in parallel | <1s total assembly, 200K token budget, weighted prioritization |
+| **User Preferences** | Behavioral derivation | Zero-friction personalization, learned from interactions |
+| **Memory Management** | 10-message chunks, top-3 retrieval | Handles 1000+ message threads efficiently |
+| **State Sync** | Valtio + Realtime (no React Query) | Optimistic updates with rollback, real-time reconciliation |
+| **LLM Strategy** | Multi-provider abstraction | 85% cost savings ($164K → $25K/year), Edge Functions compatible |
+
+### Performance Targets
+
+- Vector search: <1s for 1000 entities, <500ms for <100 entities
+- Context assembly: <1s total (6 parallel queries)
+- Memory chunk retrieval: <500ms for top-3 chunks
+- Agent streaming: <500ms chunk latency
+- User preference load: <50ms (cached)
+
+### Cost Optimization
+
+- **Embeddings**: OpenAI text-embedding-3-small at $0.02/1M tokens (~$0.01 per 1000 entities)
+- **Summarization**: Gemini 2.0 Flash at $0.0006/summary (~$2K/year at scale)
+- **LLM Tiering**: 70% Gemini Flash, 20% GPT-5 Mini, 10% Claude Sonnet 4.5 = 85% savings
+
+### Architecture Highlights
+
+**6 Context Domains** (assembled in parallel):
+1. Explicit Context (1.0 weight) - @-mentioned files/threads
+2. Shadow Domain (0.5 base) - Semantic matches via pgvector
+3. Thread Tree (0.7) - Parent summary, inherited files, siblings
+4. Memory Chunks (0.6) - Top-3 relevant chunks if >40 messages
+5. User Preferences (0.8) - Behavioral derivation (always-include files)
+6. Knowledge Graph (0.6) - Related concepts (Phase 2+)
+
+**Multi-Provider LLM**:
+- Direct API over Claude Agent SDK (Edge Functions compatibility)
+- Unified abstraction layer for Claude, OpenAI, Gemini
+- Model tiering: Simple (70%) → Gemini 2.0 Flash, Medium (20%) → GPT-5 Mini, Complex (10%) → Claude Sonnet 4.5
+- Built-in web search across all providers (no custom implementation)
+
+**User Preference Derivation**:
+- Always-Include Files: @-mentioned 3+ times in 30 days → auto-included (0.8 weight)
+- Excluded Patterns: Dismissed 3+ times → filtered out
+- Blacklisted Branches: Manually hidden → excluded from matches
+- Daily background job recomputes, cached per request (<50ms)
+
+**Memory Chunking** (threads >40 messages):
+- 10-message chunks with localized summaries
+- 768-dim embeddings for semantic retrieval
+- Top-3 chunks retrieved per query
+- Budget: Latest 10 full messages + 3 chunks + files = ~191K tokens
+
+**Real-time Sync**:
+- Primary session: SSE for lowest latency
+- Secondary sessions: Realtime subscriptions
+- Optimistic updates with rollback on error
+- No React Query (redundant with real-time subscriptions)
 
 ---
 
@@ -43,133 +94,13 @@ How should we stream agent responses (mixed text chunks + tool calls + approval 
 
 ### Decision: Server-Sent Events (SSE)
 
-**Rationale** (from arch.md Decision 2):
+**Rationale**:
 - Agent streaming is inherently one-way (server → client) - bidirectional not needed
 - SSE reconnection is automatic via browser `EventSource` API
 - Simpler to implement and debug than WebSocket (standard HTTP, visible in DevTools)
 - Works with existing CDN/load balancer infrastructure without special WebSocket config
 - Claude API returns streaming responses that map naturally to SSE events
 - Tool call approvals handled via separate POST endpoint (acceptable UX trade-off)
-
-### Implementation Pattern
-
-**Edge Function (Deno)**:
-```typescript
-// apps/api/src/functions/execute-agent/index.ts
-export default async function handler(req: Request) {
-  const { threadId } = await req.json()
-
-  const stream = new ReadableStream({
-    async start(controller) {
-      // Keep-alive every 30s
-      const keepAlive = setInterval(() => {
-        controller.enqueue(`: ping\n\n`)
-      }, 30000)
-
-      try {
-        // Stream Claude 3.5 Sonnet response
-        const claudeStream = await anthropic.messages.stream({
-          model: 'claude-3-5-sonnet-20241022',
-          max_tokens: 4096,
-          messages: [{ role: 'user', content: primeContext + userMessage }],
-          tools: mcpTools
-        })
-
-        for await (const chunk of claudeStream) {
-          if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
-            // Text chunk
-            controller.enqueue(`data: ${JSON.stringify({
-              type: 'text',
-              content: chunk.delta.text
-            })}\n\n`)
-          } else if (chunk.type === 'content_block_start' && chunk.content_block.type === 'tool_use') {
-            // Tool call - pause for approval
-            const tool = chunk.content_block
-
-            controller.enqueue(`data: ${JSON.stringify({
-              type: 'tool_call',
-              toolName: tool.name,
-              status: 'awaiting_approval',
-              input: tool.input
-            })}\n\n`)
-
-            // Wait for approval (blocks stream, FR-048a)
-            const approved = await waitForApproval(tool.id, { timeout: 600000 }) // 10min
-
-            if (!approved) {
-              controller.enqueue(`data: ${JSON.stringify({
-                type: 'error',
-                message: 'Approval timed out after 10 minutes'
-              })}\n\n`)
-              break
-            }
-
-            controller.enqueue(`data: ${JSON.stringify({
-              type: 'tool_call',
-              toolName: tool.name,
-              status: 'approved'
-            })}\n\n`)
-          }
-        }
-
-        controller.enqueue(`data: ${JSON.stringify({ type: 'completion' })}\n\n`)
-      } finally {
-        clearInterval(keepAlive)
-        controller.close()
-      }
-    }
-  })
-
-  return new Response(stream, {
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive'
-    }
-  })
-}
-```
-
-**Frontend (EventSource)**:
-```typescript
-// apps/web/src/lib/hooks/useStreamMessage.ts
-function useStreamMessage() {
-  const streamMessage = async (threadId: string, text: string) => {
-    // Create message, get SSE endpoint
-    const { sseEndpoint } = await threadService.sendMessage(threadId, text)
-
-    // Subscribe to SSE stream
-    const eventSource = new EventSource(sseEndpoint)
-
-    eventSource.onmessage = (event) => {
-      const data = JSON.parse(event.data)
-
-      if (data.type === 'text') {
-        // Append text chunk to streaming buffer
-        aiAgentState.streamingBuffer += data.content
-      } else if (data.type === 'tool_call' && data.status === 'awaiting_approval') {
-        // Show approval modal
-        aiAgentState.pendingApproval = data
-      } else if (data.type === 'completion') {
-        // Move buffer to final message
-        aiAgentState.messages.push({
-          role: 'assistant',
-          content: aiAgentState.streamingBuffer
-        })
-        aiAgentState.streamingBuffer = ''
-        eventSource.close()
-      }
-    }
-
-    eventSource.onerror = () => {
-      toast.error('Stream interrupted. Please retry.')
-      eventSource.close()
-    }
-  }
-
-  return { streamMessage }
-}
-```
 
 ### Best Practices
 
@@ -218,47 +149,6 @@ Shadow domain (FR-010a to FR-010f) is a unified `shadow_entities` table containi
 - Build time: <1s for 1000 vectors (acceptable for async background job)
 - Query speed: <1s for top-10 results (meets FR-064 requirement)
 
-### Implementation
-
-**Index Creation**:
-```sql
--- Create ivfflat index for cosine similarity
-CREATE INDEX shadow_entities_embedding_idx
-ON shadow_entities
-USING ivfflat (embedding vector_cosine_ops)
-WITH (lists = 100);
-
--- Analyze for query planner
-ANALYZE shadow_entities;
-```
-
-**Query Pattern**:
-```typescript
-// apps/api/src/repositories/shadowEntity.ts
-async function semanticSearch(
-  queryEmbedding: number[],
-  entityTypes: EntityType[],
-  userId: string,
-  limit: number = 10
-) {
-  const result = await db.execute(sql`
-    SELECT
-      entity_id,
-      entity_type,
-      summary,
-      structure_metadata,
-      1 - (embedding <=> ${queryEmbedding}::vector) AS similarity
-    FROM shadow_entities
-    WHERE entity_type = ANY(${entityTypes})
-      AND owner_user_id = ${userId}
-    ORDER BY embedding <=> ${queryEmbedding}::vector
-    LIMIT ${limit}
-  `)
-
-  return result.rows
-}
-```
-
 ### Embedding Model: OpenAI text-embedding-3-small
 
 **Why 768-dim (not 1536-dim)**:
@@ -293,7 +183,7 @@ How should we gather and prioritize context from 6 domains within 200K token bud
 
 ### Multi-Domain Architecture
 
-**6 Context Domains** (from arch.md):
+**6 Context Domains**:
 1. **Explicit Context** (1.0 weight) - Files/threads @-mentioned by user
 2. **Shadow Domain** (0.5 base weight) - Semantic matches via pgvector
 3. **Thread Tree** (0.7 weight) - Parent summary, inherited files, sibling threads
@@ -301,24 +191,15 @@ How should we gather and prioritize context from 6 domains within 200K token bud
 5. **User Preferences** (0.8 weight for always-include, filtering for excluded) - Derived from behavior
 6. **Knowledge Graph** (0.6 weight) - Related concepts (Phase 2+)
 
-### Algorithm (from arch.md Decision 4)
+### Algorithm (4 Steps)
 
 **Step 1: Parallel Domain Queries** (target <1s total)
-```typescript
-// apps/api/src/services/contextAssembly.ts
-async function assembleContext(threadId: string, query: string, userId: string) {
-  // Execute ALL domains in parallel
-  const [explicit, semantic, tree, memory, preferences] = await Promise.all([
-    loadExplicitReferences(threadId), // Load full content
-    semanticSearchService.search(query, userId, threadId), // Top 10 with modifiers
-    loadThreadTree(threadId), // Parent summary + inherited files
-    loadMemoryChunks(threadId, query), // Top 3 if >40 messages
-    userPreferencesService.loadPreferences(userId) // Cached per request
-  ])
-
-  // ... (continue to Step 2)
-}
-```
+- Execute ALL 6 domains in parallel using `Promise.all`
+- Explicit: Load full content from @-mentions
+- Semantic: Top 10 matches with modifiers (SemanticSearchService)
+- Tree: Parent summary + inherited files
+- Memory: Top 3 chunks if >40 messages
+- Preferences: Cached per request
 
 **Step 2: Apply Modifiers**
 - **Relationship modifiers** (based on thread tree position):
@@ -328,114 +209,30 @@ async function assembleContext(threadId: string, query: string, userId: string) 
 - **Topic divergence filtering**: If branch summary similarity <0.3, only show semantic matches >0.9 (FR-021c)
 
 **Step 3: Apply User Preferences**
-```typescript
-// Filter OUT excluded patterns (reduces noise)
-const filteredSemantic = semantic.filter(item =>
-  !preferences.excluded_patterns.some(pattern =>
-    new RegExp(pattern).test(item.path)
-  ) &&
-  !preferences.blacklisted_branches.includes(item.source_thread_id)
-)
-
-// Add always-include files (learned from behavior)
-const alwaysInclude = preferences.always_include_files.map(path => ({
-  path,
-  weight: 0.8,
-  source: 'user_preference'
-}))
-```
+- Filter OUT excluded patterns (reduces noise)
+- Filter OUT blacklisted branches
+- Add always-include files (learned from behavior, 0.8 weight)
 
 **Step 4: Prioritize and Fit Budget**
-```typescript
-// Merge all context sources
-const allContext = [
-  ...explicit.map(item => ({ ...item, weight: 1.0, group: 'explicit' })),
-  ...alwaysInclude.map(item => ({ ...item, group: 'frequently_used' })),
-  ...tree.map(item => ({ ...item, weight: 0.7, group: 'branch' })),
-  ...filteredSemantic.map(item => ({ ...item, group: 'semantic' })),
-  ...memory.map(item => ({ ...item, weight: 0.6, group: 'memory' }))
-]
-
-// Sort by final weight (base + modifiers)
-allContext.sort((a, b) => b.weight - a.weight)
-
-// Fit within 200K token budget
-const { included, excluded } = fitWithinBudget(allContext, 200000)
-
-return {
-  included: groupBy(included, 'group'), // 6 sections for UI
-  excluded // Show in "Excluded context" section for manual re-prime
-}
-```
+- Merge all context sources with weights
+- Sort by final weight (base + modifiers)
+- Fit within 200K token budget
+- Return included (6 sections for UI) + excluded (manual re-prime option)
 
 ### SemanticSearchService (Separate, Reusable)
 
-**Why Separate** (arch.md Decision 4):
+**Why Separate**:
 - Used by: ContextAssemblyService, ConsolidationService, manual user search, memory chunk search
 - Clear separation: SemanticSearchService handles shadow domain queries, ContextAssemblyService orchestrates ALL domains
 - Easier to optimize and test independently
 
-```typescript
-// apps/api/src/services/semanticSearch.ts
-class SemanticSearchService {
-  async search(
-    query: string,
-    userId: string,
-    threadId: string,
-    entityTypes: EntityType[] = ['file', 'thread'],
-    limit: number = 10
-  ) {
-    // Generate query embedding
-    const queryEmbedding = await openai.createEmbedding(query)
-
-    // Get thread tree metadata for relationship modifiers
-    const threadMetadata = await threadRepository.getTreeMetadata(threadId)
-
-    // Semantic search across shadow domain
-    const results = await shadowEntityRepository.search(
-      queryEmbedding,
-      entityTypes,
-      userId,
-      limit * 2 // Get 20, filter to top 10 after modifiers
-    )
-
-    // Apply relationship modifiers
-    const withModifiers = results.map(result => {
-      let modifier = 0
-
-      if (threadMetadata.siblingIds.includes(result.source_thread_id)) {
-        modifier += 0.10 // Sibling boost
-      } else if (threadMetadata.parentId === result.source_thread_id ||
-                 threadMetadata.childIds.includes(result.source_thread_id)) {
-        modifier += 0.15 // Parent/child boost
-      }
-
-      return {
-        ...result,
-        finalScore: result.similarity + modifier
-      }
-    })
-
-    // Apply topic divergence filtering
-    const filtered = withModifiers.filter(result => {
-      const branchSimilarity = calculateBranchSimilarity(
-        threadMetadata.summary,
-        result.branch_summary
-      )
-
-      if (branchSimilarity < 0.3) {
-        // Topics diverged - high confidence only
-        return result.finalScore > 0.9
-      }
-
-      return true
-    })
-
-    // Return top 10
-    return filtered.sort((a, b) => b.finalScore - a.finalScore).slice(0, limit)
-  }
-}
-```
+**Process**:
+1. Generate query embedding (OpenAI)
+2. Get thread tree metadata for relationship modifiers
+3. Semantic search across shadow domain (top 20, filter to 10 after modifiers)
+4. Apply relationship modifiers (+0.10 siblings, +0.15 parent/child)
+5. Apply topic divergence filtering (if branch similarity <0.3, only show matches >0.9)
+6. Return top 10 sorted by final score
 
 ### Performance Targets
 
@@ -451,7 +248,7 @@ class SemanticSearchService {
 ### Question
 Should user preferences be explicitly managed (UI settings) or derived from behavioral patterns?
 
-### Decision: Derived from Behavioral Patterns (arch.md Decision 6)
+### Decision: Derived from Behavioral Patterns
 
 **Rationale**:
 - **Zero-friction personalization**: Users get better context without configuration burden
@@ -479,63 +276,17 @@ Should user preferences be explicitly managed (UI settings) or derived from beha
 ### Implementation
 
 **Daily Background Job** (pg_cron):
-```sql
--- Recompute user preferences from last 30 days
-UPDATE user_preferences SET
-  always_include_files = ARRAY(
-    SELECT DISTINCT file_path
-    FROM context_references
-    WHERE user_id = $1
-      AND source = '@-mentioned'
-      AND created_at > NOW() - INTERVAL '30 days'
-    GROUP BY file_path
-    HAVING COUNT(*) >= 3
-  ),
-  excluded_patterns = ARRAY(
-    SELECT DISTINCT file_pattern
-    FROM semantic_match_dismissals
-    WHERE user_id = $1
-      AND created_at > NOW() - INTERVAL '30 days'
-    GROUP BY file_pattern
-    HAVING COUNT(*) >= 3
-  ),
-  blacklisted_branches = ARRAY(
-    SELECT DISTINCT branch_id
-    FROM conversation_metadata
-    WHERE user_id = $1
-      AND blacklisted_at IS NOT NULL
-  ),
-  last_updated = NOW()
-WHERE user_id = $1;
-```
+- Recompute user preferences from last 30 days
+- Update `always_include_files` (files @-mentioned 3+ times)
+- Update `excluded_patterns` (files dismissed 3+ times)
+- Update `blacklisted_branches` (manually hidden branches)
+- Runs daily for each user
 
 **Load Per Request** (cached):
-```typescript
-// apps/api/src/services/userPreferences.ts
-const preferencesCache = new Map<string, UserPreference>()
-
-async function loadUserPreferences(userId: string): Promise<UserPreference> {
-  // Check cache
-  if (preferencesCache.has(userId)) {
-    return preferencesCache.get(userId)!
-  }
-
-  // Load from database
-  const prefs = await db.query.userPreferences.findFirst({
-    where: eq(userPreferences.user_id, userId)
-  })
-
-  // Check staleness (>24h)
-  if (prefs.last_updated < new Date(Date.now() - 24 * 60 * 60 * 1000)) {
-    // Trigger recompute (fire-and-forget)
-    recomputeUserPreferences(userId).catch(err => logError(err))
-  }
-
-  // Cache for request duration
-  preferencesCache.set(userId, prefs)
-  return prefs
-}
-```
+- Check in-memory cache first
+- Load from database if not cached
+- Check staleness (>24h triggers fire-and-forget recompute)
+- Cache for request duration
 
 ### Transparency
 
@@ -556,7 +307,7 @@ async function loadUserPreferences(userId: string): Promise<UserPreference> {
 ### Question
 How should we handle threads exceeding 40 messages without overflowing 200K token budget?
 
-### Decision: 10-Message Chunks with Localized Summaries (arch.md Decision 7)
+### Decision: 10-Message Chunks with Localized Summaries
 
 **Rationale**:
 - **Chunk size: 10 messages** - Balances coherence (meaningful segment) with granularity (not too many chunks)
@@ -572,82 +323,28 @@ How should we handle threads exceeding 40 messages without overflowing 200K toke
   - Chunk 2: messages 11-20
   - Chunk 3: messages 21-30
 
-**Chunk Structure**:
-```typescript
-interface ThreadMemoryChunk {
-  chunk_id: string
-  conversation_id: string
-  message_ids: string[] // 10 message IDs
-  embedding: number[] // 768-dim
-  summary: string // Localized (topics, decisions, artifacts, questions from this chunk)
-  timestamp_range: [Date, Date]
-  chunk_index: number // 1, 2, 3, ...
-}
-```
+**Chunk Structure** (ThreadMemoryChunk):
+- `chunk_id`: UUID
+- `conversation_id`: Thread reference
+- `message_ids`: Array of 10 message IDs
+- `embedding`: 768-dim vector
+- `summary`: Localized (topics, decisions, artifacts, questions from this chunk)
+- `timestamp_range`: [start_date, end_date]
+- `chunk_index`: 1, 2, 3, ...
 
 ### Implementation
 
-**Compression (Background Job)**:
-```typescript
-// apps/api/src/functions/compress-memory/index.ts
-async function compressThreadMemory(threadId: string) {
-  const messages = await messageRepository.findByThread(threadId)
+**Compression** (Background Job):
+- Triggered when thread exceeds 40 messages
+- Generate localized summary for each 10-message chunk (Gemini 2.0 Flash)
+- Generate embedding for each summary (OpenAI text-embedding-3-small)
+- Store in `thread_memory_chunks` table
 
-  if (messages.length <= 40) return // Not needed yet
-
-  const oldMessages = messages.slice(0, 30) // Messages 1-30
-  const chunks: ThreadMemoryChunk[] = []
-
-  // Create 10-message chunks
-  for (let i = 0; i < oldMessages.length; i += 10) {
-    const chunkMessages = oldMessages.slice(i, i + 10)
-
-    // Generate localized summary (topics, decisions, artifacts, questions)
-    const summary = await generateChunkSummary(chunkMessages)
-
-    // Generate embedding
-    const embedding = await openai.createEmbedding(summary)
-
-    chunks.push({
-      chunk_id: uuid(),
-      conversation_id: threadId,
-      message_ids: chunkMessages.map(m => m.id),
-      embedding,
-      summary,
-      timestamp_range: [
-        chunkMessages[0].created_at,
-        chunkMessages[chunkMessages.length - 1].created_at
-      ],
-      chunk_index: i / 10 + 1
-    })
-  }
-
-  await db.insert(threadMemoryChunks).values(chunks)
-}
-```
-
-**Retrieval (Context Assembly)**:
-```typescript
-// apps/api/src/services/contextAssembly.ts
-async function loadMemoryChunks(threadId: string, query: string) {
-  // Only if thread >40 messages
-  const messageCount = await messageRepository.count(threadId)
-  if (messageCount <= 40) return []
-
-  // Semantic search across chunks
-  const queryEmbedding = await openai.createEmbedding(query)
-
-  const chunks = await db.execute(sql`
-    SELECT chunk_id, summary, 1 - (embedding <=> ${queryEmbedding}::vector) AS similarity
-    FROM thread_memory_chunks
-    WHERE conversation_id = ${threadId}
-    ORDER BY embedding <=> ${queryEmbedding}::vector
-    LIMIT 3
-  `)
-
-  return chunks.map(c => ({ summary: c.summary, weight: 0.6 }))
-}
-```
+**Retrieval** (Context Assembly):
+- Only if thread >40 messages
+- Semantic search across chunks using query embedding
+- Return top-3 chunks sorted by similarity
+- Each chunk assigned 0.6 weight
 
 ### Performance
 
@@ -662,7 +359,7 @@ async function loadMemoryChunks(threadId: string, query: string) {
 ### Question
 How should we integrate Supabase Realtime subscriptions with Valtio state and optimistic updates?
 
-### Decision: Valtio + Realtime (No React Query) - arch.md Decision 3
+### Decision: Valtio + Realtime (No React Query)
 
 **Rationale** (Constitution Principle XVI):
 - Real-time subscriptions already keep state fresh - caching library is redundant
@@ -671,83 +368,26 @@ How should we integrate Supabase Realtime subscriptions with Valtio state and op
 
 ### Pattern: Optimistic Update → API Call → Realtime Reconciliation
 
-```typescript
-// apps/web/src/lib/hooks/useCreateFile.ts
-function useCreateFile() {
-  const createFile = async (path: string, content: string) => {
-    // 1. Optimistic update (instant UI feedback)
-    const tempFile = {
-      id: uuid(),
-      path,
-      content,
-      created_at: new Date(),
-      status: 'pending'
-    }
-    aiAgentState.files.push(tempFile)
+**Flow**:
+1. **Optimistic update**: Add temp item to Valtio state (instant UI feedback)
+2. **API call**: Async service call to backend
+3. **Success**: Replace temp with server data (reconciliation)
+4. **Error**: Rollback (remove temp) + toast error
 
-    try {
-      // 2. API call (async)
-      const { data, error } = await fileService.create({ path, content })
-
-      if (error) throw error
-
-      // 3. Replace temp with server data (reconciliation)
-      const index = aiAgentState.files.findIndex(f => f.id === tempFile.id)
-      aiAgentState.files[index] = data
-
-      toast.success('File created')
-    } catch (err) {
-      // 4. Rollback on error
-      aiAgentState.files = aiAgentState.files.filter(f => f.id !== tempFile.id)
-      toast.error(`Failed: ${err.message}`)
-    }
-  }
-
-  return { createFile }
-}
-```
+**Benefits**:
+- Instant UI feedback (no loading delay)
+- Automatic reconciliation via Realtime subscriptions
+- Simple rollback on error
+- Works across sessions (primary uses SSE, secondary uses Realtime)
 
 ### Realtime Subscriptions
 
 **RealtimeProvider**:
-```typescript
-// apps/web/src/providers/RealtimeProvider.tsx
-function RealtimeProvider({ children }) {
-  useEffect(() => {
-    const userId = auth.currentUser.id
-
-    // Subscribe to file changes
-    const filesChannel = supabase
-      .channel(`files:user:${userId}`)
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'files',
-        filter: `owner_user_id=eq.${userId}`
-      }, (payload) => {
-        if (payload.eventType === 'INSERT') {
-          // Check if already in state (optimistic update)
-          const exists = aiAgentState.files.find(f => f.path === payload.new.path)
-          if (!exists) {
-            aiAgentState.files.push(payload.new)
-          }
-        } else if (payload.eventType === 'UPDATE') {
-          const index = aiAgentState.files.findIndex(f => f.id === payload.new.id)
-          if (index !== -1) {
-            aiAgentState.files[index] = payload.new
-          }
-        } else if (payload.eventType === 'DELETE') {
-          aiAgentState.files = aiAgentState.files.filter(f => f.id !== payload.old.id)
-        }
-      })
-      .subscribe()
-
-    return () => filesChannel.unsubscribe()
-  }, [])
-
-  return <>{children}</>
-}
-```
+- Subscribe to table changes filtered by `owner_user_id`
+- Handle INSERT: Check if already in state (from optimistic update), add if not
+- Handle UPDATE: Find by ID, replace with new data
+- Handle DELETE: Remove from state
+- Unsubscribe on cleanup
 
 ### Cross-Session Visibility
 
@@ -857,82 +497,25 @@ All providers offer server-side web search (no custom implementation needed):
 - Fallback to Claude if primary provider fails
 - A/B test quality metrics across providers
 
-### Implementation
+### Agentic Loop Pattern
 
-**Agentic Loop (Simplified)**:
-```text
-WHILE not done:
-  1. Call LLM with tools + messages
-  2. Stream text chunks to frontend
-  3. IF tool_call:
-       - Pause stream
-       - Send approval request
-       - Wait for user decision
-       - IF approved: execute tool, add result to messages
-       - IF rejected: end stream with error
-  4. IF complete: end stream
-  5. IF max_loops reached: timeout error
-```
+**WHILE not done**:
+1. Call LLM with tools + messages
+2. Stream text chunks to frontend
+3. **IF tool_call**:
+   - Pause stream
+   - Send approval request
+   - Wait for user decision
+   - IF approved: execute tool, add result to messages
+   - IF rejected: end stream with error
+4. **IF complete**: end stream
+5. **IF max_loops reached**: timeout error
 
 **Key Differences from SDK**:
 - Manual loop (not SDK orchestration)
 - Custom approval flow (not PreToolUse hooks)
 - Works in Edge Functions (not Node.js server)
 - Multi-provider ready (not Claude-only)
-
----
-
-## Research Summary
-
-**Key Decisions**:
-      { role: 'user', content: `${primeContext}\n\nUser: ${query}` }
-    ],
-    tools: [
-      {
-        name: 'write_file',
-        description: 'Create or update file',
-        input_schema: writeFileSchema
-      },
-      {
-        name: 'search_files',
-        description: 'Search files semantically',
-        input_schema: searchFilesSchema
-      }
-      // ... more tools
-    ]
-  })
-
-  for await (const chunk of stream) {
-    if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
-      // Text chunk
-      yield { type: 'text', content: chunk.delta.text }
-    } else if (chunk.type === 'content_block_start' && chunk.content_block.type === 'tool_use') {
-      const tool = chunk.content_block
-
-      // Pause stream, wait for approval (FR-048a)
-      yield {
-        type: 'tool_call',
-        toolName: tool.name,
-        status: 'awaiting_approval',
-        input: tool.input
-      }
-
-      const approved = await waitForApproval(tool.id, { timeout: 600000 }) // 10min
-
-      if (!approved) {
-        yield { type: 'error', message: 'Approval timed out after 10 minutes' }
-        return
-      }
-
-      yield { type: 'tool_call', toolName: tool.name, status: 'approved' }
-
-      // Execute tool
-      const result = await executeTool(tool.name, tool.input)
-      yield { type: 'tool_call', toolName: tool.name, status: 'completed', result }
-    }
-  }
-}
-```
 
 ### Timeout Handling (FR-048b)
 
@@ -946,13 +529,6 @@ WHILE not done:
 - Claude API error: Retry once, show toast if failed
 - Tool execution error: Send error to agent, agent revises plan
 - Stream interrupt: Discard partial message, user retries (MVP simplicity)
-
-### Fine-Grained Tool Streaming (Optional Enhancement)
-
-Claude supports `fine-grained-tool-streaming-2025-05-14` header for streaming tool parameters without buffering. This can reduce latency for large tool inputs but is not required for MVP.
-
-**MVP**: Use standard tool streaming (chunk-at-a-time text, buffer complete tool calls)
-**Post-MVP**: Consider fine-grained streaming for large file operations
 
 ---
 
