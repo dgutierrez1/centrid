@@ -24,6 +24,7 @@ export function MarkdownEditor({
     extensions: [StarterKit],
     content: initialContent,
     editable,
+    immediatelyRender: false, // Fix SSR hydration error
     editorProps: {
       attributes: {
         class: `prose prose-sm sm:prose lg:prose-lg focus:outline-none ${className}`,

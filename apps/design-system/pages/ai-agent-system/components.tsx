@@ -153,7 +153,10 @@ export default function ComponentsShowcase() {
   };
 
   return (
-    <DesignSystemFrame title="AI Agent System - Components" backHref="/ai-agent-system">
+    <DesignSystemFrame
+      featureName="AI Agent System"
+      featureId="ai-agent-system"
+    >
       <div className="space-y-12">
         {/* Introduction */}
         <div>

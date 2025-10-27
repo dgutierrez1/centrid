@@ -78,6 +78,14 @@ export const Icons = {
   // Chat & Agent
   messageSquare: LucideIcons.MessageSquare,
   bot: LucideIcons.Bot,
+
+  // Version Control & Branching
+  gitBranch: LucideIcons.GitBranch,
+
+  // UI Elements
+  layers: LucideIcons.Layers,
+  sparkles: LucideIcons.Sparkles,
+  edit: LucideIcons.Edit,
   globe: LucideIcons.Globe,
   code: LucideIcons.Code,
   clipboard: LucideIcons.Clipboard,

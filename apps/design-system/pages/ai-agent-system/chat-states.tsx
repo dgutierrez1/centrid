@@ -326,9 +326,8 @@ export default function ChatStates() {
 
   return (
     <DesignSystemFrame
-      title="Chat UI States"
-      backHref="/ai-agent-system"
-      description="Comprehensive showcase of chat component states: streaming, chat list, and file autocomplete"
+      featureName="AI Agent System"
+      featureId="ai-agent-system"
     >
       <div className="space-y-12">
         {/* ============================================================ */}

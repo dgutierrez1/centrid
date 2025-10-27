@@ -1,24 +1,45 @@
 export const screens = [
   {
-    id: 'workspace',
-    title: 'Integrated Workspace',
-    route: '/ai-agent-system/workspace',
+    id: 'chat-interface',
+    title: '01 - Chat Interface (Full)',
+    route: '/ai-agent-system/chat-interface',
     description:
-      'Full workspace integration with file tree, editor, and AI chat. Switch between desktop (3-panel) and mobile (bottom nav) viewports.',
+      'Complete chat interface with branch selector, message stream, context panel (6 sections), and input. Shows branching threads and cross-branch discovery.',
   },
   {
-    id: 'chat-states',
-    title: 'Chat States',
-    route: '/ai-agent-system/chat-states',
+    id: 'branch-selector',
+    title: '02 - Branch Selector',
+    route: '/ai-agent-system/branch-selector',
     description:
-      'ChatView and ChatListPanel component states including idle, streaming, tool calls, and various interaction states.',
+      'Hierarchical tree dropdown showing current branch, parent, siblings, children, and other branches with metadata.',
   },
   {
-    id: 'components',
-    title: 'Component Showcase',
-    route: '/ai-agent-system/components',
+    id: 'context-panel',
+    title: '03 - Context Panel',
+    route: '/ai-agent-system/context-panel',
     description:
-      'Individual components (ApprovalCard, ConflictModal, ContextReferenceBar, ChatMessage) with all states and variations.',
+      'Context panel with 6 sections: Explicit, Frequently Used, Semantic Matches, Branch Context, Artifacts, and Excluded items. Shows priority indicators.',
+  },
+  {
+    id: 'file-editor',
+    title: '04 - File Editor (Provenance)',
+    route: '/ai-agent-system/file-editor',
+    description:
+      'File editor with provenance header showing source branch, creation context, last edit info, and "Go to source" navigation.',
+  },
+  {
+    id: 'approval-modal',
+    title: '05 - Approval Modal',
+    route: '/ai-agent-system/approval-modal',
+    description:
+      'Tool call approval flow showing inline approval prompt during agent streaming with file preview and approve/reject actions.',
+  },
+  {
+    id: 'tree-view',
+    title: '06 - Visual Tree View',
+    route: '/ai-agent-system/tree-view',
+    description:
+      'Interactive branch tree visualization showing hierarchical relationships, artifact counts, and active branch highlighting (Phase 3).',
   },
 ] as const;
 

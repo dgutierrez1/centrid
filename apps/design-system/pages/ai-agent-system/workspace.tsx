@@ -1,13 +1,28 @@
 import React from 'react';
 import { DesignSystemFrame } from '../../components/DesignSystemFrame';
-import { MobileLayout, Input } from '@centrid/ui/components';
+import { MobileLayout, Input, MarkdownEditor } from '@centrid/ui/components';
 import {
   ChatView,
   ContextReferenceData,
   MessageData,
   FileChangePreview,
+  BranchSelector,
+  BranchNode,
+  ContextPanel,
+  ContextItem,
+  ContextWidgets,
+  ContextWidget,
 } from '@centrid/ui/features';
 import { ToolCall, Citation, Icons, Button } from '@centrid/ui/components';
+import {
+  mockBranches,
+  mockExplicitContext,
+  mockFrequentlyUsed,
+  mockSemanticMatches,
+  mockBranchContext,
+  mockArtifacts,
+  mockExcludedContext,
+} from '../../components/ai-agent-system/mockData';
 
 // Mock chat list data
 interface ChatData {
@@ -22,25 +37,25 @@ const mockChats: ChatData[] = [
     id: 'c1',
     title: 'User validation logic',
     lastMessagePreview: 'The user validation logic is located in...',
-    lastActivityAt: new Date(Date.now() - 300000), // 5 mins ago
+    lastActivityAt: new Date('2024-01-15T10:25:00'),
   },
   {
     id: 'c2',
     title: 'React 18 best practices',
     lastMessagePreview: 'I found several React 18 best practices...',
-    lastActivityAt: new Date(Date.now() - 120000), // 2 mins ago (current)
+    lastActivityAt: new Date('2024-01-15T10:28:00'),
   },
   {
     id: 'c3',
     title: 'Add authentication tests',
     lastMessagePreview: 'Let me help you write tests for the auth...',
-    lastActivityAt: new Date(Date.now() - 3600000), // 1 hour ago
+    lastActivityAt: new Date('2024-01-15T09:30:00'),
   },
   {
     id: 'c4',
     title: 'Database migration guide',
     lastMessagePreview: 'Here are the steps to migrate your database...',
-    lastActivityAt: new Date(Date.now() - 86400000), // 1 day ago
+    lastActivityAt: new Date('2024-01-14T10:30:00'),
   },
 ];
 
@@ -82,27 +97,27 @@ const mockCitations: Citation[] = [
   },
 ];
 
-// Mock messages
+// Mock messages - using static dates to avoid SSR hydration errors
 const mockMessages: MessageData[] = [
   {
     id: 'm1',
     role: 'user',
     content: 'Where is the user validation logic in the codebase?',
-    timestamp: new Date(Date.now() - 300000),
+    timestamp: new Date('2024-01-15T10:30:00'),
   },
   {
     id: 'm2',
     role: 'agent',
     content:
       'The user validation logic is located in `/src/services/auth.ts`. The main validation function is `validateUser()` which checks email format, password strength, and account status.',
-    timestamp: new Date(Date.now() - 280000),
+    timestamp: new Date('2024-01-15T10:31:00'),
     toolCalls: mockToolCalls,
   },
   {
     id: 'm3',
     role: 'user',
     content: 'Can you search the web for React 18 best practices and create a summary file?',
-    timestamp: new Date(Date.now() - 120000),
+    timestamp: new Date('2024-01-15T10:35:00'),
   },
 ];
 
@@ -133,6 +148,51 @@ export default function WorkspaceShowcase() {
   const [currentChatId, setCurrentChatId] = React.useState('c2'); // React 18 best practices
   const [showChatSelector, setShowChatSelector] = React.useState(false);
   const [chatSearchQuery, setChatSearchQuery] = React.useState('');
+
+  // Desktop workspace state
+  const [leftPanelTab, setLeftPanelTab] = React.useState<'threads' | 'files'>('threads');
+  const [openFile, setOpenFile] = React.useState<string | null>('auth.ts'); // null = no file open
+  const [editorContent, setEditorContent] = React.useState(`// src/services/auth.ts
+
+export function validateUser(
+  email: string,
+  password: string
+) {
+  // Email format validation
+  const emailRegex =
+    /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;
+  if (!emailRegex.test(email)) {
+    return {
+      valid: false,
+      error: 'Invalid email format'
+    };
+  }
+
+  // Password strength check
+  if (password.length < 8) {
+    return {
+      valid: false,
+      error: 'Password must be at least 8 characters'
+    };
+  }
+
+  return { valid: true };
+}`);
+
+  // Context widget expansion states
+  const [expandedWidgets, setExpandedWidgets] = React.useState<Set<string>>(new Set());
+  const [hoveredWidget, setHoveredWidget] = React.useState<string | null>(null);
+  const toggleWidget = (widgetId: string) => {
+    setExpandedWidgets((prev) => {
+      const next = new Set(prev);
+      if (next.has(widgetId)) {
+        next.delete(widgetId);
+      } else {
+        next.add(widgetId);
+      }
+      return next;
+    });
+  };
 
   const currentChat = mockChats.find((c) => c.id === currentChatId) || mockChats[1];
   const filteredChats = mockChats.filter((chat) =>
@@ -231,6 +291,40 @@ export default function WorkspaceShowcase() {
                 Mobile (375px)
               </button>
             </div>
+
+            {viewport === 'desktop' && (
+              <>
+                <div className="flex gap-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded p-1">
+                  <button
+                    onClick={() => setLeftPanelTab('threads')}
+                    className={`px-3 py-1 text-sm rounded transition-colors ${
+                      leftPanelTab === 'threads'
+                        ? 'bg-primary-500 text-white'
+                        : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    Threads Tab
+                  </button>
+                  <button
+                    onClick={() => setLeftPanelTab('files')}
+                    className={`px-3 py-1 text-sm rounded transition-colors ${
+                      leftPanelTab === 'files'
+                        ? 'bg-primary-500 text-white'
+                        : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    Files Tab
+                  </button>
+                </div>
+                <button
+                  onClick={() => setOpenFile(openFile ? null : 'auth.ts')}
+                  className="px-3 py-1 text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-750"
+                >
+                  {openFile ? 'Close File' : 'Open File'}
+                </button>
+              </>
+            )}
+
             <button
               onClick={() => setShowApproval(!showApproval)}
               className="px-3 py-1 text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-750"
@@ -295,6 +389,16 @@ export default function WorkspaceShowcase() {
                 filteredChats={filteredChats}
                 onSelectChat={handleSelectChat}
                 onNewChat={handleNewChat}
+                leftPanelTab={leftPanelTab}
+                onLeftPanelTabChange={setLeftPanelTab}
+                openFile={openFile}
+                onCloseFile={() => setOpenFile(null)}
+                editorContent={editorContent}
+                onEditorContentChange={setEditorContent}
+                expandedWidgets={expandedWidgets}
+                onToggleWidget={toggleWidget}
+                hoveredWidget={hoveredWidget}
+                onHoveredWidgetChange={setHoveredWidget}
               />
             </div>
           ) : (
@@ -343,11 +447,20 @@ export default function WorkspaceShowcase() {
           <h3 className="font-semibold text-sm mb-2">Implementation Notes</h3>
           {viewport === 'desktop' ? (
             <ul className="text-sm space-y-1 list-disc list-inside text-gray-700 dark:text-gray-300">
-              <li>Three-panel layout: File tree (20%), Editor (50%), AI Chat (30%)</li>
-              <li>Fixed proportions (no resizing in MVP)</li>
+              <li>
+                <strong>Thread-first UX:</strong> Adaptive 3-panel layout prioritizes conversation
+              </li>
+              <li>
+                <strong>Left panel (20%):</strong> Tabs for Files/Threads (defaults to Threads on open)
+              </li>
+              <li>
+                <strong>Center panel (40-80%):</strong> Thread/chat (expands when no file open)
+              </li>
+              <li>
+                <strong>Right panel (0-40%):</strong> Editor (only appears when file opened, close button to dismiss)
+              </li>
+              <li>Only one file open at a time (simplifies MVP, matches user mental model)</li>
               <li>Chat maintains state independently from editor</li>
-              <li>Context references can include selected file from editor</li>
-              <li>Approval card appears inline above chat input</li>
             </ul>
           ) : (
             <ul className="text-sm space-y-1 list-disc list-inside text-gray-700 dark:text-gray-300">
@@ -507,68 +620,358 @@ interface WorkspaceProps {
   filteredChats: ChatData[];
   onSelectChat: (chatId: string) => void;
   onNewChat: () => void;
+  leftPanelTab: 'threads' | 'files';
+  onLeftPanelTabChange: (tab: 'threads' | 'files') => void;
+  openFile: string | null;
+  onCloseFile: () => void;
+  editorContent: string;
+  onEditorContentChange: (content: string) => void;
+  expandedWidgets: Set<string>;
+  onToggleWidget: (widgetId: string) => void;
+  hoveredWidget: string | null;
+  onHoveredWidgetChange: (widgetId: string | null) => void;
 }
 
-function DesktopWorkspace({ ...chatProps }: WorkspaceProps) {
+function DesktopWorkspace(chatProps: WorkspaceProps) {
+  const {
+    leftPanelTab,
+    onLeftPanelTabChange,
+    openFile,
+    onCloseFile,
+    editorContent,
+    onEditorContentChange,
+    expandedWidgets,
+    onToggleWidget,
+    hoveredWidget,
+    onHoveredWidgetChange,
+  } = chatProps;
+
+  // Calculate widths based on whether file is open
+  const centerWidth = openFile ? 'w-[40%]' : 'w-[80%]';
+  const rightWidth = openFile ? 'w-[40%]' : 'w-0';
+
+  // Prepare context widgets data
+  const contextWidgets: ContextWidget[] = [
+    {
+      id: 'active',
+      type: 'active',
+      count: chatProps.contextReferences.length + mockExplicitContext.length,
+      items: [...chatProps.contextReferences, ...mockExplicitContext].map((item) => ({
+        id: item.id,
+        label: item.displayLabel || item.label,
+        canRemove: true,
+      })),
+    },
+    {
+      id: 'frequent',
+      type: 'frequent',
+      count: mockFrequentlyUsed.length,
+    },
+    {
+      id: 'semantic',
+      type: 'semantic',
+      count: mockSemanticMatches.length,
+    },
+    {
+      id: 'branch',
+      type: 'branch',
+      count: mockBranchContext.length,
+    },
+    {
+      id: 'artifacts',
+      type: 'artifacts',
+      count: mockArtifacts.length,
+    },
+    {
+      id: 'excluded',
+      type: 'excluded',
+      count: mockExcludedContext.length,
+    },
+  ];
+
+  const handleRemoveContextItem = (widgetType: string, itemId: string) => {
+    if (widgetType === 'active') {
+      chatProps.onRemoveReference?.(itemId);
+    }
+  };
+
   return (
     <div className="h-full bg-gray-50 dark:bg-gray-900">
       <div className="flex h-full">
-        {/* Left Panel: File Tree (20%) */}
-        <div className="w-1/5 border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
-          <h3 className="font-semibold text-sm mb-3">Files</h3>
-          <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-            <div>📁 docs</div>
-            <div className="ml-4">📄 auth-guide.md</div>
-            <div>📁 src</div>
-            <div className="ml-4 text-primary-600 dark:text-primary-400">📄 auth.ts</div>
+        {/* Left Panel: Threads/Files Tabs (20%) */}
+        <div className="w-[20%] border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex flex-col">
+          {/* Tab Switcher */}
+          <div className="border-b border-gray-200 dark:border-gray-700 p-2">
+            <div className="flex gap-1 bg-gray-100 dark:bg-gray-900 rounded p-1">
+              <button
+                onClick={() => onLeftPanelTabChange('threads')}
+                className={`flex-1 px-3 py-2 text-sm font-medium rounded transition-colors ${
+                  leftPanelTab === 'threads'
+                    ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
+                }`}
+              >
+                Threads
+              </button>
+              <button
+                onClick={() => onLeftPanelTabChange('files')}
+                className={`flex-1 px-3 py-2 text-sm font-medium rounded transition-colors ${
+                  leftPanelTab === 'files'
+                    ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
+                }`}
+              >
+                Files
+              </button>
+            </div>
+          </div>
+
+          {/* Tab Content */}
+          <div className="flex-1 overflow-y-auto p-3">
+            {leftPanelTab === 'threads' ? (
+              <div className="space-y-2">
+                <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
+                  Thread Branches
+                </div>
+                {/* Tree structure showing branch hierarchy */}
+                <div className="space-y-0.5">
+                  {mockBranches.map((branch) => {
+                    const depth = branch.depth || 0;
+                    const isActive = branch.isActive;
+                    const hasChildren = branch.childCount && branch.childCount > 0;
+
+                    return (
+                      <div
+                        key={branch.id}
+                        className={`text-left rounded transition-colors ${
+                          isActive
+                            ? 'bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800'
+                            : 'hover:bg-gray-50 dark:hover:bg-gray-750'
+                        }`}
+                        style={{ marginLeft: `${depth * 12}px` }}
+                      >
+                        <button className="w-full px-2 py-1.5 flex items-center gap-2">
+                          {/* Branch indicator */}
+                          <div className="flex-shrink-0">
+                            {hasChildren ? (
+                              <Icons.gitBranch className="h-3.5 w-3.5 text-gray-400" />
+                            ) : (
+                              <div className="h-2 w-2 rounded-full bg-gray-300 dark:bg-gray-600" />
+                            )}
+                          </div>
+                          {/* Branch content */}
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs font-medium text-gray-900 dark:text-gray-100 truncate">
+                              {branch.title}
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                              {branch.artifactCount} artifacts
+                            </div>
+                          </div>
+                          {branch.createdByAgent && (
+                            <Icons.sparkles className="h-3 w-3 text-primary-500 flex-shrink-0" />
+                          )}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
+                  Files
+                </div>
+                <div className="space-y-1 text-sm">
+                  <div className="flex items-center gap-2 p-1.5 hover:bg-gray-50 dark:hover:bg-gray-750 rounded cursor-pointer">
+                    <Icons.folder className="h-4 w-4 text-gray-400" />
+                    <span>docs</span>
+                  </div>
+                  <div className="flex items-center gap-2 p-1.5 ml-4 hover:bg-gray-50 dark:hover:bg-gray-750 rounded cursor-pointer">
+                    <Icons.fileText className="h-4 w-4 text-gray-400" />
+                    <span>react-18-best-practices.md</span>
+                  </div>
+                  <div className="flex items-center gap-2 p-1.5 hover:bg-gray-50 dark:hover:bg-gray-750 rounded cursor-pointer">
+                    <Icons.folder className="h-4 w-4 text-gray-400" />
+                    <span>src</span>
+                  </div>
+                  <div
+                    className={`flex items-center gap-2 p-1.5 ml-4 rounded cursor-pointer ${
+                      openFile === 'auth.ts'
+                        ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300'
+                        : 'hover:bg-gray-50 dark:hover:bg-gray-750'
+                    }`}
+                  >
+                    <Icons.fileText className="h-4 w-4" />
+                    <span className="font-medium">auth.ts</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Center Panel: Editor (50%) */}
-        <div className="w-1/2 border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
-          <h3 className="font-semibold text-sm mb-3">auth.ts</h3>
-          <div className="bg-gray-50 dark:bg-gray-900 rounded p-4 font-mono text-xs">
-            <pre className="text-gray-900 dark:text-gray-100">
-{`export function validateUser(
-  email: string,
-  password: string
-) {
-  // Validation logic...
-  return { valid: true };
-}`}
-            </pre>
-          </div>
-        </div>
-
-        {/* Right Panel: AI Chat (30%) */}
-        <div className="w-[30%] bg-white dark:bg-gray-800 flex flex-col">
-          <ChatHeader
-            currentChat={chatProps.currentChat}
-            showChatSelector={chatProps.showChatSelector}
-            onToggleChatSelector={chatProps.onToggleChatSelector}
-            chatSearchQuery={chatProps.chatSearchQuery}
-            onChatSearchChange={chatProps.onChatSearchChange}
-            filteredChats={chatProps.filteredChats}
-            onSelectChat={chatProps.onSelectChat}
-            onNewChat={chatProps.onNewChat}
-          />
-          <div className="flex-1 overflow-hidden">
-            <ChatView
-              messages={chatProps.messages}
-              draftMessage={chatProps.draftMessage}
-              onDraftMessageChange={chatProps.onDraftMessageChange}
-              onSendMessage={chatProps.onSendMessage}
-              isAgentResponding={chatProps.isAgentResponding}
-              canCancelRequest={chatProps.canCancelRequest}
-              onCancelRequest={chatProps.onCancelRequest}
-              contextReferences={chatProps.contextReferences}
-              onRemoveReference={chatProps.onRemoveReference}
-              onReferenceClick={chatProps.onReferenceClick}
-              onAddReference={chatProps.onAddReference}
-              approvalRequest={chatProps.approvalRequest}
+        {/* Center Panel: Thread/Chat (40-80%, expands when no file open) */}
+        <div className={`${centerWidth} bg-white dark:bg-gray-800 flex flex-col transition-all duration-200`}>
+          {/* Branch Selector */}
+          <div className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3">
+            <BranchSelector
+              currentBranch={mockBranches[4]} // "RAG Deep Dive" branch
+              branches={mockBranches}
+              onSelectBranch={(id) => console.log('Selected branch:', id)}
+              onCreateBranch={() => console.log('Create new branch')}
             />
           </div>
+
+          {/* Messages Section */}
+          <div className="flex-1 overflow-y-auto p-4">
+            <div className="space-y-4">
+              {chatProps.messages.map((msg) => (
+                <div key={msg.id} className="flex gap-3">
+                  <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${
+                    msg.role === 'user'
+                      ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                  }`}>
+                    {msg.role === 'user' ? 'U' : 'A'}
+                  </div>
+                  <div className="flex-1">
+                    <div className="prose prose-sm dark:prose-invert max-w-none">
+                      <p>{msg.content}</p>
+                    </div>
+                    {msg.toolCalls && (
+                      <details className="mt-2">
+                        <summary className="text-xs text-gray-600 dark:text-gray-400 cursor-pointer">
+                          Used {msg.toolCalls.length} tools
+                        </summary>
+                        <div className="mt-1 space-y-1">
+                          {msg.toolCalls.map((tool) => (
+                            <div key={tool.id} className="text-xs text-gray-600 dark:text-gray-400 flex items-center gap-1">
+                              <Icons.check className="h-3 w-3 text-success-500" />
+                              {tool.description}
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    )}
+                    <time className="text-xs text-gray-500 dark:text-gray-400 mt-1 block">
+                      {msg.timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                    </time>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Approval Request */}
+            {chatProps.approvalRequest && (
+              <div className="mt-4 border border-warning-200 dark:border-warning-800 rounded-lg p-3 bg-warning-50 dark:bg-warning-900/20">
+                <div className="flex items-start gap-2">
+                  <Icons.alertCircle className="h-5 w-5 text-warning-600 dark:text-warning-400 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                      Create: {chatProps.approvalRequest.changes[0].filePath.split('/').pop()}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={chatProps.approvalRequest.onApprove}
+                      className="p-1.5 bg-success-600 text-white rounded hover:bg-success-700"
+                    >
+                      <Icons.check className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={chatProps.approvalRequest.onReject}
+                      className="p-1.5 bg-gray-600 text-white rounded hover:bg-gray-700"
+                    >
+                      <Icons.x className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Context Widgets - Reusable Component */}
+          <ContextWidgets
+            widgets={contextWidgets}
+            isExpanded={expandedWidgets.has('context-section')}
+            onToggleExpand={() => onToggleWidget('context-section')}
+            onRemoveItem={handleRemoveContextItem}
+          />
+
+          {/* Input Box */}
+          <div className="border-t border-gray-200 dark:border-gray-700">
+            <div className="px-4 py-3 bg-white dark:bg-gray-800">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={chatProps.draftMessage}
+                  onChange={(e) => chatProps.onDraftMessageChange(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                      chatProps.onSendMessage();
+                    }
+                  }}
+                  placeholder="Ask a question or describe what you'd like to do..."
+                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+                <button
+                  onClick={chatProps.onSendMessage}
+                  disabled={!chatProps.draftMessage.trim()}
+                  className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  <Icons.send className="h-4 w-4" />
+                  <span>Send</span>
+                </button>
+              </div>
+              <div className="flex items-center gap-4 mt-2 text-xs text-gray-500 dark:text-gray-400">
+                <span>Use @ to reference files</span>
+                <span>Cmd+Enter to send</span>
+              </div>
+            </div>
+          </div>
         </div>
+
+        {/* Right Panel: Editor (0-40%, only when file is open) */}
+        {openFile && (
+          <div className={`${rightWidth} border-l border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex flex-col transition-all duration-200`}>
+            {/* Editor Header with Close Button */}
+            <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 px-4 py-3 bg-gray-50 dark:bg-gray-900">
+              <div className="flex items-center gap-2">
+                <Icons.fileText className="h-4 w-4 text-gray-500" />
+                <h3 className="font-semibold text-sm text-gray-900 dark:text-gray-100">{openFile}</h3>
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  (Read-only preview)
+                </span>
+              </div>
+              <button
+                onClick={onCloseFile}
+                className="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                title="Close file"
+              >
+                <Icons.x className="h-4 w-4 text-gray-500" />
+              </button>
+            </div>
+
+            {/* Editor Content - Using Monaco-like syntax highlighting */}
+            <div className="flex-1 overflow-hidden bg-gray-50 dark:bg-gray-900">
+              <div className="h-full overflow-auto p-4 font-mono text-sm">
+                <pre className="text-gray-900 dark:text-gray-100 leading-relaxed">
+                  <code>{editorContent}</code>
+                </pre>
+              </div>
+            </div>
+
+            {/* Editor Footer */}
+            <div className="border-t border-gray-200 dark:border-gray-700 px-4 py-2 bg-gray-50 dark:bg-gray-900">
+              <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                <span>TypeScript</span>
+                <span>UTF-8</span>
+                <span>Lines: {editorContent.split('\n').length}</span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -580,7 +983,8 @@ interface MobileWorkspaceProps extends WorkspaceProps {
   setCurrentView: (view: 'files' | 'editor' | 'chat') => void;
 }
 
-function MobileWorkspace({ currentView, setCurrentView, ...chatProps }: MobileWorkspaceProps) {
+function MobileWorkspace(props: MobileWorkspaceProps) {
+  const { currentView, setCurrentView, ...chatProps } = props;
   return (
     <MobileLayout
       header={

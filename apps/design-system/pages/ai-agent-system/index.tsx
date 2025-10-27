@@ -6,7 +6,10 @@ import { screens } from './screens';
 
 export default function AIAgentSystemIndex() {
   return (
-    <DesignSystemFrame title="AI Agent Execution System" backHref="/">
+    <DesignSystemFrame
+      featureName="AI Agent Execution System"
+      featureId="ai-agent-system"
+    >
       <div className="space-y-8">
         {/* Feature Overview */}
         <div>
@@ -18,6 +21,40 @@ export default function AIAgentSystemIndex() {
             filesystem-based knowledge management system. Includes chat interface, context
             management, collaborative editing with approval flows, and real-time progress tracking.
           </p>
+        </div>
+
+        {/* Quick Links */}
+        <div className="flex gap-3">
+          <Link href="/ai-agent-system/components">
+            <Card className="hover:shadow-md transition-shadow cursor-pointer border-primary-200 dark:border-primary-800 bg-primary-50 dark:bg-primary-900/20">
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                  </svg>
+                  Component Library
+                </CardTitle>
+                <CardDescription>
+                  View all components with states (ApprovalCard, ConflictModal, ContextReferenceBar, ChatMessage, etc.)
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          </Link>
+          <Link href="/ai-agent-system/chat-states">
+            <Card className="hover:shadow-md transition-shadow cursor-pointer border-primary-200 dark:border-primary-800 bg-primary-50 dark:bg-primary-900/20">
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                  State Variations
+                </CardTitle>
+                <CardDescription>
+                  Comprehensive state showcase: streaming, chat lists, file autocomplete
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          </Link>
         </div>
 
         {/* Screens Grid */}

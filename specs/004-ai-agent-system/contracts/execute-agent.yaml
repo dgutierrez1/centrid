@@ -330,7 +330,7 @@ components:
 
 # MCP Tools Contract
 
-The following custom MCP tools are available to the Claude Agent SDK:
+The following custom MCP tools are available to the agent execution service (implemented via Direct Anthropic API with custom tool orchestration):
 
 ## read_document
 
@@ -428,4 +428,4 @@ Array<{
 
 ---
 
-**Note**: All MCP tools enforce user authentication and ownership validation via RLS policies. Tools are executed within the agent's context and results are automatically injected back into the conversation by the Claude Agent SDK.
+**Note**: All MCP tools enforce user authentication and ownership validation via RLS policies. Tools are executed within the agent's context and results are automatically injected back into the conversation by the agent execution service (implemented via Direct Anthropic API with streaming and custom tool orchestration).
