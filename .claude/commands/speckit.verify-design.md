@@ -14,30 +14,35 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 **CRITICAL**: This command ALWAYS runs the complete verification process from scratch and regenerates the validation report.
 
-0. **Delete Existing Report**: Remove `design-validation.md` if it exists (ensures fresh validation every time)
+0. **Delete Existing Artifacts**: Remove `design-validation.md` and all screenshots (ensures fresh validation every time)
 1. **Setup**: Run `.specify/scripts/bash/check-prerequisites.sh --json` to get FEATURE_DIR and AVAILABLE_DOCS
 2. **Load Context**: Read arch.md, ux.md (UI features), design.md (REQUIRED), check for design-system components
 3. **Validation Checks**: Verify all screens/components designed, exports correct
-3.5. **Check Screenshots**: If screenshots exist, skip browser verification. If missing, run browser verification.
-4. **Browser MCP Verification** (conditional): Only if screenshots missing - navigate to design-system app, generate screenshots, verify layouts
+4. **Browser MCP Verification**: Navigate to design-system app, generate screenshots, verify layouts
 5. **Generate Report**: Create NEW design-validation.md with READY/BLOCKED status
 6. **Report Summary**: Show validation results and next steps
 
 ## Workflow
 
-### Step 0: Always Delete Existing Validation Report
+### Step 0: Always Delete Existing Artifacts
 
 **CRITICAL - Run FIRST before any other steps**:
 ```bash
 cd /Users/daniel/Projects/misc/centrid
-# Get feature directory
+# Get feature directory and feature name
 FEATURE_DIR=$(.specify/scripts/bash/check-prerequisites.sh --json | jq -r '.FEATURE_DIR')
+FEATURE_NAME=$(basename "$FEATURE_DIR" | sed 's/^[0-9]*-//')
+
 # Delete existing validation report (ignore errors if doesn't exist)
 rm -f "$FEATURE_DIR/design-validation.md"
 echo "✅ Deleted existing design-validation.md (if it existed)"
+
+# Delete existing screenshots (ignore errors if doesn't exist)
+rm -rf "apps/design-system/public/screenshots/$FEATURE_NAME"
+echo "✅ Deleted all screenshots for $FEATURE_NAME (if they existed)"
 ```
 
-**Why this matters**: Every run must start fresh. Previous validation results may be stale or incomplete. Deleting ensures we always regenerate the complete report from scratch.
+**Why this matters**: Every run must start fresh. Previous validation results and screenshots may be stale or incomplete. Deleting ensures we always regenerate everything from scratch with current component state.
 
 ---
 
@@ -310,32 +315,9 @@ For each component:
 | Button          | components/                       | ✅           | ✅        | READY  |
 ```
 
-### Step 3.5: Check Screenshot Existence
-
-**Purpose**: Determine if browser verification is needed (only generate screenshots if missing)
-
-```bash
-SCREENSHOT_DIR="apps/design-system/public/screenshots/$FEATURE_NAME"
-if [ -d "$SCREENSHOT_DIR" ] && [ "$(ls -A $SCREENSHOT_DIR 2>/dev/null | wc -l)" -gt 0 ]; then
-  echo "✅ Screenshots exist ($SCREENSHOT_DIR) - skipping browser verification"
-  SKIP_BROWSER_VERIFICATION=true
-else
-  echo "⚠️ No screenshots found - will run browser verification to generate them"
-  SKIP_BROWSER_VERIFICATION=false
-fi
-```
-
-**Decision**:
-- **If screenshots exist**: Skip Step 4 (browser verification), mark screenshots as EXISTING in report
-- **If screenshots missing**: Proceed to Step 4 to generate them
-
----
-
 ### Step 4: Parallel Browser Verification & Screenshot Generation
 
-**CONDITIONAL**: Only run if `SKIP_BROWSER_VERIFICATION=false` (screenshots don't exist)
-
-**CRITICAL**: Verify all screen×flow×state×viewport combinations in parallel (~90s total).
+**CRITICAL**: Always verify all screen×flow×state×viewport combinations in parallel (~90s total).
 
 #### Setup & Matrix Building
 
@@ -397,14 +379,7 @@ Collect all results, calculate:
 
 ### Step 5: Browser Verification Status Check
 
-**CONDITIONAL**: Only applies if browser verification ran (SKIP_BROWSER_VERIFICATION=false)
-
-**If screenshots existed** (SKIP_BROWSER_VERIFICATION=true):
-- Skip this step
-- Set overall_status = "READY" (assume existing screenshots are valid)
-- Note in report: "Screenshots exist - browser verification skipped"
-
-**If browser verification ran** (SKIP_BROWSER_VERIFICATION=false):
+**MANDATORY**: Verification must complete before generating report.
 
 ```
 if overall_status == "BLOCKED":
@@ -632,22 +607,11 @@ else:
 
 ## Screenshot Generation Report
 
-**Source**: Browser verification (Step 4) OR existing screenshots (Step 3.5)
+**Source**: Browser verification (Step 4)
 
-**Status**: GENERATED | EXISTING | SKIPPED | FAILED
+**Status**: GENERATED | SKIPPED | FAILED
 
-**If EXISTING** (screenshots found in Step 3.5):
-```
-Browser verification skipped - screenshots already exist.
-
-**Screenshot Directory**: apps/design-system/public/screenshots/[feature-name]/
-**Total Screenshots**: [count from ls -A]
-**Last Modified**: [from ls -lt]
-
-Note: Existing screenshots assumed valid. To regenerate, delete screenshot directory and re-run /speckit.verify-design.
-```
-
-**If GENERATED** (browser verification ran):
+**If GENERATED**:
 
 | Screen × Flow       | Desktop | Mobile | States | Layout Valid | Errors | Status |
 |---------------------|---------|--------|--------|--------------|--------|--------|
@@ -677,7 +641,7 @@ Note: Design-system app not running. Start with `npm run design:dev` and re-run 
 
 ## Browser MCP Verification
 
-**Status**: ${overall_status} | **Run**: ${SKIP_BROWSER_VERIFICATION ? "SKIPPED (screenshots exist)" : "COMPLETED"} | **Tasks**: ${ready_count}/${total_tasks} ready, ${skipped_count} skipped (${skipped_percentage}%), ${blocked_count} blocked | **Time**: ~90s
+**Status**: ${overall_status} | **Tasks**: ${ready_count}/${total_tasks} ready, ${skipped_count} skipped (${skipped_percentage}%), ${blocked_count} blocked | **Time**: ~90s
 
 ${if skipped_percentage > 50: "⚠️ WARNING: >50% skipped - extensive manual verification needed"}
 
@@ -861,8 +825,8 @@ Screenshots Section:
 **Validation Results**:
 - Screen Coverage: [X/X] screens designed
 - Component Exports: [X/X] components ready
-- Screenshots: [X/X] required screenshots exist (EXISTING | GENERATED)
-- Browser Verification: PASSED | SKIPPED (screenshots existed)
+- Screenshots: [X/X] screenshots generated
+- Browser Verification: PASSED
 
 **Created**:
 - Design validation report: specs/[feature]/design-validation.md
