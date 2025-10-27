@@ -40,7 +40,8 @@ You **MUST** consider the user input before proceeding (if not empty).
   - Screen-to-Component Mapping table (all designed screens)
   - Component Architecture section (component locations)
   - Existing screenshots (for version tracking)
-- Read `plan.md` from FEATURE_DIR (architecture context)
+  - Layout Deviations section (if exists)
+- Read `ux.md` from FEATURE_DIR (if exists in AVAILABLE_DOCS - for layout specs)
 - Read design tokens from `.specify/design-system/tokens.md`
 - Scan `packages/ui/src/features/[feature-name]/` for existing components
 - Scan `apps/design-system/pages/[feature-name]/` for showcase pages
@@ -96,9 +97,14 @@ Wait for server ready confirmation before proceeding.
    - Mobile viewport (375×812): `[NN]-[screen-name]-mobile-v[N].png`
    - Version number: Increment from existing screenshots (v2, v3, etc.)
 3. **Save to**: `apps/design-system/public/screenshots/[feature-name]/`
-4. **Present to user**:
+4. **Quick layout check** ✨ (if ux.md exists):
+   - Load layout specs for this screen from ux.md
+   - Visual comparison only (panel widths, spacing, layout matches diagram?)
+   - Note any obvious deviations for user review
+5. **Present to user**:
    - Show both desktop + mobile screenshots
    - Show previous version screenshots for comparison (if available)
+   - **If ux.md layout check**: Show brief validation note (✅ matches / ⚠️ differs)
    - Ask: "Review [Screen Name]. Provide feedback, type 'approved' to finalize, or 'skip' to move to next screen."
 
 #### 3.3. Feedback Loop
@@ -107,10 +113,14 @@ Wait for server ready confirmation before proceeding.
 
 - **If "approved" / "done" / "finalize"**:
   * Archive old screenshots (rename with `-archived-[timestamp]` suffix)
-  * Update design.md:
-    - Screen-to-Component Mapping table with new screenshot paths
+  * Update design.md ✨ (enhanced handoff tracking):
+    - **Screen-to-Component Mapping table**: Update screenshot references, keep ✅ status
+    - **If new components created**: Add new rows to mapping table with location, reuse info, priority
+    - **If layout changed**: Add/update Layout Deviations section (rationale + impact)
+    - **If new requirements discovered**: Add to Implementation Notes with ⚠️ NEW REQUIREMENT marker
+    - **Screenshots section**: Update with new screenshot filenames, grouped by screen
     - Add iteration note under screen description: `**Iteration [DATE]**: [brief summary of changes]`
-  * Save design.md (atomic write)
+  * Save design.md (atomic write using Edit tool)
   * Move to next selected screen (or exit if last)
 
 - **If "skip" / "next"**:
@@ -118,55 +128,42 @@ Wait for server ready confirmation before proceeding.
   * Move to next selected screen
 
 - **If feedback provided**:
-  * **Capture feedback context**: What changed? Why? (for iteration notes)
-  * **Update component**: Edit file in `packages/ui/src/features/[feature-name]/`
+  * **Quick validation** ✨ (before editing):
+    - Component in correct location? (`packages/ui/src/features/[feature-name]/` or `packages/ui/src/components/`)
+    - Pure presentational? (no data fetching, API calls, auth logic)
+    - Props pattern? (data in, callbacks out)
+  * **Update component**: Edit file, maintain presentational pattern
   * **Wait for auto-reload**: ~1-2 seconds for design-system to refresh
   * **Re-screenshot**: Same screen, same viewports, increment version suffix if major change
   * **Present updated screenshots**: Show new vs previous
   * **Loop**: Ask for more feedback or approval
   * **Track iterations**: Maintain change log in memory for final design.md update
 
-#### 3.4. After Screen Approved/Skipped
+#### 3.4. Auto-Sync Files ✨ UPDATED
 
-**Incremental design.md update**:
-- Update Screen-to-Component Mapping table with finalized screenshot paths
-- Add iteration note under relevant screen section:
-  ```markdown
-  **Iteration 2024-10-23**: Improved spacing in file tree, added hover states to markdown editor toolbar
-  ```
-- Preserve all other sections unchanged
-- Atomic write to FEATURE_DIR/design.md
+**For each edited component**:
+
+1. **Read .tsx file** → Extract props + states
+2. **Update ux.md** (if exists): Find component section → Replace props line → Replace states line → Add `**Iteration [DATE]**: [change]`
+3. **Update design.md ✨** (comprehensive handoff update):
+   - **Screen-to-Component Mapping**: Update screenshot references
+   - **If component location changed**: Update Location column, note in Reused From if relevant
+   - **If mobile variant differs**: Document in Component (Mobile) column (e.g., "Drawer" vs desktop "Panel")
+   - **Layout Deviations**: Add row if layout changed from ux.md specs (rationale + impact)
+   - **Screenshots section**: Replace old screenshot filenames with new ones
+   - **Implementation Notes**: Add new requirements if discovered during iteration (mark with ⚠️ NEW REQUIREMENT)
+   - Add `**Iteration [DATE]**: [change]` to screen section
+4. **Verify**: Read ux.md props → Compare to .tsx props → If mismatch: ERROR and STOP
+5. **Write**: ux.md, design.md (use Edit tool for atomic updates)
 
 ### 4. Completion Summary
 
-**After all selected screens processed**:
-
-Report to user:
-
 ```
-✅ Design iteration complete:
-   - Screens iterated: [N]
-   - Components updated: [list of .tsx files modified]
-   - New screenshots: [count] desktop + [count] mobile
-   - Previous screenshots: Archived with timestamp
-   - design.md: Updated with iteration notes
-
-📸 Screenshot versions:
-   - [Screen Name]: v1 → v3 (2 iterations)
-   - [Screen Name]: v2 → v2 (approved as-is)
-
-📝 Changes summary:
-   [Brief bullet list of what changed per screen]
-
-📂 Updated files:
-   - packages/ui/src/features/[feature-name]/[Component].tsx
-   - specs/[FEATURE]/design.md
-   - apps/design-system/public/screenshots/[feature-name]/
-
-Next steps:
-   → If implementation ongoing: Containers may need updates in apps/web
-   → If not started: Run /speckit.tasks to regenerate with updated designs
-   → To iterate more: Run /speckit.design-iterate again
+✅ Design iteration complete
+- Screens: [N], Components: [Names], Screenshots: [N]
+- ux.md: ✅ [Component] props/states synced
+- design.md: ✅ Mapping + notes + deviations
+- Verified: ✅ Props match .tsx files
 ```
 
 ---
@@ -178,17 +175,22 @@ Next steps:
 - ✅ Components must exist in packages/ui/src/features/[feature-name]/
 - ✅ Design showcase must be accessible at localhost:3001
 
-**During iteration**:
+**During iteration** ✨:
 - ✅ Only update selected screens (don't modify others)
 - ✅ Preserve component architecture (no file renames without user approval)
+- ✅ **Component guidelines**: Keep presentational (no data fetching, API calls, auth)
+- ✅ **Props pattern**: Data in, callbacks out (maintain existing pattern)
+- ✅ **Location check**: Edit in `packages/ui` only (never `apps/web` or `apps/design-system`)
+- ✅ **Layout validation**: Quick visual check against ux.md specs (if exists)
 - ✅ Archive old screenshots (don't delete)
 - ✅ Atomic writes after each screen approval
 
-**After iteration**:
-- ✅ design.md Screen-to-Component Mapping table is current
-- ✅ All new screenshots referenced in design.md exist on disk
-- ✅ Iteration notes added to design.md with dates
-- ✅ Old screenshots archived (not lost)
+**After iteration** (MANDATORY CHECKS):
+- ✅ **design.md updated**: Mapping table + iteration notes + deviations (if any)
+- ✅ **ux.md updated** (if exists): Component props/states match actual .tsx files
+- ✅ **Screenshots**: New versions saved, old versions archived
+- ✅ **Components**: Only edited in packages/ui (never apps/)
+- ❌ **STOP if**: ux.md props don't match component file (incomplete sync)
 
 ---
 

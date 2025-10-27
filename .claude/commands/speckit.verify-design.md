@@ -12,14 +12,34 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 ## Outline
 
+**CRITICAL**: This command ALWAYS runs the complete verification process from scratch and regenerates the validation report.
+
+0. **Delete Existing Report**: Remove `design-validation.md` if it exists (ensures fresh validation every time)
 1. **Setup**: Run `.specify/scripts/bash/check-prerequisites.sh --json` to get FEATURE_DIR and AVAILABLE_DOCS
 2. **Load Context**: Read arch.md, ux.md (UI features), design.md (REQUIRED), check for design-system components
-3. **Validation Checks**: Verify all screens/components designed, exports correct, screenshots exist
-4. **Browser MCP Verification**: Navigate to design-system app, verify components render correctly
-5. **Generate Report**: Create design-validation.md with READY/BLOCKED status
+3. **Validation Checks**: Verify all screens/components designed, exports correct
+3.5. **Check Screenshots**: If screenshots exist, skip browser verification. If missing, run browser verification.
+4. **Browser MCP Verification** (conditional): Only if screenshots missing - navigate to design-system app, generate screenshots, verify layouts
+5. **Generate Report**: Create NEW design-validation.md with READY/BLOCKED status
 6. **Report Summary**: Show validation results and next steps
 
 ## Workflow
+
+### Step 0: Always Delete Existing Validation Report
+
+**CRITICAL - Run FIRST before any other steps**:
+```bash
+cd /Users/daniel/Projects/misc/centrid
+# Get feature directory
+FEATURE_DIR=$(.specify/scripts/bash/check-prerequisites.sh --json | jq -r '.FEATURE_DIR')
+# Delete existing validation report (ignore errors if doesn't exist)
+rm -f "$FEATURE_DIR/design-validation.md"
+echo "✅ Deleted existing design-validation.md (if it existed)"
+```
+
+**Why this matters**: Every run must start fresh. Previous validation results may be stale or incomplete. Deleting ensures we always regenerate the complete report from scratch.
+
+---
 
 ### Step 1: Setup & Load Context
 
@@ -43,18 +63,18 @@ if "design.md" NOT in AVAILABLE_DOCS:
   STOP EXECUTION
 ```
 
-**Check 2: arch.md exists**
+**Check 2: arch.md OR ux.md exists**
 ```
-if "arch.md" NOT in AVAILABLE_DOCS:
-  ERROR: arch.md not found. Run /speckit.arch first.
-  Need arch.md to verify all screens are designed.
+if "arch.md" NOT in AVAILABLE_DOCS AND "ux.md" NOT in AVAILABLE_DOCS:
+  ERROR: Neither arch.md nor ux.md found. Need at least one for screen inventory.
+  Run /speckit.arch or /speckit.ux first.
   STOP EXECUTION
 ```
 
 **Load required context**:
 - Read `$FEATURE_DIR/spec.md` (for user stories and acceptance criteria)
-- Read `$FEATURE_DIR/arch.md` (for screen inventory - REQUIRED)
-- Read `$FEATURE_DIR/ux.md` (for UX flows - OPTIONAL, check if in AVAILABLE_DOCS)
+- Read `$FEATURE_DIR/arch.md` (for screen inventory - if exists)
+- Read `$FEATURE_DIR/ux.md` (for detailed UX flows - if exists, PRIMARY SOURCE)
 - Read `$FEATURE_DIR/design.md` (for design documentation - REQUIRED)
 
 **Extract feature name**:
@@ -63,40 +83,180 @@ if "arch.md" NOT in AVAILABLE_DOCS:
 
 ### Step 2: Extract Screen Inventory
 
-**From arch.md, extract all screens**:
+**Primary source: ux.md if available, else arch.md**:
 
-Parse `arch.md` section "### Screens & Flows" table:
-- Extract screen names from first column
-- Extract priorities (P1, P2, P3, etc.) from fourth column
-- Extract routes/entry points from fifth column
-- Create screen inventory list
+**If "ux.md" in AVAILABLE_DOCS**:
+- Parse `ux.md` section "## UX Flows"
+- Extract all screens from flow headers (e.g., "### AI-Powered Exploration Workspace")
+- Extract all flows per screen (#### Flow N: [Flow Name])
+- Create screen inventory: screen name → flows list → components per flow
+- Use ux.md as source of truth for screen list
 
-**Example extraction**:
+**If "ux.md" NOT in AVAILABLE_DOCS**:
+- Parse `arch.md` section "### Screens & Flows" table
+- Extract screen names, priorities, routes from table rows
+- Create screen inventory from arch.md only
+
+**Cross-reference with arch.md** (if ux.md was used):
+- Flag screens in ux.md missing from arch.md (inconsistency)
+- Flag screens in arch.md missing from ux.md (incomplete UX)
+
+### Step 2.5: Extract ALL Component References from ux.md
+
+**If ux.md exists**, extract comprehensive component inventory using Grep (handles files >25K tokens):
+
+```bash
+# Extract all PascalCase component names
+grep -oE '`[A-Z][a-zA-Z]+`' $FEATURE_DIR/ux.md | sed 's/`//g' | sort -u
 ```
-From arch.md table:
-| Screen | Purpose | User Story | Priority | Route/Entry Point |
-|--------|---------|------------|----------|-------------------|
-| Workspace | Main interface | US-001 | P1 | /workspace |
-| Settings | Configuration | US-005 | P2 | /settings |
 
-Extract:
-- Workspace (P1, /workspace)
-- Settings (P2, /settings)
+**Categorize by type**:
+- **Screen components**: Main views from arch.md
+- **Flow components**: Modals, actions, dialogs from flows (e.g., CreateBranchModal, BranchActions)
+- **Shared components**: Reused across screens
+
+**Validate each component**:
+1. File exists: `packages/ui/src/features/$FEATURE_NAME/[ComponentName].tsx`
+2. Exported: `packages/ui/src/features/index.ts`
+3. Missing flow components = BLOCKER
+
+**If ux.md missing**: Skip (validate arch.md screens only)
+
+### Step 2.75: Validate design.md Screen-to-Component Mapping ✨ NEW
+
+**CRITICAL**: Verify design.md mapping before generating screenshots (catches issues early)
+
+**Load design.md Screen-to-Component Mapping**:
+```
+Parse design.md section "### Screen-to-Component Mapping"
+Extract table rows: Screen Name, Component (Desktop), Component (Mobile), Location, Reused From, Priority, Screenshots
 ```
 
-**If ux.md exists, cross-reference screens**:
+**Validation Checks**:
 
-Parse `ux.md` section "## Screen-by-Screen UX Flows":
-- Extract all screen names (from "### [Screen Name]" headers)
-- Verify consistency with arch.md screen list
-- Flag any screens in ux.md missing from arch.md (inconsistency)
-- Flag any screens in arch.md missing from ux.md (incomplete UX)
+1. **Component location conflicts**:
+   ```bash
+   For each mapped component:
+     Expected location: {Location column from mapping}
+     Check if file exists at location
+     If not found:
+       Search packages/ui/ for component file
+       If found elsewhere: WARNING (component moved or mapping outdated)
+       If not found: ERROR (component doesn't exist)
+   ```
 
-**If ux.md missing**: Use arch.md screen list only (UI-only feature without detailed UX flows)
+2. **Cross-reference with ux.md** (if exists):
+   ```
+   Extract screens from ux.md "Screen-by-Screen UX Flows"
+   Compare to design.md mapping:
+     - All ux.md screens have mapping row? (completeness)
+     - All design.md rows reference ux.md screens? (orphans)
+   ```
+
+3. **Partial design status**:
+   ```
+   Count total screens expected (from ux.md or arch.md)
+   Count mapped screens in design.md
+   Calculate: {mapped}/{total} = X% complete
+   If <100%: Set status PARTIAL
+   ```
+
+4. **Screenshot status validation**:
+   ```
+   For each mapping row:
+     Check Screenshots column: ✅ or ❌
+     If ❌: Screenshots not yet generated (expected at this step)
+     If ✅: Screenshots claimed to exist, verify files on disk
+   ```
+
+**Orphan screenshot cleanup** ✨ NEW (Gap #3):
+```bash
+List existing screenshots: ls apps/design-system/public/screenshots/$FEATURE_NAME/
+For each screenshot file:
+  Parse screen name from filename (e.g., "workspace-..." → "Workspace")
+  Check if screen exists in current design.md mapping
+  If not found: Mark as ORPHAN (from previous design iteration)
+
+If orphans found:
+  Present list to user: "Found X orphan screenshots from previous iterations"
+  Ask: "Delete orphan screenshots? [Y/n]"
+  If Y: Delete orphans + remove from design.md Screenshots section
+  If n: Keep (user may be iterating)
+```
+
+**Report**:
+```
+Screen-to-Component Mapping Validation:
+
+Components: X/Y exist at mapped locations
+Locations: X components found, Y conflicts (wrong location)
+Completeness: X/Y screens mapped (X% complete)
+Status: READY | PARTIAL | BLOCKED
+
+Issues:
+- ⚠️  ContextPanel: Found at packages/ui/components/ (mapping shows features/)
+- ❌ ThreadInput: Not found at mapped location (file missing)
+- 🔄 PARTIAL: 3/5 screens mapped (60% complete)
+```
+
+**If BLOCKED**: Stop before browser verification (fixes required)
+**If PARTIAL**: Warn but allow proceed (partial verification possible)
+**If conflicts found**: Ask user to update mapping or fix locations
+
+---
 
 ### Step 3: Validate Design Coverage
 
-**Check 1: All Screens Designed**
+**Check 1: UX.md Alignment ✨ UPDATED** (if ux.md exists):
+
+1. **Load layout specs** from ux.md for each screen:
+   - ASCII layout diagrams (desktop + mobile) with pixel/percentage values
+   - Panel behavior tables (widths, responsive)
+   - Spacing tables (gap, padding, margin values)
+
+2. **Compare design.md to ux.md layout specs**:
+   - Check if design.md references ux.md layouts (good practice)
+   - Check if screenshots exist showing these layouts
+   - Flag significant deviations (>10% difference in dimensions)
+
+3. **Component prop alignment**:
+   - Extract component specs from ux.md (TypeScript props with data + callbacks)
+   - Check if components in packages/ui match ux.md props specifications
+   - Verify all states from ux.md have screenshots (Default, Loading, Error, Empty, Success, Open/Closed, Expanded/Collapsed)
+
+4. **Error scenario coverage**:
+   - Extract error scenarios from ux.md flows (error tables with trigger, component, display, recovery, test data)
+   - Verify design.md documents error states and recovery flows
+   - Check error screenshots exist
+
+5. **Interaction patterns validation**:
+   - Extract interaction patterns from ux.md (Modal Workflow, Streaming Response, Approval Workflow, Context Management, Dropdown Navigation, Sliding Panel, Collapsible Section, Provenance Navigation)
+   - Verify design implements patterns with correct state changes and keyboard navigation
+
+6. **Accessibility checklist**:
+   - Verify keyboard navigation documented (Tab, Enter, Escape, Arrows)
+   - Check ARIA labels/roles documented (`aria-label`, `role`, `aria-live`)
+   - Verify focus management (trap, restoration)
+   - Check color contrast meets WCAG AA (4.5:1 text, 3:1 UI)
+
+7. **Success criteria alignment**:
+   - Extract success criteria from ux.md flows (performance targets <2s/<5s, adoption metrics, quality thresholds)
+   - Verify design addresses performance/quality constraints
+
+8. **Create alignment matrix**:
+```
+| Screen      | Layout | Props | States | Errors | Patterns | A11y | Success Criteria | Status |
+|-------------|--------|-------|--------|--------|----------|------|------------------|--------|
+| Workspace   | ✅     | ✅    | ✅ 5/5 | ✅ 3/3 | ✅ 3/3   | ✅   | ✅               | ALIGNED|
+| Settings    | ⚠️     | ✅    | ⚠️ 3/5 | ❌ 0/2 | ✅ 1/1   | ⚠️   | ✅               | PARTIAL|
+```
+
+9. **If misalignment found**:
+   - Check design.md for "Layout Deviations" section (intentional changes)
+   - If documented: Mark as INTENTIONAL DEVIATION
+   - If not documented: Mark as BLOCKER (needs resolution)
+
+**Check 2: All Screens Designed with Flow Coverage**
 
 For each screen in arch.md screen inventory:
 
@@ -106,14 +266,23 @@ For each screen in arch.md screen inventory:
    - Component list
    - States documented (default, loading, error, empty)
    - Responsive behavior
+3. **If ux.md exists**: Verify all flows for this screen are documented
+   - Extract flows from ux.md "### [Screen Name]" section (e.g., "#### Primary Flow 1", "#### Primary Flow 2")
+   - Check design.md documents components for ALL flows (not just Flow 1)
+   - Verify modals, approval prompts, and flow-specific components are documented
 
 **Create coverage matrix**:
 ```
-| Screen      | Priority | In design.md? | Layout? | Components? | States? | Status |
-|-------------|----------|---------------|---------|-------------|---------|--------|
-| Workspace   | P1       | ✅            | ✅      | ✅          | ✅      | READY  |
-| Settings    | P2       | ❌            | -       | -           | -       | MISSING|
+| Screen      | Priority | In design.md? | Layout? | Components? | All Flows? | States? | Status |
+|-------------|----------|---------------|---------|-------------|------------|---------|--------|
+| Workspace   | P1       | ✅            | ✅      | ✅          | ✅ (4/4)   | ✅      | READY  |
+| Settings    | P2       | ❌            | -       | -           | -          | -       | MISSING|
 ```
+
+**Flow Coverage Check** (if ux.md exists):
+- Count flows in ux.md for each screen (e.g., "Chat Interface" has Flow 1-4)
+- Verify design.md documents components for ALL flows, not just primary flow
+- Flag MISSING if flows are documented separately as different "screens" instead of unified in parent screen
 
 **Check 2: Component Exports Verified**
 
@@ -141,86 +310,141 @@ For each component:
 | Button          | components/                       | ✅           | ✅        | READY  |
 ```
 
-**Check 3: Screenshots Exist**
+### Step 3.5: Check Screenshot Existence
 
-From design.md, check for screenshot references:
-- Look for screenshot paths (e.g., `/screenshots/[feature-name]/`)
-- Verify files exist at `apps/design-system/public/screenshots/[feature-name]/`
+**Purpose**: Determine if browser verification is needed (only generate screenshots if missing)
 
-Expected screenshots per screen:
-- `[screen-name]-desktop-default.png`
-- `[screen-name]-mobile-default.png`
-- `[screen-name]-desktop-[state].png` (for each state: loading, error, empty)
-- `[screen-name]-mobile-[state].png` (for each state)
-
-**Create screenshot matrix**:
-```
-| Screen      | Desktop Default | Mobile Default | States Screenshots | Status |
-|-------------|-----------------|----------------|--------------------|--------|
-| Workspace   | ✅              | ✅             | ✅ (3/3)           | READY  |
-| Settings    | ✅              | ❌             | ⚠️  (1/3)           | PARTIAL|
+```bash
+SCREENSHOT_DIR="apps/design-system/public/screenshots/$FEATURE_NAME"
+if [ -d "$SCREENSHOT_DIR" ] && [ "$(ls -A $SCREENSHOT_DIR 2>/dev/null | wc -l)" -gt 0 ]; then
+  echo "✅ Screenshots exist ($SCREENSHOT_DIR) - skipping browser verification"
+  SKIP_BROWSER_VERIFICATION=true
+else
+  echo "⚠️ No screenshots found - will run browser verification to generate them"
+  SKIP_BROWSER_VERIFICATION=false
+fi
 ```
 
-### Step 4: Browser MCP Verification
+**Decision**:
+- **If screenshots exist**: Skip Step 4 (browser verification), mark screenshots as EXISTING in report
+- **If screenshots missing**: Proceed to Step 4 to generate them
 
-**IMPORTANT**: Only proceed if design-system app is running or can be started
+---
 
-**Step 4.1: Check Design System App Availability**
+### Step 4: Parallel Browser Verification & Screenshot Generation
 
-Try to navigate to design system:
+**CONDITIONAL**: Only run if `SKIP_BROWSER_VERIFICATION=false` (screenshots don't exist)
+
+**CRITICAL**: Verify all screen×flow×state×viewport combinations in parallel (~90s total).
+
+#### Setup & Matrix Building
+
+1. **Check design-system app** (port 3001): Start if not running, error if fails
+2. **Parse ux.md routes**: Extract `**Route**: /path` (ERROR if missing), flows (#### headers), states (from flow tables: trigger, component)
+3. **Build matrix**: screen × flow × state × viewport → verification tasks (e.g., 9 flows × 3 states × 2 viewports = 54 tasks)
+
+#### Parallel Sub-Agent Execution
+
+Spawn all tasks in parallel using Task tool (single message, multiple invocations):
+
+**Each sub-agent** (playwright-contexts MCP):
 ```
-Use mcp__playwright__browser_navigate to http://localhost:3001
-```
+Context: {screen-slug}-{flow-slug}-{state-slug}-{viewport}
+Route: http://localhost:3001{route}?flow={flow-slug}&state={state-slug}
 
-**If navigation succeeds**: Continue to Step 4.2
-**If navigation fails**: Skip browser verification, add note to report: "Manual browser verification required - design-system app not running"
+Execution:
+1. Create context (isolated viewport)
+2. Navigate with URL params (fallback: interactive trigger)
+3. Skip if: trigger contains "agent"/"manual"/"approval" (return SKIPPED)
+4. Screenshot: {screen}-{flow}-{state}-{viewport}.png
+5. Validate layout (JS eval):
+   - Panel widths: ±5% tolerance (>10% = BLOCKER, 5-10% = WARNING)
+   - Gap spacing: ±2px tolerance
+   - Component visibility
+6. Check console errors (any = BLOCKER)
+7. Close context
 
-**Step 4.2: Navigate to Feature Showcase**
-
-Navigate to feature showcase page:
-```
-http://localhost:3001/[feature-name]
-(e.g., http://localhost:3001/ai-agent-system)
-```
-
-**If 404**: Add warning to report: "Feature showcase page not found at apps/design-system/pages/[feature-name]/index.tsx"
-
-**Step 4.3: Take Viewport Snapshots**
-
-For mobile viewport (375×812):
-```
-1. Resize browser: mcp__playwright__browser_resize(width=375, height=812)
-2. Capture snapshot: mcp__playwright__browser_snapshot()
-3. Verify components render without errors
-```
-
-For desktop viewport (1440×900):
-```
-1. Resize browser: mcp__playwright__browser_resize(width=1440, height=900)
-2. Capture snapshot: mcp__playwright__browser_snapshot()
-3. Verify components render without errors
-```
-
-**Step 4.4: Check Console Errors**
-
-```
-Use mcp__playwright__browser_console_messages(onlyErrors=true)
+Return: {task_id, screenshot, status: READY|SKIPPED|BLOCKED, layout_valid, layout_dimensions, issues, console_errors}
 ```
 
-**If errors found**: Document in validation report
-**If no errors**: Mark browser verification as PASSED
+**Layout Validation JS**:
+```javascript
+() => {
+  const panels = {
+    left: document.querySelector('[data-testid="workspace-sidebar"]'),
+    center: document.querySelector('[data-testid="thread-view"]'),
+    right: document.querySelector('[data-testid="file-editor"]')
+  };
+  const total = document.body.clientWidth;
+  return {
+    leftWidthPct: panels.left ? (panels.left.offsetWidth / total) * 100 : 0,
+    centerWidthPct: panels.center ? (panels.center.offsetWidth / total) * 100 : 0,
+    rightWidthPct: panels.right ? (panels.right.offsetWidth / total) * 100 : 0,
+    gap: panels.center?.parentElement ? parseInt(getComputedStyle(panels.center.parentElement).gap || '0') : 0,
+    visible: {left: !!panels.left, center: !!panels.center, right: !!panels.right}
+  };
+}
+```
 
-**Step 4.5: Verify Interactive Components**
+#### Aggregation
 
-For each interactive component (buttons, inputs, modals):
-1. Use browser snapshot to identify interactive elements
-2. Verify hover states (desktop only)
-3. Verify click handlers attached
-4. Note any missing interactions in report
+Collect all results, calculate:
+- `ready_count`, `skipped_count`, `blocked_count`, `skipped_percentage`
+- **Status**: BLOCKED if blocked_count > 0, PARTIAL if skipped_percentage > 50%, else READY
+- Group by route → flow → viewport for reporting
 
-### Step 5: Generate Validation Report
+---
 
-**Create validation report**: `$FEATURE_DIR/design-validation.md`
+### Step 5: Browser Verification Status Check
+
+**CONDITIONAL**: Only applies if browser verification ran (SKIP_BROWSER_VERIFICATION=false)
+
+**If screenshots existed** (SKIP_BROWSER_VERIFICATION=true):
+- Skip this step
+- Set overall_status = "READY" (assume existing screenshots are valid)
+- Note in report: "Screenshots exist - browser verification skipped"
+
+**If browser verification ran** (SKIP_BROWSER_VERIFICATION=false):
+
+```
+if overall_status == "BLOCKED":
+  STATUS: BLOCKED
+  ERROR: "${overall_message}"
+  ERROR: "Fix blocking issues before proceeding to task generation"
+
+  List all BLOCKER issues:
+  ${for result in results where has_blocker_issues(result):
+    - ${result.task_id}: ${result.blocker_summary}
+  }
+
+  STOP: Cannot proceed with blockers
+
+elif overall_status == "PARTIAL":
+  STATUS: PARTIAL
+  WARNING: "${overall_message}"
+
+  If skipped_percentage > 50:
+    WARNING: "More than 50% states skipped - extensive manual verification will be needed during implementation"
+
+  Can proceed to report generation with warnings
+
+else:
+  STATUS: READY
+  SUCCESS: "All verification tasks passed"
+  Proceed to report generation
+```
+
+### Step 6: Generate NEW Validation Report
+
+**CRITICAL**: Create a completely NEW validation report from scratch.
+
+**Requirements**:
+- File was already deleted in Step 0
+- Use Write tool (NOT Edit tool)
+- Generate complete report with all validation results
+- Include timestamp of current run
+
+**Location**: `$FEATURE_DIR/design-validation.md`
 
 **Report Structure**:
 
@@ -259,103 +483,238 @@ For each interactive component (buttons, inputs, modals):
 
 ---
 
-## UX Flow Coverage Validation
+## UX Specification Alignment ✨ UPDATED
 
-**Source**: ux.md screen-by-screen flows
+**Source**: ux.md (if exists)
 
-**Status**: CONSISTENT | INCONSISTENT | N/A (no ux.md)
+**Status**: ALIGNED | PARTIAL | MISALIGNED | N/A (no ux.md)
+
+### Layout Alignment
+
+| Screen      | Desktop Layout | Mobile Layout | Spacing | Deviations | Status |
+|-------------|----------------|---------------|---------|------------|--------|
+| [Screen]    | ✅/⚠️/❌       | ✅/⚠️/❌      | ✅/⚠️/❌ | Documented?| ALIGNED/PARTIAL/BLOCKED |
+
+**Legend**:
+- ✅ = Matches ux.md specs (±5% tolerance)
+- ⚠️  = Minor deviation (5-10% difference)
+- ❌ = Significant deviation (>10% difference)
+
+### Component Props & States Alignment
+
+| Component       | Props Match | States (D/L/E/S) | Error Scenarios | A11y (KB/ARIA/Focus) | Screenshots | Status |
+|-----------------|-------------|------------------|----------------|---------------------|-------------|--------|
+| [Component]     | ✅/⚠️/❌    | X/Y states       | X/Y errors     | ✅/⚠️/❌            | ✅/⚠️/❌    | ALIGNED/PARTIAL/BLOCKED |
+
+**Legend**: D/L/E/S = Default/Loading/Error/Success states, KB = Keyboard nav, A11y = Accessibility
+
+**Issues Found**:
+- 🔴 BLOCKER: [Component X] props mismatch - ux.md has `onApprove(id)`, design.md has `onConfirm()`
+- 🔴 BLOCKER: [Component Y] missing Error state screenshots (documented in ux.md error table)
+- 🔴 BLOCKER: [Component Z] missing keyboard navigation (ux.md requires Tab/Enter/Escape)
+- ⚠️  WARNING: [Component W] layout 40% width (ux.md: 30%) - NOT DOCUMENTED in design.md deviations
+- ℹ️  INTENTIONAL: [Component V] spacing 12px (ux.md: 16px) - Documented in design.md "Layout Deviations"
+
+### Flow Coverage ✨ CRITICAL
+
+**Unified Screen Validation**: Each screen in ux.md may have multiple flows (Flow 1, Flow 2, etc.). ALL flows must be addressed in the SAME screen section in design.md, not split into separate screens.
+
+**Flow Coverage Matrix**:
+
+| Screen         | Total Flows (ux.md) | Flows Documented (design.md) | Missing Components | Unified? | Status |
+|----------------|---------------------|------------------------------|-------------------|----------|--------|
+| Chat Interface | 4 (Flow 1-4)        | 2 (Flow 1, 3 partial)        | CreateBranchModal, ConsolidateModal | ❌ Split | BLOCKED |
+| [Screen]       | X flows             | Y flows                      | [Components]      | ✅/❌    | READY/BLOCKED |
 
 **Consistency Checks**:
 - [ ] All screens in ux.md are in arch.md
 - [ ] All screens in arch.md are in ux.md (or intentionally deferred)
-- [ ] All flows in ux.md have corresponding designs in design.md
+- [ ] **All flows for each screen documented in SAME design.md screen section (not split)**
+- [ ] All flow-specific components documented (modals, approval prompts, etc.)
 
 **Issues Found**:
-- 🔴 BLOCKER: [Flow X] in ux.md but no design in design.md
+- 🔴 BLOCKER: [Screen X] has [N] flows in ux.md but design.md only documents [M] flows
+- 🔴 BLOCKER: [Flow Y] components split into separate screen sections instead of unified in [Screen X]
+- 🔴 BLOCKER: [Component Z] from [Flow N] missing from design.md
 - ⚠️  WARNING: [Screen Y] in arch.md but no UX flow in ux.md (consider if UX detail needed)
+
+### Error Scenarios & Recovery
+
+**Source**: ux.md error tables in each flow
+
+| Screen/Flow     | Total Errors (ux.md) | Documented (design.md) | Screenshots | Recovery Flows | Status |
+|-----------------|---------------------|------------------------|-------------|---------------|--------|
+| Chat Interface  | 4 errors            | 2 documented           | 1/4         | 2/4           | BLOCKED |
+| [Flow]          | X errors            | Y documented           | X/Y         | X/Y           | READY/BLOCKED |
+
+**Issues Found**:
+- 🔴 BLOCKER: [Error X] from ux.md not documented in design.md (e.g., "SSE interrupts mid-response")
+- 🔴 BLOCKER: [Error Y] missing screenshots (e.g., network failure banner)
+- 🔴 BLOCKER: [Error Z] missing recovery flow documentation
+
+### Interaction Patterns
+
+**Source**: ux.md lines 1375-1552 (8 patterns)
+
+| Pattern                  | Used In          | State Changes | Keyboard Nav | Documented | Status |
+|-------------------------|------------------|---------------|--------------|------------|--------|
+| Modal Workflow          | Create Branch    | Hidden→Visible→Hidden | Escape/Enter | ✅/❌ | READY/BLOCKED |
+| Streaming Response      | Agent Messages   | Idle→Streaming→Complete | Escape | ✅/❌ | READY/BLOCKED |
+| Approval Workflow       | Tool Calls       | Streaming→Paused→Approved | Tab/Enter | ✅/❌ | READY/BLOCKED |
+| Context Management      | Context Panel    | Collapsed→Expanded | Enter/Arrows | ✅/❌ | READY/BLOCKED |
+| Dropdown Navigation     | Branch Selector  | Closed→Open→Selected | Enter/Arrows/Escape | ✅/❌ | READY/BLOCKED |
+| Sliding Panel           | File Editor      | Closed→Open→Closed | Escape | ✅/❌ | READY/BLOCKED |
+| Collapsible Section     | Context Sections | Collapsed→Expanded | Enter/Space | ✅/❌ | READY/BLOCKED |
+| Provenance Navigation   | Go to Source     | File→Navigate→Highlight | Enter | ✅/❌ | READY/BLOCKED |
+
+**Issues Found**:
+- 🔴 BLOCKER: [Pattern X] not implemented/documented in design.md
+- 🔴 BLOCKER: [Pattern Y] missing keyboard navigation specification
+- 🔴 BLOCKER: [Pattern Z] state changes incomplete (only shows 2/4 states)
+
+### Accessibility Validation
+
+**Source**: ux.md lines 1349-1357 (shared checklist)
+
+| Component       | Keyboard Nav | ARIA Labels | Focus Management | Color Contrast | Screen Reader | Status |
+|-----------------|-------------|-------------|------------------|----------------|---------------|--------|
+| [Component]     | ✅/❌       | ✅/❌       | ✅/❌            | ✅/❌          | ✅/❌         | READY/BLOCKED |
+
+**Checklist**:
+- [ ] Keyboard navigation: Tab, Shift+Tab, Enter, Escape, Arrow keys
+- [ ] ARIA labels: `aria-label` for icon buttons, `aria-describedby` for inputs, `role` for custom widgets
+- [ ] Focus management: Initial focus, focus trap (modals), focus restoration
+- [ ] Color contrast: WCAG AA (4.5:1 text, 3:1 UI)
+- [ ] Screen reader: `aria-live="polite"` (updates), `aria-live="assertive"` (errors)
+
+**Issues Found**:
+- 🔴 BLOCKER: [Component X] missing keyboard navigation documentation
+- 🔴 BLOCKER: [Component Y] missing ARIA labels specification
+- ⚠️  WARNING: [Component Z] color contrast not verified (coral on white = needs check)
+
+### Success Criteria Coverage
+
+**Source**: ux.md success criteria sections in flows
+
+| Flow            | Success Criteria (ux.md)      | Design Addresses | Status |
+|-----------------|------------------------------|------------------|--------|
+| Send Message    | Response starts <5s (p95)    | ✅/❌            | READY/BLOCKED |
+| Create Branch   | Completes <2s                | ✅/❌            | READY/BLOCKED |
+| Semantic Search | Returns results <1s          | ✅/❌            | READY/BLOCKED |
+| Consolidate     | 5 branches <10s (p95)        | ✅/❌            | READY/BLOCKED |
+
+**Issues Found**:
+- ⚠️  WARNING: [Flow X] performance target (<2s) not addressed in design notes
+- ℹ️  INFO: Design should note performance constraints for implementation phase
 
 ---
 
 ## Component Export Validation
 
-**Source**: packages/ui/src/features/index.ts and components/index.ts
+**Source**: Comprehensive inventory from ux.md (Step 2.5) + packages/ui validation
 
-| Component       | Location              | File Exists? | Exported? | Status |
-|-----------------|-----------------------|--------------|-----------|--------|
-| [Component]     | features/[feature]/   | ✅/❌        | ✅/❌     | READY/BLOCKED |
+### All Components
 
-**Issues Found**:
-- 🔴 BLOCKER: [Component X] not exported from packages/ui/src/features/index.ts
-- 🔴 BLOCKER: [Component Y] file missing at expected location
+| Component            | Type         | Location              | File Exists? | Exported? | Status |
+|----------------------|--------------|-----------------------|--------------|-----------|--------|
+| [Component]          | Screen/Flow/Shared | features/[feature]/ | ✅/❌      | ✅/❌     | READY/BLOCKED |
+
+**Summary**:
+- Total (ux.md): [N]
+- Implemented: [N/N]
+- Missing: [N] 🔴
+
+**Issues**:
+- 🔴 BLOCKER: [Component X] from [Flow Y] missing
+- 🔴 BLOCKER: [Component Z] not exported
 
 ---
 
-## Screenshot Verification
+## Screenshot Generation Report
 
-**Source**: apps/design-system/public/screenshots/[feature-name]/
+**Source**: Browser verification (Step 4) OR existing screenshots (Step 3.5)
 
-| Screen      | Desktop Default | Mobile Default | States Screenshots | Status |
-|-------------|-----------------|----------------|--------------------|--------|
-| [Screen]    | ✅/❌           | ✅/❌          | ✅/⚠️/❌           | READY/PARTIAL/MISSING |
+**Status**: GENERATED | EXISTING | SKIPPED | FAILED
 
-**Expected Screenshot Count**: [N] (based on screens × viewports × states)
-**Found Screenshot Count**: [N]
-**Missing Screenshots**: [N]
+**If EXISTING** (screenshots found in Step 3.5):
+```
+Browser verification skipped - screenshots already exist.
+
+**Screenshot Directory**: apps/design-system/public/screenshots/[feature-name]/
+**Total Screenshots**: [count from ls -A]
+**Last Modified**: [from ls -lt]
+
+Note: Existing screenshots assumed valid. To regenerate, delete screenshot directory and re-run /speckit.verify-design.
+```
+
+**If GENERATED** (browser verification ran):
+
+| Screen × Flow       | Desktop | Mobile | States | Layout Valid | Errors | Status |
+|---------------------|---------|--------|--------|--------------|--------|--------|
+| Workspace × Send Msg| ✅ (3)  | ✅ (3) | 3/3    | ✅           | 0      | READY  |
+| Workspace × Branch  | ❌      | ❌     | 0/2    | N/A          | N/A    | MISSING|
+| [Screen × Flow]     | ✅/❌(N)| ✅/❌(N)| X/Y   | ✅/⚠️/❌     | N      | READY/BLOCKED |
+
+**Total Screenshots Generated**: [N] files
+**Saved to**: `apps/design-system/public/screenshots/[feature-name]/`
+
+**Screenshots List**:
+- workspace-send-message-default-desktop.png ✅
+- workspace-send-message-default-mobile.png ✅
+- workspace-send-message-streaming-desktop.png ✅
+- workspace-send-message-streaming-mobile.png ✅
+- workspace-branch-selector-open-desktop.png ❌ (component missing)
+
+**If SKIPPED**:
+Note: Design-system app not running. Start with `npm run design:dev` and re-run verification.
 
 **Issues Found**:
-- 🔴 BLOCKER: [Screen X] desktop screenshots missing (P1 screen)
-- ⚠️  WARNING: [Screen Y] error state screenshots missing (P3 screen)
+- 🔴 BLOCKER: [Flow X] failed to render (component missing: CreateBranchModal)
+- 🔴 BLOCKER: [Flow Y] console errors: "[error message]"
+- ⚠️  WARNING: [Flow Z] layout deviation: Panel width 600px (ux.md: 500px, >10% diff)
 
 ---
 
 ## Browser MCP Verification
 
-**Design System App**: http://localhost:3001/[feature-name]
+**Status**: ${overall_status} | **Run**: ${SKIP_BROWSER_VERIFICATION ? "SKIPPED (screenshots exist)" : "COMPLETED"} | **Tasks**: ${ready_count}/${total_tasks} ready, ${skipped_count} skipped (${skipped_percentage}%), ${blocked_count} blocked | **Time**: ~90s
 
-**Status**: VERIFIED | SKIPPED | FAILED
+${if skipped_percentage > 50: "⚠️ WARNING: >50% skipped - extensive manual verification needed"}
 
-**Desktop Viewport** (1440×900):
-- Snapshot: ✅/❌
-- Render Errors: [N] errors found
-- Console Errors: [N] console errors
+### Route: ${route} (${screen_name})
 
-**Mobile Viewport** (375×812):
-- Snapshot: ✅/❌
-- Render Errors: [N] errors found
-- Console Errors: [N] console errors
+| Flow | Desktop | Mobile | Layout | Console | Status |
+|------|---------|--------|--------|---------|--------|
+| ${flow.name} | ${flow.desktop_ready}/${flow.desktop_total} | ${flow.mobile_ready}/${flow.mobile_total} | ${flow.layout_status} | ${flow.errors} | ${flow.status} |
 
-**Interactive Component Verification**:
-- [ ] Buttons have hover states (desktop)
-- [ ] Inputs have focus states
-- [ ] Modals open/close correctly
-- [ ] Forms validate on submit
+**Summaries**:
+- Desktop: ${desktop_ready}/${desktop_total} screenshots, ${desktop_skipped} skipped, ${desktop_console_errors} errors
+- Mobile: ${mobile_ready}/${mobile_total} screenshots, ${mobile_skipped} skipped, ${mobile_console_errors} errors
 
-**Issues Found**:
-- 🔴 BLOCKER: Console error "[error message]" on component [X]
-- ⚠️  WARNING: Hover state not visible on [Button Y]
-
-**Note**: [If skipped: "Design-system app not running - manual verification required"]
+**Layout Issues**: ${layout_issues_summary or "✅ All match ux.md specs"}
+**Skipped**: ${skipped_list or "None"}
+**Console Errors**: ${console_errors_summary or "✅ None"}
 
 ---
 
 ## Validation Summary
 
 **READY Criteria** (all must pass):
-- [✅/❌] All P1 screens designed with layouts, components, states
-- [✅/❌] All components exist and exported from packages/ui
-- [✅/❌] All P1 screens have desktop + mobile default screenshots
-- [✅/❌] No console errors in browser MCP verification
+- [✅/❌] All P1 screens designed
+- [✅/❌] All ux.md components exist and exported (includes flow components)
+- [✅/❌] All P1 flows screenshotted (generated during browser verification)
+- [✅/❌] No console errors (verified during browser verification)
+- [✅/❌] Layout validation passed (±5% tolerance to ux.md specs)
 
-**PARTIAL Status** (some pass):
-- [✅/❌] P2/P3 screens missing designs or screenshots
-- [✅/❌] Minor UX flow inconsistencies
-- [✅/❌] Non-critical browser warnings
+**PARTIAL Status**:
+- [✅/❌] P2/P3 screens missing
+- [✅/❌] Minor warnings
 
-**BLOCKED Status** (critical failures):
-- [✅/❌] P1 screens missing from design.md
-- [✅/❌] Components not exported or files missing
-- [✅/❌] Console errors preventing component render
-- [✅/❌] Design-system showcase page missing
+**BLOCKED Status**:
+- [✅/❌] P1 screens missing
+- [✅/❌] Flow components missing (modals, actions, dialogs)
+- [✅/❌] Components not exported
+- [✅/❌] Console errors
 
 ---
 
@@ -390,28 +749,107 @@ After fixes: Re-run `/speckit.verify-design` to validate
 
 ### Step 6: Determine Status
 
-**Calculate final status**:
-
 **READY** if ALL of:
-- All P1 screens in arch.md are designed in design.md
-- All components are exported from packages/ui
-- All P1 screens have desktop + mobile default screenshots
-- Browser MCP verification passed (or skipped with note)
-- No console errors blocking component render
+- All P1 screens designed in design.md
+- All ux.md components exist (Step 2.5 validation passed)
+- All components exported from packages/ui
+- All P1 screenshots exist
+- No console errors
 
 **PARTIAL** if:
-- P1 screens complete BUT P2/P3 screens missing designs
-- Screenshots missing for non-critical states
-- UX flow inconsistencies (non-blocking)
-- Minor browser warnings
+- P1 complete, P2/P3 missing
+- Minor warnings only
 
 **BLOCKED** if ANY of:
-- P1 screen missing from design.md
-- Component file missing or not exported
-- Console errors preventing component render
-- design.md completely missing
+- P1 screen missing
+- Flow components missing (Step 2.5 found gaps)
+- Component not exported
+- Console errors
+
+**Key Rule**: Step 2.5 must pass (all ux.md components validated) before reporting READY
+
+### Step 6.5: Update design.md with Screenshot References ✨ NEW
+
+**CRITICAL**: Update design.md to register generated screenshots (handoff for /speckit.tasks)
+
+**After screenshot generation in Step 4**, update design.md:
+
+1. **Update Screen-to-Component Mapping table**:
+   ```
+   For each screen with screenshots generated:
+     Find mapping row in design.md table
+     Update Screenshots column: ❌ → ✅
+   ```
+
+2. **Update or create Screenshots section** (if not exists):
+   ```markdown
+   ## Screenshots
+
+   Generated by `/speckit.verify-design` on [DATE]:
+
+   ### [Screen Name]
+   - [screen-name]-[flow]-[state]-desktop.png
+   - [screen-name]-[flow]-[state]-mobile.png
+   ...
+
+   ### [Screen Name 2]
+   - [screen-name2]-[flow]-[state]-desktop.png
+   ...
+   ```
+
+3. **Preserve existing sections** (don't overwrite):
+   - Overview
+   - Component Architecture
+   - User Flows
+   - Screens Designed
+   - Layout Deviations
+   - Design Tokens Used
+   - Implementation Notes
+
+4. **Screenshot idempotency** ✨ (Gap #8 - rollback protection):
+   ```
+   If Step 4 validation failed AFTER generating screenshots:
+     - Keep screenshots on disk (expensive to regenerate)
+     - Don't update design.md (maintain consistency)
+     - Note: Re-running verify-design will skip existing screenshots
+   ```
+
+**Implementation** (use Edit tool):
+```typescript
+// Find Screen-to-Component Mapping table
+// For each generated screenshot:
+//   Parse screen name from filename
+//   Update corresponding table row: Screenshots column ❌ → ✅
+//
+// Find or create ## Screenshots section
+// Group screenshots by screen
+// List filenames under screen headers
+//
+// Add timestamp: "Generated by /speckit.verify-design on 2025-10-27"
+```
+
+**Report**:
+```
+design.md Updated ✅
+
+Screen-to-Component Mapping:
+- Workspace: ❌ → ✅ (4 screenshots registered)
+- Context Panel: ❌ → ✅ (2 screenshots registered)
+- Settings: Remains ❌ (no screenshots generated)
+
+Screenshots Section:
+- Added 6 new screenshot references
+- Grouped by screen
+- Timestamp: 2025-10-27
+```
+
+**If validation failed before completion**: Don't update design.md (prevents inconsistent state)
+
+---
 
 ### Step 7: Report Summary
+
+**IMPORTANT**: Update all "Step X" references in report messages to match new numbering (Steps 5→6, 6→7)
 
 **Success message** (if READY):
 
@@ -423,8 +861,8 @@ After fixes: Re-run `/speckit.verify-design` to validate
 **Validation Results**:
 - Screen Coverage: [X/X] screens designed
 - Component Exports: [X/X] components ready
-- Screenshots: [X/X] required screenshots exist
-- Browser Verification: PASSED
+- Screenshots: [X/X] required screenshots exist (EXISTING | GENERATED)
+- Browser Verification: PASSED | SKIPPED (screenshots existed)
 
 **Created**:
 - Design validation report: specs/[feature]/design-validation.md
@@ -511,36 +949,25 @@ Address user input:
 ## Key Rules
 
 **Prerequisites**:
-- design.md MUST exist - ERROR if missing
-- arch.md MUST exist - ERROR if missing
-- ux.md OPTIONAL - use if exists to cross-reference flows
+- design.md MUST exist
+- arch.md MUST exist
+- ux.md OPTIONAL (if exists, run Step 2.5)
 
-**Validation Scope**:
-- Verify ALL screens from arch.md (not just P1)
-- Mark P1 screens as BLOCKERS if missing
-- Mark P2/P3 screens as WARNINGS if missing
+**Critical Validation**:
+- **Step 2.5 is MANDATORY** if ux.md exists
+- Use Grep to extract ALL components from ux.md (handles files >25K tokens)
+- Validate flow components (modals, actions, dialogs)
+- Missing flow components = BLOCKER (not WARNING)
 
-**Browser MCP**:
-- Only run if design-system app available
-- Skip gracefully if app not running (manual verification note)
-- Document console errors as BLOCKERS
-- Document warnings as non-critical
-
-**Status Determination**:
-- READY: All critical checks pass, safe to generate tasks
-- PARTIAL: P1 complete, P2/P3 issues, can proceed with caution
-- BLOCKED: P1 issues, cannot proceed, requires fixes
-
-**Report Format**:
-- Use design-validation.md (not validation-report.md - that's for tasks)
-- Include specific fix recommendations for each blocker
-- Include all validation matrices for audit trail
+**Status**:
+- READY: All checks pass (including Step 2.5)
+- PARTIAL: P1 complete, P2/P3 issues
+- BLOCKED: P1 issues OR flow components missing
 
 **No Improvisation**:
-- Follow validation criteria exactly
-- Don't skip checks to save time
+- Don't skip Step 2.5
 - Don't downgrade BLOCKERS to WARNINGS
-- Don't proceed to next phase if BLOCKED
+- Don't report READY if Step 2.5 finds gaps
 
 ---
 

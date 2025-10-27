@@ -64,6 +64,35 @@
 | FileUpload | `components/` | Used in 3+ features |
 | DesktopWorkspace | `features/[feature]/` | Feature-specific screen |
 
+### 2.5. Layout Specification Pre-Flight ✨ NEW
+
+**IF ux.md EXISTS** (load layout specs before creating components):
+
+1. **Extract layout specifications** from ux.md for each screen:
+   - ASCII layout diagrams (desktop + mobile)
+   - Panel behavior tables (widths, adaptive behavior)
+   - Dimension tables (heights, spacing)
+   - Component spacing tables (gap, padding, margin)
+
+2. **Create design checklist** and present to user:
+   ```
+   Layout Specifications from ux.md:
+
+   Screen: [Name]
+   - Desktop: [Panel layout - e.g., "Left 20% | Center 50-80% | Right 0-30%"]
+   - Mobile: [Layout - e.g., "Vertical stack, sidebar drawer"]
+   - Spacing: [Values - e.g., "gap-4 (16px) desktop, gap-3 (12px) mobile"]
+   - Responsive: [Breakpoints from ux.md]
+
+   Proceed with these specifications? (yes/modifications)
+   ```
+
+3. **If modifications needed**:
+   - Document changes in memory for design.md "Layout Deviations" section
+   - Explain rationale for deviation
+
+**IF NO ux.md**: Skip to Step 3
+
 ### 3. Create Components
 
 **Use UX specification from ux.md** (if exists - PREFERRED):
@@ -225,13 +254,35 @@ Add feature card to `apps/design-system/pages/index.tsx`:
    - Screenshot desktop (1440×900) + mobile (375×812)
    - Save to `apps/design-system/public/screenshots/[feature-name]/`
 
-2. **Document interactions & composition** (while reviewing):
+2. **Layout Validation ✨ NEW** (if ux.md exists):
+   - Load layout specs for this screen from ux.md
+   - Check against screenshot:
+     - Panel widths match expected percentages (±5% tolerance)
+     - Spacing matches ux.md tables (gap-4 = 16px, etc.)
+     - Responsive behavior follows breakpoints
+   - **Report**:
+     ```
+     ✅ Left panel: 20% width - MATCH
+     ✅ Spacing: gap-4 (16px) - MATCH
+     ⚠️  Right panel: Closed (ux.md shows 30%) - User decision
+     ```
+   - **If mismatch**: Ask "Layout differs from ux.md. Intentional? (yes/no/fix)"
+   - Document intentional deviations in design.md
+
+3. **State Coverage Check ✨ NEW** (if ux.md exists):
+   - Load component states from ux.md for this screen
+   - Verify all states have screenshots:
+     - Default, Loading, Error, Empty, Success
+     - Hover, Focus, Disabled (interactive components)
+   - **If missing states**: Prompt to capture or defer
+
+4. **Document interactions & composition** (while reviewing):
    - Component composition: Screen component + common/feature components used
    - User actions: Click (buttons, links), Type (inputs), Drag (files, items), Hover (tooltips), Scroll
    - What happens: Navigate, open modal, submit form, trigger validation, show/hide elements
    - Navigation: From which screen(s), to which screen(s)
 
-3. **Verify design principles** (quick check):
+5. **Verify design principles** (quick check):
    - Visual hierarchy: Primary action obvious?
    - Consistency: Matches design system tokens?
    - Spacing: Uses design system scale (8px grid)?
@@ -239,13 +290,13 @@ Add feature card to `apps/design-system/pages/index.tsx`:
    - States: Loading/error/empty designed?
    - Reference: `.specify/DESIGN-PRINCIPLES.md` (10 levers)
 
-4. **Present to user**:
-   - Show screenshots + interaction summary
+6. **Present to user**:
+   - Show screenshots + validation report + interaction summary
    - Ask: "Review [Screen Name]. Provide feedback or 'approved' to continue."
 
-5. **Process response**:
-   - **If approved**: Update design.md (screen mapping + composition + interactions), save, next screen
-   - **If feedback**: Update component, re-screenshot, re-document, loop
+7. **Process response**:
+   - **If approved**: Update design.md (screen mapping + composition + interactions + deviations if any), save, next screen
+   - **If feedback**: Update component, re-screenshot, re-validate, re-document, loop
 
 6. **After all screens approved**:
    - Proceed to Step 5.5 for testable user flows documentation
@@ -374,28 +425,46 @@ Status: READY / NEEDS WORK (with specific gaps listed)
 
 ### 7. Document Design Spec
 
+**Check if design.md exists**:
+- `ls $FEATURE_DIR/design.md`
+- If exists: Update (preserve existing sections, add new data)
+- If missing: Create from template
+
 **Use template**: `.specify/templates/design-template.md`
 
-**Create**: `specs/[FEATURE]/design.md`
+**Create/Update**: `specs/[FEATURE]/design.md`
 
 **Template sections to fill**:
 
 1. **Overview**: Visual design approach
 2. **Component Architecture**: Reusability assessment, component categorization, mapping table
-3. **User Flows**: CRITICAL - Detailed testable flows from Step 5.5:
+3. **Screen-to-Component Mapping** ✨ (CRITICAL handoff for /speckit.tasks):
+   - | Screen Name | Component (Desktop) | Component (Mobile) | Location | Reused From | Priority | Screenshots |
+   - Mark all as ❌ (screenshots not yet generated - done by /speckit.verify-design)
+   - Document "Same" if mobile uses same component, or specify different file
+   - Document "-" if new, or specify originating feature if reused
+   - Load priorities from arch.md if available
+4. **User Flows**: CRITICAL - Detailed testable flows from Step 5.5:
    - Each flow with component references, Playwright selectors, test data
    - Maps to acceptance criteria from spec.md
    - Includes success criteria and error scenarios
    - Navigation map showing screen connections
-4. **Screens Designed**: For each screen:
+5. **Screens Designed**: For each screen:
    - Purpose, layout, states, screenshots
    - **Component Composition**: Screen component + common/feature components used
    - **User Interactions**: Click, Type, Drag, Hover, Scroll actions and outcomes
    - **Flow Connections**: From/to which screens
-5. **Design Tokens Used**: Colors, typography, spacing from global design system
-6. **Design Principles Verification**: Checklist of 10 levers from `.specify/DESIGN-PRINCIPLES.md`
-7. **Implementation Notes**: Container pattern, import paths, key principles
-8. **Validation Checklist**: All gates passed, design approved
+6. **Layout Deviations** ✨ (if any from Step 5):
+   - Document intentional changes from ux.md specs
+   - Include rationale and impact for each deviation
+   - Leave empty if no deviations
+7. **Design Tokens Used**: Colors, typography, spacing from global design system
+8. **Design Principles Verification**: Checklist of 10 levers from `.specify/DESIGN-PRINCIPLES.md`
+9. **Implementation Notes** ✨:
+   - Container pattern, import paths, key principles
+   - Edge cases and technical requirements
+   - Mark new requirements (not in ux.md/arch.md) with ⚠️ NEW REQUIREMENT
+10. **Validation Checklist**: All gates passed, design approved
 
 **Reference**: See `.specify/templates/design-template.md` for complete structure
 

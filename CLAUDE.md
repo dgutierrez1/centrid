@@ -361,14 +361,60 @@ Use `apps/design-system` to design and iterate on UI before implementing in `app
 5. Get feedback → edit → auto-reload → re-screenshot
 6. Approve → implement in `apps/web`
 
-### Playwright MCP Screenshots
+### Browser Automation with MCP
 
-**Viewports:**
+**Two MCP Servers Available:**
+
+1. **playwright** - Standard Playwright MCP (sequential, single browser)
+2. **playwright-contexts** - Custom MCP with parallel isolated contexts
+
+**Playwright Contexts MCP** (Recommended for parallel verification):
+
+Located at: `.specify/mcp-servers/playwright-contexts/`
+
+**Features:**
+- ✅ Parallel browser contexts (true isolation)
+- ✅ Sub-agents can run different flows simultaneously
+- ✅ Interactive control (see → think → act loop)
+- ✅ Full Playwright API (navigate, click, type, screenshot, evaluate JS)
+- ✅ Local & free (no cloud costs)
+
+**Configuration** (`~/.cursor/mcp.json`):
+```json
+{
+  "mcpServers": {
+    "playwright-contexts": {
+      "command": "node",
+      "args": ["/path/to/.specify/mcp-servers/playwright-contexts/dist/index.js"]
+    }
+  }
+}
+```
+
+**Usage Example:**
+```javascript
+// Sub-Agent 1: Mobile Flow 1
+browser_create_context({ contextId: "flow1-mobile", viewport: { width: 375, height: 812 }})
+browser_navigate({ contextId: "flow1-mobile", url: "http://localhost:3001/..." })
+browser_click({ contextId: "flow1-mobile", selector: "..." })
+browser_screenshot({ contextId: "flow1-mobile", path: "..." })
+
+// Sub-Agent 2: Desktop Flow 2 (runs in parallel)
+browser_create_context({ contextId: "flow2-desktop", viewport: { width: 1440, height: 900 }})
+// ... same interactive control, different context
+```
+
+**Benefits:**
+- Multiple flows × viewports verified in parallel
+- 7-10x faster than sequential verification
+- Each sub-agent explores and adapts independently
+
+**Standard Viewports:**
 
 - Mobile: 375×812
 - Desktop: 1440×900
 
-**Save to:** `apps/design-system/public/screenshots/[feature-name]/`
+**Screenshots saved to:** `apps/design-system/public/screenshots/[feature-name]/`
 
 **Naming convention:**
 

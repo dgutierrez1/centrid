@@ -47,10 +47,12 @@ You **MUST** consider the user input before proceeding (if not empty).
        - Component Specifications (props interfaces, states)
        - Screen-by-Screen UX Flows (interactions, test data)
        - State Management Requirements (component/global/URL state)
-     - **design.md (UI component architecture, designed components)** - If exists, extract:
-       - Component Architecture section (reusable components in packages/ui/src/features/)
-       - Screen-to-Component Mapping table (which components were designed)
-       - Implementation Guide (container pattern, import examples)
+     - **design.md (UI component architecture, designed components)** - If exists, extract ✨:
+       - Screen-to-Component Mapping table (component locations, mobile variants, cross-feature reuse, priorities)
+       - Layout Deviations section (intentional changes from ux.md to preserve during implementation)
+       - Implementation Notes (edge cases, technical requirements, ⚠️ NEW REQUIREMENT markers)
+       - Component Architecture section (reusability categorization)
+       - Screenshots section (for verification references)
    - **From plan.md**: Extract Component Architecture section (if UI project) - all 6 subsections:
      1. Screen Inventory (screens, routes, user stories)
      2. Component Hierarchy (per screen component trees)
@@ -64,10 +66,11 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 **If AVAILABLE_DOCS includes design.md**:
 
-1. **Parse Screen-to-Component Mapping table** from design.md:
-   - Extract all component names (e.g., DesktopWorkspace, EmptyState, FileUploadModal)
-   - Extract documented file paths (should be `packages/ui/src/features/[feature-name]/ComponentName.tsx`)
-   - Build expected component list
+1. **Parse Screen-to-Component Mapping table** from design.md ✨:
+   - Extract columns: Screen Name, Component (Desktop), Component (Mobile), Location, Reused From, Priority, Screenshots
+   - Build expected component list with desktop + mobile variants
+   - Note cross-feature reuse (Reused From column != "-")
+   - Note screenshots status (✅ = verified, ❌ = not generated)
 
 2. **Verify each designed component exists**:
    - Check physical file exists at documented path
@@ -259,7 +262,7 @@ Every task MUST strictly follow this format:
      - Create test tasks with exact selectors from ux.md
      - Include error scenario tests documented in ux.md
 
-6. **From Design (design.md)** - IF EXISTS:
+6. **From Design (design.md)** - IF EXISTS ✨:
    - **DO NOT create tasks to build UI components** (already done in packages/ui by /speckit.design)
    - **DO create tasks to integrate designed components**:
      - Container components that wrap designed components with business logic
@@ -267,8 +270,21 @@ Every task MUST strictly follow this format:
      - State management setup (Valtio stores based on ux.md requirements if available)
      - API integration (Edge Functions, endpoints)
      - Page/route setup using container components
+   - **Use Screen-to-Component Mapping**:
+     - Desktop vs mobile variants: Generate responsive logic if Component (Mobile) differs
+     - Cross-feature reuse: Import from correct feature (check Reused From column)
+     - Priorities: Organize tasks by Priority column (P1, P2, P3)
+   - **Use Layout Deviations section**:
+     - Preserve intentional design changes during implementation
+     - Add task notes: "Maintain 30% width (design deviation from ux.md 25% - see design.md)"
+   - **Use Implementation Notes section**:
+     - Edge cases → Add as task requirements
+     - Technical requirements → Add as dependencies/setup tasks
+     - ⚠️ NEW REQUIREMENT → Create new task or flag for spec update
    - **Task examples when design.md exists**:
      - ✅ "Create WorkspaceContainer wrapping DesktopWorkspace from @centrid/ui/features in apps/web/src/components/filesystem/"
+     - ✅ "Add responsive logic: Desktop uses ContextPanel, mobile uses ContextDrawer (see design.md mapping)"
+     - ✅ "Preserve 30% context panel width (design deviation - see design.md Layout Deviations)"
      - ✅ "Create useFileSystem hook for file CRUD operations in apps/web/src/hooks/"
      - ✅ "Create filesystemState Valtio store in apps/web/src/lib/state/"
      - ✅ "Create /workspace page using WorkspaceContainer in apps/web/src/pages/"

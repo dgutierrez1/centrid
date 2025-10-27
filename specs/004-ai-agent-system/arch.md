@@ -50,113 +50,97 @@
 
 ### Screens & Flows
 
-| Screen | Purpose | User Story | Priority | Route/Entry Point |
-|--------|---------|------------|----------|-------------------|
-| **Chat Interface** | Primary conversation UI with message stream, context panel, branch selector | US-1, US-2, US-3, US-5 | P1 | `/chat/:conversationId` |
-| **Branch Selector** | Hierarchical tree dropdown showing parent/siblings/children branches | US-1 | P1 | Chat header component |
-| **Context Panel** | Integrated between chat messages and input box, shows explicit files, semantic matches, branch context, excluded items | US-3 | P3 | Chat interface (below messages, above input) |
-| **File Editor** | Full-screen editor with provenance header showing source conversation, creation context | US-2, US-5 | P2 | `/files/:fileId` or modal |
-| **Approval Modal** | Tool call approval prompt with file preview, branch details, approve/reject buttons | US-2 | P2 | Inline during agent streaming |
-| **Visual Tree View** | Interactive graph showing branch hierarchy, artifact counts (Phase 3, desktop only) | US-5 | P5 | `/tree` or sidebar toggle |
+| Screen | Purpose | User Stories | Priority | Route/Entry Point |
+|--------|---------|--------------|----------|-------------------|
+| **AI-Powered Exploration Workspace** | Single adaptive workspace where users interact with AI agent, manage context, navigate branches, and view/edit files. 3-panel layout: Left sidebar (Files/Threads tabs, 20%) + Center panel (Thread interface, 40-80%) + Right panel (File editor, 0-40%) | US-1, US-2, US-3, US-4, US-5 | P1 | `/thread/:threadId` |
 
-**Primary user flow**:
-```
-Chat Interface → User sends message → Loading indicator
-    ↓
-Context assembly (background, <1s)
-    ↓
-Agent streaming response (SSE) → Text chunks + Tool calls mixed
-    ↓
-Tool call requires approval → Pause stream → Approval Modal
-    ↓
-User approves → Stream resumes → File created → Provenance tracked
-    ↓
-Auto-include file in next message context → Continue conversation
-```
+**Flows within this screen**:
+1. **Send Message with Agent Streaming** (US-2, AC-002) - User types message, sends, AI responds with streaming, tool calls require approval
+2. **Create Branch (User-Initiated)** (US-1, AC-001) - User clicks "Create Branch", names it, system creates with inherited context
+3. **Cross-Branch File Discovery** (US-3, AC-003) - User asks about topic, system surfaces relevant files from sibling branches via semantic search
+4. **Consolidate from Multiple Branches** (US-4, AC-004) - User generates comprehensive document from all child branches
+5. **Switch Between Branches** (US-1, AC-003) - User navigates between branches via dropdown, each maintains separate history
+6. **Manage Context References** (US-3, AC-003/004) - User views context panel sections (explicit, frequently used, semantic, branch, artifacts, excluded), manually adjusts
+7. **View File with Provenance** (US-5, AC-001) - User clicks file, sees provenance metadata, can navigate to source thread
+8. **Approve Tool Call** (US-2, AC-001) - User reviews agent tool call preview, approves/rejects, agent executes or revises
+9. **Navigate Visual Tree** (US-5, AC-004, Phase 3) - User views interactive graph of branch hierarchy, clicks nodes to navigate
 
-**Branching flow**:
+**Key user flow (Send Message with Agent Streaming)**:
 ```
-Chat Interface → User clicks "Create Branch" → Branch name modal
+User types message → Sends → Context assembly (<1s) → Agent streaming (SSE)
     ↓
-OR Agent suggests branch → Approval prompt → User approves/rejects
+Text chunks + Tool calls mixed → Tool approval required → Pause stream
     ↓
-New branch created → Inherits parent context (explicit files, summary, last message)
+User approves → Tool executes → Stream resumes → File created with provenance
     ↓
-Branch Selector updates → User can switch between branches
-    ↓
-Context isolation enforced (sibling branches don't auto-share context)
+File auto-included in next message context → User continues conversation
 ```
 
-**Consolidation flow**:
-```
-Main branch → User requests "generate report from all branches"
-    ↓
-Tree traversal → Access all child branch artifacts + summaries
-    ↓
-Context assembly with multi-branch provenance
-    ↓
-Agent generates consolidated document with citations
-    ↓
-File created with multiple source conversations tracked
-```
-
-**Navigation pattern**: Hub-and-spoke (Main branch is hub, child branches are spokes), Linear within each branch (message history), Modal overlays for approvals and file editing
+**Layout & Navigation**:
+- **3-panel adaptive workspace**: Left sidebar (20%, collapsible) + Center panel (40-80%, always visible) + Right panel (0-40%, slides in when file opened)
+- **Thread-first UX**: Thread interface always visible (primary), file editing optional (closeable right panel)
+- **Navigation pattern**: Branch selector dropdown (hierarchical tree), provenance links ("Go to source"), modal overlays for branch creation/consolidation
 
 ### Component Structure
 
-**Chat Interface**:
+**Workspace Layout** (organized by spatial location):
+
+**Center Panel** (Thread interface, 40-80% width, always visible):
 ```
-ChatController (business logic, state management)
-├─ ChatView (presentation)
-│  ├─ ChatHeader
-│  │  ├─ BranchSelector (dropdown with hierarchical tree)
-│  │  └─ BranchActions (create branch, consolidate, tree view)
-│  ├─ MessageStream
-│  │  ├─ Message (text content, timestamps)
-│  │  ├─ ToolCallApproval (inline approval prompt during streaming)
-│  │  └─ LoadingIndicator (streaming in progress)
-│  ├─ ContextPanel (collapsible sections, BELOW chat content, ABOVE input)
-│  │  ├─ ExplicitContext (files, conversations @-mentioned)
-│  │  ├─ FrequentlyUsed (always-include files from user preferences - derived from @-mention frequency, 0.8 weight, transparent "learned from your behavior")
-│  │  ├─ SemanticMatches (cross-branch file discovery with provenance)
-│  │  ├─ BranchContext (parent summary, inherited files)
-│  │  ├─ ArtifactsFromThisChat (files created in current conversation)
-│  │  └─ ExcludedContext (items that didn't fit in budget, manual re-prime)
-│  └─ ChatInput (BELOW context panel)
-│     ├─ AutocompleteDropdown (files, conversations @-mention)
-│     └─ SendButton
-└─ FileEditorModal (opens when file clicked)
-   ├─ ProvenanceHeader (source branch, creation context, "Go to source" link)
-   └─ EditorContent
+ThreadView (container)
+├─ MessageStream
+│  ├─ Message (text content, timestamps, markdown)
+│  └─ ToolCallApproval (inline approval during streaming)
+├─ ContextPanel (BELOW messages, ABOVE input)
+│  ├─ ContextSection (collapsible container with state control)
+│  │  └─ ContextReference (stateless widget - collapsed pill or expanded card)
+│  └─ 6 sections: Explicit (coral), Frequently Used (blue), Semantic (purple), Branch (orange), Artifacts (green), Excluded (gray)
+└─ ThreadInput (sticky bottom, send/stop button)
 ```
 
-**File Editor**:
+**Header** (Branch navigation and actions):
 ```
-FileEditorController
-├─ FileEditorView
-│  ├─ ProvenanceHeader
-│  │  ├─ SourceBranchPill (clickable → navigate to source conversation)
-│  │  ├─ CreationTimestamp
-│  │  ├─ ContextSummary (2-3 sentences)
-│  │  └─ LastEditInfo (last_edited_by: agent/user, conversation link if agent edit)
-│  └─ EditorPane (markdown editor with syntax highlighting)
+BranchSelector (hierarchical dropdown with tree structure)
+BranchActions (create branch, consolidate, tree view buttons)
 ```
 
-**Visual Tree View** (Phase 3):
+**Right Panel** (File editor, 0-40% width, slides in when file opened):
 ```
-TreeViewController
-├─ TreeViewCanvas (D3.js or React Flow)
-│  ├─ BranchNode (title, artifact count, creation timestamp)
-│  ├─ FileNode (provenance links to conversations)
-│  └─ Edges (parent-child relationships, file references)
+FileEditorPanel
+├─ ProvenanceHeader
+│  ├─ Source branch pill (clickable → navigate to source)
+│  ├─ Creation timestamp + context summary
+│  └─ "Go to source" link + last edit info
+└─ EditorContent (markdown with syntax highlighting)
 ```
 
-**Pattern**: Follows standard Controller/View pattern (see system-architecture.md) - Controllers handle data fetching, state updates, API calls; Views are pure presentational components receiving props and callbacks.
+**Left Sidebar** (Files/Threads navigation, 20% width):
+```
+WorkspaceSidebar
+├─ Tabs (Files | Threads)
+├─ File list (when Files tab active)
+└─ Thread list (when Threads tab active)
+```
+
+**Modal Overlays**:
+```
+CreateBranchModal (branch name input, validation, create button)
+ConsolidateModal (branch selection, progress, preview, approval)
+```
+
+**Phase 3** (Visual tree view):
+```
+TreeView (overlay panel)
+├─ BranchNode (clickable, shows artifact count)
+├─ FileNode (clickable, highlights provenance)
+└─ Edges (parent-child relationships)
+```
+
+**Pattern**: Pure presentational components (data-in/callbacks-out) located in `packages/ui/src/features/ai-agent-system/`. No business logic or server dependencies in UI components.
 
 **Module locations**:
-- Controllers: `apps/web/src/features/ai-agent-system/controllers/`
-- Views: `apps/web/src/features/ai-agent-system/views/`
-- Shared widgets: `packages/ui/src/features/ai-agent-system/`
+- Presentational components: `packages/ui/src/features/ai-agent-system/`
+- Production containers: `apps/web/src/components/ai-agent-system/` (add business logic during implementation)
 - State management: `apps/web/src/lib/state/aiAgentState.ts` (Valtio)
 
 ### Frontend State Management
@@ -824,17 +808,29 @@ Frontend → POST /approve-tool-call → ToolCallService executes → Resume SSE
   - Tree traversal: Recursive CTE starting from root, collect child artifacts, apply consolidation logic
 
 **For /speckit.design**:
-- **Screens to design**: Chat Interface (with context panel, branch selector, message stream), File Editor (with provenance header), Approval Modal, Branch Selector Dropdown, Visual Tree View (Phase 3)
-- **User flows**: Message sending with streaming, Branch creation (user/agent/system-initiated), File creation with approval, Cross-branch discovery, Consolidation workflow
-- **Component hierarchy**: See Component Structure section - ChatController/ChatView pattern with nested components
-- **State visualization**: Context panel shows 6 sections (explicit, frequently used [from user preferences], semantic, branch, artifacts, excluded) with visual priority indicators
-- **Layout**: Context panel positioned BELOW message stream, ABOVE input box (not above messages) - this keeps context visible while typing without obscuring chat history
+- **Screens to design**:
+  - AI-Powered Exploration Workspace (single adaptive workspace at `/thread/:threadId`)
+    - 3-panel layout: Left sidebar (Files/Threads tabs, 20%) + Center panel (Thread interface, 40-80%) + Right panel (File editor, 0-40%)
+    - 9 flows within this screen: Send Message with Agent Streaming, Create Branch, Cross-Branch File Discovery, Consolidate from Multiple Branches, Switch Between Branches, Manage Context References, View File with Provenance, Approve Tool Call, Navigate Visual Tree (Phase 3)
+- **Component hierarchy**:
+  - Center Panel: ThreadView, MessageStream, Message, ThreadInput, ContextPanel, ContextSection, ContextReference, ToolCallApproval
+  - Header: BranchSelector, BranchActions
+  - Right Panel: FileEditorPanel, ProvenanceHeader
+  - Modals: CreateBranchModal, ConsolidateModal
+  - Sidebar: WorkspaceSidebar
+  - Phase 3: TreeView, BranchNode, FileNode
+- **Layout & Spatial Design**:
+  - Adaptive 3-panel workspace (desktop 1440px+: 20% + 40-80% + 0-40%, mobile 375px: vertical stack)
+  - Context panel positioned BELOW message stream, ABOVE input box (keeps context visible while typing)
+  - Right panel slides in from right (desktop) or full-screen modal (mobile)
+  - Thread-first UX: Thread interface always visible, file editing optional
+- **Interaction Patterns**: Modal Workflow, Streaming Response Pattern, Approval Workflow, Context Management Pattern, Dropdown Navigation Pattern, Sliding Panel Pattern, Collapsible Section Pattern, Provenance Navigation Pattern, Graph Navigation Pattern (Phase 3)
 - **Design considerations**:
-  - Mobile-first (branch selector as drawer on mobile, tree view desktop-only)
-  - Provenance visibility (hover tooltip, click for full details)
+  - Mobile-first responsive (375px → 1440px+)
+  - Progressive disclosure (context complexity in collapsible sections with horizontal widget layout)
+  - Provenance transparency (hover tooltips, clickable "Go to source" links)
   - Streaming feedback (loading indicators, incremental rendering, pause for approval)
-  - Context transparency (show what AI sees, allow manual re-priming)
-  - Context panel placement: Between messages and input for optimal UX (context visible during composition without scrolling past history)
+  - Context panel shows 6 sections with tier colors (explicit/coral, frequently used/blue, semantic/purple, branch/orange, artifacts/green, excluded/gray)
 
 **For /speckit.tasks**:
 - **Frontend modules**:

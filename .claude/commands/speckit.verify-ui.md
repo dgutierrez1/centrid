@@ -150,17 +150,32 @@ curl -s -o /dev/null -w "%{http_code}" http://localhost:3000
 
 **If server fails to start**: ERROR and STOP - cannot verify without running application
 
-**Initialize Playwright browser** (via MCP):
-- Resize to desktop viewport: 1440×900
-- Navigate to base URL: http://localhost:3000
-
 ### 5. Execute User Flows
 
 **Determine flows to test**:
 - If `--flow=[N]` flag: Test only Flow N
 - Otherwise: Test all flows in priority order (P1 → P2 → P3)
 
-**For each flow to test**:
+**Parallel (preferred)**: Use `playwright-contexts` with sub-agents per flow:
+```
+For each flow, spawn sub-agent:
+  browser_create_context(contextId: "flow-{N}-{viewport}", viewport: ...)
+  → navigate → execute steps → verify → screenshot → close
+```
+
+**Main agent must**:
+- Spawn sub-agents for all flows (parallel execution)
+- Wait for ALL to complete
+- Collect results from each
+- Report FAILED if any flow failed
+
+**Sequential (fallback)**: Use standard `playwright`:
+```
+For each flow:
+  resize → navigate → execute steps → verify → screenshot
+```
+
+**For each flow (executed by sub-agent or main agent)**:
 
 #### 5.1. Setup Flow Execution
 

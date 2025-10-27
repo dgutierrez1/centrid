@@ -126,6 +126,9 @@ docs=()
 [[ -f "$FEATURE_SPEC" ]] && docs+=("spec.md")
 
 # Always check these optional docs
+[[ -f "$ARCH" ]] && docs+=("arch.md")
+[[ -f "$UX" ]] && docs+=("ux.md")
+[[ -f "$DESIGN" ]] && docs+=("design.md")
 [[ -f "$RESEARCH" ]] && docs+=("research.md")
 [[ -f "$DATA_MODEL" ]] && docs+=("data-model.md")
 
@@ -159,6 +162,9 @@ else
 
     # Show status of each potential document
     check_file "$FEATURE_SPEC" "spec.md"
+    check_file "$ARCH" "arch.md"
+    check_file "$UX" "ux.md"
+    check_file "$DESIGN" "design.md"
     check_file "$RESEARCH" "research.md"
     check_file "$DATA_MODEL" "data-model.md"
     check_dir "$CONTRACTS_DIR" "contracts/"

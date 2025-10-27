@@ -22,33 +22,27 @@
 
 ---
 
-## Screen-by-Screen UX Flows
+## UX Flows
 
-<!--
-  CONDENSED FORMAT: Use tables for steps and errors to reduce verbosity.
-  For each screen, document:
-  - Purpose, entry/exit points (keep as-is)
-  - Primary flow with table format (condensed)
-  - Error scenarios table (condensed)
-  - Success criteria (keep as-is)
-  - Layout dimensions table (condensed)
--->
+<!-- List all screens from arch.md. Each screen can have multiple flows. -->
 
-### [Screen 1 Name]
-
-**Purpose**: [What this screen accomplishes]
+### [Screen Name]
 
 **Route**: `/[production-route]`
 
+**Purpose**: [What this screen accomplishes]
+
 **Priority**: [P1/P2/P3 - from arch.md]
 
-**Entry Points**:
-- [How users navigate to this screen - e.g., "From main menu", "Deep link from notification"]
+**Entry Points**: [How users navigate here]
 
-**Exit Points**:
-- [Where users can navigate from this screen - e.g., "To file editor", "To settings"]
+**Exit Points**: [Where users can navigate to]
 
-#### Primary Flow 1: [Flow Name - e.g., "Send Message with Streaming Response"]
+**Layout Overview**: [Brief description if complex - e.g., "3-panel adaptive workspace"]
+
+---
+
+#### Flow 1: [Flow Name - e.g., "Send Message with Streaming Response"]
 
 **User Story**: [Reference from spec.md - e.g., US-002]
 
@@ -89,7 +83,15 @@
 
 ---
 
+#### Flow 2: [Next Flow Name]
+
+[Repeat for additional flows on this screen]
+
+---
+
 #### Layout & Spatial Design
+
+[Document layout for this screen - skip if simple single-column]
 
 **Layout Type**: [e.g., "3-panel adaptive workspace", "Single-column with sidebar", "Modal overlay"]
 
@@ -127,15 +129,9 @@
 
 ---
 
-#### Primary Flow 2: [Next Flow Name]
-
-[Repeat condensed table structure for additional primary flows on this screen]
-
----
-
 ### [Screen 2 Name]
 
-[Repeat structure for ALL screens from arch.md - ALL priorities]
+[Repeat structure for all screens from arch.md]
 
 ---
 

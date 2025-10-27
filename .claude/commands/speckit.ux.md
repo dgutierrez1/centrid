@@ -101,14 +101,14 @@ description: Create detailed UX specification bridging architecture and visual d
 
 **Create mapping table** (for reference during flow creation):
 
-| Screen | Priority | Component   | Location             | State Type | Data Source |
-| ------ | -------- | ----------- | -------------------- | ---------- | ----------- |
-| [Name] | P1/P2/P3 | [Component] | packages/ui/features | Component  | Props       |
-| [Name] | P1/P2/P3 | [Container] | apps/web/components  | Global     | Valtio      |
+| Screen/Route | Priority | Component   | Location             | State Type | Data Source |
+| ------------ | -------- | ----------- | -------------------- | ---------- | ----------- |
+| [Route]      | P1/P2/P3 | [Component] | packages/ui/features | Component  | Props       |
+| [Route]      | P1/P2/P3 | [Container] | apps/web/components  | Global     | Valtio      |
 
-### 3. Create Screen-by-Screen UX Flows
+### 3. Create UX Flows for Each Screen
 
-**For EVERY screen in arch.md** (ALL priorities - P1, P2, P3, P4, etc.):
+**For EVERY screen/route in arch.md** (ALL priorities):
 
 #### Step 3.1: Identify User Stories & Acceptance Criteria
 
@@ -467,20 +467,33 @@ Note: Sidebar hidden in drawer, Right panel opens as full-screen modal
 
 **Create**: `specs/[FEATURE]/ux.md`
 
+**Structure**:
+```
+## UX Flows
+
+### [Screen 1 Name]
+**Route**: /[route]
+
+#### Flow 1: [Name]
+#### Flow 2: [Name]
+
+#### Layout & Spatial Design
+[Document layout for this screen]
+
+### [Screen 2 Name]
+**Route**: /[route-2]
+
+#### Flow 1: [Name]
+
+## Component Library
+[All components used across all screens]
+```
+
 **Fill all sections**:
 
-1. **Overview**:
+1. **Overview**: Feature summary, user goals, design approach
 
-   - Feature summary (from spec.md)
-   - User goals (from spec.md user stories)
-   - Design approach (UX strategy decided during flow creation)
-
-2. **Screen-by-Screen UX Flows**:
-
-   - For each screen from arch.md
-   - Primary flow with detailed steps (from Step 3)
-   - Error scenarios with test data (from Step 3)
-   - Success criteria (from spec.md)
+2. **UX Flows**: For each screen from arch.md, document all flows with detailed steps, error scenarios, success criteria
 
 3. **Component Specifications**:
 
@@ -515,10 +528,12 @@ Note: Sidebar hidden in drawer, Right panel opens as full-screen modal
 
 **Validation before saving**:
 
-- [ ] ALL screens from arch.md have flows (not just P1/P2)
+- [ ] ALL screens/routes from arch.md documented
+- [ ] ALL flows for each screen documented
 - [ ] ALL user stories from spec.md covered (ALL priorities)
 - [ ] All presentational components have prop specs
 - [ ] Error scenarios documented for all flows
+- [ ] Layout documented for each screen
 - [ ] ASCII layout diagrams complete (desktop + mobile)
 - [ ] Spacing and responsive behavior specified
 - [ ] Component UI state documented (not global - that's in arch.md)
@@ -560,26 +575,22 @@ Note: Sidebar hidden in drawer, Right panel opens as full-screen modal
 
 **DO**:
 
-- ✅ Map ALL user stories from spec.md to flows (ALL priorities, not just P1/P2)
+- ✅ Document ALL screens/routes from arch.md (not just P1/P2)
+- ✅ Document ALL flows for each screen (one screen can have many flows)
+- ✅ Map ALL user stories from spec.md to flows
 - ✅ Extract component hierarchy from arch.md (don't recreate)
 - ✅ Define granular steps (5-15 per flow) with exact components
-- ✅ Specify props interfaces for presentational components only
 - ✅ Document error scenarios with test data
-- ✅ Specify spacing and responsive breakpoints
+- ✅ Document layout for each screen
 - ✅ Document component UI state only (reference arch.md for global state)
-- ✅ Follow data-in/callbacks-out pattern for presentational components
 
 **DON'T**:
 
-- ❌ Skip any user stories (ALL priorities required, not just P1/P2)
+- ❌ Confuse flows with screens (one screen can have many flows)
+- ❌ Skip any screens/routes from arch.md
 - ❌ Skip error scenarios (every flow needs errors documented)
-- ❌ Make up components not in arch.md (reference arch.md hierarchy)
-- ❌ Define container components (deferred to implementation)
-- ❌ Skip accessibility requirements (keyboard nav, ARIA, focus)
+- ❌ Make up components not in arch.md
 - ❌ Use vague steps ("user interacts" - be specific!)
-- ✅ Create ASCII layout diagrams (desktop + mobile per screen)
-- ❌ Duplicate global state strategy (reference arch.md instead)
-- ❌ Skip Design Handoff Checklist validation
 
 **Flow Granularity**:
 
@@ -597,8 +608,9 @@ Note: Sidebar hidden in drawer, Right panel opens as full-screen modal
 
 **Scope**:
 
-- Cover ALL screens from arch.md (not just high-priority)
+- Cover ALL screens/routes from arch.md (not just high-priority)
+- Cover ALL flows per screen (don't confuse flows with screens)
 - Cover ALL user stories from spec.md (ALL priorities)
 - Cover ALL acceptance criteria (ALL priorities)
-- Spacing notes (not full layout diagrams)
+- Document layout for each screen
 - Component UI state only (not global/URL state)
