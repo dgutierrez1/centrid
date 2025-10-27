@@ -47,17 +47,28 @@ User describes feature
         ↓
 /speckit.arch           → specs/[feature]/arch.md
         ↓               (Architecture: screens, flows, components, data model, APIs)
-        ↓               (Optional but recommended for complex/large features)
+        ↓               (REQUIRED for all features)
+        ↓
+/speckit.ux             → specs/[feature]/ux.md
+        ↓               (Detailed UX flows, component props, interaction patterns)
+        ↓               (UI features only - skip for API-only/CLI/library)
+        ↓               (Creates step-by-step flows from arch.md screens)
         ↓
 /speckit.plan           → specs/[feature]/plan.md, data-model.md, contracts/
         ↓               (Technical approach, data model, API contracts)
-        ↓               (Reads arch.md if exists, otherwise generates from spec.md)
+        ↓               (Reads arch.md domain model and API surface - REQUIRED)
         ↓               (Reads constitution.md and tokens.md from project setup)
         ↓
 /speckit.design         → specs/[feature]/design.md, packages/ui/
         ↓               (Visual design, components, interactions)
-        ↓               (Reads arch.md for screens/flows if exists)
+        ↓               (UI features only - skip for API-only/CLI/library)
+        ↓               (Reads ux.md for detailed flows - REQUIRED for UI features)
         ↓               (Uses global design system tokens)
+        ↓
+/speckit.verify-design  → specs/[feature]/design-validation.md
+        ↓               (Validate design completeness via browser MCP)
+        ↓               (Gate: Ensures all screens/components designed before tasking)
+        ↓               (UI features only)
         ↓
 /speckit.tasks          → specs/[feature]/tasks.md
         ↓               (Dependency-ordered implementation tasks)
@@ -88,9 +99,12 @@ Feature complete ✅
 
 **Support Commands** (as needed):
 
+- `/speckit.refactor` - Refactor requirements across artifacts with natural language (change direction, add requirements, check impacts)
 - `/speckit.design-iterate` - Refine existing feature designs
+- `/speckit.verify-design` - Validate design completeness before tasking (required gate for UI features)
+- `/speckit.verify-tasks` - Validate tasks before implementation (required gate)
+- `/speckit.verify-ui` - Verify UI implementation against acceptance criteria
 - `/speckit.checklist` - Generate custom checklists for features
-- `/speckit.verify-tasks` - Validate tasks before implementation (recommended gate)
 
 ---
 
@@ -146,7 +160,10 @@ $ARGUMENTS
 
 Each command does ONE thing well:
 - `/speckit.specify` - Captures requirements
-- `/speckit.design` - Creates UI/UX design
+- `/speckit.arch` - Documents feature architecture (structure, patterns, decisions)
+- `/speckit.ux` - Creates detailed UX flows and component specifications
+- `/speckit.design` - Creates visual designs and component implementations
+- `/speckit.verify-design` - Validates design completeness before tasking
 - `/speckit.tasks` - Generates task list
 - `/speckit.verify-tasks` - Validates tasks (completeness, patterns, coverage)
 - `/speckit.implement` - Executes validated tasks

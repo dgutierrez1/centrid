@@ -9,6 +9,47 @@
 
 [Extract from feature spec: primary requirement + technical approach from research]
 
+## Research Summary
+
+**Reference**: `research.md` (Phase 0 output from `/speckit.plan`)
+
+**Purpose**: Document technology evaluations, architectural decisions, and alternatives considered during planning phase.
+
+**Key Decisions**:
+
+<!--
+  ACTION REQUIRED: Summarize 3-5 key decisions from research.md with rationale.
+  Link to research.md for full details (benchmarks, evaluations, alternatives).
+
+  Format:
+  1. [Decision name]: [What was chosen]
+     - Rationale: [Why chosen - 1-2 sentences]
+     - Alternatives considered: [What else was evaluated]
+     - See research.md section [X] for full evaluation
+-->
+
+1. [Technology choice 1]: [Selected option]
+   - Rationale: [Why this choice]
+   - Alternatives considered: [What else was evaluated]
+   - See research.md section [X] for full evaluation
+
+2. [Architecture pattern 1]: [Selected pattern]
+   - Rationale: [Why this pattern]
+   - Alternatives considered: [What else was evaluated]
+   - See research.md section [X] for full evaluation
+
+3. [Performance strategy 1]: [Selected approach]
+   - Rationale: [Why this approach]
+   - Alternatives considered: [What else was evaluated]
+   - See research.md section [X] for full evaluation
+
+**Research Artifacts**:
+- Benchmarks: [Link to research.md sections with performance data]
+- Security considerations: [Link to research.md sections with security analysis]
+- Third-party library comparisons: [Link to research.md sections with library evaluations]
+
+**Audit Trail**: All decisions in this plan are based on research documented in `research.md`. To understand why a technology/pattern was chosen, refer to research.md for detailed evaluations, benchmarks, and alternatives considered.
+
 ## Technical Context
 
 <!--

@@ -103,19 +103,116 @@
 ### 4. Create Design System Showcase
 **Location**: `apps/design-system/pages/[feature-name]/`
 
-1. **Create mock containers** in `apps/design-system/components/[feature-name]/`:
-   - Barebones container components with mock data (NOT in packages/ui)
-   - Wrap presenters from `@centrid/ui/features` with sample props
-   - Example: `WorkspaceContainerMock.tsx` provides mock files/handlers to `DesktopWorkspace`
-   - NO business logic, NO real services - just hardcoded sample data for visual design
+**4.1. Organize Components by Reusability**
 
-2. **Create shared screens list**: `screens.ts`
-3. **Create feature index**: `index.tsx` (overview with links to screens)
-4. **Create screen showcases**: `screen-1.tsx`, `screen-2.tsx`, etc.
-   - Import mock containers from `apps/design-system/components/[feature-name]/`
-   - Use `DesignSystemFrame` wrapper for navigation
-   - Add state controls (toggle loading, error, etc.)
-5. **Update main index**: Add feature card to `apps/design-system/pages/index.tsx`
+Before creating showcase pages, categorize all components:
+
+**Common Components** (`packages/ui/src/components/`):
+- List components that are reusable across multiple features
+- Examples: ChatMessage, FileAutocomplete, TypingIndicator
+
+**Feature Components** (`packages/ui/src/features/[feature-name]/`):
+- List components specific to this feature
+- Examples: ChatView, ChatListPanel, ApprovalCard, ConflictModal
+
+**Screen Components** (`packages/ui/src/features/[feature-name]/`):
+- List full screen/layout components
+- Examples: DesktopWorkspace, MobileWorkspace, ChatInterface
+
+**4.2. Create Mock Data**
+
+In `apps/design-system/components/[feature-name]/`:
+- Create `mockData.ts` - Centralized mock data for all showcase pages
+- Create mock containers (if needed) - Barebones wrappers with sample data
+- NO business logic, NO real services - just hardcoded sample data
+
+**4.3. Create Screens List**
+
+Create `screens.ts` with screen metadata:
+```typescript
+export const screens = [
+  {
+    id: 'screen-id',
+    title: '01 - Screen Name',
+    route: '/[feature-name]/screen-route',
+    description: 'Brief description of what this screen shows',
+  },
+  // ... more screens
+] as const;
+```
+
+**4.4. Create Feature Index** (`index.tsx`)
+
+Structure:
+- **Feature Overview** - Description of the feature and its purpose
+- **Screens Designed** - Grid of cards linking to each screen showcase
+- **Component Architecture** - Two-section breakdown:
+  - Common Components (if any) - List with descriptions
+  - Feature Components - List with descriptions
+- Add link to component library page: `/[feature-name]/components`
+
+**4.5. Create Screen Showcase Pages**
+
+For each screen, create `[screen-route].tsx`:
+- Import mock data from `mockData.ts`
+- Use `DesignSystemFrame` wrapper for navigation
+- Add "Design Controls" section with state toggles:
+  - Viewport switcher (Desktop 1440px / Mobile 375px)
+  - State controls (loading, error, approval, etc.)
+- Render screen component with mock props
+- Add "Implementation Notes" section documenting:
+  - Layout structure (panels, responsive behavior)
+  - Key interactions (click, drag, keyboard shortcuts)
+  - Mobile adaptations (bottom nav, single panel, touch targets)
+
+**4.6. Create Component Library Pages**
+
+**CRITICAL**: These pages allow viewing/testing components independently from screens.
+
+Create `components.tsx` - Individual component showcase:
+```typescript
+// Structure:
+// - Introduction section
+// - For each reusable component:
+//   - Component name & description
+//   - Grid of state cards showing:
+//     - Default state
+//     - Loading state
+//     - Error state
+//     - Empty state
+//     - Interactive states (hover, focus, disabled)
+//     - Variants (sizes, colors, types)
+```
+
+Example sections:
+- **ApprovalCard** - Single file, multiple files, delete action, inactive state
+- **ConflictModal** - Modal with conflicting files list
+- **ContextReferenceBar** - Few references, many references, max limit warning
+- **ChatMessage** - Tool calls, citations, user/agent styling
+
+Create `[component]-states.tsx` (if component has many states):
+```typescript
+// For complex components (ChatView, ChatListPanel, FileAutocomplete)
+// Show comprehensive state matrix:
+// - Idle, loading, streaming, complete
+// - Empty, with data, search results
+// - Open, closed, searching, no results
+```
+
+**4.7. Update Main Design System Index**
+
+Add feature card to `apps/design-system/pages/index.tsx`:
+```typescript
+<Card>
+  <CardHeader>
+    <CardTitle>[Feature Name]</CardTitle>
+    <CardDescription>[Feature description]</CardDescription>
+  </CardHeader>
+  <CardContent>
+    <Link href="/[feature-name]">View designs →</Link>
+  </CardContent>
+</Card>
+```
 
 ### 5. Visual Iteration & Interaction Documentation
 
@@ -339,18 +436,40 @@ Status: READY / NEEDS WORK (with specific gaps listed)
 - Common → `packages/ui/src/components/`
 - Feature → `packages/ui/src/features/[feature-name]/`
 
+**Avoiding Duplication with ux.md**:
+
+When ux.md exists (PREFERRED workflow):
+- **ux.md defines**: Component props interfaces, states to design, interaction patterns, layout specifications
+- **design.md documents**: Screenshots of those states, design tokens used, reusability categorization, component locations
+- **Pattern**: design.md REFERENCES ux.md (no duplication of component specs)
+
+**What design.md adds** (not in ux.md):
+- ✅ Screenshots (desktop + mobile for all states)
+- ✅ Design tokens used (which colors, fonts, spacing from design system)
+- ✅ Reusability categorization (actual file paths created)
+- ✅ Component locations (where files were created in packages/ui)
+- ✅ Screen-to-component mapping table (for /speckit.tasks)
+
+**What design.md should NOT duplicate** (already in ux.md):
+- ❌ Component props interfaces (reference ux.md instead)
+- ❌ States to design (show screenshots, don't re-list)
+- ❌ Interaction patterns (reference ux.md, don't rewrite)
+- ❌ Layout diagrams (ux.md has ASCII diagrams)
+
 **DO**:
 - ✅ Check existing before creating
 - ✅ Reuse/extend existing components
 - ✅ Import from `@centrid/ui/components`
 - ✅ Use Tailwind tokens, props for data, pure presentational
 - ✅ Document reusability (categorization table)
+- ✅ Reference ux.md for component specs (when ux.md exists)
 
 **DON'T**:
 - ❌ Create presenters in `apps/web` or `apps/design-system/components/`
 - ❌ Duplicate existing components
 - ❌ Add data fetching, state management, or API calls to presenters
 - ❌ Make feature-specific when pattern is reusable
+- ❌ Duplicate ux.md specs in design.md (reference instead)
 
 **Mock Containers** (design-system only):
 - ✅ Create in `apps/design-system/components/[feature-name]/` for visual showcase

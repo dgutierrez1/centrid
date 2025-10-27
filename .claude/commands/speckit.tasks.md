@@ -14,6 +14,28 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 1. **Setup**: Run `.specify/scripts/bash/check-prerequisites.sh --json` from repo root and parse FEATURE_DIR and AVAILABLE_DOCS list. All paths must be absolute. For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
 
+1.5. **Check Design Validation Gate** (REQUIRED if design.md exists):
+   - If `design.md` in AVAILABLE_DOCS:
+     - Check for `design-validation.md` in AVAILABLE_DOCS
+     - **If design-validation.md MISSING**:
+       - ERROR: Design validation required. Run `/speckit.verify-design` first.
+       - STOP execution
+     - **If design-validation.md EXISTS**:
+       - Read design-validation.md
+       - Parse "Status:" field from Executive Summary
+       - **If Status = BLOCKED**:
+         - ERROR: Design validation BLOCKED. Fix critical issues in design-validation.md before proceeding.
+         - STOP execution with message: "Critical design issues must be resolved. See design-validation.md for required fixes."
+       - **If Status = PARTIAL**:
+         - WARNING: Design validation has warnings. Review design-validation.md.
+         - Ask user: "Design has warnings. Continue anyway? (yes/no)"
+         - If NO: STOP execution
+         - If YES: Proceed with note about warnings
+       - **If Status = READY**:
+         - Proceed to task generation
+   - If `design.md` NOT in AVAILABLE_DOCS:
+     - Skip validation check (API-only feature or no design phase)
+
 2. **Load design documents**: Read from FEATURE_DIR:
    - **Required**: plan.md (tech stack, libraries, structure, component architecture), spec.md (user stories with priorities)
    - **Optional**:

@@ -53,10 +53,45 @@ Feature-specific in `packages/ui/src/features/[feature-name]/`:
 **Location**: `apps/design-system/pages/[feature-name]/`
 
 **Routes**:
-- http://localhost:3001/[feature-name]/ (overview)
-- http://localhost:3001/[feature-name]/screen-1
+- http://localhost:3001/[feature-name]/ (feature overview + architecture)
+- http://localhost:3001/[feature-name]/components (component library with all states)
+- http://localhost:3001/[feature-name]/[component]-states (detailed state showcase for complex components)
+- http://localhost:3001/[feature-name]/screen-1 (screen showcase with controls)
 - http://localhost:3001/[feature-name]/screen-2
 - http://localhost:3001/[feature-name]/screen-3
+
+**Structure**:
+- `index.tsx` - Feature overview with screens grid and component architecture list
+- `components.tsx` - Component library showing individual components with all states
+- `[component]-states.tsx` - Comprehensive state variations for complex components (optional)
+- `[screen-route].tsx` - Screen showcases with design controls and implementation notes
+- `screens.ts` - Shared screen metadata used by DesignSystemFrame navigation
+
+### Component Library Pages
+
+<!--
+  CRITICAL: Component library pages allow viewing/testing components independently.
+  This is essential for development - developers reference these pages when using components.
+-->
+
+**Component Library** (`components.tsx`):
+Document each reusable component with its states:
+
+| Component | States Shown | Purpose |
+|-----------|-------------|---------|
+| ApprovalCard | Default, Multiple files, Delete action, Inactive | File change approval banner |
+| ConflictModal | Open with conflicting files | Modal for resolving edit conflicts |
+| ContextReferenceBar | Few items, Many items, Max limit | Horizontal scrollable context pills |
+| ChatMessage | User message, Agent message, Tool calls, Citations | Message display with interleaved content |
+| [Add other components] | [States] | [Purpose] |
+
+**State Pages** (`[component]-states.tsx`):
+For complex components with many state combinations, create dedicated pages:
+
+| Page | Component | States Documented |
+|------|-----------|------------------|
+| `chat-states.tsx` | ChatView, ChatListPanel, FileAutocomplete | Streaming states (idle → user message → streaming → tool progress → complete), List states (empty, loading, with chats, search results), Autocomplete states (closed, open empty, searching, with results) |
+| [Add other state pages] | [Components] | [State matrix] |
 
 ### Screen-to-Component Mapping
 

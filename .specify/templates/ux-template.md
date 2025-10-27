@@ -1,5 +1,9 @@
 # [Feature Name] - UX Specification
 
+**Feature**: `[###-feature-name]`
+**Date**: [DATE]
+**Status**: Draft
+
 **Purpose**: Define detailed user experience flows, interactions, layouts, and component behavior to bridge architecture and visual design.
 
 **Prerequisites**: spec.md (requirements), arch.md (structure)
@@ -20,177 +24,99 @@
 
 ## Screen-by-Screen UX Flows
 
-> **Purpose**: Detailed step-by-step user flows for each screen, showing exactly what happens at each interaction point.
+<!--
+  PRIMARY SECTION: Complete UX flows for each screen.
+  For each screen, document:
+  - Purpose, entry/exit points
+  - Primary flow (happy path) with detailed steps
+  - Error scenarios with recovery paths
+  - Success criteria from spec.md
+  - Component references (see Component Library below for detailed specs)
+-->
 
-### [Screen Name]
+### [Screen 1 Name]
 
 **Purpose**: [What this screen accomplishes]
 
-**Entry Points**: [How users navigate to this screen]
+**Route**: `/[production-route]`
 
-**Exit Points**: [Where users can navigate from this screen]
+**Priority**: [P1/P2/P3 - from arch.md]
 
-#### Primary Flow: [Flow Name]
+**Entry Points**:
+- [How users navigate to this screen - e.g., "From main menu", "Deep link from notification"]
 
-**Acceptance Criteria**: [Reference from spec.md - e.g., AC-001]
+**Exit Points**:
+- [Where users can navigate from this screen - e.g., "To file editor", "To settings"]
+
+#### Primary Flow 1: [Flow Name - e.g., "Send Message with Streaming Response"]
 
 **User Story**: [Reference from spec.md - e.g., US-002]
 
+**Acceptance Criteria**: [Reference from spec.md - e.g., AC-002]
+
 **Steps**:
 
-1. **[User Action]** (e.g., "User clicks 'New Chat' button")
+1. **[User Action]** (e.g., "User types message in input field")
 
-   - **Component**: `[ComponentName]` from `[file-path]`
-   - **Interaction**: Click/Type/Drag/Hover/Scroll
-   - **What Happens**: [Immediate response - modal opens, form appears, etc.]
-   - **Data Required**: [What props/state this component needs]
-   - **Callback**: `on[Action]` - [What the callback does]
-   - **Visual Feedback**: [Loading state, button disabled, etc.]
+   - **Component**: `[ComponentName]` (see Component Library below for props)
+   - **Interaction**: Type/Click/Drag/Hover/Scroll
+   - **What Happens**: [Immediate response - e.g., "Character count updates, send button enables"]
+   - **Data Required**: `{ field: Type }` (brief - full props in Component Library)
+   - **Callback**: `on[Action](params)` - [What callback does]
+   - **Visual Feedback**: [State change visible to user - e.g., "Button color changes, spinner appears"]
 
-2. **[Next User Action]**
+2. **[Next User Action]** (e.g., "User clicks Send button")
 
-   - **Component**: `[ComponentName]` from `[file-path]`
-   - **Interaction**: [Type of interaction]
+   - **Component**: `[ComponentName]` (see Component Library)
+   - **Interaction**: [Type]
    - **What Happens**: [Response]
-   - **Data Required**: [Props needed]
-   - **Callback**: `on[Action]` - [Purpose]
+   - **Data Required**: `{ field: Type }`
+   - **Callback**: `on[Action](params)` - [Purpose]
    - **Visual Feedback**: [State changes]
 
-3. **[System Response]** (automated behavior)
-   - **Trigger**: [What triggered this - API response, timeout, etc.]
-   - **What Happens**: [Result displayed, navigation, etc.]
-   - **Component Updated**: `[ComponentName]`
-   - **Data Flow**: [Where data comes from → how it's displayed]
+3. **[System Response]** (e.g., "System adds user message to conversation")
+
+   - **Trigger**: [What triggered this - e.g., "onSendMessage callback fires"]
+   - **What Happens**: [Result - e.g., "Message appears at bottom with timestamp"]
+   - **Component Updated**: `[ComponentName]` (see Component Library)
+   - **Data Flow**: [Brief description - e.g., "Valtio state → messages array → MessageStream renders"]
+
+[Continue for all steps in the happy path - typically 5-15 steps]
 
 **Error Scenarios**:
 
-- **[Error Case]** (e.g., "Network request fails")
-  - **Trigger**: [What causes this error]
-  - **Component**: `[ErrorComponent]` or error state in `[MainComponent]`
-  - **Display**: [Error message text]
-  - **Recovery**: [How user can retry/recover]
-  - **Test Data**: [What input/condition triggers this in tests]
+- **[Error Case 1]** (e.g., "Network request fails")
+  - **Trigger**: [What causes this - e.g., "API timeout after 30s or 500 error"]
+  - **Component**: `[ErrorComponent]` or error state in `[MainComponent]` (see Component Library)
+  - **Display**: "[Exact error message text]"
+  - **Recovery**: [How user can retry - e.g., "Retry button calls onSendMessage again"]
+  - **Test Data**: [What input/condition triggers this - e.g., "Mock API with networkError: true"]
 
-**Success Criteria**: [From spec.md - what indicates flow completed successfully]
+- **[Error Case 2]** (e.g., "Input validation fails")
+  - **Trigger**: [What causes this]
+  - **Component**: [Which component shows error]
+  - **Display**: "[Error message]"
+  - **Recovery**: [Recovery path]
+  - **Test Data**: [Test condition]
 
----
+**Success Criteria** (from spec.md):
+- ✅ [Criterion 1 - e.g., "User message appears in conversation with timestamp"]
+- ✅ [Criterion 2 - e.g., "AI response streams in after 2-5 seconds"]
+- ✅ [Criterion 3 - e.g., "Input field re-enables after response starts"]
 
-## Component Specifications
-
-> **Purpose**: Define exact props interfaces, callbacks, and data requirements for presentational components.
->
-> **IMPORTANT - Component Placement Rules**:
->
-> - **Common components** (used in 2+ features) → `packages/ui/src/components/[ComponentName].tsx`
-> - **Feature-specific components** (used in 1 feature) → `packages/ui/src/features/[feature-name]/[ComponentName].tsx`
-> - **During design phase**: Create presentational components in `packages/ui/` (source of truth)
-> - **During design phase**: Create mock containers in `apps/design-system/components/[feature-name]/` (sample data only)
-> - **During implementation**: Create production containers in `apps/web/src/components/` (import presentational components, NOT rebuild them)
->
-> **Component Reusability Assessment**:
->
-> - Before defining a new component, check if similar components exist in `packages/ui/src/components/`
-> - If exists: Reuse or extend (document in rationale)
-> - If new and reusable (2+ features): Place in `packages/ui/src/components/`
-> - If new and feature-specific (1 feature): Place in `packages/ui/src/features/[feature-name]/`
-
-### [ComponentName]
-
-**Location**: `packages/ui/src/[components | features/[feature-name]]/[ComponentName].tsx`
-
-**Purpose**: [What this component displays/enables]
-
-**Reusability**: [Common (2+ features) | Feature-specific (1 feature)]
-
-**Rationale**: [Why this placement - reused across features, feature-specific logic, etc.]
-
-**Props Interface**:
-
-```typescript
-interface [ComponentName]Props {
-  // Data props (read-only)
-  [dataField]: [Type];  // [Description - e.g., "List of messages to display"]
-  [dataField2]: [Type]; // [Description]
-
-  // Callback props (events out)
-  on[Action]: ([params]) => void;  // [Description - e.g., "Called when user sends message"]
-  on[Action2]: ([params]) => void; // [Description]
-
-  // Optional styling
-  className?: string;
-}
-```
-
-**Example Usage**:
-
-```typescript
-<[ComponentName]
-  [dataField]={[sampleData]}
-  on[Action]={[handlerFunction]}
-/>
-```
-
-**States to Design**:
-
-- Default (normal display)
-- Loading (data fetching)
-- Error (error message display)
-- Empty (no data available)
-- [Feature-specific states]
-
-**Accessibility**:
-
-- [ ] Keyboard navigation (Tab, Enter, Escape, Arrow keys)
-- [ ] ARIA labels for screen readers
-- [ ] Focus management (trap focus in modals, restore focus on close)
-- [ ] Color contrast (WCAG AA minimum)
+**Interaction Patterns Used**:
+- [Pattern Name] (see Interaction Patterns section - e.g., "Modal Workflow")
+- [Pattern Name] (see Interaction Patterns section - e.g., "Form Validation")
 
 ---
 
-## Interaction Patterns
+#### Layout & Spatial Design
 
-> **Purpose**: Document common interaction behaviors and patterns used across the feature.
-
-### [Pattern Name] (e.g., "Modal Workflow")
-
-**Where Used**: [List of screens/components using this pattern]
-
-**Behavior**:
-
-1. [Step 1 - e.g., "User clicks trigger button"]
-2. [Step 2 - e.g., "Modal opens with backdrop overlay"]
-3. [Step 3 - e.g., "Focus moves to first input"]
-4. [Step 4 - e.g., "User can dismiss with Escape key, backdrop click, or Cancel button"]
-
-**Components Involved**:
-
-- `[Component1]` - [Role in pattern]
-- `[Component2]` - [Role in pattern]
-
-**State Changes**:
-
-- [State before interaction]
-- [State during interaction]
-- [State after interaction]
-
-**Keyboard Shortcuts**:
-
-- `[Key]` - [Action]
-- `[Key Combo]` - [Action]
-
----
-
-## Layout & Spatial Relationships
-
-> **Purpose**: Define how components are arranged in space and how layouts adapt to different viewports.
-
-### Layout Diagrams
-
-#### Desktop (1440px+)
+**Desktop (1440px+)**:
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│ [Header Component]                                       │
+│ [Header Component - 64px height]                        │
 ├──────────────┬──────────────────────────────────────────┤
 │              │                                           │
 │ [Sidebar]    │ [Main Content Area]                      │
@@ -206,11 +132,22 @@ interface [ComponentName]Props {
 └──────────────┴──────────────────────────────────────────┘
 ```
 
-#### Mobile (375px)
+**Dimensions**:
+- Header: Full width, 64px height
+- Sidebar: 300px fixed width
+- Main content: flex-1 (remaining space)
+- Gap: 0 (no gap between sidebar and content)
+
+**Component Spacing**:
+- Component gaps: gap-4 (16px) between major components
+- Section margins: mb-8 (32px) between major sections
+- Internal padding: p-6 (24px) in content areas
+
+**Mobile (375px)**:
 
 ```
 ┌───────────────────┐
-│ [Header]          │
+│ [Header - 56px]   │
 ├───────────────────┤
 │                   │
 │ [Main Content]    │
@@ -223,91 +160,383 @@ interface [ComponentName]Props {
 │ │ Component B   │ │
 │ └───────────────┘ │
 │                   │
-│ [Bottom Nav]      │
+│ [Input - sticky]  │
 └───────────────────┘
 ```
 
-### Spacing & Responsive Behavior
+**Dimensions**:
+- Header: Full width, 56px height
+- Main content: Full width
+- Input: Full width, 72px height, sticky at bottom
 
 **Component Spacing**:
-
-- Component gaps: [e.g., "gap-6 (24px) between main sections"]
-- Internal padding: [e.g., "p-4 (16px) on mobile, p-6 (24px) on desktop"]
-- Section margins: [e.g., "mb-8 (32px) between major sections"]
+- Component gaps: gap-3 (12px) between components (tighter than desktop)
+- Section margins: mb-6 (24px) between sections
+- Internal padding: p-4 (16px) in content areas
 
 **Responsive Breakpoints**:
+- **Mobile**: `< 768px` - Stack vertically, hide sidebar, sticky input, reduced spacing
+- **Tablet**: `768px - 1024px` - Sidebar as overlay, moderate spacing
+- **Desktop**: `> 1024px` - Full layout, sidebar inline, maximum spacing
 
-- Mobile: `< 768px` - [Describe layout changes - e.g., "Stack vertically, hide sidebar"]
-- Tablet: `768px - 1024px` - [Describe layout changes - e.g., "Sidebar as overlay"]
-- Desktop: `> 1024px` - [Describe layout changes - e.g., "Full layout with inline sidebar"]
+**Components Used in Layout**:
+- `Component1`, `Component2`, `Component3` (see Component Library for detailed specs)
 
 ---
 
-## Component UI State
+#### Primary Flow 2: [Next Flow Name]
 
-> **Purpose**: Document component-level UI state (NOT global state - that's defined in arch.md).
->
-> **IMPORTANT**: Global state strategy, real-time subscriptions, and URL state are defined in arch.md "Frontend State Management" section. DO NOT duplicate here. This section is ONLY for component UI state (accordion open, modal visible, input focused, etc.).
+[Repeat structure for additional primary flows on this screen]
 
-### [ComponentName]
+---
+
+### [Screen 2 Name]
+
+**Purpose**: [What this screen accomplishes]
+
+**Route**: `/[production-route]`
+
+**Priority**: [P1/P2/P3]
+
+**Entry Points**: [List]
+
+**Exit Points**: [List]
+
+#### Primary Flow: [Flow Name]
+
+[Repeat flow structure...]
+
+---
+
+[Repeat for ALL screens from arch.md - ALL priorities]
+
+---
+
+## Component Library
+
+<!--
+  REFERENCE SECTION: Detailed component specifications.
+  Screens reference components from this section.
+
+  REUSABILITY RULE: Check existing → Common (2+ features) → Feature-specific (1 feature)
+  - Common → packages/ui/src/components/
+  - Feature-specific → packages/ui/src/features/[feature-name]/
+
+  IMPORTANT: These are SPECIFICATIONS only (no files created yet).
+  Actual component files are created during /speckit.design phase.
+-->
+
+### Component Reusability Assessment
+
+**Existing components checked** (from `packages/ui/src/components/`):
+- [Component] - ✅ Reused / ⚡ Extended / ❌ Not applicable
+
+**New components categorized**:
+
+| Component | Location | Reusability Rationale |
+|-----------|----------|----------------------|
+| [Component1] | `components/` | Used in 3+ features (common) |
+| [Component2] | `features/[feature]/` | Feature-specific screen |
+
+### Component Specifications
+
+<!--
+  For each component, define:
+  - Location (common vs feature-specific)
+  - Purpose
+  - Props interface (TypeScript)
+  - States to design
+  - Accessibility requirements
+-->
+
+#### Screen Components (Feature-Specific)
+
+**`[ScreenComponent1].tsx`** - [Screen 1 Name]
+
+**Location**: `packages/ui/src/features/[feature-name]/[ScreenComponent1].tsx` (created during design)
+
+**Purpose**: [What this component displays/enables]
+
+**Reusability**: Feature-specific (1 feature)
+
+**Rationale**: [Why feature-specific - e.g., "Screen-level component with feature-specific layout"]
+
+**Props Interface**:
+
+```typescript
+interface [ScreenComponent1]Props {
+  // Data props (read-only)
+  items: Item[];           // List of items to display
+  isLoading: boolean;      // Whether data is loading
+  error: Error | null;     // Error state
+
+  // Callback props (events out)
+  onItemClick: (id: string) => void;     // Called when user clicks item
+  onRefresh: () => void;                 // Called when user refreshes
+
+  // Optional styling
+  className?: string;
+}
+```
+
+**Example Usage**:
+
+```typescript
+<ScreenComponent1
+  items={[{ id: '1', name: 'Item 1' }]}
+  isLoading={false}
+  error={null}
+  onItemClick={(id) => console.log(id)}
+  onRefresh={() => refetch()}
+/>
+```
+
+**States to Design**:
+- Default (normal display with data)
+- Loading (data fetching in progress)
+- Error (error message display)
+- Empty (no data available)
+- [Feature-specific states if any]
+
+**Composed From** (other components used):
+- `Button`, `Card`, `Input` (from `@centrid/ui/components`)
+- `[SharedFeatureComponent]` (from same feature if applicable)
 
 **Component UI State** (local, ephemeral):
-
 - `[stateField]`: [Type] - [Purpose - e.g., "Tracks whether modal is open"]
-- `[stateField2]`: [Type] - [Purpose - e.g., "Tracks current accordion panel expanded"]
+- `[stateField2]`: [Type] - [Purpose - e.g., "Current text in input field"]
 
-**Why Component State**: [Rationale - e.g., "UI-only, not persisted, not shared across components"]
+**Why Component State**: [Rationale - e.g., "UI-only state, not persisted, not shared across components"]
 
-**NOT component state** (defined in arch.md instead):
+**NOT component state** (defined in arch.md):
 - Global data (messages, users, documents) → See arch.md Global State
 - URL state (query params, path params) → See arch.md URL State
 - Real-time subscriptions → See arch.md State Management
+
+**Interaction Patterns Used**:
+- [Pattern Name] (see Interaction Patterns section - e.g., "Modal Workflow")
+- [Pattern Name] (see Interaction Patterns section - e.g., "Keyboard Shortcuts")
+
+**Accessibility Requirements**:
+- [ ] Keyboard navigation (Tab, Enter, Escape, Arrow keys)
+- [ ] ARIA labels for screen readers (`aria-label`, `aria-describedby`)
+- [ ] Focus management (initial focus, focus trap if modal)
+- [ ] Color contrast (WCAG AA: 4.5:1 text, 3:1 UI components)
+
+---
+
+**`[ScreenComponent2].tsx`** - [Screen 2 Name]
+
+[Repeat structure for each screen component...]
+
+---
+
+#### Shared Feature Components
+
+<!--
+  Components shared across multiple screens within this feature only.
+-->
+
+**`[SharedComponent].tsx`** - [Component Purpose]
+
+**Location**: `packages/ui/src/features/[feature-name]/[SharedComponent].tsx` (created during design)
+
+**Purpose**: [What this component does]
+
+**Reusability**: Feature-specific (used in multiple screens of this feature)
+
+**Rationale**: [Why shared within feature - e.g., "Reusable widget used in 3 screens of this feature"]
+
+**Props Interface**:
+
+```typescript
+interface [SharedComponent]Props {
+  // Data props
+  data: DataType;          // [Description]
+
+  // Callback props
+  onAction: () => void;    // [Description]
+
+  // Optional styling
+  className?: string;
+}
+```
+
+**States to Design**: [List states]
+
+**Composed From**: [List primitives/components used]
+
+**Component UI State** (local, ephemeral):
+- `[stateField]`: [Type] - [Purpose]
+
+**Why Component State**: [Rationale]
+
+**NOT component state** (defined in arch.md):
+- Global data, URL state, real-time subscriptions → See arch.md
+
+**Interaction Patterns Used**:
+- [Pattern Name] (see Interaction Patterns section)
+
+**Accessibility Requirements**: [List requirements]
+
+---
+
+#### Common Components (Cross-Feature)
+
+<!--
+  New components that will be used across 2+ features.
+  If component already exists in packages/ui/src/components/, document as "Reused" instead.
+-->
+
+**`[CommonComponent].tsx`** - [Component Purpose]
+
+**Location**: `packages/ui/src/components/[CommonComponent].tsx` (created during design)
+
+**Purpose**: [What this component does]
+
+**Reusability**: Common (used in 2+ features)
+
+**Rationale**: [Why cross-feature reusable - e.g., "Generic file upload widget used in 3 features"]
+
+**Props Interface**:
+
+```typescript
+interface [CommonComponent]Props {
+  // Data props
+  value: string;                    // [Description]
+
+  // Callback props
+  onChange: (value: string) => void; // [Description]
+
+  // Optional styling
+  className?: string;
+}
+```
+
+**States to Design**: [List states]
+
+**Composed From**: [List primitives used]
+
+**Component UI State** (local, ephemeral):
+- `[stateField]`: [Type] - [Purpose]
+
+**Why Component State**: [Rationale]
+
+**NOT component state** (defined in arch.md):
+- Global data, URL state, real-time subscriptions → See arch.md
+
+**Interaction Patterns Used**:
+- [Pattern Name] (see Interaction Patterns section)
+
+**Accessibility Requirements**: [List requirements]
+
+---
+
+### Primitives Used (from @centrid/ui/components)
+
+<!--
+  List all shadcn/ui primitives used in this feature.
+  No need to specify props - these are pre-existing.
+-->
+
+- Button (variants: default, secondary, ghost)
+- Input (with validation states)
+- Card (for containers)
+- Badge (for status indicators)
+- Dialog (for modals)
+- [Add other primitives used]
+
+---
+
+## Interaction Patterns
+
+<!--
+  REFERENCE SECTION: Common interaction behaviors used across screens.
+  Screens reference patterns from this section.
+-->
+
+### [Pattern 1 Name] (e.g., "Modal Workflow")
+
+**Where Used**: [List screens/components - e.g., "Create Thread, Edit Profile, Delete Confirmation"]
+
+**Behavior**:
+
+1. [Step 1 - e.g., "User clicks trigger button/link"]
+2. [Step 2 - e.g., "Modal opens with backdrop overlay, focus trapped inside"]
+3. [Step 3 - e.g., "User interacts with modal content (form, confirmation, etc.)"]
+4. [Step 4 - e.g., "User dismisses via Escape, backdrop click, Cancel, or Submit"]
+5. [Step 5 - e.g., "Modal closes, focus returns to trigger element"]
+
+**Components Involved**:
+- `Modal` - [Role - e.g., "Container with backdrop and focus trap"]
+- `ModalHeader` - [Role - e.g., "Title and close button"]
+- `ModalBody` - [Role - e.g., "Content area (form, text, etc.)"]
+- `ModalFooter` - [Role - e.g., "Action buttons (Cancel, Submit)"]
+
+**State Changes**:
+- **Before**: [Initial state - e.g., "Modal hidden, trigger visible"]
+- **During**: [Intermediate state - e.g., "Modal visible, backdrop blocks background, focus inside modal"]
+- **After**: [Final state - e.g., "Modal hidden, focus on trigger element"]
+
+**Keyboard Shortcuts**:
+- `Escape` - [Action - e.g., "Close modal without saving"]
+- `Enter` - [Action - e.g., "Submit form (if single input)"]
+- `Tab` - [Action - e.g., "Navigate between focusable elements (trapped in modal)"]
+
+---
+
+### [Pattern 2 Name] (e.g., "Drag and Drop Upload")
+
+[Repeat structure for additional patterns...]
 
 ---
 
 ## Design Handoff Checklist
 
-> **Purpose**: Ensure all information needed for high-fidelity design is documented.
+<!--
+  VALIDATION GATE: Ensure all information needed for design phase is documented.
+-->
 
 ### Completeness Check
 
-- [ ] All screens from arch.md have detailed flows
-- [ ] All P1/P2 user stories from spec.md are covered
+- [ ] All screens from arch.md have detailed flows (ALL priorities)
+- [ ] All user stories from spec.md are covered (ALL priorities)
 - [ ] All acceptance criteria from spec.md are mapped to flows
 - [ ] All components have prop specifications
-- [ ] All error scenarios documented with test data
-- [ ] Layout relationships defined (desktop + mobile)
-- [ ] State management requirements specified
-- [ ] Interaction patterns documented
+- [ ] All error scenarios documented with test data and recovery paths
+- [ ] Each screen has layout diagrams (desktop + mobile, inline with screen)
+- [ ] Interaction patterns documented (separate section, referenced from screens/components)
+- [ ] Each component has UI state specified (inline with component, not global/URL state)
+- [ ] Interaction patterns referenced from screens and components where used
 
 ### Component Architecture Check
 
 - [ ] Component hierarchy matches arch.md
-- [ ] Props follow data-in/callbacks-out pattern
-- [ ] No business logic in presentational component specs
+- [ ] Props follow data-in/callbacks-out pattern (no business logic in props)
 - [ ] Component locations specified (common vs feature-specific)
-- [ ] Reusability assessment complete
+- [ ] Reusability assessment complete (checked existing components)
+- [ ] All components have accessibility requirements
 
 ### Flow Verification
 
 - [ ] Each flow maps to acceptance criteria from spec.md
 - [ ] Error scenarios have recovery paths
-- [ ] Success criteria defined for each flow
-- [ ] Navigation paths complete (entry + exit points)
-- [ ] Keyboard navigation specified
+- [ ] Success criteria defined for each flow (from spec.md)
+- [ ] Navigation paths complete (entry + exit points for all screens)
+- [ ] Keyboard navigation specified for all interactive patterns
 
 ### Design System Alignment
 
-- [ ] Uses existing components where possible (from `packages/ui/src/components/`)
+- [ ] Checked existing components in `packages/ui/src/components/` (no duplication)
 - [ ] New components justified (not duplicating existing)
-- [ ] Spacing uses design system tokens (8px grid)
+- [ ] Spacing uses design system tokens (8px grid system)
 - [ ] Interaction patterns align with existing patterns
 
 ---
 
 ## Notes
 
-**Open Questions**: [Any unresolved UX decisions]
+**Open Questions**: [Any unresolved UX decisions that need clarification]
 
 **Assumptions**: [Assumptions made during UX specification]
 

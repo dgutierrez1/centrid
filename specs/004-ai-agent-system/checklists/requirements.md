@@ -478,7 +478,7 @@ Following comprehensive spec review identifying 36 gaps across 10 categories, al
 - **FR-024i**: Fallback to drop earliest chat history if summarization fails
 - **FR-024j**: Summarize complex requests when gathering exceeds buffer
 - **FR-024k**: Use references without full content when context tight
-- **FR-024l**: Claude Agent SDK integration for caching
+- **FR-024l**: Prompt caching via Anthropic API (using cache_control blocks)
 - Resolves: ambiguous hard limits, fallback behavior, summarization triggers
 
 #### File Operations & Write Permissions (8 NEW/UPDATED FRs)
@@ -515,11 +515,11 @@ Following comprehensive spec review identifying 36 gaps across 10 categories, al
 #### Web Search & Tool Management (4 NEW FRs)
 
 - **FR-065 updated**: Recent + older results for all query types
-- **FR-109**: Claude Agent SDK for web search
-- **FR-110**: Audit web search via SDK
-- **FR-111**: Use SDK for all tools (web, file, folder)
-- **FR-112**: Web search counts toward SDK limits (no separate rate limiting)
-- Resolves: cost controls, tool centralization, caching (handled by SDK)
+- **FR-109**: Direct Anthropic API with web search tool integration
+- **FR-110**: Audit web search via API tool calls
+- **FR-111**: Use direct API for all tools (web, file, folder) with custom orchestration
+- **FR-112**: Web search counts toward API rate limits (no separate rate limiting)
+- Resolves: cost controls, tool centralization, caching (handled by direct API integration)
 
 #### Usage Tracking & Feedback (4 NEW FRs)
 
@@ -674,6 +674,6 @@ All checklist items pass validation. The specification is **complete, comprehens
   - Vector database (pgvector vs Pinecone vs Weaviate)
   - Sync strategy (event-driven vs polling vs hybrid)
   - User characterization approach (AST parsing vs regex vs LLM)
-  - Caching strategy (handled by Claude Agent SDK)
+  - Caching strategy (handled by Anthropic API prompt caching with cache_control blocks)
   - Parallel processing configuration (worker count for embedding generation)
-  - Claude Agent SDK integration strategy for tool management
+  - Direct Anthropic API integration strategy for tool management and orchestration
