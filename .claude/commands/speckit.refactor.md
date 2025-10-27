@@ -8,7 +8,10 @@ description: Refactor requirements across artifacts with natural language instru
 $ARGUMENTS
 ```
 
+**⚠️ REQUIRED**: Refactor instruction required. If `$ARGUMENTS` is empty, ERROR: "Refactor instruction required. See examples below."
+
 **Usage**:
+
 ```bash
 /speckit.refactor "changing from claude agent sdk to direct api access, make sure aligned"
 /speckit.refactor "check current embedding approach and evaluate changing to pinecone"
@@ -18,12 +21,14 @@ $ARGUMENTS
 ```
 
 **Modes** (auto-detected from input):
+
 - **CHANGE**: "changing X to Y", "replace X with Y", "switch from X to Y"
 - **CHECK**: "check X", "evaluate Y", "what if we used Z" (read-only)
 - **ADD**: "add X", "include Y", "support Z"
 - **REFINE**: "FR-X needs Y", "improve X with Z", "X should also do Y"
 
 **Flags**:
+
 - `--dry-run`: Preview changes without modifying files (analysis only)
 
 ---
@@ -52,6 +57,7 @@ $ARGUMENTS
 **Extract from user input**:
 
 Parse natural language to identify:
+
 - **Action type**: CHANGE | ADD | CHECK | REFINE
 - **Old approach**: Terms to search for (if CHANGE)
 - **New approach**: Replacement text
@@ -85,6 +91,7 @@ Input: "add real-time collaboration with websocket"
 ```
 
 **If input is ambiguous**:
+
 ```
 Your input: "improve authentication"
 
@@ -113,13 +120,13 @@ cd /Users/daniel/Projects/misc/centrid
 
 **Parse AVAILABLE_DOCS** to determine phase:
 
-| Phase | Indicators | Impact |
-|-------|------------|--------|
-| **Requirements** | spec.md exists, no tasks.md | SAFE - No downstream artifacts |
-| **Architecture** | spec.md, arch.md exist, no tasks.md | SAFE - Can update freely |
-| **Planning** | spec/arch/plan exist, no tasks.md | SAFE - Can update freely |
-| **Planned** | tasks.md exists, no implementation | MEDIUM RISK - tasks outdated |
-| **Implemented** | Code in apps/web or apps/api exists | HIGH RISK - code mismatch |
+| Phase            | Indicators                          | Impact                         |
+| ---------------- | ----------------------------------- | ------------------------------ |
+| **Requirements** | spec.md exists, no tasks.md         | SAFE - No downstream artifacts |
+| **Architecture** | spec.md, arch.md exist, no tasks.md | SAFE - Can update freely       |
+| **Planning**     | spec/arch/plan exist, no tasks.md   | SAFE - Can update freely       |
+| **Planned**      | tasks.md exists, no implementation  | MEDIUM RISK - tasks outdated   |
+| **Implemented**  | Code in apps/web or apps/api exists | HIGH RISK - code mismatch      |
 
 **Check for implementation** (if tasks.md exists):
 
@@ -131,6 +138,7 @@ grep -r "claude.*agent.*sdk" apps/web apps/api 2>/dev/null | head -5
 **Phase-specific warnings**:
 
 **If Phase = Planned**:
+
 ```
 ⚠️ WARNING: Workflow Phase = PLANNED (tasks.md exists)
 
@@ -147,6 +155,7 @@ Your choice: _
 ```
 
 **If Phase = Implemented**:
+
 ```
 🚨 CRITICAL: Workflow Phase = IMPLEMENTED (code exists)
 
@@ -182,6 +191,7 @@ FEATURE_DIR="/Users/daniel/Projects/misc/centrid/specs/[feature]"
 ```
 
 **Markdown documents** (prose search):
+
 - `$FEATURE_DIR/spec.md` (REQUIRED)
 - `$FEATURE_DIR/arch.md` (if exists in AVAILABLE_DOCS)
 - `$FEATURE_DIR/plan.md` (if exists in AVAILABLE_DOCS)
@@ -192,10 +202,12 @@ FEATURE_DIR="/Users/daniel/Projects/misc/centrid/specs/[feature]"
 - `$FEATURE_DIR/research.md` (if exists in AVAILABLE_DOCS)
 
 **Structured files** (special parsing):
+
 - `$FEATURE_DIR/contracts/*.json` (OpenAPI specs)
 - `$FEATURE_DIR/contracts/*.graphql` (GraphQL schemas)
 
 **Project-level files** (for ADD mode):
+
 - `.specify/memory/constitution.md` (check for conflicts)
 
 **If spec.md missing**: ERROR - Cannot proceed without requirements
@@ -207,6 +219,7 @@ FEATURE_DIR="/Users/daniel/Projects/misc/centrid/specs/[feature]"
 **Search for old approach** (if CHANGE/CHECK):
 
 For each search term, find all occurrences:
+
 ```bash
 # Example: Search for "claude agent sdk"
 grep -n -i "claude agent sdk" $FEATURE_DIR/*.md
@@ -215,6 +228,7 @@ grep -n -i "@anthropic/sdk" $FEATURE_DIR/*.md
 ```
 
 **Build reference map**:
+
 ```
 Found "SDK" in multiple contexts:
 
@@ -237,6 +251,7 @@ Context 3: Generic "SDK" mentions (7 references)
 ```
 
 **Disambiguation prompt** (if multiple contexts):
+
 ```
 Multiple contexts found for "SDK". Which to update?
 
@@ -281,6 +296,7 @@ Complexity Score: MODERATE 🟡
 - **ARCHITECTURAL** 🔴 (manual redesign): Complete architecture pivot, technology stack changes, multi-system impacts
 
 **If COMPLEX or ARCHITECTURAL**:
+
 ```
 ⚠️ COMPLEX CHANGE DETECTED
 
@@ -364,12 +380,14 @@ Total Impact:
 **Document-Specific Language Rules**:
 
 **spec.md** (Requirements Level):
+
 - **Purpose**: What the system must do (outcomes, not implementation)
 - **Language**: User-facing, technology-agnostic, "System shall..."
 - **Allowed**: Business requirements, acceptance criteria, user interactions
 - **Forbidden**: Implementation details, code patterns, specific libraries, function names
 
 Examples:
+
 ```
 ❌ BAD: "System shall use fetch() with POST to /v1/messages endpoint"
 ✅ GOOD: "System shall integrate with AI service for content generation"
@@ -379,12 +397,14 @@ Examples:
 ```
 
 **arch.md** (Architecture Level):
+
 - **Purpose**: How the system is structured (patterns, components, decisions)
 - **Language**: Component names, integration patterns, design decisions
 - **Allowed**: Service names, data flows, architectural patterns, technology choices
 - **Forbidden**: Code snippets, function signatures, variable names, line-by-line steps
 
 Examples:
+
 ```
 ❌ BAD: "AgentService calls fetch('/v1/messages', { method: 'POST', body: JSON.stringify(payload) })"
 ✅ GOOD: "AgentService integrates with Anthropic API via HTTP client for message generation"
@@ -394,12 +414,14 @@ Examples:
 ```
 
 **plan.md** (Technical Approach Level):
+
 - **Purpose**: What technologies and approaches will be used (how, at high level)
 - **Language**: Libraries, frameworks, architectural patterns, trade-offs
 - **Allowed**: Package names, dependencies, implementation strategies, technology comparisons
 - **Forbidden**: Code implementation, specific variable names, function bodies
 
 Examples:
+
 ```
 ❌ BAD: "const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })"
 ✅ GOOD: "Dependencies: HTTP client (fetch/axios), @anthropic/types for TypeScript type safety"
@@ -409,6 +431,7 @@ Examples:
 ```
 
 **tasks.md** (Implementation Level):
+
 - **Purpose**: Step-by-step code implementation instructions
 - **Language**: Specific files, functions, code actions
 - **Note**: This document is REGENERATED by /speckit.tasks (not directly modified by refactor)
@@ -416,6 +439,7 @@ Examples:
 **Enforcement During Change Generation**:
 
 When generating changes in Step 4:
+
 1. **Check current abstraction level** of target document
 2. **Rephrase replacement text** to match that level
 3. **Verify no abstraction violations** before showing to user
@@ -444,11 +468,13 @@ plan.md Changes (Technical Approach Level):
 **Validation Check**:
 
 After generating changes, verify:
+
 - [ ] spec.md has NO library names, code patterns, or technical implementation details
 - [ ] arch.md has NO code snippets, function calls, or variable names
 - [ ] plan.md has NO code implementation, only technology choices and dependencies
 
 **If abstraction violation detected**:
+
 ```
 ⚠️ ABSTRACTION VIOLATION DETECTED
 
@@ -578,6 +604,7 @@ Select: _
 **If user selects "details"**: Show full diff for each change
 
 **If --dry-run flag**:
+
 ```
 ═══════════════════════════════════════════════════════
 DRY-RUN MODE (no changes will be applied)
@@ -617,6 +644,7 @@ Changes applied: 5/5 ✓
 **Error handling** (all-or-nothing):
 
 If ANY edit fails:
+
 ```
 ❌ ERROR: Failed to apply change 3/5
 
@@ -766,6 +794,7 @@ Structure Check: ✓ PASS
 ```
 
 **Validation summary**:
+
 ```
 Validation Results:
 ✓ Orphan Check: PARTIAL (tasks.md expected to be outdated)
@@ -873,6 +902,7 @@ Review: git diff specs/[feature]/
 **Triggers**: "changing X to Y", "replace X with Y", "switch from X to Y"
 
 **Workflow**:
+
 1. Find all references to X (with context disambiguation)
 2. Analyze cascading impacts
 3. Generate replacements with Y
@@ -887,6 +917,7 @@ Review: git diff specs/[feature]/
 **Triggers**: "check X", "what if we used Y", "evaluate Z"
 
 **Workflow**:
+
 1. Find all references to current approach
 2. Show impact of potential change
 3. Analyze complexity
@@ -895,6 +926,7 @@ Review: git diff specs/[feature]/
 6. Suggest next command if user wants to proceed
 
 **Example Output**:
+
 ```
 ═══════════════════════════════════════════════════════
 Current Approach Analysis: Embedding Storage
@@ -958,6 +990,7 @@ To proceed with change:
 **Triggers**: "add X", "include Y", "support Z"
 
 **Workflow**:
+
 1. Generate next requirement ID (scan spec.md for last FR-XXX)
 2. Add to spec.md in appropriate section
 3. Add to arch.md (architecture implications)
@@ -966,6 +999,7 @@ To proceed with change:
 6. Log decision in research.md (optional)
 
 **Example Output**:
+
 ```
 ═══════════════════════════════════════════════════════
 Adding New Requirement
@@ -1019,6 +1053,7 @@ If yes:
 **Triggers**: "FR-X needs Y", "improve X with Z", "X should also do Z"
 
 **Workflow**:
+
 1. Find requirement by ID or description
 2. Add enhancement to existing requirement text
 3. Update dependent sections in arch.md, plan.md
@@ -1026,6 +1061,7 @@ If yes:
 5. Log enhancement rationale
 
 **Example Output**:
+
 ```
 ═══════════════════════════════════════════════════════
 Refining Existing Requirement
@@ -1109,21 +1145,25 @@ Apply enhancements to FR-003? (yes/no/edit)
 ## Integration Points
 
 **Predecessor Commands**:
+
 - `/speckit.specify` - Creates spec.md
 - `/speckit.arch` - Creates arch.md
 - `/speckit.plan` - Creates plan.md
 
 **Can be run**:
+
 - **During /speckit.plan Phase 0** - When research reveals need to change
 - **After /speckit.clarify** - When clarifications require updates
 - **Between any phases** - Ad-hoc requirement evolution
 - **Any time** - Explore changes with CHECK mode
 
 **Successor Commands**:
+
 - `/speckit.tasks` - Regenerate with updated approach
 - `/speckit.verify-tasks` - Validate coverage after regeneration
 
 **Files Modified**:
+
 - `$FEATURE_DIR/spec.md` (requirements)
 - `$FEATURE_DIR/arch.md` (architecture)
 - `$FEATURE_DIR/plan.md` (technical approach)
@@ -1131,6 +1171,7 @@ Apply enhancements to FR-003? (yes/no/edit)
 - `$FEATURE_DIR/tasks.md` (may need regeneration after)
 
 **Files Read**:
+
 - All above + design.md, data-model.md, quickstart.md, contracts/
 
 ---
@@ -1146,6 +1187,7 @@ Apply enhancements to FR-003? (yes/no/edit)
 5. **Code updates**: Does NOT update implementation code (use git/IDE for code refactoring)
 
 **Mitigation**:
+
 - Human reviews git diff before committing
 - Use CHECK mode to explore before changing
 - Run /speckit.verify-tasks after changes to validate coverage
@@ -1168,6 +1210,7 @@ Apply enhancements to FR-003? (yes/no/edit)
 ✅ **Dry-run mode** - Explore without modifying
 
 **Use when**:
+
 - Research reveals need to change direction
 - Requirements need evolution/refinement
 - Want to explore impact of potential changes

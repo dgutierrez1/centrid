@@ -108,6 +108,24 @@ Feature complete ✅
 
 ---
 
+## Command Arguments
+
+### Required Arguments
+- **`/speckit.specify "feature description"`** - Feature description required
+- **`/speckit.refactor "instruction"`** - Refactor instruction required (supports `--dry-run` flag)
+
+### Optional Arguments
+- `/speckit.checklist [intent]` - Checklist intent (or asks interactively)
+- `/speckit.arch [focus]` - Architectural focus areas
+- `/speckit.verify-design [areas]` - Specific design aspects to verify
+- `/speckit.tasks [context]` - Task generation context
+- `/speckit.clarify [priorities]` - Clarification priority areas
+
+### No Arguments Needed
+- `/speckit.plan`, `/speckit.ux`, `/speckit.design`, `/speckit.implement`, `/speckit.verify-tasks`, `/speckit.verify-ui`, `/speckit.analyze`, `/speckit.constitution`, `/speckit.design-system`, `/speckit.design-iterate` - All work from existing files
+
+---
+
 ## Command Structure Pattern
 
 All speckit commands follow this structure:

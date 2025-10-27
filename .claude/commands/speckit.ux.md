@@ -12,6 +12,39 @@ description: Create detailed UX specification bridging architecture and visual d
 
 ---
 
+## Token Optimization Strategy
+
+**Problem**: UX documents can reach 2000+ lines (~50K tokens), causing context limit issues.
+
+**Solution**: Condensed format reduces token usage by 60-80% while preserving all critical information.
+
+**What's Condensed**:
+- ✅ Flow steps → Markdown tables (8 columns: #, Action, Component, Interaction, What Happens, Data, Callback, Feedback)
+- ✅ Error scenarios → Tables (5 columns: Error, Trigger, Component, Display, Recovery, Test Data)
+- ✅ Component props → Inline format `{ prop: Type, onAction: () => void }`
+- ✅ States → Inline comma-separated `State1 (brief), State2 (brief)`
+- ✅ Interaction patterns → Brief description + key points (no verbose step-by-step)
+- ✅ Layout → Tables for dimensions/spacing (no ASCII art - created in design phase)
+- ✅ Accessibility → Shared checklist referenced by all components
+- ❌ Removed: Example usage code, "Composed From" lists, "Why Component State" explanations, redundant workflow guidance
+
+**Expected Results**:
+- Old format: ~2100 lines (~50K tokens)
+- New format: ~470 lines (~11K tokens)
+- **Savings: 78% reduction**
+
+**What's Preserved** (100%):
+- All user flows (table format)
+- All error scenarios (table format)
+- All component props (inline format)
+- All success criteria (kept as-is)
+- All layout requirements (dimension tables)
+- All interaction patterns (condensed)
+- Component reusability decisions (kept as-is)
+- Design handoff validation (kept as-is)
+
+---
+
 ## Workflow
 
 ### 1. Setup & Load Context
@@ -112,59 +145,53 @@ description: Create detailed UX specification bridging architecture and visual d
    - **Callback**: `on[Action]` callback name and purpose
    - **Visual Feedback**: Loading spinner, disabled button, error message, etc.
 
-**Template for each step**:
+**CONDENSED TABLE FORMAT** (to reduce token usage):
 
-```
-[N]. **[User Action/System Response]**
-   - **Component**: `[ComponentName]` from `[file-path]`
-   - **Interaction**: [Click/Type/etc.]
-   - **What Happens**: [Immediate result]
-   - **Data Required**: { [propName]: [Type] }
-   - **Callback**: `on[Action]` - [What callback does]
-   - **Visual Feedback**: [State change visible to user]
+Create a markdown table with these columns:
+- **#**: Step number
+- **Action/Response**: User action or system response (brief, 3-5 words)
+- **Component**: Component name only (e.g., `ThreadInput`)
+- **Interaction**: Type/Click/Auto/SSE event/Realtime
+- **What Happens**: Brief 3-5 word description
+- **Data**: Props in shorthand `{field, field2}` format
+- **Callback**: Function name only `onAction(params)` or `-` if none
+- **Feedback**: Visual change (brief, 3-5 words)
+
+**Example Table**:
+
+```markdown
+| # | Action/Response | Component | Interaction | What Happens | Data | Callback | Feedback |
+|---|-----------------|-----------|-------------|--------------|------|----------|----------|
+| 1 | User types msg | `MessageInput` | Type | Counter updates, button enables | `{text, limit, isLoading}` | `onChange(text)` | Counter shows, button coral |
+| 2 | User clicks Send | `MessageInput` | Click | Submit, input stays enabled | `{text, isStreaming}` | `onSendMessage(text)` | Send→Stop button, spinner |
+| 3 | System adds msg | `MessageStream` | Auto (onSend) | Message appears at bottom | `{messages[]}` | - | Scroll to bottom, fade in |
 ```
 
-**Example**:
-
-```
-1. **User clicks "Send" button**
-   - **Component**: `MessageInput` from `packages/ui/src/features/ai-chat/MessageInput.tsx`
-   - **Interaction**: Click
-   - **What Happens**: Form submits, input clears, button disables
-   - **Data Required**: { messageText: string, isLoading: boolean }
-   - **Callback**: `onSendMessage(text: string)` - Triggers AI agent execution
-   - **Visual Feedback**: Button shows spinner, input disabled during send
-
-2. **System adds user message to conversation**
-   - **Component**: `ConversationView` from `packages/ui/src/features/ai-chat/ConversationView.tsx`
-   - **Interaction**: Auto (triggered by onSendMessage callback)
-   - **What Happens**: New message appears at bottom of conversation
-   - **Data Required**: { messages: Message[], currentUser: User }
-   - **Callback**: None (display only)
-   - **Visual Feedback**: Smooth scroll to bottom, message animates in
-```
+**Key benefits**: 60-80% token reduction while preserving all critical information.
 
 #### Step 3.3: Document Error Scenarios
 
-**For each error case from spec.md Edge Cases**:
+**CONDENSED TABLE FORMAT** (to reduce token usage):
 
-1. **Error Case**: [Name - e.g., "Network request fails"]
-   - **Trigger**: [What causes this - timeout, 500 error, etc.]
-   - **Component**: [Which component shows error - inline or modal]
-   - **Display**: [Exact error message text]
-   - **Recovery**: [How user can retry - button, auto-retry, etc.]
-   - **Test Data**: [What input/condition triggers this in tests]
+Create a markdown table with these columns:
+- **Error**: Error name (brief, 2-3 words)
+- **Trigger**: What causes this (brief)
+- **Component**: Component that shows error
+- **Display**: Exact error message text (quoted)
+- **Recovery**: How user can retry (brief action)
+- **Test Data**: Test condition (brief)
 
-**Example**:
+**Example Table**:
 
+```markdown
+| Error | Trigger | Component | Display | Recovery | Test Data |
+|-------|---------|-----------|---------|----------|-----------|
+| Network fail | Timeout 30s / 500 | `ErrorBanner` (above input) | "Unable to send message. Check connection. [Retry]" | Retry button → `onSendMessage` | Mock SSE with `networkError: true` |
+| SSE interrupts | Network disconnect mid-stream | `ErrorBanner` (inline in stream) | "Response interrupted. [Retry from beginning]" | Discard partial, user retries | Close SSE after 3 chunks |
+| Context overflow | >200K tokens | `ContextPanel` | "Some context excluded. Review below." | Manual re-prime from excluded section | Mock context 250K tokens |
 ```
-**Error: Network Request Fails**
-- **Trigger**: API timeout after 30s or 500 error response
-- **Component**: `ErrorBanner` from `packages/ui/src/components/ErrorBanner.tsx`
-- **Display**: "Unable to send message. Please check your connection and try again."
-- **Recovery**: "Retry" button calls `onSendMessage` again with same text
-- **Test Data**: Mock API with `networkError: true` flag
-```
+
+**Key benefits**: 60-80% token reduction while preserving all error recovery information.
 
 #### Step 3.4: Define Success Criteria
 
@@ -208,60 +235,43 @@ description: Create detailed UX specification bridging architecture and visual d
 
 #### Step 4.2: Define Props Interface
 
-**For presentational components only** (containers defined during implementation):
+**CONDENSED INLINE FORMAT** (to reduce token usage):
 
-```typescript
-interface [ComponentName]Props {
-  // Data props (read-only, passed down)
-  [field]: [Type];  // [Description]
-  [field2]?: [Type]; // [Description - optional]
+Instead of full TypeScript interfaces, use condensed inline format:
 
-  // Callback props (events up)
-  on[Action]: ([params]) => void;  // [Description]
-  on[Action2]?: ([params]) => void; // [Description - optional]
-
-  // Styling
-  className?: string;
-}
-```
+**Format**: `{ prop: Type, prop2?: Type, onAction: (params) => void, className?: string }`
 
 **Example**:
 
 ```typescript
+// OLD (verbose):
 interface MessageInputProps {
-  // Data props
-  placeholder: string; // Input placeholder text
-  isLoading: boolean; // Whether message is sending
-  maxLength?: number; // Character limit (optional)
-
-  // Callback props
-  onSendMessage: (text: string) => void; // Called when user sends message
-  onCancel?: () => void; // Called when user cancels (optional)
-
-  // Styling
+  placeholder: string;
+  isLoading: boolean;
+  maxLength?: number;
+  onSendMessage: (text: string) => void;
+  onCancel?: () => void;
   className?: string;
 }
+
+// NEW (condensed):
+{ placeholder: string, isLoading: bool, maxLength?: number, onSendMessage: (text) => void, onCancel?: () => void, className?: string }
 ```
+
+**Key benefits**: 70% reduction in props documentation while preserving all type information.
 
 #### Step 4.3: Document States to Design
 
-**For each presentational component**:
+**CONDENSED INLINE FORMAT** (to reduce token usage):
 
-List all visual states that need design:
+List states as comma-separated inline with brief description in parentheses:
 
-- **Default**: Normal display
-- **Loading**: Data fetching or processing
-- **Error**: Error message display
-- **Empty**: No data available
-- **Disabled**: Interaction blocked
-- **Focus**: Keyboard focus visible
-- **Hover**: Mouse hover (desktop only)
-- **Active**: During interaction (button pressed, etc.)
-- **[Custom states]**: Feature-specific states
+**Format**: `State1 (brief), State2 (brief), State3 (brief)`
 
 **Example**:
 
 ```
+// OLD (verbose):
 **MessageInput States**:
 - Default: Empty input, enabled send button
 - Typing: Text entered, character count shows, send button enabled
@@ -269,7 +279,12 @@ List all visual states that need design:
 - Error: Red border, error message below input
 - Disabled: Grayed out, not interactive
 - Focus: Blue border, keyboard accessible
+
+// NEW (condensed):
+**States**: Default (empty, enabled), Typing (counter, button enabled), Sending (disabled, spinner), Error (red border), Disabled (gray), Focus (blue border)
 ```
+
+**Key benefits**: 70% reduction while preserving all state requirements.
 
 ### 5. Document Interaction Patterns
 
@@ -288,136 +303,109 @@ List all visual states that need design:
 
 #### Step 5.2: Document Each Pattern
 
+**CONDENSED FORMAT** (to reduce token usage):
+
 **For each pattern**:
 
 ```
 ### [Pattern Name]
 
-**Where Used**: [List screens/components]
+**Where Used**: [List screens/components - brief]
 
-**Behavior**:
-1. [Step 1 - trigger]
-2. [Step 2 - response]
-3. [Step 3 - completion]
+**Brief Description**: [1-2 sentences summarizing the pattern flow]
 
-**Components Involved**:
-- `[Component1]` - [Role]
-- `[Component2]` - [Role]
+**Components**: [List component names only]
 
-**State Changes**:
-- Before: [Initial state]
-- During: [Intermediate state]
-- After: [Final state]
+**State Changes**: [Before] → [During] → [After]
 
-**Keyboard Shortcuts**:
-- `[Key]` - [Action]
+**Keyboard**: [Key shortcuts if applicable]
 ```
 
 **Example**:
 
 ```
+// OLD (verbose - ~20 lines):
 ### Modal Workflow
-
 **Where Used**: Create Thread, Edit Profile, Confirm Delete
-
 **Behavior**:
 1. User clicks trigger button/link
 2. Modal opens with backdrop overlay (focus trapped inside)
 3. User interacts with modal content (form, confirmation, etc.)
 4. User dismisses via Escape key, backdrop click, Cancel button, or Submit button
 5. Modal closes, focus returns to trigger element
-
 **Components Involved**:
 - `Modal` - Container with backdrop and focus trap
 - `ModalHeader` - Title and close button
 - `ModalBody` - Content area (form, text, etc.)
 - `ModalFooter` - Action buttons (Cancel, Submit)
-
 **State Changes**:
 - Before: Modal hidden, trigger visible
 - During: Modal visible, backdrop blocks background interaction, focus inside modal
 - After: Modal hidden, focus on trigger element
-
 **Keyboard Shortcuts**:
 - `Escape` - Close modal without saving
 - `Enter` - Submit form (if single input field)
 - `Tab` - Navigate between focusable elements (trapped in modal)
+
+// NEW (condensed - ~7 lines):
+### Modal Workflow
+**Where Used**: Create Branch, Consolidate, File conflicts
+**Brief Description**: User triggers modal → Modal opens with backdrop and focus trap → User interacts (form/confirmation) → User dismisses (Escape/Cancel/Submit) → Modal closes, focus returns.
+**Components**: `Modal`, `ModalHeader`, `ModalBody`, `ModalFooter`
+**State Changes**: Hidden → Visible (backdrop, focus trapped) → Hidden (focus restored)
+**Keyboard**: `Escape` (close), `Enter` (submit if single input), `Tab` (trapped navigation)
 ```
+
+**Key benefits**: 60-70% reduction, detailed behavior already documented in flows.
 
 ### 6. Define Layout & Spatial Relationships
 
-**For each screen, document layout structure**:
+**CONDENSED TABLE FORMAT** (to reduce token usage):
 
-#### Step 6.1: Create ASCII Layout Diagrams
-
-**Desktop (1440px+)**:
-
-```
-┌─────────────────────────────────────────────────────────┐
-│ [Header Component]                                       │
-├──────────────┬──────────────────────────────────────────┤
-│              │                                           │
-│ [Sidebar]    │ [Main Content Area]                      │
-│ (fixed px)   │ (flex-1)                                 │
-│              │                                           │
-└──────────────┴──────────────────────────────────────────┘
-```
-
-**Mobile (375px)**:
-
-```
-┌───────────────────┐
-│ [Header]          │
-├───────────────────┤
-│ [Main Content]    │
-│                   │
-│ [Bottom Nav]      │
-└───────────────────┘
-```
-
-#### Step 6.2: Define Spacing & Responsive Behavior
-
-**Spacing**:
-
-- Component gaps: [e.g., "gap-6 (24px) between sections"]
-- Internal padding: [e.g., "p-4 (16px) mobile, p-6 (24px) desktop"]
-- Section margins: [e.g., "mb-8 (32px) between major sections"]
-
-**Responsive Breakpoints**:
-
-- Mobile (`< 768px`): [Layout changes - stack vertically, hide sidebar, etc.]
-- Tablet (`768px - 1024px`): [Layout changes]
-- Desktop (`> 1024px`): [Layout changes]
+For each screen, document:
+1. **Layout Type** (brief description - e.g., "3-panel adaptive workspace")
+2. **Panel Behavior Table** (if multi-panel layout)
+3. **Dimensions Table** (key measurements)
+4. **Component Spacing Table** (gap/margin/padding)
+5. **Responsive Breakpoints** (brief inline list)
 
 **Example**:
 
 ```
-**Chat Interface Layout**
+// OLD (verbose ASCII art + paragraphs - ~60 lines):
+[Large ASCII diagrams for desktop and mobile]
+[Multiple paragraphs describing dimensions]
+[Spacing descriptions in prose]
+[Responsive behavior in multiple bullet points]
 
-Desktop (1440px+):
-- Sidebar: 300px fixed width, left side
-- Main content: flex-1, right side
-- Gap: 0 (no gap, full screen usage)
-- Header: Full width across top, 64px height
+// NEW (condensed tables - ~20 lines):
+**Layout Type**: 3-panel adaptive workspace
 
-Mobile (375px):
-- Sidebar: Hidden (hamburger menu toggles overlay)
-- Main content: Full width
-- Header: Full width, 56px height
-- Bottom input: Sticky at bottom, 72px height
+**Panel Behavior**:
+| Panel | Desktop (1440px+) | Mobile (375px) | Purpose | Closeable |
+|-------|-------------------|----------------|---------|-----------|
+| Left  | 20% fixed | Hidden (drawer) | Files/Threads nav | No |
+| Center | 50-80% adaptive | 100% | Thread interface | No |
+| Right | 0-30% adaptive | Full-screen modal | File editor | Yes |
 
-Spacing:
-- Message gaps: gap-4 (16px) between messages
-- Input padding: p-4 (16px) mobile, p-6 (24px) desktop
-- Section margins: mb-8 (32px) between major sections
+**Dimensions**:
+| Element | Desktop | Mobile | Notes |
+|---------|---------|--------|-------|
+| Header | Full width, 64px | Full width, 56px | - |
+| Sidebar | 20% fixed | Hidden | Drawer toggles |
+| Main | 50-80% adaptive | 100% | Shrinks when right panel opens |
 
-Responsive:
-- < 768px: Stack layout, hide sidebar, sticky input at bottom
-- 768px - 1024px: Show sidebar as overlay (not inline)
-- > 1024px: Show sidebar inline, full layout
+**Component Spacing**:
+| Context | Desktop | Mobile |
+|---------|---------|--------|
+| Component gaps | gap-4 (16px) | gap-3 (12px) |
+| Section margins | mb-8 (32px) | mb-6 (24px) |
+| Internal padding | p-6 (24px) | p-4 (16px) |
+
+**Responsive**: Mobile (`< 768px`): Vertical stack, hide sidebar, sticky input | Tablet (`768px-1024px`): Sidebar overlay | Desktop (`> 1024px`): Full 3-panel
 ```
 
-**Detailed ASCII layout diagrams created in design.md** (not here)
+**Key benefits**: 70% reduction, removes ASCII art (created in design phase), preserves all dimension data.
 
 ### 7. Document Component UI State
 
