@@ -2,8 +2,10 @@
 
 **Feature**: `004-ai-agent-system`
 **Date**: 2025-10-26
-**Status**: Complete
+**Status**: Complete ✅ COMPONENTS IMPLEMENTED
 **Prerequisites**: spec.md (requirements), arch.md (architecture)
+
+**Implementation Note**: All 24 components specified in this document are **already implemented** in `packages/ui/src/features/ai-agent-system/`. Component specifications below describe their design, props, states, and behavior for reference.
 
 ---
 
@@ -627,7 +629,16 @@ Legend:
 
 **Props**: `{ messages: Message[], streamingBuffer: string|null, onScrollToBottom: () => void, className?: string }`
 
-**States**: Empty (no messages), Loading (initial load), Active (messages visible), Streaming (incremental render)
+**Reused Components**:
+- `ScrollArea` (from `@centrid/ui/components`) - Wraps message list for consistent scrolling
+- `Skeleton` (from `@centrid/ui/components`) - Loading state placeholders
+- `TypingIndicator` (from `@centrid/ui/components`) - Shows "AI is typing..." during streaming
+
+**States**:
+- **Empty** (no messages) - Centered empty state with icon and text: "No messages yet. Start the conversation below." Uses `text-gray-500` for muted appearance, icon size 48px, text-center alignment. Container has min-height to fill space vertically.
+- **Loading** (initial load) - `Skeleton` loading state with 3 placeholder message bubbles (alternating user/agent alignment)
+- **Active** (messages visible) - Normal scrollable message list wrapped in `ScrollArea`
+- **Streaming** (incremental render) - Active state with `TypingIndicator` above streaming message
 
 **Interaction Patterns**: Streaming Response Pattern
 
@@ -643,7 +654,14 @@ Legend:
 
 **Props**: `{ message: Message, isStreaming: bool, className?: string }`
 
-**States**: Default (complete message), Streaming (incremental content), Error (failed message)
+**Reused Components**:
+- `Avatar` (from `@centrid/ui/components`) - User/agent avatar with fallback
+- `Card` (from `@centrid/ui/components`) - Message content container
+
+**States**:
+- Default (complete message) - Shows `Avatar` + `Card` with message content
+- Streaming (incremental content) - Avatar shows animated state, content updates incrementally
+- Error (failed message) - `Alert` component with error message
 
 **Interaction Patterns**: None (display only)
 
@@ -659,7 +677,18 @@ Legend:
 
 **Props**: `{ messageText: string, isStreaming: bool, characterLimit: number, onSendMessage: (text: string) => void, onCancelRequest: (requestId: string) => void, onChange: (text: string) => void, className?: string }`
 
-**States**: Default (send button), Typing (character counter), Streaming (stop button), Disabled (loading)
+**Reused Components**:
+- `Input` (from `@centrid/ui/components`) - Base text input
+- `Button` (from `@centrid/ui/components`) - Send/Stop button
+- `FileAutocomplete` (from `@centrid/ui/components`) - @-mention autocomplete dropdown
+- `Badge` (from `@centrid/ui/components`) - Character counter
+
+**States**:
+- Default (send button) - `Input` + `Button` (variant: ghost)
+- Typing (character counter) - `Badge` shows character count
+- Streaming (stop button) - `Button` transforms to stop variant with icon
+- Disabled (loading) - All components disabled
+- Autocomplete open - `FileAutocomplete` dropdown visible
 
 **Interaction Patterns**: Streaming Response Pattern
 
@@ -675,7 +704,16 @@ Legend:
 
 **Props**: `{ toolName: string, toolInput: object, previewContent?: string, isLoading: bool, onApprove: (toolCallId: string) => void, onReject: (toolCallId: string, reason?: string) => void, className?: string }`
 
-**States**: Pending (awaiting user decision), Approving (spinner on approve), Rejected (rejection reason input), Timeout (10min timeout)
+**Reused Components**:
+- `Alert` (from `@centrid/ui/components`) - Approval prompt container
+- `Button` (from `@centrid/ui/components`) - Approve/Reject buttons
+- `ScrollArea` (from `@centrid/ui/components`) - Preview content scrolling
+
+**States**:
+- Pending (awaiting user decision) - `Alert` with buttons enabled
+- Approving (spinner on approve) - `Button` with spinner, disabled
+- Rejected (rejection reason input) - `Alert` with reason input shown
+- Timeout (10min timeout) - `Alert` variant: destructive with timeout message
 
 **Interaction Patterns**: Approval Workflow
 
@@ -726,8 +764,16 @@ Legend:
 - Horizontal scroll: Smooth, shows 5-6 widgets before scroll (desktop)
 
 **3. Empty** (`itemCount=0`):
-- Section header: Shows "0" badge, disabled (no toggle)
-- Grayed out, no interaction
+- Section header: Shows "0" badge, disabled (no toggle), grayed out (`text-gray-400`)
+- No widget container shown (section height: 40px header only)
+- **Section-specific empty messages** (shown when expanded and empty):
+  - **Artifacts**: "No artifacts yet. Files created by the agent will appear here." (`text-xs text-gray-500 italic p-4`)
+  - **Explicit context**: "No explicit context added. Files and threads you manually add will appear here." (`text-xs text-gray-500 italic p-4`)
+  - **Semantic matches**: "No relevant files found. The AI will search for related content when you send a message." (`text-xs text-gray-500 italic p-4`)
+  - **Frequently used**: "No frequently used files yet. Files you reference often will appear here." (`text-xs text-gray-500 italic p-4`)
+  - **Branch context**: "No inherited context. Child branches inherit files and summaries from their parent." (`text-xs text-gray-500 italic p-4`)
+  - **Excluded**: "All context fits within the budget. Items that don't fit will appear here." (`text-xs text-gray-500 italic p-4`)
+- Empty sections should remain visible (not hidden) to educate users about the feature
 
 **State Propagation Mechanism**:
 - Parent `ContextSection` receives `isExpanded` from `ContextPanel` (global section state)
@@ -929,7 +975,21 @@ Legend:
 
 **Props**: `{ isOpen: bool, currentBranch: Thread, childBranches: Thread[], onConfirmConsolidate: (branchIds: string[], fileName: string) => void, onApproveConsolidation: (fileName: string) => void, onRejectConsolidation: () => void, onClose: () => void, consolidationProgress: {step: string, current: number, total: number}|null, consolidatedContent: string|null, className?: string }`
 
-**States**: Branch Selection (step 1), Processing (progress bar), Preview (approval step), Complete (success), Error (fail)
+**Reused Components**:
+- `Dialog` (from `@centrid/ui/components`) - Modal container
+- `Progress` (from `@centrid/ui/components`) - Progress bar for consolidation steps
+- `Button` (from `@centrid/ui/components`) - Action buttons
+- `Input` (from `@centrid/ui/components`) - File name input
+- `Label` (from `@centrid/ui/components`) - Form labels
+- `ScrollArea` (from `@centrid/ui/components`) - Preview content scrolling
+- `Alert` (from `@centrid/ui/components`) - Error/warning messages
+
+**States**:
+- Branch Selection (step 1) - `Dialog` with checkbox list + `Input` for file name
+- Processing (progress bar) - `Progress` component showing "Gathering artifacts (1/3)"
+- Preview (approval step) - `ScrollArea` with consolidated content + action buttons
+- Complete (success) - `Alert` with success message
+- Error (fail) - `Alert` variant: destructive with error message
 
 **Interaction Patterns**: Modal Workflow, Streaming Response Pattern
 
@@ -945,9 +1005,21 @@ Legend:
 
 **Reusability**: Feature-specific (used in workspace layout)
 
-**Props**: `{ activeTab: 'files'|'threads', onTabChange: (tab: 'files'|'threads') => void, files: File[], threads: Thread[], onFileClick: (fileId: string) => void, onThreadClick: (threadId: string) => void, className?: string }`
+**Props**: `{ activeTab: 'files'|'threads', onTabChange: (tab: 'files'|'threads') => void, files: File[], threads: Thread[], onFileClick: (fileId: string) => void, onThreadClick: (threadId: string) => void, onNewThread: () => void, onNewFile: () => void, className?: string }`
 
-**States**: Files Tab Active, Threads Tab Active
+**Reused Components**:
+- `Tabs` (from `@centrid/ui/components`) - Files/Threads tab navigation
+- `ScrollArea` (from `@centrid/ui/components`) - Scrollable file/thread list
+- `Button` (from `@centrid/ui/components`) - New File/New Thread buttons
+- `Skeleton` (from `@centrid/ui/components`) - Loading state placeholders
+- `Icon` (from `@centrid/ui/components`) - Empty state icons
+
+**States**:
+- **Files Tab Active** - `Tabs` + `ScrollArea` with file tree or empty state
+- **Files Tab Active (Empty)** - Centered empty state: `Icon` (file outline, 40px) + Heading "No files yet" + Subtext + "New File" `Button` (coral, small)
+- **Threads Tab Active** - `Tabs` + `ScrollArea` with thread list or empty state
+- **Threads Tab Active (Empty)** - Centered empty state: `Icon` (message square, 40px) + Heading "No threads yet" + Subtext + "New Thread" `Button` (coral, small)
+- **Loading** - `Skeleton` loading state with 3-5 placeholder items
 
 **Interaction Patterns**: Tab Navigation Pattern
 
@@ -1011,9 +1083,14 @@ Legend:
 
 **Reusability**: Feature-specific (used in workspace layout)
 
-**Props**: `{ activeTab: 'files'|'threads', onTabChange: (tab: 'files'|'threads') => void, files: File[], threads: Thread[], onFileClick: (fileId: string) => void, onThreadClick: (threadId: string) => void, className?: string }`
+**Props**: `{ activeTab: 'files'|'threads', onTabChange: (tab: 'files'|'threads') => void, files: File[], threads: Thread[], onFileClick: (fileId: string) => void, onThreadClick: (threadId: string) => void, onNewThread: () => void, onNewFile: () => void, className?: string }`
 
-**States**: Files Tab Active, Threads Tab Active
+**States**:
+- **Files Tab Active** - Shows file tree or empty state if no files
+- **Files Tab Active (Empty)** - Centered empty state: Icon (file outline, 40px, `text-gray-400`) + Heading "No files yet" (`text-sm font-medium text-gray-700`) + Subtext "Files created by the agent will appear here" (`text-xs text-gray-500`) + "New File" button (coral, small). Padding: `p-6`, centered content with `flex flex-col items-center gap-3`
+- **Threads Tab Active** - Shows thread list or empty state if no threads
+- **Threads Tab Active (Empty)** - Centered empty state: Icon (message square, 40px, `text-gray-400`) + Heading "No threads yet" (`text-sm font-medium text-gray-700`) + Subtext "Create your first thread to start exploring" (`text-xs text-gray-500`) + "New Thread" button (coral, small). Padding: `p-6`, centered content with `flex flex-col items-center gap-3`
+- **Loading** - Skeleton loading state with 3-5 placeholder items (pulsing gray rectangles)
 
 **Interaction Patterns**: Tab Navigation Pattern
 
@@ -1032,16 +1109,33 @@ Legend:
 
 ### Primitives Used (from @centrid/ui/components)
 
-- **Button** (variants: default, secondary, ghost) - Used in all action buttons
-- **Input** (with validation states) - Used in ThreadInput, CreateBranchModal, ConsolidateModal
-- **Card** - Used for ContextReference widgets, Message bubbles
-- **Badge** - Used for priority tier indicators, provenance badges
-- **Modal/Dialog** - Used for CreateBranchModal, ConsolidateModal
-- **Tooltip** - Used for provenance hover info, branch preview tooltips
-- **ErrorBanner** - Used for error states (network fail, SSE interrupts)
-- **Dropdown** (extended with hierarchical variant) - Used for BranchSelector
-- **Tabs** - Used for WorkspaceSidebar (Files/Threads tabs)
-- **Spinner** - Used for loading states (button spinners, streaming indicators)
+**Core Primitives**:
+- **Button** (variants: default, secondary, ghost, outline) - All action buttons
+- **Input** (with validation states) - ThreadInput, modals, forms
+- **Card** - ContextReference widgets, Message bubbles
+- **Badge** - Priority tier indicators, provenance badges, character counter
+- **Dialog/Modal** - CreateBranchModal, ConsolidateModal
+- **Tooltip** - Provenance hover info, branch preview tooltips
+- **Dropdown** (extended with hierarchical variant) - BranchSelector
+- **Tabs** - WorkspaceSidebar (Files/Threads tabs)
+- **Label** - Form input labels in modals
+
+**Layout Primitives**:
+- **WorkspaceLayout** - Base 3-panel layout (20% left, 50% center, 30% right)
+- **PanelDivider** - Resizable dividers between panels
+- **ScrollArea/ScrollBar** - MessageStream, ContextPanel, WorkspaceSidebar, modal previews
+
+**Feedback Primitives**:
+- **Alert/AlertDescription** - Error states, warnings, info banners, context overflow
+- **Progress** - Consolidation progress bar ("Gathering artifacts 1/3")
+- **Skeleton** - Loading placeholders (messages, sidebar items)
+- **TypingIndicator** - "AI is typing..." during streaming
+
+**Feature-Specific Primitives**:
+- **Avatar/AvatarFallback** - User/agent avatars in messages
+- **MarkdownEditor** - File content editing with syntax highlighting
+- **FileAutocomplete** - @-mention autocomplete for files/threads
+- **Icon** - Icons throughout UI (empty states, actions, indicators)
 
 ---
 

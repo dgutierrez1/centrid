@@ -107,18 +107,20 @@ BranchActions (create branch, consolidate, tree view buttons)
 **Right Panel** (File editor, 0-40% width, slides in when file opened):
 ```
 FileEditorPanel
-├─ ProvenanceHeader
+├─ ProvenanceHeader (NEW - AI agent specific)
 │  ├─ Source branch pill (clickable → navigate to source)
 │  ├─ Creation timestamp + context summary
 │  └─ "Go to source" link + last edit info
-└─ EditorContent (markdown with syntax highlighting)
+└─ MarkdownEditor (REUSE from Feature 003 - filesystem-markdown-editor)
+   ├─ EditorContent (TipTap with syntax highlighting)
+   └─ SaveIndicator (auto-save status)
 ```
 
 **Left Sidebar** (Files/Threads navigation, 20% width):
 ```
 WorkspaceSidebar
 ├─ Tabs (Files | Threads)
-├─ File list (when Files tab active)
+├─ FileTree (REUSE from Feature 003 + provenance badges)
 └─ Thread list (when Threads tab active)
 ```
 
@@ -136,10 +138,24 @@ TreeView (overlay panel)
 └─ Edges (parent-child relationships)
 ```
 
-**Pattern**: Pure presentational components (data-in/callbacks-out) located in `packages/ui/src/features/ai-agent-system/`. No business logic or server dependencies in UI components.
+**Pattern**: Leverage Feature 003 (filesystem-markdown-editor) reusable components. Add AI-specific provenance layer on top.
+
+**Reusable components from Feature 003**:
+- `MarkdownEditor` - TipTap-based markdown editing (`packages/ui/src/components/`)
+- `SaveIndicator` - Auto-save status display (`packages/ui/src/components/`)
+- `FileTree` - Hierarchical file tree view (`packages/ui/src/components/`)
+- `WorkspaceLayout` - Multi-panel layout primitive (`packages/ui/src/components/`)
+- `PanelDivider` - Resizable panel dividers (`packages/ui/src/components/`)
+
+**New AI-specific components**:
+- `ProvenanceHeader` - Displays file source branch, creation context, "Go to source" link
+- `ProvenanceBadge` - Shows provenance indicator in FileTree
+- `ToolCallApprovalModal` - Agent file creation approval flow (preview + approve/reject)
+- `BranchSelector` - Hierarchical dropdown for branch navigation
 
 **Module locations**:
-- Presentational components: `packages/ui/src/features/ai-agent-system/`
+- Reusable components (from Feature 003): `packages/ui/src/components/`
+- AI-specific presentational: `packages/ui/src/features/ai-agent-system/`
 - Production containers: `apps/web/src/components/ai-agent-system/` (add business logic during implementation)
 - State management: `apps/web/src/lib/state/aiAgentState.ts` (Valtio)
 
@@ -241,7 +257,7 @@ Next message includes file with 1.0 weight (explicit reference)
 |---------|------------------|--------------|----------|
 | **AgentExecutionService** | Orchestrate AI agent execution, handle tool calls, manage streaming responses, approval flow | Claude 3.5 Sonnet API, ContextAssemblyService, ToolCallService | `apps/api/src/services/agentExecution.ts` |
 | **ContextAssemblyService** | Build prime context from explicit references, semantic matches, thread tree navigation, relationship modifiers, temporal decay, memory chunks, user preferences. Orchestrates all context sources into ranked priority list. | SemanticSearchService, ThreadRepository, FileRepository, UserPreferencesService | `apps/api/src/services/contextAssembly.ts` |
-| **SemanticSearchService** | Query shadow domain with cosine similarity (pgvector), apply relationship modifiers based on thread tree position (+0.10 sibling, +0.15 parent/child), temporal decay. Returns ranked semantic matches. | ShadowDomainRepository, pgvector | `apps/api/src/services/semanticSearch.ts` |
+| **SemanticSearchService** | Hybrid semantic search: combines message embedding (0.7 weight) + thread embedding (0.3 weight) for context-aware matching. Query shadow domain with pgvector cosine similarity, apply relationship modifiers (+0.10 sibling, +0.15 parent/child), temporal decay. Handles vague messages ("explain more") by using thread context. | ShadowDomainRepository, pgvector, ThreadRepository | `apps/api/src/services/semanticSearch.ts` |
 | **UserPreferencesService** | Derive user preferences from interaction patterns (files @-mentioned 3+ times → always_include, dismissed matches 3+ times → excluded_patterns, manual branch hiding → blacklisted_branches), recompute daily from last 30 days, apply preferences to context assembly (filtering + weighting) | UserPreferencesRepository, MessageRepository, ContextReferenceRepository, AgentToolCallRepository | `apps/api/src/services/userPreferences.ts` |
 | **ProvenanceTrackingService** | Create/update file provenance metadata, track edit history, handle orphaned files | FileRepository, ThreadRepository | `apps/api/src/services/provenanceTracking.ts` |
 | **ShadowDomainService** | Generate embeddings, summaries, structure metadata for files/threads/concepts in unified shadow domain | OpenAI Embeddings API, ShadowDomainRepository, Claude for summarization | `apps/api/src/services/shadowDomain.ts` |
@@ -625,8 +641,9 @@ Frontend → POST /approve-tool-call → ToolCallService executes → Resume SSE
 
 **Consequences**:
 - **7 services total** (was 6 with consolidated approach)
-- ContextAssemblyService orchestrates multi-domain gathering: calls SemanticSearchService.search(), ThreadRepository.getTreeContext(), UserPreferencesRepository.getContextPreferences(), SemanticSearchService.searchMemoryChunks()
-- SemanticSearchService is focused and reusable: query shadow_domain, apply modifiers, return ranked results
+- ContextAssemblyService orchestrates multi-domain gathering: calls SemanticSearchService.searchWithContext() (hybrid message + thread embedding), ThreadRepository.getTreeContext(), UserPreferencesRepository.getContextPreferences(), SemanticSearchService.searchMemoryChunks()
+- SemanticSearchService supports hybrid semantic search: `searchWithContext({ messageEmbedding (0.7 weight), threadEmbedding (0.3 weight) })` for context-aware matching (handles vague messages like "explain more" by using thread direction)
+- Thread embedding already cached in shadow_entities (no extra API cost for hybrid approach)
 - All domain queries execute in parallel (user preferences, semantic search, thread tree, memory chunks) for <1s total assembly time
 - UI must show excluded context items so users understand what's missing
 
@@ -719,34 +736,29 @@ Frontend → POST /approve-tool-call → ToolCallService executes → Resume SSE
 
 ---
 
-### Decision 8: Direct Anthropic API Over Claude Agent SDK
+### Decision 8: Model Configuration Layer with Direct Anthropic API
 
-**Context**: Need to integrate Claude 3.5 Sonnet for agent intelligence with tool use, streaming responses, and user approval flows. Question: Use Claude Agent SDK (higher-level abstraction) or Direct Anthropic API (lower-level control)?
+**Context**: Need model flexibility (Haiku for summaries, Sonnet for chat) while maintaining streaming control for approval flows.
 
-**Options considered**:
-1. **Claude Agent SDK** - Pros: Built-in tool management, permission hooks (PreToolUse), async streaming via query(), MCP integration, production-ready patterns. Cons: Opinionated orchestration (may not fit custom approval UI), Python-first (TypeScript support unclear), less control over streaming granularity, learning curve for SDK abstractions
-2. **Direct Anthropic API with Streaming** - Pros: Full control over streaming relay (SSE), explicit approval flow implementation, simpler for MVP (no SDK abstractions), TypeScript-native. Cons: Manual tool orchestration, no built-in permission system, must implement approval logic from scratch
+**Chosen**: Thin provider wrapper with task-based model configuration
 
-**Chosen**: Direct Anthropic API with Streaming (Option 2)
+**Implementation**:
+- **Model config** (`apps/api/src/config/aiModels.ts`): Maps tasks → model selection (agent-execution: Sonnet, summarization: Haiku, consolidation: Sonnet with lower temp)
+- **Provider wrapper** (`apps/api/src/lib/anthropicProvider.ts`): Wraps Direct Anthropic API with `streamCompletion()` async generator, model configurable via parameter
+- **Service usage**: `getModelConfig('agent-execution')` → pass to provider → same streaming logic
 
 **Why**:
-- **Full control over approval flow**: Direct API allows pausing SSE stream at exact tool call moment, showing custom approval UI (FR-049), and resuming stream after user action (FR-048a requirement)
-- **Streaming granularity**: Can relay individual text chunks and tool calls to frontend via SSE without SDK buffering or abstraction layers
-- **TypeScript native**: Anthropic SDK is TypeScript-first, avoiding Python SDK dependency and fitting naturally with Next.js/Deno backend
-- **Simpler for MVP**: No need to learn SDK patterns, hooks, or permission abstractions - implement exactly what spec requires
-- **Approval UX control**: Spec requires custom approval modal with file preview, branch details, approve/reject buttons - Direct API makes this straightforward
-
-**When Agent SDK would be better** (deferred to post-MVP):
-- Multi-step autonomous agent workflows (SDK handles orchestration)
-- Complex permission rules across many tools (SDK PreToolUse hooks)
-- Production-scale agent monitoring and observability (SDK built-in features)
+- **Cost optimization**: Use Haiku ($0.25/MTok) for summaries, Sonnet ($3/MTok) for chat - 10x cheaper for background tasks
+- **Performance tuning**: Different temperature per task (0.3 for consolidation, 0.7 for chat) without code changes
+- **Easy model upgrades**: Change one line in config when new models release (Claude 4, GPT-5)
+- **A/B testing**: Override via env var (`AI_MODEL_AGENT_EXECUTION=claude-opus-4`) without deploy
+- **Full streaming control**: Direct API allows SSE pause/resume for approval flow (FR-048a)
 
 **Consequences**:
-- Must manually implement tool orchestration in AgentExecutionService (call tools, handle results, send back to Claude)
-- Must implement approval waiting mechanism (SSE stream pauses, waits for user POST to /approve-tool-call endpoint, resumes)
-- Must handle tool call timeouts (10-minute auto-reject per FR-048b)
-- Can optionally add fine-grained tool streaming (`fine-grained-tool-streaming-2025-05-14` header) post-MVP for large file operations
-- Agent SDK remains viable option for Phase 2+ when autonomous multi-step workflows become priority
+- Services use `getAnthropicProvider().streamCompletion(messages, getModelConfig(task))` pattern
+- Model selection centralized in config file (easy to optimize per task)
+- Multi-provider support easy to add later (config.provider field + factory function)
+- Must implement tool orchestration manually (no SDK abstractions)
 
 ---
 
@@ -802,6 +814,7 @@ Frontend → POST /approve-tool-call → ToolCallService executes → Resume SSE
 - **Multi-domain data gathering** → ContextAssemblyService orchestrates 6 domains: (1) Explicit context, (2) Shadow domain (via SemanticSearchService), (3) Thread tree, (4) Memory chunks, (5) User preferences (via UserPreferencesService - derived from interactions), (6) Knowledge graph (Phase 2+)
 - **Integration patterns** → SSE streaming, Supabase Realtime subscriptions, fire-and-forget API calls for background jobs (no database triggers, no Redis)
 - **Background job pattern** → Direct API calls after operation completes: POST /shadow-domain/sync, POST /threads/:id/summarize, POST /threads/:id/compress-memory, POST /user-preferences/recompute (fire-and-forget, don't await)
+- **AI model strategy** → Task-based model selection via config (`apps/api/src/config/aiModels.ts`): Haiku for summaries (cheap/fast), Sonnet for agent execution (quality), thin provider wrapper with streaming support
 - **Key algorithms**:
   - Context assembly: Multi-domain gathering in parallel → Explicit (1.0) + Semantic (0.5 + modifiers) + User preferences (0.8) + Thread tree (0.7) → Prioritize by weight → Fit in 200K budget
   - Semantic search: Cosine similarity (shadow domain via pgvector) + relationship modifiers (+0.10 sibling, +0.15 parent/child) + temporal decay
@@ -812,12 +825,16 @@ Frontend → POST /approve-tool-call → ToolCallService executes → Resume SSE
   - AI-Powered Exploration Workspace (single adaptive workspace at `/thread/:threadId`)
     - 3-panel layout: Left sidebar (Files/Threads tabs, 20%) + Center panel (Thread interface, 40-80%) + Right panel (File editor, 0-40%)
     - 9 flows within this screen: Send Message with Agent Streaming, Create Branch, Cross-Branch File Discovery, Consolidate from Multiple Branches, Switch Between Branches, Manage Context References, View File with Provenance, Approve Tool Call, Navigate Visual Tree (Phase 3)
+- **Component reuse strategy**:
+  - REUSE from Feature 003: MarkdownEditor, SaveIndicator, FileTree, WorkspaceLayout, PanelDivider (all in `packages/ui/src/components/`)
+  - NEW for AI agents: ProvenanceHeader, ProvenanceBadge, ToolCallApprovalModal, BranchSelector
+  - Implementation savings: ~40% of file editing UI (markdown editor, auto-save, file tree already done)
 - **Component hierarchy**:
   - Center Panel: ThreadView, MessageStream, Message, ThreadInput, ContextPanel, ContextSection, ContextReference, ToolCallApproval
-  - Header: BranchSelector, BranchActions
-  - Right Panel: FileEditorPanel, ProvenanceHeader
-  - Modals: CreateBranchModal, ConsolidateModal
-  - Sidebar: WorkspaceSidebar
+  - Header: BranchSelector (NEW), BranchActions (NEW)
+  - Right Panel: FileEditorPanel (wrapper), ProvenanceHeader (NEW), MarkdownEditor (REUSE), SaveIndicator (REUSE)
+  - Modals: CreateBranchModal (NEW), ConsolidateModal (NEW), ToolCallApprovalModal (NEW)
+  - Sidebar: WorkspaceSidebar (wrapper), FileTree (REUSE + provenance badges)
   - Phase 3: TreeView, BranchNode, FileNode
 - **Layout & Spatial Design**:
   - Adaptive 3-panel workspace (desktop 1440px+: 20% + 40-80% + 0-40%, mobile 375px: vertical stack)
@@ -843,8 +860,9 @@ Frontend → POST /approve-tool-call → ToolCallService executes → Resume SSE
 - **Repositories**: `apps/api/src/repositories/` (shadowEntity, conversation, file, contextReference, toolCall, memoryChunk, userPreferences)
 - **Database migrations**: `apps/api/supabase/migrations/` (shadow_entities, conversations, files, context_references, agent_tool_calls, conversation_memory_chunks, user_preferences)
 - **Integration setup**:
-  - OpenAI API client: `apps/api/src/lib/openai.ts`
-  - Claude API client: `apps/api/src/lib/anthropic.ts`
+  - AI model config: `apps/api/src/config/aiModels.ts` (task → model mapping)
+  - Anthropic provider: `apps/api/src/lib/anthropicProvider.ts` (streaming wrapper)
+  - OpenAI client: `apps/api/src/lib/openai.ts` (embeddings only)
   - Supabase Realtime subscriptions: `apps/web/src/providers/RealtimeProvider.tsx`
 
 ---

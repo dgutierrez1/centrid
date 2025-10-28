@@ -2,6 +2,7 @@
 
 **Feature**: `004-ai-agent-system`
 **Generated**: 2025-10-27
+**Updated**: 2025-10-28 (Empty states added)
 **Input**: spec.md (user stories), arch.md (architecture), design.md (UI components), ux.md (flows), data-model.md (database schema)
 
 **Tests**: No test tasks included (not requested in specification)
@@ -9,6 +10,8 @@
 **Organization**: Tasks organized by user story (P1-P5) to enable independent implementation and testing.
 
 **Design Integration**: ✅ ENABLED - All designed components available in `packages/ui/src/features/ai-agent-system/`
+
+**Empty States**: ✅ ADDED (2025-10-28) - MessageStream, WorkspaceSidebar (Files/Threads tabs), and ContextPanel section messages included in container tasks
 
 ---
 
@@ -65,24 +68,25 @@
 ### External Service Clients
 
 - [ ] T023 [P] Create OpenAI client in apps/api/src/lib/openai.ts with generateEmbedding(text) method returning 768-dim vector using text-embedding-3-small model
-- [ ] T024 [P] Create Anthropic client in apps/api/src/lib/anthropic.ts with streamResponse(messages, tools, systemPrompt) method for Claude 3.5 Sonnet with SSE streaming support
+- [ ] T024 [P] Create Anthropic client in apps/api/src/lib/anthropic.ts with streamResponse(messages, tools, systemPrompt, model) method with SSE streaming support - model parameter allows task-based model selection
+- [ ] T024a [P] Create AI model config in apps/api/src/config/aiModels.ts with getModelConfig(task) function returning { model, temperature } - Maps tasks to models: 'agent-execution' → Claude 3.5 Sonnet (temp 0.7), 'summarization' → Claude 3.5 Haiku (temp 0.3), 'consolidation' → Claude 3.5 Sonnet (temp 0.3)
 
 ### Core Services (Business Logic)
 
-- [ ] T025 Create ShadowDomainService in apps/api/src/services/shadowDomain.ts with methods: generateForFile(fileId, content), generateForThread(threadId, messages), updateWhenChanged(entityId, entityType, newContent), checkChangeThreshold(oldContent, newContent) → boolean for >20% character diff
-- [ ] T026 Create SemanticSearchService in apps/api/src/services/semanticSearch.ts with methods: search(query, entityTypes[], threadTreeMetadata, limit), applyRelationshipModifiers(results, currentThreadId, threadTree), applyTemporalDecay(results), searchMemoryChunks(query, threadId, limit)
+- [ ] T025 Create ShadowDomainService in apps/api/src/services/shadowDomain.ts with methods: generateForFile(fileId, content), generateForThread(threadId, messages), updateWhenChanged(entityId, entityType, newContent) - generates embeddings + summaries (using Haiku via getModelConfig('summarization')) + structure metadata, checkChangeThreshold(oldContent, newContent) → boolean for >20% character diff
+- [ ] T026 Create SemanticSearchService in apps/api/src/services/semanticSearch.ts with methods: searchWithContext({ messageEmbedding, threadEmbedding, messageWeight=0.7, threadWeight=0.3, entityTypes[], limit }), search(query, entityTypes[], threadTreeMetadata, limit), applyRelationshipModifiers(results, currentThreadId, threadTree), applyTemporalDecay(results), searchMemoryChunks(query, threadId, limit)
 - [ ] T027 Create UserPreferencesService in apps/api/src/services/userPreferences.ts with methods: loadContextPreferences(userId), deriveFromInteractions(userId, last30DaysData), analyzeAtMentionFrequency(messages), analyzeDismissalPatterns(semanticMatches), recompute(userId)
 - [ ] T028 Create ContextAssemblyService in apps/api/src/services/contextAssembly.ts with methods: buildPrimeContext(threadId, message), gatherExplicitContext(contextReferences), gatherSemanticMatches(query, threadId), gatherThreadTreeContext(threadId), gatherMemoryChunks(query, threadId), gatherUserPreferences(userId), prioritizeAndFit(allContextSources, 200K limit), identifyExcluded(contextSources, included)
 - [ ] T029 Create ProvenanceTrackingService in apps/api/src/services/provenanceTracking.ts with methods: createFileWithProvenance(path, content, threadId, contextSummary), updateLastEdit(fileId, editedBy, threadId?), handleFileRename(fileId, newPath), clearProvenance(fileId)
 - [ ] T030 Create ToolCallService in apps/api/src/services/toolCall.ts with methods: executeWriteFile(path, content, threadId, approved), executeCreateBranch(title, contextFiles, parentId, approved), executeSearchFiles(query, userId), executeReadFile(path, userId), executeListDirectory(path, userId), waitForApproval(toolCallId, timeout=600000)
-- [ ] T031 Create AgentExecutionService in apps/api/src/services/agentExecution.ts with methods: executeWithStreaming(threadId, userMessage, primeContext, sseChannel), streamTextChunks(sseChannel, chunks), handleToolCalls(tools, sseChannel), pauseForApproval(toolCall, sseChannel), resumeAfterApproval(toolCallId, approved, sseChannel), handleRejection(toolCallId, reason, sseChannel)
-- [ ] T032 Create ConsolidationService in apps/api/src/services/consolidation.ts with methods: consolidateFromBranches(parentThreadId, childThreadIds), traverseTree(rootId), gatherArtifacts(threadIds), handleConflicts(artifacts, prioritization), generateWithProvenance(artifacts, threadIds)
+- [ ] T031 Create AgentExecutionService in apps/api/src/services/agentExecution.ts with methods: executeWithStreaming(threadId, userMessage, primeContext, sseChannel) - uses Sonnet via getModelConfig('agent-execution'), streamTextChunks(sseChannel, chunks), handleToolCalls(tools, sseChannel), pauseForApproval(toolCall, sseChannel), resumeAfterApproval(toolCallId, approved, sseChannel), handleRejection(toolCallId, reason, sseChannel)
+- [ ] T032 Create ConsolidationService in apps/api/src/services/consolidation.ts with methods: consolidateFromBranches(parentThreadId, childThreadIds) - uses Sonnet via getModelConfig('consolidation'), traverseTree(rootId), gatherArtifacts(threadIds), handleConflicts(artifacts, prioritization), generateWithProvenance(artifacts, threadIds)
 
 ### Background Job Endpoints
 
-- [ ] T033 [P] Create POST /shadow-domain/sync Edge Function in apps/api/src/functions/shadow-domain-sync/index.ts: Parse entityId + entityType → Call ShadowDomainService.updateWhenChanged → Return { data: { shadowDomainId, status: 'queued' } }
-- [ ] T034 [P] Create POST /threads/:id/summarize Edge Function in apps/api/src/functions/summarize-thread/index.ts: Load thread messages → Generate summary with Claude (topics, decisions, artifacts, questions) → Update threads.thread_summary → Return { data: { status: 'queued' } }
-- [ ] T035 [P] Create POST /threads/:id/compress-memory Edge Function in apps/api/src/functions/compress-memory/index.ts: Load messages 1-30 → Chunk in batches of 10 → Generate embeddings + summaries → Create MemoryChunk records → Return { data: { chunksCreated, status: 'queued' } }
+- [ ] T033 [P] Create POST /shadow-domain/sync Edge Function in apps/api/src/functions/shadow-domain-sync/index.ts: Parse entityId + entityType → Call ShadowDomainService.updateWhenChanged (generates embeddings + summaries + structure metadata) → Return { data: { shadowDomainId, status: 'queued' } }
+- [ ] T034 [P] Create POST /threads/:id/summarize Edge Function in apps/api/src/functions/summarize-thread/index.ts: Load thread messages → Generate summary with Haiku via getModelConfig('summarization') (topics, decisions, artifacts, questions) → Update threads.thread_summary → Return { data: { status: 'queued' } }
+- [ ] T035 [P] Create POST /threads/:id/compress-memory Edge Function in apps/api/src/functions/compress-memory/index.ts: Load messages 1-30 → Chunk in batches of 10 → Generate embeddings + summaries (using Haiku via getModelConfig('summarization')) → Create MemoryChunk records → Return { data: { chunksCreated, status: 'queued' } }
 - [ ] T036 [P] Create POST /user-preferences/recompute Edge Function in apps/api/src/functions/recompute-preferences/index.ts: Load user interactions (last 30 days) → Call UserPreferencesService.recompute → Update user_preferences table → Return { data: { updated: true } }
 
 **Checkpoint**: Foundation complete - User story implementation can begin in parallel
@@ -114,15 +118,17 @@
 
 #### Frontend Containers (Wrap Designed Components with Business Logic)
 
-- [ ] T046 [US1] Create WorkspaceContainer in apps/web/src/components/ai-agent-system/WorkspaceContainer.tsx: Import { Workspace } from '@centrid/ui/features' → Load current thread with useLoadThread → Pass data to Workspace component → Handle layout state (sidebar collapsed, file editor open)
-- [ ] T047 [US1] Create BranchSelectorContainer in apps/web/src/components/ai-agent-system/BranchSelectorContainer.tsx: Import { BranchSelector } from '@centrid/ui/features' → Load branch tree from aiAgentState → Transform to hierarchical structure → Pass to BranchSelector → Handle onSelect(threadId) → Navigate to /thread/:threadId
-- [ ] T048 [US1] Create BranchActionsContainer in apps/web/src/components/ai-agent-system/BranchActionsContainer.tsx: Import { BranchActions } from '@centrid/ui/features' → Handle onCreateBranch → Call useCreateBranch hook → Show CreateBranchModal → Handle consolidate/tree view buttons (Phase 4+ functionality)
-- [ ] T049 [US1] Create CreateBranchModalContainer in apps/web/src/components/ai-agent-system/CreateBranchModalContainer.tsx: Import { CreateBranchModal } from '@centrid/ui/features' → Manage modal state (open/closed) → Validate branch name (1-100 chars, alphanumeric/-/_) → Call useCreateBranch(currentThreadId, title) on confirm → Show loading/error states
-- [ ] T050 [US1] Create ContextPanelContainer in apps/web/src/components/ai-agent-system/ContextPanelContainer.tsx: Import { ContextPanel } from '@centrid/ui/features' → Load contextReferences from aiAgentState → Group by priority tier (Explicit, Frequently Used, Semantic, Branch, Artifacts, Excluded) → Handle section toggle (expandedSections state) → Pass data to ContextPanel component
+**Note**: All UI components already exist in `packages/ui/src/features/ai-agent-system/` - containers only need to wire up data/callbacks
+
+- [ ] T046 [US1] Create WorkspaceContainer in apps/web/src/components/ai-agent-system/WorkspaceContainer.tsx: Import { Workspace } from '@centrid/ui/features/ai-agent-system' (ALREADY DESIGNED) → Load current thread with useLoadThread → Pass props: currentThread, messages, contextReferences, onFileClick, onThreadClick → Component handles 3-panel layout internally (uses WorkspaceLayout + PanelDivider from primitives) → Handle layout callbacks: onSidebarToggle, onFileEditorOpen/Close
+- [ ] T047 [US1] Create BranchSelectorContainer in apps/web/src/components/ai-agent-system/BranchSelectorContainer.tsx: Import { BranchSelector } from '@centrid/ui/features/ai-agent-system' (ALREADY DESIGNED) → Load branch tree from aiAgentState → Pass props: branches (hierarchical structure), currentBranchId, onSelect → Handle onSelect(branchId) callback → Navigate to /thread/:branchId
+- [ ] T048 [US1] Create BranchActionsContainer in apps/web/src/components/ai-agent-system/BranchActionsContainer.tsx: Import { BranchActions } from '@centrid/ui/features/ai-agent-system' (ALREADY DESIGNED) → Pass props: currentBranch, hasChildren, onCreateBranch, onConsolidate, onTreeView → Handle onCreateBranch → Call useCreateBranch hook → Show CreateBranchModalContainer
+- [ ] T049 [US1] Create CreateBranchModalContainer in apps/web/src/components/ai-agent-system/CreateBranchModalContainer.tsx: Import { CreateBranchModal } from '@centrid/ui/features/ai-agent-system' (ALREADY DESIGNED) → Manage modal state (isOpen) → Validate branch name (1-100 chars, alphanumeric/-/_) → Call useCreateBranch(currentThreadId, title) on onConfirm callback → Pass props: isOpen, currentBranchTitle, isLoading, validationError, onConfirm, onCancel
+- [ ] T050 [US1] Create ContextPanelContainer in apps/web/src/components/ai-agent-system/ContextPanelContainer.tsx: Import { ContextPanel } from '@centrid/ui/features/ai-agent-system' (ALREADY DESIGNED - includes ScrollArea for horizontal scrolling) → Load contextReferences from aiAgentState → Group by priority tier (Explicit, Frequently Used, Semantic, Branch, Artifacts, Excluded) → Pass props: contextGroups (grouped references), expandedSections, onToggleSection, onFileClick, onAddToExplicit, onRemove → Component handles empty states internally
 
 #### Page Integration
 
-- [ ] T051 [US1] Create /thread/[threadId] page in apps/web/src/pages/thread/[threadId].tsx: Load threadId from router → Render WorkspaceContainer → Include WorkspaceHeader with BranchSelectorContainer + BranchActionsContainer → Include WorkspaceSidebar (Files/Threads tabs) → Include ThreadView (center panel) → Optional FileEditorPanel (right panel)
+- [ ] T051 [US1] Create /thread/[threadId] page in apps/web/src/pages/thread/[threadId].tsx: Import { Workspace, WorkspaceHeader, WorkspaceSidebar, ThreadView, FileEditorPanel } from '@centrid/ui/features/ai-agent-system' (ALL ALREADY DESIGNED) → Load threadId from router → Render Workspace component (handles entire 3-panel layout internally) → Pass WorkspaceHeader as header prop (includes BranchSelector + BranchActions components internally) → Pass WorkspaceSidebar as leftPanel prop (includes Tabs, ScrollArea, Skeleton, empty states internally) → Pass ThreadView as centerPanel prop (includes MessageStream, ContextPanel, ThreadInput internally) → Pass FileEditorPanel as rightPanel prop (includes MarkdownEditor, ProvenanceHeader, SaveIndicator internally) → Wire up callbacks: onFileClick, onThreadClick, onBranchSelect, onSendMessage, etc.
 
 #### Real-time Subscriptions
 
@@ -165,10 +171,12 @@
 
 #### Frontend Containers (SSE Streaming & Tool Approval)
 
-- [ ] T067 [US2] Create ThreadInputContainer in apps/web/src/components/ai-agent-system/ThreadInputContainer.tsx: Import { ThreadInput } from '@centrid/ui/features' → Manage input state (text, characterLimit=10000) → Call useSendMessage on submit → Toggle send/stop button based on isStreaming → Handle onStop → Close SSE connection
-- [ ] T068 [US2] Create MessageStreamContainer in apps/web/src/components/ai-agent-system/MessageStreamContainer.tsx: Import { MessageStream, Message, AgentStreamMessage } from '@centrid/ui/features' → Load messages from aiAgentState → Render user messages with Message component → Render agent streaming messages with AgentStreamMessage (shows incremental text + tool calls) → Auto-scroll to bottom on new chunks
-- [ ] T069 [US2] Create ToolCallApprovalContainer in apps/web/src/components/ai-agent-system/ToolCallApprovalContainer.tsx: Import { ToolCallApproval } from '@centrid/ui/features' → Manage approval modal state → Parse tool_call event from SSE → Show preview (file path, content preview, operation type) → Call useApproveToolCall(toolCallId, approved) on user action → Show loading state during approval
-- [ ] T070 [US2] Create FileEditorPanelContainer in apps/web/src/components/ai-agent-system/FileEditorPanelContainer.tsx: Import { FileEditorPanel, ProvenanceHeader } from '@centrid/ui/features' → Load file with useLoadFile(fileId) → Show provenance header with source thread, timestamp, context summary, last edit info → Handle "Go to source" → Navigate to /thread/:sourceThreadId → Handle content edits → Call useUpdateFile(fileId, newContent)
+**Note**: MessageStream, Message, ThreadInput, ToolCallApproval, FileEditorPanel, ProvenanceHeader already exist in `packages/ui/src/features/ai-agent-system/` - containers simplified to data wiring only
+
+- [ ] T067 [US2] Create ThreadInputContainer in apps/web/src/components/ai-agent-system/ThreadInputContainer.tsx: Import { ThreadInput } from '@centrid/ui/features/ai-agent-system' (ALREADY DESIGNED - includes Textarea, Button, character counter internally) → Manage input state (text) → Call useSendMessage on onSendMessage callback → Toggle send/stop via isStreaming prop → Handle onStopStreaming callback → Close SSE connection → Pass props: messageText, isStreaming, characterLimit, placeholder, onChange, onSendMessage, onStopStreaming
+- [ ] T068 [US2] Create MessageStreamContainer in apps/web/src/components/ai-agent-system/MessageStreamContainer.tsx: Import { MessageStream, Message, AgentStreamMessage } from '@centrid/ui/features/ai-agent-system' (ALREADY DESIGNED - includes ScrollArea, empty states, auto-scroll internally) → Load messages from aiAgentState → Pass props: messages (array of MessageProps), isStreaming → Component handles empty states, loading states, scrolling, message rendering internally → No additional logic needed
+- [ ] T069 [US2] Create ToolCallApprovalContainer in apps/web/src/components/ai-agent-system/ToolCallApprovalContainer.tsx: Import { ToolCallApproval } from '@centrid/ui/features/ai-agent-system' (ALREADY DESIGNED - includes approval UI, preview, buttons internally) → Parse tool_call event from SSE → Call useApproveToolCall(toolCallId, approved) on user action → Pass props: toolName, toolInput, previewContent, isLoading, onApprove, onReject → Component handles approval prompt, preview scrolling, loading states internally
+- [ ] T070 [US2] Create FileEditorPanelContainer in apps/web/src/components/ai-agent-system/FileEditorPanelContainer.tsx: Import { FileEditorPanel } from '@centrid/ui/features/ai-agent-system' (ALREADY DESIGNED - includes MarkdownEditor, ProvenanceHeader, SaveIndicator internally) → Load file with useLoadFile(fileId) → Handle content edits with useUpdateFile(fileId, newContent) → Handle "Go to source" navigation → Pass props: file (FileData), provenance (Provenance), isOpen, onClose, onGoToSource, onContentChange → Component handles all UI internally
 
 #### Fire-and-Forget Background Jobs
 
@@ -193,7 +201,7 @@
 
 #### Backend Services - Context Assembly with Semantic Search
 
-- [ ] T074 [US3] Implement gatherSemanticMatches in ContextAssemblyService (apps/api/src/services/contextAssembly.ts): Extract query intent from user message → Generate embedding via OpenAI → Call SemanticSearchService.search(query, ['file', 'thread'], threadTreeMetadata, limit=10) → Apply relationship modifiers (siblings +0.10, parent/child +0.15) via SemanticSearchService → Apply temporal decay (1.0 - months × 0.05, floor 0.3) → Filter by topic divergence (if branch similarity <0.3, only include matches with relevance >0.9) → Check user_preferences.blacklisted_branches → Exclude blacklisted branches from results → Return top 10 semantic matches with final scores
+- [ ] T074 [US3] Implement gatherSemanticMatches in ContextAssemblyService (apps/api/src/services/contextAssembly.ts): Generate message embedding via OpenAI (from user message) → Load thread embedding from thread.shadow_entity (already cached) → Call SemanticSearchService.searchWithContext({ messageEmbedding (0.7 weight), threadEmbedding (0.3 weight), entityTypes: ['file', 'thread'], limit: 10 }) for hybrid semantic search → Apply relationship modifiers (siblings +0.10, parent/child +0.15) → Apply temporal decay (1.0 - months × 0.05, floor 0.3) → Filter by topic divergence (if branch similarity <0.3, only include matches with relevance >0.9) → Check user_preferences.blacklisted_branches → Exclude blacklisted branches from results → Return top 10 semantic matches with final scores
 - [ ] T075 [US3] Implement gatherUserPreferences in ContextAssemblyService: Load UserPreferencesService.loadContextPreferences(userId) → Apply excluded_patterns FIRST (filter out files matching regex before semantic search) → Add always_include_files to priority list with 0.8 weight (between explicit 1.0 and semantic 0.5) → Return { alwaysIncludeFiles, excludedPatterns, blacklistedBranches }
 - [ ] T076 [US3] Integrate multi-domain gathering in buildPrimeContext: Run 6 domain queries in parallel using Promise.all: [1] gatherExplicitContext (1.0 weight), [2] gatherSemanticMatches (0.5 base + modifiers), [3] gatherThreadTreeContext (0.7 weight), [4] gatherMemoryChunks (if >40 messages), [5] gatherUserPreferences (0.8 weight for always-include, filtering for excluded), [6] gatherKnowledgeGraph (Phase 2+ - deferred) → Merge all results → Call prioritizeAndFit(allSources, 200K limit) → Return { primeContext, excludedItems }
 
