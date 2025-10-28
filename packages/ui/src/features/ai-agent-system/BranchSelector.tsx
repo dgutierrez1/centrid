@@ -19,22 +19,138 @@ export interface Branch {
 
 export interface BranchSelectorProps {
   /** Current active branch */
-  currentBranch: Branch;
+  currentBranch?: Branch;
   /** All branches in hierarchical order */
   branches: Branch[];
-  /** Branch selection handler */
-  onSelectBranch: (branchId: string) => void;
+  /** Display mode: 'dropdown' for navigation, 'list' for checkbox selection */
+  mode?: 'dropdown' | 'list';
+  /** Selected branch IDs (for list mode with checkboxes) */
+  selectedBranchIds?: string[];
+  /** Collapsed branch IDs (for list mode) */
+  collapsedBranchIds?: Set<string>;
+  /** Branch selection handler (dropdown mode) */
+  onSelectBranch?: (branchId: string) => void;
+  /** Checkbox toggle handler (list mode) */
+  onToggleCheckbox?: (branchId: string) => void;
+  /** Collapse toggle handler (list mode) */
+  onToggleCollapse?: (branchId: string) => void;
   className?: string;
 }
 
 export function BranchSelector({
   currentBranch,
   branches,
+  mode = 'dropdown',
+  selectedBranchIds = [],
+  collapsedBranchIds = new Set(),
   onSelectBranch,
+  onToggleCheckbox,
+  onToggleCollapse,
   className = '',
 }: BranchSelectorProps) {
   const [isOpen, setIsOpen] = React.useState(false);
 
+  // Filter branches based on collapsed state (list mode only)
+  const visibleBranches = mode === 'list'
+    ? branches.filter((branch) => {
+        if (branch.depth === 0) return true;
+        // Check if any ancestor is collapsed
+        let checkBranch = branch;
+        while (checkBranch.parentId) {
+          if (collapsedBranchIds.has(checkBranch.parentId)) return false;
+          checkBranch = branches.find(b => b.id === checkBranch.parentId)!;
+          if (!checkBranch) break;
+        }
+        return true;
+      })
+    : branches;
+
+  // List mode (for ConsolidateModal)
+  if (mode === 'list') {
+    return (
+      <div className={className}>
+        {visibleBranches.map((branch, index) => {
+          const isSelected = selectedBranchIds.includes(branch.id);
+          const isCollapsed = collapsedBranchIds.has(branch.id);
+          const hasChildren = branches.some(b => b.parentId === branch.id);
+          const indentPx = branch.depth * 24;
+          const nextBranch = visibleBranches[index + 1];
+          const isLastChild = !nextBranch || nextBranch.depth <= branch.depth || nextBranch.parentId !== branch.parentId;
+
+          return (
+            <div
+              key={branch.id}
+              className="relative flex items-center gap-2 py-2"
+              style={{ paddingLeft: `${16 + indentPx}px` }}
+            >
+              {/* Tree lines */}
+              {branch.depth > 0 && (
+                <>
+                  <div
+                    className="absolute top-1/2 h-px bg-gray-300 dark:bg-gray-600"
+                    style={{
+                      left: `${16 + (branch.depth - 1) * 24 + 8}px`,
+                      width: '12px',
+                    }}
+                  />
+                  <div
+                    className="absolute bg-gray-300 dark:bg-gray-600 w-px"
+                    style={{
+                      left: `${16 + (branch.depth - 1) * 24 + 8}px`,
+                      top: isLastChild ? '0' : '0',
+                      bottom: isLastChild ? '50%' : '0',
+                    }}
+                  />
+                  <div
+                    className="absolute w-2 h-2 rounded-full border-2 border-gray-400 dark:border-gray-500 bg-white dark:bg-gray-800"
+                    style={{
+                      left: `${16 + (branch.depth - 1) * 24 + 4}px`,
+                      top: 'calc(50% - 4px)',
+                    }}
+                  />
+                </>
+              )}
+
+              {/* Collapse/expand toggle */}
+              {hasChildren ? (
+                <button
+                  onClick={() => onToggleCollapse?.(branch.id)}
+                  className="shrink-0 w-4 h-4 flex items-center justify-center text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                >
+                  <svg
+                    className={`w-3 h-3 transition-transform ${isCollapsed ? '' : 'rotate-90'}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              ) : (
+                <div className="w-4" />
+              )}
+
+              {/* Checkbox */}
+              <input
+                type="checkbox"
+                checked={isSelected}
+                onChange={() => onToggleCheckbox?.(branch.id)}
+                className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded shrink-0"
+              />
+
+              {/* Branch info */}
+              <div className="flex items-center justify-between gap-3 flex-1 min-w-0">
+                <span className="font-medium text-gray-900 dark:text-gray-100">{branch.title}</span>
+                <Badge variant="secondary">{branch.artifactCount} artifacts</Badge>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // Dropdown mode (original behavior)
   return (
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
       <DropdownMenuTrigger

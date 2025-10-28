@@ -11,14 +11,14 @@ export type { ThreadInputProps } from './ThreadInput';
 export { ContextReference } from './ContextReference';
 export type { ContextReferenceProps } from './ContextReference';
 
-export { ContextSection } from './ContextSection';
-export type { ContextSectionProps } from './ContextSection';
-
 export { ContextPanel } from './ContextPanel';
 export type { ContextPanelProps, ContextGroup } from './ContextPanel';
 
 export { BranchSelector } from './BranchSelector';
 export type { BranchSelectorProps, Branch } from './BranchSelector';
+
+export { BranchTreeItem } from './BranchTreeItem';
+export type { BranchTreeItemProps, BranchTreeNode } from './BranchTreeItem';
 
 export { ToolCallApproval } from './ToolCallApproval';
 export type { ToolCallApprovalProps } from './ToolCallApproval';
@@ -37,6 +37,9 @@ export type { WorkspaceProps } from './Workspace';
 
 export { ContextTypeWidget } from './ContextTypeWidget';
 export type { ContextTypeWidgetProps } from './ContextTypeWidget';
+
+export { ExplicitContextWidget } from './ExplicitContextWidget';
+export type { ExplicitContextWidgetProps } from './ExplicitContextWidget';
 
 export { WorkspaceHeader } from './WorkspaceHeader';
 export type { WorkspaceHeaderProps } from './WorkspaceHeader';
@@ -59,3 +62,9 @@ export type { ConsolidateModalProps } from './ConsolidateModal';
 export { ProvenanceHeader } from './ProvenanceHeader';
 export type { ProvenanceHeaderProps } from './ProvenanceHeader';
 // Note: Provenance type is already exported from FileEditorPanel
+
+export { ReferencePill } from './ReferencePill';
+export type { ReferencePillProps } from './ReferencePill';
+
+export { ThreadTreeNode } from './ThreadTreeNode';
+export type { ThreadTreeNodeProps, ThreadNode } from './ThreadTreeNode';

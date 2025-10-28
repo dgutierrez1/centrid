@@ -28,8 +28,9 @@ export function ThreadInput({
   const [isFocused, setIsFocused] = useState(false);
 
   const handleSend = () => {
-    if (messageText.trim() && !isLoading && !isStreaming) {
-      onSendMessage(messageText.trim());
+    const trimmed = messageText?.trim() || '';
+    if (trimmed && !isLoading && !isStreaming) {
+      onSendMessage(trimmed);
     }
   };
 
@@ -47,7 +48,7 @@ export function ThreadInput({
   };
 
   const isDisabled = isLoading || isStreaming;
-  const canSend = messageText.trim().length > 0 && !isLoading && !isStreaming;
+  const canSend = (messageText?.trim() || '').length > 0 && !isLoading && !isStreaming;
 
   return (
     <div
@@ -57,7 +58,7 @@ export function ThreadInput({
       <div className="flex flex-col gap-2">
         <div className="flex items-end gap-3">
           <Textarea
-            value={messageText}
+            value={messageText || ''}
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={handleKeyDown}
             onFocus={() => setIsFocused(true)}
@@ -76,35 +77,34 @@ export function ThreadInput({
               onClick={handleStop}
               variant="outline"
               size="lg"
-              className="shrink-0 h-11 w-11 p-0 border-gray-300 dark:border-gray-600 hover:border-error-500 hover:bg-error-50 dark:hover:bg-error-950 text-gray-600 dark:text-gray-400 hover:text-error-600 dark:hover:text-error-400 transition-colors"
+              className="shrink-0 h-11 w-11 p-0 rounded-lg border-2 border-error-400 dark:border-error-500 bg-error-50 dark:bg-error-950/30 hover:bg-error-100 dark:hover:bg-error-950/50 text-error-600 dark:text-error-400 hover:text-error-700 dark:hover:text-error-300 hover:border-error-500 dark:hover:border-error-400 transition-all shadow-sm hover:shadow-md"
               data-testid="stop-button"
               aria-label="Stop streaming"
             >
               <svg
-                className="w-4 h-4"
+                className="w-5 h-5"
                 fill="currentColor"
-                viewBox="0 0 20 20"
+                viewBox="0 0 24 24"
               >
-                <rect x="6" y="6" width="8" height="8" rx="1" />
+                <rect x="7" y="7" width="10" height="10" rx="2" />
               </svg>
             </Button>
           ) : (
             <Button
               onClick={handleSend}
               disabled={!canSend}
-              variant="ghost"
               size="lg"
-              className={`shrink-0 h-11 w-11 p-0 transition-colors ${
+              className={`shrink-0 h-11 w-11 p-0 rounded-xl transition-all duration-200 ${
                 canSend
-                  ? 'text-primary-600 dark:text-primary-500 hover:bg-primary-50 dark:hover:bg-primary-950'
-                  : 'text-gray-300 dark:text-gray-700'
+                  ? 'bg-gradient-to-br from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white shadow-lg shadow-primary-500/30 hover:shadow-xl hover:shadow-primary-500/40 hover:scale-110 active:scale-95 ring-2 ring-primary-200 dark:ring-primary-900'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600'
               }`}
               data-testid="send-button"
               aria-label="Send message"
             >
               {isLoading ? (
                 <svg
-                  className="animate-spin w-4 h-4"
+                  className="animate-spin w-5 h-5"
                   fill="none"
                   viewBox="0 0 24 24"
                 >
@@ -114,7 +114,7 @@ export function ThreadInput({
                     cy="12"
                     r="10"
                     stroke="currentColor"
-                    strokeWidth="4"
+                    strokeWidth="3"
                   />
                   <path
                     className="opacity-75"
@@ -124,32 +124,26 @@ export function ThreadInput({
                 </svg>
               ) : (
                 <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
+                  className="w-5 h-5"
+                  fill="currentColor"
                   viewBox="0 0 24 24"
-                  strokeWidth={2}
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
-                  />
+                  <path d="M8 5v14l11-7z" />
                 </svg>
               )}
             </Button>
           )}
         </div>
 
-        {(isStreaming || isLoading || messageText.length > 0) && (
+        {(isStreaming || isLoading || (messageText?.length || 0) > 0) && (
           <div className="flex items-center justify-between text-xs text-gray-400 dark:text-gray-500">
             <span className="text-gray-500 dark:text-gray-400">
               {isStreaming && 'Agent thinking...'}
               {isLoading && !isStreaming && 'Sending...'}
             </span>
-            {messageText.length > 0 && (
-              <span className={messageText.length > characterLimit * 0.9 ? 'text-warning-500' : ''}>
-                {messageText.length}/{characterLimit}
+            {(messageText?.length || 0) > 0 && (
+              <span className={(messageText?.length || 0) > characterLimit * 0.9 ? 'text-warning-500' : ''}>
+                {messageText?.length || 0}/{characterLimit}
               </span>
             )}
           </div>

@@ -16,7 +16,10 @@ export default function AiAgentSystemIndex() {
   };
 
   return (
-    <DesignSystemFrame title="AI Agent System">
+    <DesignSystemFrame
+      title="AI Agent System"
+      featureId="ai-agent-system"
+    >
       <div className="h-screen overflow-y-auto">
         {/* Header */}
         <div className="pt-6 pb-4 px-4">
@@ -115,54 +118,22 @@ export default function AiAgentSystemIndex() {
         {/* Navigation Cards */}
         <div className="border-t border-gray-200 dark:border-gray-700 pt-6 px-4">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-            Component Details
+            Design Resources
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl">
             <Link href="/ai-agent-system/workspace">
               <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer p-6">
-                <h3 className="text-xl font-semibold mb-2">Workspace View</h3>
+                <h3 className="text-xl font-semibold mb-2">Full Workspace</h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Full-page workspace with file editor
+                  Complete 3-panel adaptive workspace (the actual screen design)
                 </p>
               </Card>
             </Link>
             <Link href="/ai-agent-system/components">
               <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer p-6">
-                <h3 className="text-xl font-semibold mb-2">Components</h3>
+                <h3 className="text-xl font-semibold mb-2">Component Library</h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Individual component showcase
-                </p>
-              </Card>
-            </Link>
-            <Link href="/ai-agent-system/context-panel">
-              <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer p-6">
-                <h3 className="text-xl font-semibold mb-2">Context Panel</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Interactive context panel demo
-                </p>
-              </Card>
-            </Link>
-            <Link href="/ai-agent-system/branch-selector">
-              <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer p-6">
-                <h3 className="text-xl font-semibold mb-2">Branch Selector</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Hierarchical branch navigation
-                </p>
-              </Card>
-            </Link>
-            <Link href="/ai-agent-system/file-editor">
-              <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer p-6">
-                <h3 className="text-xl font-semibold mb-2">File Editor</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  File editor with provenance
-                </p>
-              </Card>
-            </Link>
-            <Link href="/ai-agent-system/input-states">
-              <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer p-6">
-                <h3 className="text-xl font-semibold mb-2">Thread Input States</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  All input states and interactions
+                  All components with states (Message, ThreadInput, ContextPanel, etc.)
                 </p>
               </Card>
             </Link>

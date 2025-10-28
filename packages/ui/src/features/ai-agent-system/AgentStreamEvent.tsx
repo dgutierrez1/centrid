@@ -31,6 +31,14 @@ export interface AgentStreamEventProps {
   className?: string;
 }
 
+// Helper to format tool names into human-readable format
+const formatToolName = (name: string): string => {
+  return name
+    .split('_')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+};
+
 export function AgentStreamEvent({
   event,
   isLatest = false,
@@ -48,6 +56,7 @@ export function AgentStreamEvent({
 
   // Tool call event
   const toolCall = event as ToolCallEvent;
+  const readableToolName = formatToolName(toolCall.name);
   const statusColors = {
     running: {
       bg: 'bg-blue-50 dark:bg-blue-950/30',
@@ -90,7 +99,7 @@ export function AgentStreamEvent({
             </svg>
           )}
         </div>
-        <span className="flex-1 text-left text-gray-600 dark:text-gray-400">{toolCall.name}</span>
+        <span className="flex-1 text-left text-gray-600 dark:text-gray-400">{readableToolName}</span>
         {toolCall.duration && (
           <span className="text-xs text-gray-400 shrink-0">
             {(toolCall.duration / 1000).toFixed(1)}s
@@ -103,13 +112,13 @@ export function AgentStreamEvent({
     );
   }
 
-  // Expanded view - one line, no background color
+  // Expanded view - text shimmer on running tools
   return (
     <div className={`flex items-center gap-2 text-sm ${className}`}>
       {/* Icon */}
       <div className="shrink-0 text-gray-500 dark:text-gray-400">
         {toolCall.status === 'running' && (
-          <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+          <svg className="w-4 h-4 animate-spin text-primary-600" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
           </svg>
@@ -126,11 +135,23 @@ export function AgentStreamEvent({
         )}
       </div>
 
-      {/* Tool name and description */}
+      {/* Tool name and description with shimmer on running */}
       <div className="flex-1 min-w-0">
-        <span className="text-gray-900 dark:text-gray-100 font-medium">{toolCall.name}</span>
+        <span className={`font-semibold ${
+          toolCall.status === 'running'
+            ? 'relative inline-block bg-gradient-to-r from-primary-600 via-primary-300 to-primary-600 dark:from-primary-400 dark:via-primary-200 dark:to-primary-400 bg-clip-text text-transparent animate-shimmer bg-[length:200%_100%]'
+            : 'text-gray-900 dark:text-gray-100'
+        }`}>
+          {readableToolName}
+        </span>
         {toolCall.description && (
-          <span className="text-gray-500 dark:text-gray-400 ml-2">— {toolCall.description}</span>
+          <span className={`ml-2 ${
+            toolCall.status === 'running'
+              ? 'relative inline-block bg-gradient-to-r from-primary-600 via-primary-300 to-primary-600 dark:from-primary-400 dark:via-primary-200 dark:to-primary-400 bg-clip-text text-transparent animate-shimmer bg-[length:200%_100%]'
+              : 'text-gray-500 dark:text-gray-400'
+          }`}>
+            — {toolCall.description}
+          </span>
         )}
         {toolCall.error && (
           <span className="text-red-600 dark:text-red-400 ml-2">— Error: {toolCall.error}</span>
@@ -139,7 +160,7 @@ export function AgentStreamEvent({
 
       {/* Status badge */}
       {toolCall.status === 'running' && (
-        <span className="text-xs text-blue-600 dark:text-blue-400 font-medium shrink-0">Running...</span>
+        <span className="text-xs text-primary-600 dark:text-primary-400 font-medium shrink-0">Running...</span>
       )}
       {toolCall.duration && toolCall.status === 'completed' && (
         <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0">

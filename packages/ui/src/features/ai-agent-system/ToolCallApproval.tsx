@@ -1,8 +1,5 @@
 import React from 'react';
-import { Card } from '../../components/card';
 import { Button } from '../../components/button';
-import { Badge } from '../../components/badge';
-import { ScrollArea } from '../../components/scroll-area';
 
 export interface ToolCallApprovalProps {
   /** Tool name (create_file, edit_file, delete_file, create_folder, create_branch, etc.) */
@@ -98,99 +95,104 @@ export function ToolCallApproval({
   const displayName = toolDisplayNames[toolName] || toolName;
   const icon = toolIcons[toolName] || toolIcons.create_file;
 
+  // Extract primary parameter (file_path or path)
+  const primaryParam = toolInput.file_path || toolInput.path || toolInput.name || '';
+  const displayParam = typeof primaryParam === 'string' ? primaryParam.split('/').pop() : String(primaryParam);
+
   return (
-    <Card
-      className={`border-l-4 border-l-primary-600 bg-primary-50 dark:bg-primary-900/10 animate-slide-down ${className}`}
+    <div
+      className={`border-l-4 border-l-primary-600 bg-primary-50 dark:bg-primary-900/10 rounded-lg animate-slide-down ${className}`}
       data-testid="tool-call-approval"
     >
-      <div className="p-4 space-y-4">
-        {/* Header */}
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary-600 text-white">
-              {icon}
-            </div>
-            <div>
-              <h4 className="font-semibold text-gray-900 dark:text-white">{displayName}</h4>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                AI agent is requesting permission to perform this action
-              </p>
+      <div className="px-3 py-2">
+        {/* Row 1: Icon, Tool name, Key parameter, Actions */}
+        <div className="flex items-center gap-3">
+          {/* Icon */}
+          <div className="flex items-center justify-center w-8 h-8 rounded bg-primary-600 text-white shrink-0">
+            {icon}
+          </div>
+
+          {/* Tool name + key parameter */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-baseline gap-2">
+              <span className="font-semibold text-gray-900 dark:text-white text-sm">
+                {displayName}
+              </span>
+              {displayParam && (
+                <span className="text-xs text-gray-600 dark:text-gray-400 font-mono truncate">
+                  {displayParam}
+                </span>
+              )}
             </div>
           </div>
-          <Badge className="bg-primary-600 text-white shrink-0">Approval Required</Badge>
+
+          {/* Actions */}
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onReject()}
+              disabled={isLoading}
+              data-testid="reject-button"
+              className="h-7 px-2 text-xs"
+            >
+              Reject
+            </Button>
+            <Button
+              size="sm"
+              onClick={onApprove}
+              disabled={isLoading}
+              className="bg-primary-600 hover:bg-primary-700 h-7 px-2 text-xs"
+              data-testid="approve-button"
+            >
+              {isLoading ? (
+                <>
+                  <svg
+                    className="animate-spin -ml-1 mr-1 h-3 w-3"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    />
+                  </svg>
+                  Executing...
+                </>
+              ) : (
+                'Approve'
+              )}
+            </Button>
+          </div>
         </div>
 
-        {/* Tool parameters */}
-        <div className="bg-white dark:bg-gray-900 rounded-lg p-3 space-y-2">
-          {Object.entries(toolInput).map(([key, value]) => (
-            <div key={key} className="flex items-start gap-2 text-sm">
-              <span className="font-medium text-gray-700 dark:text-gray-300 capitalize">
-                {key.replace(/_/g, ' ')}:
-              </span>
-              <span className="text-gray-900 dark:text-white font-mono">{String(value)}</span>
-            </div>
-          ))}
-        </div>
-
-        {/* Preview */}
-        {previewContent && (
-          <div className="bg-white dark:bg-gray-900 rounded-lg overflow-hidden">
-            <div className="bg-gray-100 dark:bg-gray-800 px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
-              Preview
-            </div>
-            <ScrollArea className="max-h-[200px]">
-              <pre className="p-3 text-xs text-gray-900 dark:text-white overflow-x-auto">
-                {previewContent}
-              </pre>
-            </ScrollArea>
+        {/* Row 2 (optional): Additional context - only show if multiple params or preview */}
+        {(Object.keys(toolInput).length > 1 || previewContent) && (
+          <div className="mt-1 ml-11 text-xs text-gray-600 dark:text-gray-400">
+            {previewContent ? (
+              <span className="truncate block">Preview: {previewContent.slice(0, 80)}...</span>
+            ) : (
+              Object.entries(toolInput)
+                .filter(([key]) => key !== 'file_path' && key !== 'path' && key !== 'name')
+                .slice(0, 1)
+                .map(([key, value]) => (
+                  <span key={key}>
+                    {key.replace(/_/g, ' ')}: <span className="font-mono">{String(value).slice(0, 40)}</span>
+                  </span>
+                ))
+            )}
           </div>
         )}
-
-        {/* Actions */}
-        <div className="flex items-center justify-end gap-3">
-          <Button
-            variant="outline"
-            onClick={() => onReject()}
-            disabled={isLoading}
-            data-testid="reject-button"
-          >
-            Reject
-          </Button>
-          <Button
-            onClick={onApprove}
-            disabled={isLoading}
-            className="bg-primary-600 hover:bg-primary-700"
-            data-testid="approve-button"
-          >
-            {isLoading ? (
-              <>
-                <svg
-                  className="animate-spin -ml-1 mr-2 h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  />
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  />
-                </svg>
-                Executing...
-              </>
-            ) : (
-              'Approve'
-            )}
-          </Button>
-        </div>
       </div>
-    </Card>
+    </div>
   );
 }

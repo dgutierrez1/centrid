@@ -9,6 +9,8 @@ import {
   File,
   FileData,
   type AgentEvent,
+  CreateBranchModal,
+  ConsolidateModal,
 } from '@centrid/ui/features';
 
 // Use static timestamps to avoid hydration errors
@@ -71,6 +73,21 @@ function generateStreamingEvents(): AgentEvent[] {
       duration: Math.floor(Math.random() * 2000) + 800,
     });
   }
+
+  // Add a tool call that requires approval (Flow 8 demonstration)
+  events.push({
+    type: 'tool_call',
+    id: `event-${eventId++}`,
+    name: 'create_file',
+    description: 'Creating chunking-strategies-summary.md',
+    status: 'approval_required',
+    approval_required: true,
+    input: {
+      file_path: './workspace/chunking-strategies-summary.md',
+      content: '# Chunking Strategies Summary\n\n## Key Findings\n\n1. Fixed-size chunks (512 tokens)\n2. Semantic chunking\n3. Overlapping chunks (50-100 token overlap)\n\n## Recommendation\n\nUse fixed-size with overlap for consistent performance.',
+    },
+    previewContent: '# Chunking Strategies Summary\n\n## Key Findings\n\n1. Fixed-size chunks (512 tokens)\n2. Semantic chunking\n3. Overlapping chunks (50-100 token overlap)',
+  });
 
   // End with conclusion
   events.push({
@@ -211,6 +228,33 @@ const mockSemanticContext: Omit<ContextReferenceProps, 'isExpanded'>[] = [
     relationship: 'sibling',
     priorityTier: 2,
     timestamp: new Date(FIXED_BASE_TIME - 1000 * 60 * 90),
+  },
+  {
+    referenceType: 'file',
+    name: 'embedding-models-comparison.md',
+    sourceBranch: 'Embedding Models',
+    relevanceScore: 0.87,
+    relationship: 'sibling',
+    priorityTier: 2,
+    timestamp: new Date(FIXED_BASE_TIME - 1000 * 60 * 120),
+  },
+  {
+    referenceType: 'file',
+    name: 'vector-search-optimization.md',
+    sourceBranch: 'Vector DB Comparison',
+    relevanceScore: 0.82,
+    relationship: 'cousin',
+    priorityTier: 2,
+    timestamp: new Date(FIXED_BASE_TIME - 1000 * 60 * 150),
+  },
+  {
+    referenceType: 'thread',
+    name: 'RAG Performance Analysis',
+    sourceBranch: 'RAG Deep Dive',
+    relevanceScore: 0.78,
+    relationship: 'sibling',
+    priorityTier: 2,
+    timestamp: new Date(FIXED_BASE_TIME - 1000 * 60 * 200),
   },
 ];
 
@@ -384,6 +428,8 @@ export function AiAgentSystemMock({ showFileEditor = false }: { showFileEditor?:
   const [currentFile, setCurrentFile] = useState<FileData | null>(showFileEditor ? mockFileContent : null);
   const [isContextExpanded, setIsContextExpanded] = useState(true);
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('light');
+  const [showCreateBranchModal, setShowCreateBranchModal] = useState(false);
+  const [showConsolidateModal, setShowConsolidateModal] = useState(false);
   const hasAutoStarted = useRef(false);
 
   const simulateStreaming = useCallback((allEvents: AgentEvent[], messageId: string) => {
@@ -479,12 +525,6 @@ export function AiAgentSystemMock({ showFileEditor = false }: { showFileEditor?:
       emptyMessage: 'No explicit context added',
     },
     {
-      type: 'frequently-used',
-      title: 'Frequently Used',
-      items: [],
-      emptyMessage: 'No frequently used files',
-    },
-    {
       type: 'semantic',
       title: 'Semantic Matches',
       items: mockSemanticContext,
@@ -501,12 +541,6 @@ export function AiAgentSystemMock({ showFileEditor = false }: { showFileEditor?:
       title: 'Artifacts',
       items: mockArtifactsContext,
       emptyMessage: 'No artifacts',
-    },
-    {
-      type: 'excluded',
-      title: 'Excluded',
-      items: [],
-      emptyMessage: 'All items fit',
     },
   ];
 
@@ -567,78 +601,164 @@ export function AiAgentSystemMock({ showFileEditor = false }: { showFileEditor?:
   };
 
   const handleBranchThread = () => {
-    console.log('Branch from current thread');
-    // In real app: Create a new branch from current conversation point
+    setShowCreateBranchModal(true);
+  };
+
+  const handleConsolidate = () => {
+    setShowConsolidateModal(true);
+  };
+
+  const handleCreateBranch = (branchName: string) => {
+    console.log('Creating branch:', branchName);
+    setShowCreateBranchModal(false);
+    // In real app: Create actual branch
+  };
+
+  const handleConfirmConsolidate = (branchIds: string[], fileName: string) => {
+    console.log('Consolidating branches:', branchIds, 'to file:', fileName);
+    // In real app: Trigger consolidation process
+  };
+
+  const handleApproveConsolidation = (fileName: string) => {
+    console.log('Approving consolidation to:', fileName);
+    setShowConsolidateModal(false);
+    // In real app: Create consolidated file
   };
 
   if (showFileEditor) {
     return (
-      <Workspace
-        sidebarActiveTab={sidebarActiveTab}
-        onSidebarTabChange={setSidebarActiveTab}
-        files={mockFiles}
-        threads={mockThreads}
-        onFileClick={handleFileClick}
-        onThreadClick={handleThreadClick}
-        onCreateThread={handleCreateThread}
-        onCreateFile={handleCreateFile}
-        onCreateFolder={handleCreateFolder}
-        currentFile={currentFile}
-        isFileEditorOpen={isFileEditorOpen}
-        onCloseFileEditor={() => setIsFileEditorOpen(false)}
-        onGoToSource={(branchId, messageId) => console.log('Go to source:', branchId, messageId)}
-        onToggleSidebar={() => console.log('Toggle sidebar')}
-        onToggleTheme={handleToggleTheme}
-        onNotificationsClick={() => console.log('Notifications')}
-        theme={theme}
-        unreadNotificationsCount={3}
-        userInitial="D"
-        currentBranch={currentBranch}
-        branches={mockBranches}
-        messages={messages}
-        contextGroups={contextGroups}
-        messageText={messageText}
-        isStreaming={isStreaming}
-        isLoading={false}
-        pendingToolCall={null}
-        isContextExpanded={isContextExpanded}
-        onSelectBranch={(id) => setCurrentBranchId(id)}
-        onToggleContextPanel={handleToggleContext}
-        onMessageChange={setMessageText}
-        onSendMessage={handleSendMessage}
-        onStopStreaming={() => setIsStreaming(false)}
-        onApproveToolCall={() => {}}
-        onRejectToolCall={() => {}}
-        onAddToExplicit={(item) => console.log('Add:', item)}
-        onRemove={(item) => console.log('Remove:', item)}
-        onDismiss={(item) => console.log('Dismiss:', item)}
-        onBranchThread={handleBranchThread}
-      />
+      <>
+        <Workspace
+          sidebarActiveTab={sidebarActiveTab}
+          onSidebarTabChange={setSidebarActiveTab}
+          files={mockFiles}
+          threads={mockThreads}
+          onFileClick={handleFileClick}
+          onThreadClick={handleThreadClick}
+          onCreateThread={handleCreateThread}
+          onCreateFile={handleCreateFile}
+          onCreateFolder={handleCreateFolder}
+          currentFile={currentFile}
+          isFileEditorOpen={isFileEditorOpen}
+          onCloseFileEditor={() => setIsFileEditorOpen(false)}
+          onGoToSource={(branchId, messageId) => console.log('Go to source:', branchId, messageId)}
+          onToggleSidebar={() => console.log('Toggle sidebar')}
+          onToggleTheme={handleToggleTheme}
+          onNotificationsClick={() => console.log('Notifications')}
+          theme={theme}
+          unreadNotificationsCount={3}
+          userInitial="D"
+          currentBranch={currentBranch}
+          branches={mockBranches}
+          messages={messages}
+          contextGroups={contextGroups}
+          messageText={messageText}
+          isStreaming={isStreaming}
+          isLoading={false}
+          pendingToolCall={null}
+          isContextExpanded={isContextExpanded}
+          onSelectBranch={(id) => setCurrentBranchId(id)}
+          onToggleContextPanel={handleToggleContext}
+          onMessageChange={setMessageText}
+          onSendMessage={handleSendMessage}
+          onStopStreaming={() => setIsStreaming(false)}
+          onApproveToolCall={() => {}}
+          onRejectToolCall={() => {}}
+          onAddToExplicit={(item) => console.log('Add:', item)}
+          onRemove={(item) => console.log('Remove:', item)}
+          onDismiss={(item) => console.log('Dismiss:', item)}
+          onBranchThread={handleBranchThread}
+          onConsolidate={handleConsolidate}
+        />
+
+        {/* Modals */}
+        {showCreateBranchModal && (
+          <CreateBranchModal
+            isOpen={showCreateBranchModal}
+            onClose={() => setShowCreateBranchModal(false)}
+            onConfirm={handleCreateBranch}
+            currentThreadTitle={currentBranch?.title || 'Current Thread'}
+          />
+        )}
+
+        {showConsolidateModal && (
+          <ConsolidateModal
+            isOpen={showConsolidateModal}
+            onClose={() => setShowConsolidateModal(false)}
+            currentBranch={{
+              id: currentBranch?.id || '',
+              title: currentBranch?.title || '',
+              artifactCount: currentBranch?.artifactCount || 0,
+            }}
+            childBranches={mockBranches.filter(b => b.parentId === currentBranchId).map(b => ({
+              id: b.id,
+              title: b.title,
+              artifactCount: b.artifactCount,
+            }))}
+            onConfirmConsolidate={handleConfirmConsolidate}
+            onApproveConsolidation={handleApproveConsolidation}
+            onRejectConsolidation={() => setShowConsolidateModal(false)}
+          />
+        )}
+      </>
     );
   }
 
   return (
-    <div className="h-screen">
-      <ThreadView
-        currentBranch={currentBranch}
-        branches={mockBranches}
-        messages={messages}
-        contextGroups={contextGroups}
-        messageText={messageText}
-        isStreaming={isStreaming}
-        isLoading={false}
-        pendingToolCall={null}
-        isContextExpanded={isContextExpanded}
-        onSelectBranch={(id) => setCurrentBranchId(id)}
-        onToggleContextPanel={handleToggleContext}
-        onMessageChange={setMessageText}
-        onSendMessage={handleSendMessage}
-        onStopStreaming={() => setIsStreaming(false)}
-        onApproveToolCall={() => {}}
-        onRejectToolCall={() => {}}
-        onWidgetClick={(type) => console.log('Widget clicked:', type)}
-        onBranchThread={handleBranchThread}
-      />
-    </div>
+    <>
+      <div className="h-screen">
+        <ThreadView
+          currentBranch={currentBranch}
+          branches={mockBranches}
+          messages={messages}
+          contextGroups={contextGroups}
+          messageText={messageText}
+          isStreaming={isStreaming}
+          isLoading={false}
+          pendingToolCall={null}
+          isContextExpanded={isContextExpanded}
+          onSelectBranch={(id) => setCurrentBranchId(id)}
+          onToggleContextPanel={handleToggleContext}
+          onMessageChange={setMessageText}
+          onSendMessage={handleSendMessage}
+          onStopStreaming={() => setIsStreaming(false)}
+          onApproveToolCall={() => {}}
+          onRejectToolCall={() => {}}
+          onWidgetClick={(type) => console.log('Widget clicked:', type)}
+          onBranchThread={handleBranchThread}
+          onConsolidate={handleConsolidate}
+        />
+      </div>
+
+      {/* Modals */}
+      {showCreateBranchModal && (
+        <CreateBranchModal
+          isOpen={showCreateBranchModal}
+          onClose={() => setShowCreateBranchModal(false)}
+          onConfirm={handleCreateBranch}
+          currentThreadTitle={currentBranch?.title || 'Current Thread'}
+        />
+      )}
+
+      {showConsolidateModal && (
+        <ConsolidateModal
+          isOpen={showConsolidateModal}
+          onClose={() => setShowConsolidateModal(false)}
+          currentBranch={{
+            id: currentBranch?.id || '',
+            title: currentBranch?.title || '',
+            artifactCount: currentBranch?.artifactCount || 0,
+          }}
+          childBranches={mockBranches.filter(b => b.parentId === currentBranchId).map(b => ({
+            id: b.id,
+            title: b.title,
+            artifactCount: b.artifactCount,
+          }))}
+          onConfirmConsolidate={handleConfirmConsolidate}
+          onApproveConsolidation={handleApproveConsolidation}
+          onRejectConsolidation={() => setShowConsolidateModal(false)}
+        />
+      )}
+    </>
   );
 }

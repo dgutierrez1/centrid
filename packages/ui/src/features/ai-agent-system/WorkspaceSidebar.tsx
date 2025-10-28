@@ -181,24 +181,25 @@ function ThreadTreeNode({
 
         return (
           <div key={thread.id} className="relative">
-            {/* Tree lines - Graph style */}
+            {/* Tree lines - Graph style - Higher z-index to stay visible */}
             {depth > 0 && (
               <>
-                {/* Vertical line from parent */}
+                {/* Vertical line from parent - extends to connect with horizontal line */}
                 <div
-                  className="absolute top-0 w-px bg-gray-300 dark:bg-gray-600 z-0"
+                  className="absolute w-px bg-gray-300 dark:bg-gray-600 z-20 pointer-events-none"
                   style={{
-                    left: `${20 + (depth - 1) * 20}px`,
-                    height: isLastChild ? '20px' : '100%'
+                    left: `${16 + (depth - 1) * 20 + 8}px`, // parent paddingLeft + icon half-width (8px)
+                    top: '-23px', // Start from parent's icon center (negative to go up into parent)
+                    height: isLastChild ? '48px' : 'calc(100% + 23px)' // extend to horizontal line
                   }}
                 />
-                {/* Horizontal line to icon */}
+                {/* Horizontal line - shortened to not overlap with node icon */}
                 <div
-                  className="absolute h-px bg-gray-300 dark:bg-gray-600 z-0"
+                  className="absolute h-px bg-gray-300 dark:bg-gray-600 z-20 pointer-events-none"
                   style={{
-                    left: `${20 + (depth - 1) * 20}px`,
-                    top: '20px',
-                    width: '8px'
+                    left: `${16 + (depth - 1) * 20 + 8}px`, // from parent icon center
+                    top: '25px', // Align with icon center
+                    width: `${12}px` // shortened to 12px to stop before node icon (8px radius)
                   }}
                 />
               </>
@@ -212,15 +213,34 @@ function ThreadTreeNode({
                   : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100/50 dark:hover:bg-gray-800/50'
               )}
               style={{ paddingLeft: `${16 + paddingLeft}px` }}
-              onClick={() => {
-                if (hasChildren) {
-                  onToggleExpanded(thread.id);
-                }
-                onThreadClick(thread.id);
-              }}
+              onClick={() => onThreadClick(thread.id)}
             >
+              {/* Hover-reveal chevron for expand/collapse - only for nodes with children */}
+              {hasChildren && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleExpanded(thread.id);
+                  }}
+                  className={cn(
+                    'flex-shrink-0 w-4 h-4 flex items-center justify-center text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400 transition-opacity -ml-1',
+                    'opacity-0 group-hover:opacity-100'
+                  )}
+                  aria-label={isExpanded ? 'Collapse thread' : 'Expand thread'}
+                >
+                  <svg
+                    className={cn('w-3 h-3 transition-transform', isExpanded && 'rotate-90')}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              )}
+
               {/* Icon - Tree lines connect directly */}
-              <div className="flex-shrink-0">
+              <div className={cn('flex-shrink-0', !hasChildren && 'ml-3')}>
                 <ThreadIcon depth={depth} hasChildren={hasChildren} />
               </div>
 
@@ -441,7 +461,7 @@ export function WorkspaceSidebar({
           {activeTab === 'threads' && onCreateThread && (
             <button
               onClick={onCreateThread}
-              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800/50 rounded-md hover:bg-primary-100 dark:hover:bg-primary-900/30 transition-colors"
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 border border-gray-200 dark:border-gray-700 rounded-md hover:border-primary-300 dark:hover:border-primary-600 transition-colors"
               aria-label="Create new thread"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -1,8 +1,20 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '../../components/button';
 import { Input } from '../../components/input';
 import { Badge } from '../../components/badge';
 import { cn } from '@centrid/shared/utils';
+import { ThreadTreeNode, type ThreadNode } from './ThreadTreeNode';
+
+// Branch interface for backward compatibility
+export interface Branch {
+  id: string;
+  title: string;
+  parentId: string | null;
+  depth: number;
+  artifactCount: number;
+  lastActivity: Date;
+  summary?: string;
+}
 
 export interface ConsolidateModalProps {
   isOpen: boolean;
@@ -10,13 +22,11 @@ export interface ConsolidateModalProps {
     id: string;
     title: string;
   };
-  childBranches?: Array<{
-    id: string;
-    title: string;
-    artifactCount: number;
-  }>;
-  onConfirmConsolidate: (branchIds: string[], fileName: string) => void;
-  onApproveConsolidation: (fileName: string) => void;
+  childBranches?: Branch[];
+  /** Called when user confirms consolidation. Receives branch IDs, target folder, and file name. */
+  onConfirmConsolidate: (branchIds: string[], targetFolder: string, fileName: string) => void;
+  /** Called when user approves consolidated content. Receives target folder and file name. */
+  onApproveConsolidation: (targetFolder: string, fileName: string) => void;
   onRejectConsolidation: () => void;
   onClose: () => void;
   consolidationProgress?: {
@@ -29,13 +39,50 @@ export interface ConsolidateModalProps {
   className?: string;
 }
 
+// Helper to build tree structure from flat list
+function buildThreadTree(branches: Branch[]): ThreadNode[] {
+  const branchMap = new Map<string, ThreadNode>();
+  const rootNodes: ThreadNode[] = [];
+
+  // First pass: create all nodes
+  branches.forEach(branch => {
+    branchMap.set(branch.id, {
+      id: branch.id,
+      title: branch.title,
+      artifactCount: branch.artifactCount,
+      lastActivity: branch.lastActivity,
+      parentId: branch.parentId,
+      children: [],
+    });
+  });
+
+  // Second pass: build parent-child relationships
+  branches.forEach(branch => {
+    const node = branchMap.get(branch.id)!;
+    if (branch.parentId === null || branch.parentId === undefined) {
+      rootNodes.push(node);
+    } else {
+      const parent = branchMap.get(branch.parentId);
+      if (parent) {
+        if (!parent.children) parent.children = [];
+        parent.children.push(node);
+      } else {
+        // Parent not found, treat as root
+        rootNodes.push(node);
+      }
+    }
+  });
+
+  return rootNodes;
+}
+
 type ModalStep = 'selection' | 'processing' | 'preview' | 'complete';
 
 /**
  * ConsolidateModal - Multi-step consolidation workflow
  *
  * Features:
- * - Step 1: Branch selection with checkboxes and file name input
+ * - Step 1: Branch selection with collapsible tree structure and checkboxes
  * - Step 2: Processing with progress bar
  * - Step 3: Preview with approval/reject buttons
  * - Step 4: Complete with success message
@@ -56,18 +103,47 @@ export function ConsolidateModal({
   sourceProvenanceMap,
   className,
 }: ConsolidateModalProps) {
-  const [selectedBranchIds, setSelectedBranchIds] = useState<string[]>([]);
+  const [selectedBranchIds, setSelectedBranchIds] = useState<Set<string>>(new Set());
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [fileName, setFileName] = useState('consolidated-analysis.md');
+  const [targetFolder, setTargetFolder] = useState('/workspace');
   const [step, setStep] = useState<ModalStep>('selection');
 
-  // Initialize with all branches selected
+  // Build complete branches array including the current branch as root
+  const allBranches: Branch[] = React.useMemo(() => {
+    if (!currentBranch) return childBranches;
+
+    const rootBranch: Branch = {
+      id: currentBranch.id,
+      title: currentBranch.title,
+      parentId: null,
+      depth: 0,
+      artifactCount: 0,
+      lastActivity: new Date(),
+    };
+
+    return [rootBranch, ...childBranches];
+  }, [currentBranch, childBranches]);
+
+  // Build thread tree structure
+  const threadTree = React.useMemo(() => {
+    return buildThreadTree(allBranches);
+  }, [allBranches]);
+
+  // Initialize with all child branches selected and all nodes expanded
   useEffect(() => {
     if (isOpen && childBranches.length > 0) {
-      setSelectedBranchIds(childBranches.map((b) => b.id));
+      setSelectedBranchIds(new Set(childBranches.map((b) => b.id)));
+      // Expand all parent nodes by default
+      const parentsWithChildren = allBranches.filter(b =>
+        allBranches.some(child => child.parentId === b.id)
+      );
+      setExpandedIds(new Set(parentsWithChildren.map(b => b.id)));
       setFileName('consolidated-analysis.md');
+      setTargetFolder('/workspace');
       setStep('selection');
     }
-  }, [isOpen, childBranches]);
+  }, [isOpen, childBranches, allBranches]);
 
   // Update step based on progress
   useEffect(() => {
@@ -90,17 +166,35 @@ export function ConsolidateModal({
   }, [isOpen, step, onClose]);
 
   const handleToggleBranch = (branchId: string) => {
-    setSelectedBranchIds((prev) =>
-      prev.includes(branchId) ? prev.filter((id) => id !== branchId) : [...prev, branchId]
-    );
+    setSelectedBranchIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(branchId)) {
+        next.delete(branchId);
+      } else {
+        next.add(branchId);
+      }
+      return next;
+    });
+  };
+
+  const handleToggleExpanded = (branchId: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(branchId)) {
+        next.delete(branchId);
+      } else {
+        next.add(branchId);
+      }
+      return next;
+    });
   };
 
   const handleStartConsolidation = () => {
-    onConfirmConsolidate(selectedBranchIds, fileName);
+    onConfirmConsolidate(Array.from(selectedBranchIds), targetFolder, fileName);
   };
 
   const handleApprove = () => {
-    onApproveConsolidation(fileName);
+    onApproveConsolidation(targetFolder, fileName);
     setStep('complete');
   };
 
@@ -156,38 +250,51 @@ export function ConsolidateModal({
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
                     Select Branches
                   </label>
-                  <div className="space-y-2 max-h-64 overflow-y-auto">
-                    {childBranches.map((branch) => (
-                      <label
-                        key={branch.id}
-                        className="flex items-center gap-3 p-3 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedBranchIds.includes(branch.id)}
-                          onChange={() => handleToggleBranch(branch.id)}
-                          className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                        />
-                        <div className="flex-1">
-                          <div className="font-medium text-gray-900 dark:text-gray-100">{branch.title}</div>
-                        </div>
-                        <Badge variant="secondary">{branch.artifactCount} artifacts</Badge>
-                      </label>
-                    ))}
+                  <div className="max-h-96 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-900">
+                    <ThreadTreeNode
+                      threads={threadTree}
+                      variant="checkbox"
+                      expandedThreads={expandedIds}
+                      selectedThreads={selectedBranchIds}
+                      onCheckboxToggle={handleToggleBranch}
+                      onToggleExpanded={handleToggleExpanded}
+                    />
                   </div>
                 </div>
 
-                <div>
-                  <label htmlFor="file-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Output File Name
-                  </label>
-                  <Input
-                    id="file-name"
-                    type="text"
-                    value={fileName}
-                    onChange={(e) => setFileName(e.target.value)}
-                    placeholder="consolidated-analysis.md"
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="target-folder" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Target Folder
+                    </label>
+                    <Input
+                      id="target-folder"
+                      type="text"
+                      value={targetFolder}
+                      onChange={(e) => setTargetFolder(e.target.value)}
+                      placeholder="/workspace"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="file-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      File Name
+                    </label>
+                    <Input
+                      id="file-name"
+                      type="text"
+                      value={fileName}
+                      onChange={(e) => setFileName(e.target.value)}
+                      placeholder="consolidated-analysis.md"
+                    />
+                  </div>
+                </div>
+
+                {/* Preview full path */}
+                <div className="px-3 py-2 bg-gray-100 dark:bg-gray-800 rounded-md">
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Full Path</div>
+                  <div className="text-sm font-mono text-gray-900 dark:text-gray-100">
+                    {targetFolder.endsWith('/') ? targetFolder : targetFolder + '/'}{fileName}
+                  </div>
                 </div>
               </div>
             )}
@@ -260,16 +367,38 @@ export function ConsolidateModal({
                   </div>
                 )}
 
-                <div>
-                  <label htmlFor="edit-file-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    File Name
-                  </label>
-                  <Input
-                    id="edit-file-name"
-                    type="text"
-                    value={fileName}
-                    onChange={(e) => setFileName(e.target.value)}
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="edit-target-folder" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Target Folder
+                    </label>
+                    <Input
+                      id="edit-target-folder"
+                      type="text"
+                      value={targetFolder}
+                      onChange={(e) => setTargetFolder(e.target.value)}
+                      placeholder="/workspace"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="edit-file-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      File Name
+                    </label>
+                    <Input
+                      id="edit-file-name"
+                      type="text"
+                      value={fileName}
+                      onChange={(e) => setFileName(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {/* Preview full path */}
+                <div className="px-3 py-2 bg-gray-100 dark:bg-gray-800 rounded-md">
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Full Path</div>
+                  <div className="text-sm font-mono text-gray-900 dark:text-gray-100">
+                    {targetFolder.endsWith('/') ? targetFolder : targetFolder + '/'}{fileName}
+                  </div>
                 </div>
               </div>
             )}
@@ -284,8 +413,8 @@ export function ConsolidateModal({
                 <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
                   Consolidation Complete
                 </h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  File created: {fileName}
+                <p className="text-sm text-gray-500 dark:text-gray-400 font-mono">
+                  {targetFolder.endsWith('/') ? targetFolder : targetFolder + '/'}{fileName}
                 </p>
               </div>
             )}
@@ -302,7 +431,7 @@ export function ConsolidateModal({
                   type="button"
                   variant="default"
                   onClick={handleStartConsolidation}
-                  disabled={selectedBranchIds.length === 0 || !fileName}
+                  disabled={selectedBranchIds.size === 0 || !fileName}
                 >
                   Consolidate
                 </Button>

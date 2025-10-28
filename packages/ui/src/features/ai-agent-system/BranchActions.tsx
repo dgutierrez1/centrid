@@ -38,10 +38,10 @@ export function BranchActions({
     <div className={cn('flex items-center gap-2', className)}>
       {/* Create Branch - Always visible */}
       <Button
-        variant="outline"
+        variant="ghost"
         size="sm"
         onClick={onCreateBranch}
-        className="gap-2"
+        className="gap-1.5 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
         aria-label="Create new branch"
       >
         <svg
@@ -58,16 +58,16 @@ export function BranchActions({
             d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"
           />
         </svg>
-        <span>Create Branch</span>
+        <span className="text-sm">Branch</span>
       </Button>
 
       {/* Consolidate - Only enabled if branch has children */}
       <Button
-        variant="outline"
+        variant="ghost"
         size="sm"
         onClick={onConsolidate}
         disabled={!branchHasChildren}
-        className="gap-2"
+        className="gap-1.5 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 disabled:opacity-40"
         aria-label="Consolidate from child branches"
         title={
           branchHasChildren
@@ -89,7 +89,7 @@ export function BranchActions({
             d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"
           />
         </svg>
-        <span>Consolidate</span>
+        <span className="text-sm">Consolidate</span>
       </Button>
 
       {/* Tree View - Optional, Phase 3 */}

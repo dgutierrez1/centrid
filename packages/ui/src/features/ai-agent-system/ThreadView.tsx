@@ -3,6 +3,7 @@ import { BranchSelector, Branch } from './BranchSelector';
 import { MessageStream } from './MessageStream';
 import { MessageProps } from './Message';
 import { ContextPanel, ContextGroup } from './ContextPanel';
+import { ContextReferenceProps } from './ContextReference';
 import { ThreadInput } from './ThreadInput';
 import { ToolCallApproval } from './ToolCallApproval';
 
@@ -41,6 +42,9 @@ export interface ThreadViewProps {
   onRejectToolCall?: (reason?: string) => void;
   onWidgetClick?: (type: string) => void;
   onBranchThread?: () => void;
+  onAddReference?: () => void;
+  onReferenceClick?: (item: Omit<ContextReferenceProps, 'isExpanded'>) => void;
+  onRemoveReference?: (item: Omit<ContextReferenceProps, 'isExpanded'>) => void;
   className?: string;
 }
 
@@ -64,6 +68,9 @@ export function ThreadView({
   onRejectToolCall,
   onWidgetClick,
   onBranchThread,
+  onAddReference,
+  onReferenceClick,
+  onRemoveReference,
   className = '',
 }: ThreadViewProps) {
   return (
@@ -80,7 +87,7 @@ export function ThreadView({
             {onBranchThread && (
               <button
                 onClick={onBranchThread}
-                className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800/50 rounded-md hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors whitespace-nowrap"
+                className="flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors whitespace-nowrap"
                 aria-label="Branch from current thread"
                 title="Create a new branch from this point in the conversation"
               >
@@ -113,7 +120,7 @@ export function ThreadView({
             {onBranchThread && (
               <button
                 onClick={onBranchThread}
-                className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800/50 rounded-md hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors whitespace-nowrap"
+                className="flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors whitespace-nowrap"
                 aria-label="Branch from current thread"
                 title="Create a new branch from this point in the conversation"
               >
@@ -157,6 +164,9 @@ export function ThreadView({
         isExpanded={isContextExpanded}
         onTogglePanel={onToggleContextPanel}
         onWidgetClick={onWidgetClick}
+        onAddReference={onAddReference}
+        onReferenceClick={onReferenceClick}
+        onRemoveReference={onRemoveReference}
       />
 
       {/* Input */}

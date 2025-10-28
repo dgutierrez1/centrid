@@ -1,10 +1,11 @@
 import React from 'react';
 import { ScrollArea } from '../../components/scroll-area';
 import { ContextTypeWidget } from './ContextTypeWidget';
+import { ExplicitContextWidget } from './ExplicitContextWidget';
 import { ContextReferenceProps } from './ContextReference';
 
 export interface ContextGroup {
-  type: 'explicit' | 'frequently-used' | 'semantic' | 'branch' | 'artifacts' | 'excluded';
+  type: 'explicit' | 'semantic' | 'branch' | 'artifacts';
   title: string;
   /** Context items without isExpanded (they inherit from section) */
   items: Omit<ContextReferenceProps, 'isExpanded'>[];
@@ -20,6 +21,12 @@ export interface ContextPanelProps {
   onTogglePanel: () => void;
   /** Handle widget click */
   onWidgetClick?: (type: string) => void;
+  /** Add explicit reference handler */
+  onAddReference?: () => void;
+  /** Reference click handler */
+  onReferenceClick?: (item: Omit<ContextReferenceProps, 'isExpanded'>) => void;
+  /** Remove reference handler */
+  onRemoveReference?: (item: Omit<ContextReferenceProps, 'isExpanded'>) => void;
   className?: string;
 }
 
@@ -28,10 +35,13 @@ export function ContextPanel({
   isExpanded,
   onTogglePanel,
   onWidgetClick,
+  onAddReference,
+  onReferenceClick,
+  onRemoveReference,
   className = '',
 }: ContextPanelProps) {
   // Calculate total items across all groups
-  const totalCount = contextGroups.reduce((sum, group) => sum + group.items.length, 0);
+  const totalCount = (contextGroups || []).reduce((sum, group) => sum + group.items.length, 0);
 
   return (
     <div
@@ -66,21 +76,68 @@ export function ContextPanel({
       </button>
 
       {/* Context Type Widgets - Always visible, widgets change their display based on isExpanded */}
-      <div className="px-4 pb-4">
-        <ScrollArea className="w-full">
-          <div className="flex items-start gap-3" data-testid="context-type-widgets">
-            {contextGroups.map((group) => (
-              <ContextTypeWidget
-                key={group.type}
-                type={group.type}
-                title={group.title}
-                items={group.items}
-                isExpanded={isExpanded}
-                onClick={() => onWidgetClick?.(group.type)}
-              />
-            ))}
-          </div>
-        </ScrollArea>
+      <div className={`px-4 pb-4 transition-all duration-300 ${isExpanded ? 'h-[160px]' : 'h-[40px]'}`}>
+        {isExpanded ? (
+          // Expanded: All widgets aligned horizontally with fixed height (4x collapsed: 160px vs 40px)
+          <ScrollArea className="w-full h-full">
+            <div className="flex items-start gap-3 h-full">
+              {(contextGroups || []).map((group) => {
+                if (group.type === 'explicit') {
+                  return (
+                    <ExplicitContextWidget
+                      key={group.type}
+                      items={group.items}
+                      isExpanded={isExpanded}
+                      onAddReference={onAddReference}
+                      onReferenceClick={onReferenceClick}
+                      onRemoveReference={onRemoveReference}
+                    />
+                  );
+                }
+                return (
+                  <ContextTypeWidget
+                    key={group.type}
+                    type={group.type}
+                    title={group.title}
+                    items={group.items}
+                    isExpanded={isExpanded}
+                    onClick={() => onWidgetClick?.(group.type)}
+                  />
+                );
+              })}
+            </div>
+          </ScrollArea>
+        ) : (
+          // Collapsed: All widgets on same row (40px height)
+          <ScrollArea className="w-full">
+            <div className="flex items-center gap-3" data-testid="context-type-widgets">
+              {(contextGroups || []).map((group) => {
+                if (group.type === 'explicit') {
+                  return (
+                    <ExplicitContextWidget
+                      key={group.type}
+                      items={group.items}
+                      isExpanded={isExpanded}
+                      onAddReference={onAddReference}
+                      onReferenceClick={onReferenceClick}
+                      onRemoveReference={onRemoveReference}
+                    />
+                  );
+                }
+                return (
+                  <ContextTypeWidget
+                    key={group.type}
+                    type={group.type}
+                    title={group.title}
+                    items={group.items}
+                    isExpanded={isExpanded}
+                    onClick={() => onWidgetClick?.(group.type)}
+                  />
+                );
+              })}
+            </div>
+          </ScrollArea>
+        )}
       </div>
     </div>
   );

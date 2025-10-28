@@ -3,8 +3,8 @@ import { Badge } from '../../components/badge';
 import { ContextReferenceProps } from './ContextReference';
 
 export interface ContextTypeWidgetProps {
-  /** Context type */
-  type: 'explicit' | 'frequently-used' | 'semantic' | 'branch' | 'artifacts' | 'excluded';
+  /** Context type (removed frequently-used and excluded) */
+  type: 'explicit' | 'semantic' | 'branch' | 'artifacts';
   /** Display title */
   title: string;
   /** Context items for this type */
@@ -23,7 +23,7 @@ export interface ContextTypeWidgetProps {
 export function ContextTypeWidget({
   type,
   title,
-  items,
+  items = [],
   isExpanded,
   onClick,
   maxItemsExpanded = 2,
@@ -83,19 +83,13 @@ export function ContextTypeWidget({
     }
   }, []);
 
-  // Type-specific colors
+  // Type-specific colors (removed frequently-used and excluded)
   const typeColors = {
     explicit: {
       border: 'border-l-primary-600',
       bg: 'bg-primary-50 dark:bg-primary-900/10',
       badge: 'bg-primary-600 text-white',
       text: 'text-primary-700 dark:text-primary-300',
-    },
-    'frequently-used': {
-      border: 'border-l-orange-600',
-      bg: 'bg-orange-50 dark:bg-orange-900/10',
-      badge: 'bg-orange-600 text-white',
-      text: 'text-orange-700 dark:text-orange-300',
     },
     semantic: {
       border: 'border-l-purple-600',
@@ -115,26 +109,15 @@ export function ContextTypeWidget({
       badge: 'bg-green-600 text-white',
       text: 'text-green-700 dark:text-green-300',
     },
-    excluded: {
-      border: 'border-l-gray-400',
-      bg: 'bg-gray-50 dark:bg-gray-900/10',
-      badge: 'bg-gray-600 text-white',
-      text: 'text-gray-700 dark:text-gray-300',
-    },
   };
 
   const colors = typeColors[type];
 
-  // Type-specific icons
+  // Type-specific icons (removed frequently-used and excluded)
   const typeIcons = {
     explicit: (
       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-      </svg>
-    ),
-    'frequently-used': (
-      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
     ),
     semantic: (
@@ -152,14 +135,145 @@ export function ContextTypeWidget({
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
       </svg>
     ),
-    excluded: (
-      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-      </svg>
-    ),
   };
 
-  // Collapsed state: Compact pill with icon and count + tooltip
+  // Get type label for collapsed state (row 1)
+  const getTypeLabel = () => {
+    switch (type) {
+      case 'explicit':
+        return 'Added';
+      case 'semantic':
+        return 'Related';
+      case 'branch':
+        return 'Branch';
+      case 'artifacts':
+        return 'Generated';
+      default:
+        return 'Context';
+    }
+  };
+
+  // Get label for collapsed state (count + type-specific label)
+  const getCountLabel = () => {
+    switch (type) {
+      case 'explicit':
+      case 'artifacts':
+        return count === 1 ? 'File' : 'Files';
+      case 'branch':
+        return count === 1 ? 'Node' : 'Nodes';
+      case 'semantic':
+        return count === 1 ? 'Match' : 'Matches';
+      default:
+        return 'items';
+    }
+  };
+
+  // Get percentage/metric for collapsed state (semantic only)
+  const getMetric = () => {
+    if (type === 'semantic' && items.length > 0 && items[0].relevanceScore) {
+      const topScore = Math.round(items[0].relevanceScore * 100);
+      return `${topScore}%`;
+    }
+    return null;
+  };
+
+  // Generate context summary for collapsed state (type-specific)
+  const getContextSummary = () => {
+    if (count === 0) return 'No context';
+
+    // Type-specific summary logic that describes what the context contains
+    switch (type) {
+      case 'explicit':
+        // Describe explicit references with file info
+        if (count === 1) {
+          const fileName = items[0].name;
+          const shortName = fileName.length > 14 ? fileName.substring(0, 14) + '...' : fileName;
+          return shortName;
+        }
+        return `${count} files added`;
+
+      case 'semantic':
+        // Show relevance-based summary with top match
+        if (items.length > 0 && items[0].relevanceScore) {
+          const topScore = Math.round(items[0].relevanceScore * 100);
+          const semanticFile = items[0].name.substring(0, 10);
+          if (count === 1) {
+            return `${semanticFile}... (${topScore}%)`;
+          }
+          return `${semanticFile}... +${count - 1} (${topScore}%)`;
+        }
+        return `${count} related docs`;
+
+      case 'frequently-used':
+        // Show the frequently used file name
+        if (count === 1) {
+          const fileName = items[0].name;
+          const shortName = fileName.length > 14 ? fileName.substring(0, 14) + '...' : fileName;
+          return shortName;
+        }
+        const frequentFile = items[0].name.substring(0, 12);
+        return `${frequentFile}... +${count - 1}`;
+
+      case 'branch':
+        // Show branch name or count
+        const branchName = items[0]?.sourceBranch;
+        if (branchName) {
+          const shortBranch = branchName.length > 14 ? branchName.substring(0, 14) + '...' : branchName;
+          if (count === 1) {
+            return shortBranch;
+          }
+          return `${shortBranch} (${count})`;
+        }
+        return `${count} branch items`;
+
+      case 'artifacts':
+        // Show artifact name
+        if (count === 1) {
+          const fileName = items[0].name;
+          const shortName = fileName.length > 14 ? fileName.substring(0, 14) + '...' : fileName;
+          return shortName;
+        }
+        const artifactFile = items[0].name.substring(0, 12);
+        return `${artifactFile}... +${count - 1}`;
+
+      case 'excluded':
+        // Show excluded file name
+        if (count === 1) {
+          const fileName = items[0].name;
+          const shortName = fileName.length > 14 ? fileName.substring(0, 14) + '...' : fileName;
+          return shortName;
+        }
+        return `${count} removed`;
+
+      default:
+        // Fallback
+        return `${count} items`;
+    }
+  };
+
+  // Generate expanded state summary (type-specific insight)
+  const getExpandedSummary = () => {
+    if (count === 0) return null;
+
+    switch (type) {
+      case 'explicit':
+        return 'Directly referenced in conversation';
+      case 'semantic':
+        if (items.length > 0 && items[0].relevanceScore) {
+          const topScore = Math.round(items[0].relevanceScore * 100);
+          return `Top match: ${topScore}% relevant`;
+        }
+        return 'Semantically matched content';
+      case 'branch':
+        return 'Shared from parent branch';
+      case 'artifacts':
+        return 'AI-generated files';
+      default:
+        return null;
+    }
+  };
+
+  // Collapsed state: Single row with icon, count, and metric
   if (!isExpanded) {
     return (
       <div
@@ -168,20 +282,29 @@ export function ContextTypeWidget({
         onMouseLeave={() => setShowTooltip(false)}
       >
         <div
-          className={`relative h-7 px-2 ${colors.bg} cursor-pointer hover:opacity-80 transition-all duration-300 ease-in-out shrink-0 rounded-full border ${colors.border} shadow-sm ${className}`}
+          className={`relative w-auto max-w-[160px] h-10 px-3 py-2 ${colors.bg} cursor-pointer hover:shadow-md hover:scale-[1.02] transition-all duration-200 ease-out shrink-0 rounded-full border ${colors.border} shadow-sm ${className}`}
           onClick={onClick}
           data-testid={`context-widget-${type}-collapsed`}
           style={{
             animation: 'collapse 0.3s ease-in-out',
           }}
         >
-          <div className="flex items-center h-full gap-1.5">
-            <span className={colors.text}>
+          {/* Single row: Icon + Count + Label + Metric (if semantic) */}
+          <div className="flex items-center gap-2 h-full justify-center">
+            <span className={`${colors.text} shrink-0`}>
               {typeIcons[type]}
             </span>
-            <span className={`text-xs font-semibold ${colors.text}`}>
+            <span className={`text-sm font-bold ${colors.text} shrink-0`}>
               {count}
             </span>
+            <span className={`text-xs font-medium ${colors.text} opacity-70 shrink-0`}>
+              {getCountLabel()}
+            </span>
+            {getMetric() && (
+              <span className={`text-xs font-medium ${colors.text} opacity-70 shrink-0`}>
+                {getMetric()}
+              </span>
+            )}
           </div>
         </div>
 
@@ -265,10 +388,10 @@ export function ContextTypeWidget({
     );
   }
 
-  // Expanded state: Show top items + overflow (narrower width: 140px)
+  // Expanded state: Show top items + overflow (narrower width: 140px, full height to match container)
   return (
     <div
-      className={`relative min-h-[80px] w-[140px] p-2 border-l-4 ${colors.border} ${colors.bg} cursor-pointer hover:shadow-md transition-all duration-300 ease-in-out shrink-0 rounded-lg border bg-card text-card-foreground shadow-sm ${className}`}
+      className={`relative h-full w-[140px] p-2 border-l-4 ${colors.border} ${colors.bg} cursor-pointer hover:shadow-md transition-all duration-300 ease-in-out shrink-0 rounded-2xl border bg-card text-card-foreground shadow-sm ${className}`}
       onClick={onClick}
       data-testid={`context-widget-${type}-expanded`}
       title={title}
@@ -277,7 +400,7 @@ export function ContextTypeWidget({
       }}
     >
       {/* Header */}
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center justify-between mb-1">
         <div className="flex items-center gap-1.5">
           <span className={colors.text}>
             {typeIcons[type]}
@@ -287,6 +410,15 @@ export function ContextTypeWidget({
           </span>
         </div>
       </div>
+
+      {/* Type-specific summary/insight */}
+      {getExpandedSummary() && (
+        <div className="mb-2 px-1">
+          <p className="text-[9px] text-gray-500 dark:text-gray-400 leading-tight">
+            {getExpandedSummary()}
+          </p>
+        </div>
+      )}
 
       {/* Items list */}
       {count === 0 ? (
@@ -298,10 +430,10 @@ export function ContextTypeWidget({
           {visibleItems.map((item, index) => (
             <div
               key={index}
-              className="flex items-center gap-1.5 p-1.5 rounded bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
+              className={`flex items-center gap-1.5 px-2 py-1.5 rounded-full ${colors.bg} border ${colors.border.replace('border-l-', 'border-')} hover:shadow-sm hover:scale-[1.02] transition-all cursor-pointer`}
             >
               {/* Icon */}
-              <div className="shrink-0 text-gray-500 dark:text-gray-400">
+              <div className={`shrink-0 ${colors.text}`}>
                 {item.referenceType === 'file' && (
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -321,17 +453,17 @@ export function ContextTypeWidget({
 
               {/* Name */}
               <div className="flex-1 min-w-0">
-                <div className="text-[10px] font-medium text-gray-900 dark:text-white truncate">
+                <div className={`text-[10px] font-medium ${colors.text} truncate`}>
                   {item.name}
                 </div>
                 {/* Type-specific metadata */}
                 {type === 'semantic' && item.relevanceScore !== undefined && (
-                  <div className="text-[9px] text-gray-500 dark:text-gray-400">
+                  <div className={`text-[9px] ${colors.text} opacity-70`}>
                     {Math.round(item.relevanceScore * 100)}% match
                   </div>
                 )}
                 {item.sourceBranch && type !== 'semantic' && (
-                  <div className="text-[9px] text-gray-500 dark:text-gray-400 truncate">
+                  <div className={`text-[9px] ${colors.text} opacity-70 truncate`}>
                     {item.sourceBranch}
                   </div>
                 )}
@@ -341,7 +473,7 @@ export function ContextTypeWidget({
 
           {/* Overflow indicator */}
           {remainingCount > 0 && (
-            <div className="text-[10px] text-center py-1 text-gray-600 dark:text-gray-400 font-medium">
+            <div className={`text-[10px] text-center py-1 ${colors.text} font-medium opacity-70`}>
               +{remainingCount} more
             </div>
           )}

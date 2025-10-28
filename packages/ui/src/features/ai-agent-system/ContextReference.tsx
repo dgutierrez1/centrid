@@ -106,51 +106,85 @@ export function ContextReference({
     ),
   };
 
-  // Collapsed state: Compact 32px pill
+  // Generate context summary for collapsed state
+  const getContextSummary = () => {
+    // If we have a source branch, use that as the primary context
+    if (sourceBranch) {
+      const shortBranch = sourceBranch.length > 12 ? sourceBranch.substring(0, 12) + '...' : sourceBranch;
+      if (relevanceScore !== undefined) {
+        return `${shortBranch} (${Math.round(relevanceScore * 100)}%)`;
+      }
+      return shortBranch;
+    }
+
+    // Fallback to showing relevance score or just the type
+    if (relevanceScore !== undefined) {
+      return `${Math.round(relevanceScore * 100)}% match`;
+    }
+
+    return referenceType === 'thread' ? 'Discussion' : 'File';
+  };
+
+  // Collapsed state: Compact pill with context summary
   if (!isExpanded) {
     const content = (
-      <div
-        className={`inline-flex items-center gap-2 h-8 px-3 rounded-full bg-gray-100 dark:bg-gray-800 border ${tierColors[priorityTier]} border-l-4 cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors ${className}`}
+      <Card
+        className={`w-[200px] shrink-0 h-10 px-3 py-2 border-l-4 ${tierColors[priorityTier]} cursor-pointer hover:shadow-md hover:scale-105 transition-all ${className}`}
         onClick={onClick}
         data-testid="context-reference-collapsed"
       >
-        <span className="text-gray-700 dark:text-gray-300">{iconMap[referenceType]}</span>
-        <span className="text-sm font-medium text-gray-900 dark:text-white truncate max-w-[120px]">
-          {name}
-        </span>
-        {relevanceScore !== undefined && (
-          <span className="text-xs text-gray-500 dark:text-gray-400">
-            {Math.round(relevanceScore * 100)}%
-          </span>
-        )}
-      </div>
+        <div className="flex items-center justify-between h-full gap-2">
+          {/* Left: Icon + Context Summary */}
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <span className="text-gray-600 dark:text-gray-400 shrink-0">
+              {iconMap[referenceType]}
+            </span>
+            <span className="text-xs font-medium text-gray-700 dark:text-gray-300 truncate">
+              {getContextSummary()}
+            </span>
+          </div>
+
+          {/* Right: Relevance score badge (if available) */}
+          {relevanceScore !== undefined && (
+            <span className="text-xs font-semibold text-gray-900 dark:text-white shrink-0">
+              {Math.round(relevanceScore * 100)}%
+            </span>
+          )}
+        </div>
+      </Card>
     );
 
-    // Tooltip for collapsed state
+    // Improved tooltip for collapsed state
     return (
       <TooltipProvider>
-        <Tooltip>
+        <Tooltip delayDuration={200}>
           <TooltipTrigger asChild>{content}</TooltipTrigger>
-          <TooltipContent side="top" className="max-w-xs">
-            <div className="flex flex-col gap-1 text-xs">
-              <div className="font-semibold">{name}</div>
-              {sourceBranch && <div className="text-gray-400">From: {sourceBranch}</div>}
+          <TooltipContent
+            side="top"
+            className="max-w-xs bg-gray-900 dark:bg-gray-800 text-white border-gray-700 px-3 py-2 shadow-lg"
+          >
+            <div className="flex flex-col gap-1.5 text-sm">
+              <div className="font-semibold text-white">{name}</div>
+              {sourceBranch && (
+                <div className="flex items-center gap-1.5 text-gray-300">
+                  <span className="text-xs">From:</span>
+                  <span className="font-medium">{sourceBranch}</span>
+                </div>
+              )}
               {relevanceScore !== undefined && (
-                <div className="text-gray-400">Relevance: {Math.round(relevanceScore * 100)}%</div>
+                <div className="flex items-center gap-1.5 text-gray-300">
+                  <span className="text-xs">Match:</span>
+                  <span className="font-medium">{Math.round(relevanceScore * 100)}%</span>
+                </div>
               )}
               {timestamp && (
-                <div className="text-gray-400">
+                <div className="text-xs text-gray-400">
                   {timestamp.toLocaleString([], {
                     month: 'short',
                     day: 'numeric',
                     hour: '2-digit',
                     minute: '2-digit',
                   })}
-                </div>
-              )}
-              {relationship && (
-                <div className="text-gray-400">
-                  Relationship: {relationship} (+{relationship === 'sibling' ? 0.15 : 0.10})
                 </div>
               )}
             </div>
@@ -160,10 +194,10 @@ export function ContextReference({
     );
   }
 
-  // Expanded state: Full 80px card
+  // Expanded state: Compact card with improved spacing
   return (
     <Card
-      className={`relative w-[200px] h-20 p-3 border-l-4 ${tierColors[priorityTier]} cursor-pointer transition-all hover:shadow-md ${
+      className={`relative w-[200px] shrink-0 p-2.5 border-l-4 ${tierColors[priorityTier]} cursor-pointer transition-all hover:shadow-md ${
         isHovered ? 'ring-2 ring-primary-500' : ''
       } ${className}`}
       onClick={onClick}
@@ -171,9 +205,11 @@ export function ContextReference({
       onMouseLeave={() => setIsHovered(false)}
       data-testid="context-reference-expanded"
     >
-      <div className="flex flex-col h-full justify-between">
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex items-center gap-2 flex-1 min-w-0">
+      {/* Vertical layout with tighter spacing */}
+      <div className="flex flex-col gap-1.5">
+        {/* Top: Icon + Name + Tier Badge (horizontal) */}
+        <div className="flex items-center justify-between gap-2 min-w-0">
+          <div className="flex items-center gap-1.5 flex-1 min-w-0">
             <span className="text-gray-600 dark:text-gray-400 shrink-0">
               {iconMap[referenceType]}
             </span>
@@ -181,18 +217,35 @@ export function ContextReference({
               {name}
             </span>
           </div>
-          <Badge className={`text-xs shrink-0 ${tierBadgeColors[priorityTier]}`}>
+          <Badge className={`text-[10px] px-1.5 py-0.5 ${tierBadgeColors[priorityTier]} shrink-0`}>
             {tierLabels[priorityTier]}
           </Badge>
         </div>
 
-        <div className="flex items-center justify-between gap-2 text-xs text-gray-500 dark:text-gray-400">
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            {sourceBranch && <span className="truncate">{sourceBranch}</span>}
+        {/* Bottom: Metadata - Branch + Relevance Score (inline if space allows) */}
+        <div className="flex flex-col gap-0.5 text-xs text-gray-500 dark:text-gray-400">
+          {sourceBranch && (
+            <div className="flex items-center gap-1 truncate">
+              <span className="text-[10px] text-gray-400 shrink-0">From:</span>
+              <span className="truncate">{sourceBranch}</span>
+            </div>
+          )}
+          <div className="flex items-center justify-between gap-2">
             {relevanceScore !== undefined && (
-              <Badge variant="secondary" className="text-xs">
-                {Math.round(relevanceScore * 100)}%
-              </Badge>
+              <div className="flex items-center gap-1">
+                <span className="text-[10px] text-gray-400 shrink-0">Match:</span>
+                <span className="font-medium">{Math.round(relevanceScore * 100)}%</span>
+              </div>
+            )}
+            {timestamp && (
+              <div className="text-[10px] text-gray-400">
+                {timestamp.toLocaleString([], {
+                  month: 'short',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </div>
             )}
           </div>
         </div>
@@ -200,12 +253,12 @@ export function ContextReference({
 
       {/* Action buttons on hover (expanded state only) */}
       {isHovered && (
-        <div className="absolute top-2 right-2 flex items-center gap-1 animate-slide-in-right">
+        <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 animate-slide-in-right">
           {onAddToExplicit && priorityTier !== 1 && (
             <Button
               size="sm"
               variant="ghost"
-              className="h-6 w-6 p-0"
+              className="h-5 w-5 p-0 hover:bg-gray-100 dark:hover:bg-gray-800"
               onClick={(e) => {
                 e.stopPropagation();
                 onAddToExplicit();
@@ -226,7 +279,7 @@ export function ContextReference({
             <Button
               size="sm"
               variant="ghost"
-              className="h-6 w-6 p-0 text-red-600 hover:text-red-700"
+              className="h-5 w-5 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
               onClick={(e) => {
                 e.stopPropagation();
                 onRemove();
@@ -247,7 +300,7 @@ export function ContextReference({
             <Button
               size="sm"
               variant="ghost"
-              className="h-6 w-6 p-0"
+              className="h-5 w-5 p-0 hover:bg-gray-100 dark:hover:bg-gray-800"
               onClick={(e) => {
                 e.stopPropagation();
                 onDismiss();

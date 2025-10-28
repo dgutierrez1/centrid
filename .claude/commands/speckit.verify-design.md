@@ -16,7 +16,7 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 0. **Delete Existing Artifacts**: Remove `design-validation.md` and all screenshots (ensures fresh validation every time)
 1. **Setup**: Run `.specify/scripts/bash/check-prerequisites.sh --json` to get FEATURE_DIR and AVAILABLE_DOCS
-2. **Load Context**: Read arch.md, ux.md (UI features), design.md (REQUIRED), check for design-system components
+2. **Load Context**: Read spec.md, arch.md, ux.md (validation sources - NOT design.md)
 3. **Validation Checks**: Verify all screens/components designed, exports correct
 4. **Browser MCP Verification**: Navigate to design-system app, generate screenshots, verify layouts
 5. **Generate Report**: Create NEW design-validation.md with READY/BLOCKED status
@@ -80,7 +80,7 @@ if "arch.md" NOT in AVAILABLE_DOCS AND "ux.md" NOT in AVAILABLE_DOCS:
 - Read `$FEATURE_DIR/spec.md` (for user stories and acceptance criteria)
 - Read `$FEATURE_DIR/arch.md` (for screen inventory - if exists)
 - Read `$FEATURE_DIR/ux.md` (for detailed UX flows - if exists, PRIMARY SOURCE)
-- Read `$FEATURE_DIR/design.md` (for design documentation - REQUIRED)
+- ❌ DO NOT read design.md (this is what we're validating, not an input)
 
 **Extract feature name**:
 - Parse feature directory name (e.g., "004-ai-agent-system" → "ai-agent-system")
@@ -322,31 +322,99 @@ For each component:
 #### Setup & Matrix Building
 
 1. **Check design-system app** (port 3001): Start if not running, error if fails
-2. **Parse ux.md routes**: Extract `**Route**: /path` (ERROR if missing), flows (#### headers), states (from flow tables: trigger, component)
-3. **Build matrix**: screen × flow × state × viewport → verification tasks (e.g., 9 flows × 3 states × 2 viewports = 54 tasks)
+
+2. **Map production routes to design-system showcase**:
+   - Parse ux.md for `**Route**: /path` (e.g., `/thread/:threadId`)
+   - Map to design-system showcase path:
+     - Common mappings: `/thread/:threadId` → `/ai-agent-system/workspace`
+     - Check `apps/design-system/pages/{feature-name}/` for available routes
+     - If no showcase route exists: SKIP browser verification, validate components only
+
+3. **Parse flows from ux.md**: Extract flows (#### headers), states (from flow tables: trigger, component)
+
+4. **Build verification matrix**: screen × flow × state × viewport → tasks (e.g., 9 flows × 3 states × 2 viewports = 54 tasks)
 
 #### Parallel Sub-Agent Execution
 
-Spawn all tasks in parallel using Task tool (single message, multiple invocations):
+Spawn all tasks in parallel using Task tool (single message, multiple invocations).
 
-**Each sub-agent** (playwright-contexts MCP):
+**CRITICAL - Provide complete context to each sub-agent**:
+```
+You are verifying flow: {flow_name}
+Production route: {production_route} (from ux.md)
+Design-system showcase: http://localhost:3001{showcase_route}
+Viewport: {width}×{height} ({desktop|mobile})
+Target state: {state_name}
+
+Flow details from ux.md:
+- Steps: {flow_steps_summary}
+- Components involved: {component_list}
+- Expected behavior: {expected_behavior}
+
+Your task:
+1. Navigate to showcase route
+2. Trigger the flow state (URL params first, then interactive)
+3. Screenshot: {screen}-{flow}-{state}-{viewport}.png
+4. Validate layout and check console errors
+5. Return result with status
+
+Skip conditions (return SKIPPED):
+- Flow requires live backend API (actual agent execution, real consolidation)
+- Flow requires file system access (actual file upload, real file creation)
+- Component NOT implemented (Phase 3 features)
+
+Do NOT skip (these are testable UI states):
+- Mock streaming (pure UI animation)
+- Modal open/close (pure UI)
+- Form validation errors (pure UI)
+- Context panel expand/collapse (pure UI)
+```
+
+**Each sub-agent execution** (playwright MCP):
 ```
 Context: {screen-slug}-{flow-slug}-{state-slug}-{viewport}
-Route: http://localhost:3001{route}?flow={flow-slug}&state={state-slug}
+Showcase route: http://localhost:3001{showcase_route}
 
 Execution:
-1. Create context (isolated viewport)
-2. Navigate with URL params (fallback: interactive trigger)
-3. Skip if: trigger contains "agent"/"manual"/"approval" (return SKIPPED)
-4. Screenshot: {screen}-{flow}-{state}-{viewport}.png
-5. Validate layout (JS eval):
+1. Create context (isolated viewport: {width}×{height})
+
+2. Navigate to showcase
+
+3. **Trigger state** (try in order):
+   a. URL params: Navigate to `{route}?flow={flow-slug}&state={state-slug}`
+   b. Check if state changed (compare DOM or screenshot before/after)
+   c. If no change, use interactive trigger:
+      - Flow 1 (Send Message): Type text → Click send → Wait for streaming UI
+      - Flow 2 (Create Branch): Click "Create Branch" → Modal opens
+      - Flow 3 (Semantic): Message sent → Context panel updates
+      - {other flow-specific triggers from ux.md}
+   d. If trigger requires backend/filesystem: return SKIPPED
+
+4. Screenshot: {flow-slug}-{state-slug}-{viewport}.png
+   - Example: send-message-streaming-desktop.png
+   - For single-screen features: use flow name directly
+   - For multi-screen features: prefix with screen name (screen-flow-state-viewport.png)
+
+5. Validate layout (JS eval with fallback selectors):
+   - Try data-testid first, then class/tag fallbacks
    - Panel widths: ±5% tolerance (>10% = BLOCKER, 5-10% = WARNING)
    - Gap spacing: ±2px tolerance
    - Component visibility
-6. Check console errors (any = BLOCKER)
+
+6. Check console errors (filter out favicon 404, check for JS errors)
+
 7. Close context
 
-Return: {task_id, screenshot, status: READY|SKIPPED|BLOCKED, layout_valid, layout_dimensions, issues, console_errors}
+Return: {
+  task_id: string,
+  screenshot: string,
+  status: "READY" | "SKIPPED" | "BLOCKED",
+  skip_reason?: string,
+  layout_valid: boolean,
+  layout_dimensions?: object,
+  issues: string[],
+  console_errors: string[]
+}
 ```
 
 **Layout Validation JS**:
@@ -371,9 +439,16 @@ Return: {task_id, screenshot, status: READY|SKIPPED|BLOCKED, layout_valid, layou
 #### Aggregation
 
 Collect all results, calculate:
-- `ready_count`, `skipped_count`, `blocked_count`, `skipped_percentage`
-- **Status**: BLOCKED if blocked_count > 0, PARTIAL if skipped_percentage > 50%, else READY
-- Group by route → flow → viewport for reporting
+- `ready_count`, `skipped_count`, `blocked_count`, `total_count`
+- `skipped_percentage` = (skipped_count / total_count) × 100
+- `blocked_percentage` = (blocked_count / total_count) × 100
+
+**Determine status**:
+- **BLOCKED**: if blocked_percentage ≥ 25% (too many critical failures)
+- **PARTIAL**: if blocked_percentage < 25% OR skipped_percentage > 50%
+- **READY**: if blocked_percentage < 25% AND skipped_percentage ≤ 50%
+
+Group by route → flow → viewport for reporting
 
 ---
 
@@ -382,30 +457,39 @@ Collect all results, calculate:
 **MANDATORY**: Verification must complete before generating report.
 
 ```
-if overall_status == "BLOCKED":
+Calculate percentages:
+- blocked_percentage = (blocked_count / total_count) × 100
+- skipped_percentage = (skipped_count / total_count) × 100
+
+if blocked_percentage ≥ 25:
   STATUS: BLOCKED
-  ERROR: "${overall_message}"
-  ERROR: "Fix blocking issues before proceeding to task generation"
+  ERROR: "Too many flows blocked (${blocked_count}/${total_count} = ${blocked_percentage}%)"
+  ERROR: "Threshold: 25% blocked = BLOCKER. Fix critical issues before proceeding."
 
   List all BLOCKER issues:
-  ${for result in results where has_blocker_issues(result):
-    - ${result.task_id}: ${result.blocker_summary}
+  ${for result in results where status == "BLOCKED":
+    - ${result.task_id}: ${result.issues.join(", ")}
   }
 
-  STOP: Cannot proceed with blockers
+  STOP: Cannot proceed to task generation
 
-elif overall_status == "PARTIAL":
+elif blocked_count > 0 OR skipped_percentage > 50:
   STATUS: PARTIAL
-  WARNING: "${overall_message}"
+  WARNING: "${blocked_count} flows blocked (${blocked_percentage}%), ${skipped_count} flows skipped (${skipped_percentage}%)"
+
+  If blocked_count > 0:
+    WARNING: "Some flows blocked but under 25% threshold - proceed with caution"
+    List blocked flows: ${blocked_tasks}
 
   If skipped_percentage > 50:
-    WARNING: "More than 50% states skipped - extensive manual verification will be needed during implementation"
+    WARNING: "More than 50% states skipped - extensive manual verification needed during implementation"
+    List skipped flows: ${skipped_tasks}
 
   Can proceed to report generation with warnings
 
 else:
   STATUS: READY
-  SUCCESS: "All verification tasks passed"
+  SUCCESS: "All verification tasks passed (${ready_count}/${total_count} ready, ${blocked_percentage}% blocked, ${skipped_percentage}% skipped)"
   Proceed to report generation
 ```
 
@@ -913,9 +997,9 @@ Address user input:
 ## Key Rules
 
 **Prerequisites**:
-- design.md MUST exist
-- arch.md MUST exist
-- ux.md OPTIONAL (if exists, run Step 2.5)
+- design.md MUST exist (checked but NOT loaded as context - it's what we validate)
+- arch.md MUST exist (loaded as context - screen inventory source)
+- ux.md OPTIONAL (if exists, loaded as context + run Step 2.5)
 
 **Critical Validation**:
 - **Step 2.5 is MANDATORY** if ux.md exists
@@ -928,21 +1012,31 @@ Address user input:
 - PARTIAL: P1 complete, P2/P3 issues
 - BLOCKED: P1 issues OR flow components missing
 
+**When design.md IS read**:
+- Step 2.75: Read Screen-to-Component Mapping table (validation only)
+- Step 3: Check for Layout Deviations section (intentional changes)
+- Step 6.5: Update Screenshots section after generation (write operation)
+
 **No Improvisation**:
 - Don't skip Step 2.5
 - Don't downgrade BLOCKERS to WARNINGS
 - Don't report READY if Step 2.5 finds gaps
+- Don't read design.md as general context (only for specific validation steps)
 
 ---
 
 ## Integration Points
 
-**Input dependencies**:
+**Input dependencies (validation sources)**:
+- `spec.md` (REQUIRED) - User stories, acceptance criteria
 - `arch.md` (REQUIRED) - Screen inventory source
-- `ux.md` (OPTIONAL) - UX flow cross-reference
-- `design.md` (REQUIRED) - Design documentation to validate
-- `packages/ui/src/features/[feature-name]/` - Component implementations
-- `packages/ui/src/features/index.ts` - Component exports
+- `ux.md` (OPTIONAL) - UX flow specs, component props, interaction patterns
+- `packages/ui/src/features/[feature-name]/` - Component implementations (current state)
+- `packages/ui/src/features/index.ts` - Component exports (current state)
+- Design-system app (http://localhost:3001) - Live rendering (current state)
+
+**Validation target** (what we validate, not an input):
+- `design.md` (REQUIRED) - Screen-to-Component Mapping table, Layout Deviations section
 
 **Output used by**:
 - `/speckit.tasks` - Blocks task generation if status is BLOCKED
