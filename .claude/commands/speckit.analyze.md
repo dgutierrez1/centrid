@@ -75,6 +75,17 @@ Create internal representations (do not include raw artifacts in output):
 
 ### 4. Detection Passes (Token-Efficient Analysis)
 
+**REQUIRED OUTPUT**: Passes A-F MUST return `analysis_results` containing:
+- `total_findings`: Number
+- `critical_count`, `high_count`, `medium_count`, `low_count`: Numbers
+- `coverage_percentage`: Number
+- `constitution_violations[]`: Array
+- `findings[]`: Array of finding objects
+
+**This data is required by Step 6** - if missing, report will be visibly broken.
+
+---
+
 Focus on high-signal findings. Limit to 50 findings total; aggregate remainder in overflow summary.
 
 #### A. Duplication Detection
@@ -120,7 +131,34 @@ Use this heuristic to prioritize findings:
 - **MEDIUM**: Terminology drift, missing non-functional task coverage, underspecified edge case
 - **LOW**: Style/wording improvements, minor redundancy not affecting execution order
 
+### 5.5. Analysis Enforcement Check
+
+**MANDATORY before producing report** - verify Steps 3-4 were actually completed:
+
+```
+Check: Does analysis_results variable exist with required fields?
+- analysis_results.total_findings (number)
+- analysis_results.critical_count (number)
+- analysis_results.coverage_percentage (number)
+- analysis_results.findings (array)
+
+If ANY field is missing or undefined:
+  ERROR: "Analysis was skipped or incomplete"
+  ACTION: "Re-executing detection passes now..."
+  STOP: Do not produce report
+  Re-execute Steps 3-4 completely
+```
+
+**Only proceed to Step 6 if analysis_results is complete**
+
+---
+
 ### 6. Produce Compact Analysis Report
+
+**REQUIRED DATA** (populated from Steps 3-4):
+- Total findings: `{analysis_results.total_findings}`
+- Critical issues: `{analysis_results.critical_count}`
+- Coverage: `{analysis_results.coverage_percentage}%`
 
 Output a Markdown report (no file writes) with the following structure:
 
@@ -143,12 +181,12 @@ Output a Markdown report (no file writes) with the following structure:
 
 **Metrics:**
 
-- Total Requirements
-- Total Tasks
-- Coverage % (requirements with >=1 task)
-- Ambiguity Count
-- Duplication Count
-- Critical Issues Count
+- Total Requirements: {analysis_results.total_requirements}
+- Total Tasks: {analysis_results.total_tasks}
+- Coverage %: {analysis_results.coverage_percentage}%
+- Ambiguity Count: {analysis_results.ambiguity_count}
+- Duplication Count: {analysis_results.duplication_count}
+- Critical Issues: {analysis_results.critical_count}
 
 ### 7. Provide Next Actions
 

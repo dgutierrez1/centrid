@@ -102,6 +102,15 @@ Validate tasks.md to ensure:
 
 ### 3. Validation Gate 1: Completeness
 
+**REQUIRED OUTPUT**: Gates 1-4 MUST return `validation_results` containing:
+- `completeness_score`, `pattern_score`, `dependency_score`, `ambiguity_score`: Numbers
+- `critical_issues[]`, `warnings[]`: Arrays
+- `overall_status`: "READY" | "CAUTION" | "BLOCKED"
+
+**This data is required by Step 8** - if missing, summary will be visibly broken.
+
+---
+
 **Check each task has**:
 
 | Element           | PASS Criteria                | FAIL Examples                          |
@@ -296,7 +305,36 @@ FAIL - Task 4.1: Implement file upload
 
 ---
 
+### 7.5. Validation Enforcement Check
+
+**MANDATORY before generating summary** - verify Gates 1-4 were actually completed:
+
+```
+Check: Does validation_results variable exist with required fields?
+- validation_results.completeness_score (number)
+- validation_results.pattern_score (number)
+- validation_results.dependency_score (number)
+- validation_results.ambiguity_score (number)
+- validation_results.critical_issues (array)
+- validation_results.overall_status (string)
+
+If ANY field is missing or undefined:
+  ERROR: "Task validation was skipped or incomplete"
+  ACTION: "Re-executing validation gates now..."
+  STOP: Do not generate summary
+  Re-execute Steps 3-6 completely
+```
+
+**Only proceed to Step 8 if validation_results is complete**
+
+---
+
 ### 8. Report Summary
+
+**REQUIRED DATA** (populated from Steps 3-6):
+- Completeness: `{validation_results.completeness_score}%`
+- Critical issues: `{validation_results.critical_issues.length}`
+- Status: `{validation_results.overall_status}`
 
 **Determine overall status**:
 

@@ -18,6 +18,7 @@
     "api:types": "npm run supabase:types --workspace=@centrid/api"
   },
   "devDependencies": {
+    "playwright": "^1.56.1",
     "shadcn": "^3.4.2",
     "supabase": "^1.123.4",
     "turbo": "^1.10.0",

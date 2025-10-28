@@ -263,6 +263,17 @@ You **MUST** consider the user input before proceeding (if not empty).
    - **Execution flow**: Order and dependency requirements
 
 6. Execute implementation following the task plan:
+
+**REQUIRED OUTPUT**: This step MUST return `implementation_results` containing:
+- `total_tasks`, `completed_tasks`, `failed_tasks`, `skipped_tasks`: Numbers
+- `files_created[]`, `files_modified[]`: Arrays
+- `integration_status`: "SUCCESS" | "PARTIAL" | "FAILED"
+- `overall_status`: "COMPLETE" | "PARTIAL" | "BLOCKED"
+
+**This data is required by Step 9** - if missing, summary will be visibly broken.
+
+---
+
    - **Phase-by-phase execution**: Complete each phase before moving to the next
    - **Respect dependencies**: Run sequential tasks in order, parallel tasks [P] can run together  
    - **Follow TDD approach**: Execute test tasks before their corresponding implementation tasks
@@ -292,7 +303,36 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Suggest next steps if implementation cannot proceed
    - **IMPORTANT** For completed tasks, make sure to mark the task off as [X] in the tasks file.
 
+8.5. Implementation Enforcement Check
+
+**MANDATORY before completion validation** - verify Step 6 was actually executed:
+
+```
+Check: Does implementation_results variable exist with required fields?
+- implementation_results.total_tasks (number)
+- implementation_results.completed_tasks (number)
+- implementation_results.failed_tasks (number)
+- implementation_results.files_created (array)
+- implementation_results.overall_status (string)
+
+If ANY field is missing or undefined:
+  ERROR: "Implementation was skipped or incomplete"
+  ACTION: "Re-executing task implementation now..."
+  STOP: Do not proceed to completion validation
+  Re-execute Step 6 completely
+```
+
+**Only proceed to Step 9 if implementation_results is complete**
+
+---
+
 9. Completion validation:
+
+**REQUIRED DATA** (populated from Step 6):
+- Tasks: `{implementation_results.completed_tasks}/{implementation_results.total_tasks}` completed
+- Files: `{implementation_results.files_created.length}` created, `{implementation_results.files_modified.length}` modified
+- Status: `{implementation_results.overall_status}`
+
    - Verify all required tasks are completed
    - Check that implemented features match the original specification
    - Validate that tests pass and coverage meets requirements

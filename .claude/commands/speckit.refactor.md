@@ -109,7 +109,7 @@ Please select: _
 
 ---
 
-### Step 1.5: Detect Workflow Phase
+### Step 1.5: Detect Workflow Phase & Analyze Implementation
 
 **Check current state**:
 
@@ -128,9 +128,17 @@ cd /Users/daniel/Projects/misc/centrid
 | **Planned**      | tasks.md exists, no implementation  | MEDIUM RISK - tasks outdated   |
 | **Implemented**  | Code in apps/web or apps/api exists | HIGH RISK - code mismatch      |
 
-**Check for implementation** (if tasks.md exists):
+**If tasks.md exists, analyze implementation approach**:
+
+1. **Parse tasks.md** → Extract file paths, dependencies, implementation patterns
+2. **Search codebase** → Find files mentioned in tasks
+3. **Build implementation map** → Connect spec → tasks → code
 
 ```bash
+# Example: Extract implementation details from tasks.md
+# Look for: file paths (apps/web/..., apps/api/...), imports, function names
+grep -E "apps/(web|api)" $FEATURE_DIR/tasks.md
+
 # Search for old approach in code
 grep -r "claude.*agent.*sdk" apps/web apps/api 2>/dev/null | head -5
 ```
@@ -194,9 +202,10 @@ FEATURE_DIR="/Users/daniel/Projects/misc/centrid/specs/[feature]"
 
 - `$FEATURE_DIR/spec.md` (REQUIRED)
 - `$FEATURE_DIR/arch.md` (if exists in AVAILABLE_DOCS)
+- `$FEATURE_DIR/ux.md` (if exists in AVAILABLE_DOCS)
+- `$FEATURE_DIR/design.md` (if exists in AVAILABLE_DOCS)
 - `$FEATURE_DIR/plan.md` (if exists in AVAILABLE_DOCS)
 - `$FEATURE_DIR/tasks.md` (if exists in AVAILABLE_DOCS)
-- `$FEATURE_DIR/design.md` (if exists in AVAILABLE_DOCS)
 - `$FEATURE_DIR/data-model.md` (if exists in AVAILABLE_DOCS)
 - `$FEATURE_DIR/quickstart.md` (if exists in AVAILABLE_DOCS)
 - `$FEATURE_DIR/research.md` (if exists in AVAILABLE_DOCS)
@@ -211,6 +220,13 @@ FEATURE_DIR="/Users/daniel/Projects/misc/centrid/specs/[feature]"
 - `.specify/memory/constitution.md` (check for conflicts)
 
 **If spec.md missing**: ERROR - Cannot proceed without requirements
+
+**Build implementation map** (if tasks.md exists):
+
+1. **Parse tasks.md** → Extract file paths mentioned (apps/web/*, apps/api/*)
+2. **Extract dependencies** → Libraries, packages referenced
+3. **Identify patterns** → Component names, function names, API endpoints
+4. **Search codebase** → Check if files exist, grep for implementations
 
 ---
 
@@ -324,23 +340,25 @@ Select: _
 
 ---
 
-### Step 3.6: Analyze Cascading Impacts
+### Step 3.6: Analyze Cascading Impacts (Including Code)
 
 **Build dependency graph**:
 
-Identify impacts beyond direct text matches:
+Identify impacts beyond direct text matches, including implementation:
 
 ```
 Cascade Impact Analysis:
 
-Direct Impacts (5 references):
+Direct Impacts - Specifications (5 references):
 ✓ spec.md:42 - FR-003 definition
 ✓ arch.md:156 - API architecture
+✓ ux.md:89 - No impact (UX flow unchanged)
+✓ design.md:34 - No impact (UI unchanged)
 ✓ plan.md:67 - Dependencies section
 ✓ plan.md:122 - Research reference
 ✓ tasks.md:89 - Implementation task (if exists)
 
-Indirect Impacts (3 areas):
+Indirect Impacts - Specifications (3 areas):
 
 1. plan.md:234 - Cost Assumptions ⚠️
    Current: "No external API costs (self-hosted SDK)"
@@ -358,15 +376,37 @@ Indirect Impacts (3 areas):
    Dependent: T016, T017 reference T015
    → Recommend: Regenerate tasks after change
 
+Direct Impacts - Code (if implemented):
+
+Frontend:
+✓ apps/web/src/lib/anthropic.ts:12
+  Current: import { Claude } from '@anthropic/sdk'
+  Impact: Remove SDK import, use fetch/axios
+
+Backend:
+✓ apps/api/src/services/agent.ts:34
+  Current: const client = new Claude({ apiKey })
+  Impact: Replace with direct HTTP client
+
+✓ apps/api/src/services/agent.ts:67
+  Current: await client.messages.create(...)
+  Impact: Replace with fetch('/v1/messages', ...)
+
+Dependencies:
+✓ package.json - Remove @anthropic/sdk
+✓ package.json - Add HTTP client (if not present)
+
+Environment:
+✓ .env files - Keep ANTHROPIC_API_KEY (still needed)
+
 Cross-Document Dependencies:
-✓ spec.md FR-003 → arch.md API Architecture
-✓ arch.md API Architecture → plan.md Technical Approach
-✓ plan.md Dependencies → tasks.md Setup Tasks
+✓ spec.md FR-003 → arch.md API Architecture → plan.md Dependencies → tasks.md Setup → code implementation
 
 Total Impact:
-- Direct changes: 5 across 4 documents
-- Indirect impacts: 3 areas need manual review
-- Dependent tasks: 2 tasks affected
+- Spec changes: 5 direct, 3 indirect (automated)
+- Code changes: 3 files (manual refactor required)
+- Dependencies: 1 removal, 0 additions
+- Risk: MODERATE (breaking change, needs testing)
 ```
 
 **User confirmation**: `Show detailed indirect impacts? (yes/no/skip): _`
@@ -385,6 +425,7 @@ Total Impact:
 - **Language**: User-facing, technology-agnostic, "System shall..."
 - **Allowed**: Business requirements, acceptance criteria, user interactions
 - **Forbidden**: Implementation details, code patterns, specific libraries, function names
+- **Changes**: Only when requirement itself changes, not just implementation
 
 Examples:
 
@@ -402,6 +443,7 @@ Examples:
 - **Language**: Component names, integration patterns, design decisions
 - **Allowed**: Service names, data flows, architectural patterns, technology choices
 - **Forbidden**: Code snippets, function signatures, variable names, line-by-line steps
+- **Changes**: When architecture patterns or component interactions change
 
 Examples:
 
@@ -413,12 +455,45 @@ Examples:
 ✅ GOOD: "AgentService orchestrates API calls with retry logic and error handling"
 ```
 
+**ux.md** (UX Flow Level):
+
+- **Purpose**: User interaction flows and component behavior (what user sees/does)
+- **Language**: Screen flows, user actions, component states, interactions
+- **Allowed**: Screen names, user journeys, interaction patterns, component props
+- **Forbidden**: Code implementation, styling details (those go in design.md)
+- **Changes**: Only when user flow or interaction pattern changes
+
+Examples:
+
+```
+❌ BAD: "Button uses onClick={() => handleSubmit()}"
+✅ GOOD: "User clicks Submit → Loading state shown → Success message appears"
+
+✅ GOOD: "Upload Flow: Drag file → Progress indicator (0-100%) → Status: Complete/Error"
+```
+
+**design.md** (Visual Design Level):
+
+- **Purpose**: Visual design and component specifications
+- **Language**: Component names, props, visual states, styling patterns
+- **Allowed**: Component APIs, visual states, design tokens, layout patterns
+- **Forbidden**: Business logic, data fetching, routing
+- **Changes**: Only when UI components or visual design changes
+
+Examples:
+
+```
+✅ GOOD: "DocumentCard: Props { title, status, onDelete }, States: default, hover, loading"
+❌ BAD: "DocumentCard fetches data from Supabase on mount"
+```
+
 **plan.md** (Technical Approach Level):
 
 - **Purpose**: What technologies and approaches will be used (how, at high level)
 - **Language**: Libraries, frameworks, architectural patterns, trade-offs
 - **Allowed**: Package names, dependencies, implementation strategies, technology comparisons
 - **Forbidden**: Code implementation, specific variable names, function bodies
+- **Changes**: When technologies, libraries, or technical approaches change
 
 Examples:
 
@@ -623,22 +698,41 @@ To apply changes: /speckit.refactor "same input without --dry-run"
 
 ---
 
-### Step 6: Apply Changes
+### Step 6: Apply Changes (Specs Only)
 
 **For each change in change set**:
 
-Use Edit tool for exact replacements:
+Use Edit tool for exact replacements (concise, precise changes only):
 
 ```
-Applying changes...
+Applying specification changes...
 
-[1/5] spec.md:42 - Updating FR-003 definition... ✓
-[2/5] spec.md:89 - Updating streaming capabilities... ✓
-[3/5] arch.md:156 - Updating AgentService architecture... ✓
-[4/5] arch.md:203 - Updating architectural decision... ✓
-[5/5] plan.md:67 - Updating dependencies... ✓
+[1/7] spec.md:42 - Update FR-003 (concise)... ✓
+[2/7] arch.md:156 - Update API integration pattern... ✓
+[3/7] ux.md:89 - No changes (flow unchanged) ⊘
+[4/7] design.md:34 - No changes (UI unchanged) ⊘
+[5/7] plan.md:67 - Update dependencies... ✓
+[6/7] plan.md:203 - Update decision rationale... ✓
+[7/7] research.md - Add decision log entry... ✓
 
-Changes applied: 5/5 ✓
+Specification changes: 5/7 applied ✓
+```
+
+**Precision principle**: Changes must be:
+- ✅ **Concise** - Update only what changed (single sentence, single section)
+- ✅ **Precise** - Exact terminology, no unnecessary rewording
+- ✅ **Targeted** - Affected sections only, preserve rest of document
+
+**Example - Concise update**:
+
+```
+BAD (verbose):
+  OLD: "System uses Claude SDK"
+  NEW: "System uses direct Anthropic API integration with HTTP client for flexibility and control over streaming, error handling, and retry logic"
+
+GOOD (concise):
+  OLD: "System uses Claude SDK"
+  NEW: "System uses direct Anthropic API"
 ```
 
 **Error handling** (all-or-nothing):
@@ -646,14 +740,14 @@ Changes applied: 5/5 ✓
 If ANY edit fails:
 
 ```
-❌ ERROR: Failed to apply change 3/5
+❌ ERROR: Failed to apply change 3/7
 
 File: arch.md:156
 Error: Text not found (file may have changed)
 
 Action: ROLLBACK
-- Reverting change 1/5 (spec.md:42) ✓
-- Reverting change 2/5 (spec.md:89) ✓
+- Reverting change 1/7 (spec.md:42) ✓
+- Reverting change 2/7 (arch.md:156) ✓
 
 Status: No changes applied (rollback complete)
 
@@ -662,79 +756,138 @@ Recommendation:
   - File may have been edited manually since analysis
 ```
 
+**After spec changes, generate code refactor checklist** (see Step 6.5)
+
 ---
 
-### Step 6.5: Update Research.md Decision Log
+### Step 6.5: Generate Code Refactor Checklist
 
-**If plan.md exists AND has research.md**:
+**If Phase = IMPLEMENTED** (code exists):
 
-Generate decision entry:
+Generate actionable checklist for manual code refactoring:
+
+```
+Generating code refactor checklist...
+
+Creating: specs/[feature]/refactor-checklist.md
+
+──────────────────────────────────────────────────────
+# Code Refactor Checklist: Claude SDK → Direct API
+
+**Feature**: AI Agent System (004-ai-agent-system)
+**Change**: Replace Claude Agent SDK with direct Anthropic API calls
+**Risk**: MODERATE (breaking change, needs testing)
+
+## 1. Configuration & Dependencies
+
+- [ ] Remove package: `npm uninstall @anthropic/sdk`
+- [ ] Add types: `npm install -D @anthropic-ai/sdk` (types only)
+- [ ] Verify .env: ANTHROPIC_API_KEY still set
+
+## 2. Backend Code Changes
+
+### apps/api/src/lib/anthropic.ts:12
+- [ ] REMOVE: `import { Claude } from '@anthropic/sdk'`
+- [ ] ADD: `import type { Message } from '@anthropic-ai/sdk'`
+
+### apps/api/src/services/agent.ts:34
+- [ ] REPLACE:
+      ```ts
+      const client = new Claude({ apiKey: process.env.ANTHROPIC_API_KEY })
+      ```
+      WITH:
+      ```ts
+      const apiKey = process.env.ANTHROPIC_API_KEY
+      ```
+
+### apps/api/src/services/agent.ts:67
+- [ ] REPLACE:
+      ```ts
+      const response = await client.messages.create({ model, messages })
+      ```
+      WITH:
+      ```ts
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'anthropic-version': '2023-06-01',
+          'x-api-key': apiKey,
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({ model, messages })
+      })
+      const data: Message = await response.json()
+      ```
+
+## 3. Frontend Code Changes (if applicable)
+
+### apps/web/src/lib/services/agent.ts
+- [ ] Review: Agent calls still use Edge Function? (no direct SDK usage)
+- [ ] No changes needed if using Edge Functions
+
+## 4. Testing
+
+- [ ] Unit tests: Update mocks (mock fetch instead of SDK)
+- [ ] Integration test: Create AI message end-to-end
+- [ ] Error handling: Test API errors (rate limits, invalid keys)
+- [ ] Streaming: Verify SSE streaming works
+
+## 5. Deployment
+
+- [ ] Deploy backend: `cd apps/api && npm run deploy:functions`
+- [ ] Verify ENV: Supabase secrets have ANTHROPIC_API_KEY
+- [ ] Smoke test: Create test AI request in production
+
+## 6. Rollback Plan (if needed)
+
+- [ ] Revert spec changes: `git checkout HEAD -- specs/[feature]/*.md`
+- [ ] Reinstall SDK: `npm install @anthropic/sdk`
+- [ ] Restore code: `git checkout HEAD -- apps/api/src/`
+
+## 7. Documentation
+
+- [ ] Update README: Document API approach
+- [ ] Remove SDK references from docs
+──────────────────────────────────────────────────────
+
+Checklist created: specs/[feature]/refactor-checklist.md ✅
+```
+
+**If Phase = PLANNED** (no code yet):
+
+```
+No code refactoring needed (not implemented yet).
+Run /speckit.tasks to generate updated implementation tasks.
+```
+
+---
+
+### Step 6.6: Update Research.md Decision Log
+
+**If research.md exists**:
+
+Generate concise decision entry:
 
 ```
 Updating research.md decision log...
 
-Adding decision entry:
-
 ──────────────────────────────────────────────────────
-## Decision: Changed from Claude Agent SDK to Direct API
+## Decision: Claude SDK → Direct API
 
 **Date**: 2025-01-26
-**Context**: During requirements refinement, identified need for custom streaming control
-**Decision**: Use direct Anthropic API calls instead of Claude Agent SDK
+**Decision**: Use direct Anthropic API instead of Claude SDK
 
-**Alternatives Considered**:
+**Rationale**: Need custom streaming control, SDK limiting flexibility
 
-1. Claude Agent SDK (@anthropic/sdk)
-   - ✅ Simpler integration with abstraction layer
-   - ✅ Built-in retry logic and error handling
-   - ❌ Limited streaming customization
-   - ❌ Cannot customize retry behavior for specific errors
+**Alternatives**:
+1. Claude SDK - ✅ Simpler, ❌ Limited streaming
+2. Direct API (chosen) - ✅ Full control, ❌ More complexity
 
-2. Direct Anthropic API (CHOSEN)
-   - ✅ Full control over streaming implementation
-   - ✅ Custom error handling and retry logic
-   - ✅ Direct access to all API features
-   - ❌ More implementation complexity
-   - ❌ Need to build retry logic manually
-
-**Rationale**:
-SDK limitations discovered during architecture phase:
-- Custom streaming handlers required for UI responsiveness
-- Need fine-grained error handling for different failure modes
-- Flexibility > simplicity for AI-critical feature
-
-**Consequences**:
-
-Technical:
-- Dependency changes: Remove @anthropic/sdk, add HTTP client + types
-- Implementation complexity increases (build retry logic, error handling)
-- More control over AI interactions and streaming behavior
-
-Architectural:
-- AgentService implementation approach updated
-- Error handling strategy needs explicit design
-- Testing strategy changes (mock HTTP calls vs SDK)
-
-Documentation:
-- spec.md FR-003 updated
-- arch.md API Architecture updated
-- plan.md dependencies updated
-
-**Next Steps**:
-- Update error handling strategy in arch.md
-- Design custom retry logic
-- Update tasks.md when generated (/speckit.tasks)
-
-**Updated Artifacts**:
-- specs/[feature]/spec.md (FR-003)
-- specs/[feature]/arch.md (API Architecture + Decision Log)
-- specs/[feature]/plan.md (Dependencies)
+**Impact**: arch.md, plan.md updated | Code refactor required (see refactor-checklist.md)
 ──────────────────────────────────────────────────────
 
-Add to research.md? (yes/no/edit): _
+Add to research.md? (yes/no/skip): _
 ```
-
-**If user says "edit"**: Open interactive editor to refine before adding
 
 ---
 
@@ -820,75 +973,73 @@ Change Summary
 Action: CHANGE
 From: "Claude Agent SDK" → To: "Direct Anthropic API"
 
-Changes Applied:
-✓ spec.md - 2 changes (FR-003 definition + acceptance criteria)
-✓ arch.md - 2 changes (architecture approach + decision log)
-✓ plan.md - 1 change (dependencies)
+Specification Changes:
+✓ spec.md - No changes (requirement unchanged)
+✓ arch.md - 1 concise update (API integration pattern)
+✓ ux.md - No changes (user flow unchanged)
+✓ design.md - No changes (UI components unchanged)
+✓ plan.md - 1 concise update (dependencies)
+✓ research.md - 1 decision entry (rationale)
 
-Total: 5 changes across 3 documents
+Total: 3 spec updates (concise, precise, targeted)
+
+Code Impact Analysis:
+✓ 3 backend files require manual refactoring
+✓ 0 frontend files (uses Edge Functions)
+✓ 1 dependency removal, 0 additions
+✓ Refactor checklist: specs/[feature]/refactor-checklist.md
 
 ═══════════════════════════════════════════════════════
 Validation
 ═══════════════════════════════════════════════════════
 
-✓ No orphaned references to old approach (spec, arch, plan)
-✓ Terminology consistent across all updated documents
-✓ All document structures preserved
-⚠️ tasks.md has 2 orphaned references (expected - not regenerated)
+✓ No orphaned references to old approach
+✓ Terminology consistent across specs
+✓ Document structures preserved
+✓ Abstraction boundaries maintained (spec, arch, ux, design, plan)
+⚠️ tasks.md not regenerated (run /speckit.tasks)
 
 ═══════════════════════════════════════════════════════
-Decision Log
+Implementation Traceability
 ═══════════════════════════════════════════════════════
 
-✓ research.md updated with decision rationale
-  - Alternatives considered documented
-  - Trade-offs explicitly stated
-  - Consequences tracked
+Spec → Code Mapping:
+✓ arch.md "Direct API" → apps/api/src/services/agent.ts:67
+✓ plan.md dependencies → package.json (removal needed)
+✓ All implementation locations identified in refactor-checklist.md
 
-═══════════════════════════════════════════════════════
-Impact
-═══════════════════════════════════════════════════════
-
-Phase: Planning (SAFE - no implementation yet)
-Complexity: MODERATE
-Risk: LOW
-
-Architectural Direction: Changed ✓
-Dependencies: Updated ✓
-Decision Rationale: Documented ✓
-
-Indirect Impacts (manual review recommended):
-  ⚠️ plan.md:234 - Cost assumptions may need update
-  ⚠️ arch.md:301 - Error handling strategy needs update
-  ⚠️ Review these sections manually
+Status: ALIGNED (after code refactor complete)
 
 ═══════════════════════════════════════════════════════
 Next Steps
 ═══════════════════════════════════════════════════════
 
 Immediate:
-  1. Review changes: git diff
-  2. Review indirect impacts (3 areas flagged above)
-  3. Update error handling strategy in arch.md (manual)
+  1. Review spec changes: git diff specs/[feature]/
+  2. Review code refactor checklist: specs/[feature]/refactor-checklist.md
+  3. Apply code changes (manual - see checklist)
 
-Before tasks:
-  4. If plan.md incomplete: Continue /speckit.plan
-  5. Regenerate tasks: /speckit.tasks
-     → Will use new "Direct API" approach
-     → Old T015, T016 will be replaced
-
-Validation:
-  6. After tasks regenerated: /speckit.verify-tasks
-     → Validates full requirement coverage
+After code refactor:
+  4. Test changes (unit + integration)
+  5. Regenerate tasks: /speckit.tasks (updates tasks.md with new approach)
+  6. Validate coverage: /speckit.verify-tasks
 
 ═══════════════════════════════════════════════════════
 Files Modified
 ═══════════════════════════════════════════════════════
 
-specs/[feature]/spec.md
-specs/[feature]/arch.md
-specs/[feature]/plan.md
-specs/[feature]/research.md (decision log)
+Specifications (automated):
+  specs/[feature]/arch.md (API integration)
+  specs/[feature]/plan.md (dependencies)
+  specs/[feature]/research.md (decision log)
+
+Generated:
+  specs/[feature]/refactor-checklist.md (code refactor guide)
+
+Code (manual - see checklist):
+  apps/api/src/services/agent.ts (3 changes)
+  apps/api/src/lib/anthropic.ts (1 change)
+  package.json (1 removal)
 
 Review: git diff specs/[feature]/
 ```
@@ -912,75 +1063,122 @@ Review: git diff specs/[feature]/
 
 ---
 
-### Mode 2: CHECK (Read-only analysis)
+### Mode 2: CHECK (Read-only analysis with implementation details)
 
-**Triggers**: "check X", "what if we used Y", "evaluate Z"
+**Triggers**: "check X", "what if we used Y", "evaluate Z", "how is X implemented"
 
 **Workflow**:
 
-1. Find all references to current approach
-2. Show impact of potential change
-3. Analyze complexity
-4. Identify cascading impacts
-5. **NO MODIFICATIONS** (read-only)
-6. Suggest next command if user wants to proceed
+1. Find all references to current approach in specs
+2. **NEW**: Parse tasks.md for implementation details
+3. **NEW**: Search codebase for actual implementation
+4. **NEW**: Build spec → tasks → code traceability map
+5. Show impact of potential change
+6. Analyze complexity
+7. Identify cascading impacts
+8. **NO MODIFICATIONS** (read-only)
+9. Suggest next command if user wants to proceed
 
 **Example Output**:
 
 ```
 ═══════════════════════════════════════════════════════
-Current Approach Analysis: Embedding Storage
+Feature Analysis: Document Upload (003-document-upload)
 ═══════════════════════════════════════════════════════
 
-Current Approach: pgvector (PostgreSQL extension)
+Status: IMPLEMENTED ✅
 
-Found: 8 references across 4 documents
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SPECIFICATION (What should happen)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 spec.md:
-  Line 67: NFR-002: Use pgvector for similarity search
-  Line 92: Vector embeddings stored in PostgreSQL
+  FR-004: Upload documents via drag-drop (PDF, Markdown, Text)
+  FR-005: Process documents asynchronously with status tracking
 
 arch.md:
-  Line 234: Data Architecture → pgvector extension for vectors
-  Line 301: Decision: pgvector chosen for cost (no external service)
+  Storage: Supabase Storage (user-documents bucket)
+  Processing: Edge Function (process-document)
+  Chunking: RecursiveCharacterTextSplitter (1000 chars, 200 overlap)
 
-[Additional references...]
+ux.md:
+  Upload Flow: Drag file → Progress indicator → Success/Error toast
+  States: Idle, Uploading, Processing, Complete, Error
 
-═══════════════════════════════════════════════════════
-Current Rationale (from arch.md)
-═══════════════════════════════════════════════════════
+design.md:
+  Components: DocumentUpload (drag-drop), DocumentCard (status)
 
-Decision: pgvector for vector storage
-Pros: ✓ No additional service cost, ✓ Data locality, ✓ Simple deployment
-Cons: ✗ Limited to cosine similarity, ✗ No metadata filtering
+plan.md:
+  Dependencies: @supabase/storage-js, langchain
+  Storage: Supabase Storage bucket "user-documents"
 
-═══════════════════════════════════════════════════════
-Potential Change Impact
-═══════════════════════════════════════════════════════
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+IMPLEMENTATION (How it's built)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-If changed to Pinecone:
-  - Complexity: MODERATE
-  - Affected: 8 references across 4 documents
-  - Cascading: Cost model, query architecture, data model
-  - Risk: Medium (data migration needed)
+Frontend:
+  apps/web/src/components/documents/DocumentUpload.tsx
+    → useDropzone() for drag-drop
+    → uploadDocument() calls Edge Function
+    → Real-time status via Supabase subscription
 
-If enhanced with metadata filtering (keep pgvector):
-  - Complexity: SIMPLE
-  - Affected: Query architecture only
-  - No migration needed
+  apps/web/src/lib/services/documents.ts
+    → uploadDocument(file) → POST /process-document
+    → Returns { document_id, status: 'processing' }
 
-═══════════════════════════════════════════════════════
-Recommendation
-═══════════════════════════════════════════════════════
+Backend:
+  apps/api/src/functions/process-document/index.ts
+    → Supabase Storage upload (line 23)
+    → Extract text via pdf-parse (line 45)
+    → Chunk with RecursiveCharacterTextSplitter (line 67)
+    → Insert chunks → document_chunks table (line 89)
+    → Update document status → 'completed' (line 102)
 
-Current approach: Suitable for MVP
-Consider change IF:
-  - Need advanced filtering (metadata queries)
-  - Need hybrid search (vector + keyword)
-  - Need better scale (>1M vectors)
+Database:
+  apps/api/src/db/schema.ts
+    → documents: id, user_id, name, storage_path, status, created_at
+    → document_chunks: id, document_id, content, embedding, chunk_index
 
-To proceed with change:
-  /speckit.refactor "change from pgvector to pinecone with metadata filtering"
+Storage:
+  Supabase bucket: user-documents (configured ✅)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SPEC ↔ CODE ALIGNMENT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ FR-004 (Drag-drop) → DocumentUpload.tsx:34
+✅ FR-005 (Async processing) → Edge Function + status tracking
+✅ Storage (Supabase) → process-document/index.ts:23
+✅ Chunking (LangChain) → process-document/index.ts:67
+✅ UX States → DocumentCard component with status prop
+
+Status: ALIGNED ✅
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+POTENTIAL CHANGE IMPACT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+If changed to Direct S3:
+  Complexity: MODERATE
+
+  Spec Updates (automated):
+    - arch.md: Storage architecture
+    - plan.md: Dependencies (remove @supabase/storage-js, add aws-sdk)
+    - ux.md: No changes (UX unchanged)
+    - design.md: No changes (UI unchanged)
+
+  Code Updates (manual):
+    ⚠️ apps/api/src/functions/process-document/index.ts:23
+       Replace: supabase.storage.upload()
+       With: s3.putObject()
+
+    ⚠️ apps/web/src/lib/services/documents.ts:12
+       Update: Storage URL generation
+
+  Risk: MEDIUM (data migration + ENV changes)
+
+To proceed:
+  /speckit.refactor "change from Supabase Storage to direct S3"
 ```
 
 ---
@@ -1164,15 +1362,21 @@ Apply enhancements to FR-003? (yes/no/edit)
 
 **Files Modified**:
 
-- `$FEATURE_DIR/spec.md` (requirements)
-- `$FEATURE_DIR/arch.md` (architecture)
-- `$FEATURE_DIR/plan.md` (technical approach)
+- `$FEATURE_DIR/spec.md` (requirements - only if requirement changes)
+- `$FEATURE_DIR/arch.md` (architecture - when patterns/decisions change)
+- `$FEATURE_DIR/ux.md` (UX flows - only if user flow changes)
+- `$FEATURE_DIR/design.md` (visual design - only if UI components change)
+- `$FEATURE_DIR/plan.md` (technical approach - when tech/libraries change)
 - `$FEATURE_DIR/research.md` (decision log)
 - `$FEATURE_DIR/tasks.md` (may need regeneration after)
 
 **Files Read**:
 
-- All above + design.md, data-model.md, quickstart.md, contracts/
+- All above + data-model.md, quickstart.md, contracts/
+
+**Files Generated**:
+
+- `$FEATURE_DIR/refactor-checklist.md` (code refactor guide, if Phase = IMPLEMENTED)
 
 ---
 
@@ -1197,21 +1401,28 @@ Apply enhancements to FR-003? (yes/no/edit)
 
 ## Summary
 
-**`/speckit.refactor`** provides intelligent requirement evolution:
+**`/speckit.refactor`** provides intelligent requirement evolution with full implementation traceability:
 
 ✅ **Natural language interface** - Conversational input
 ✅ **Intent detection** - CHANGE | CHECK | ADD | REFINE
+✅ **Implementation analysis** - Shows HOW features are/will be implemented
+✅ **Spec → Code mapping** - Traces requirements to actual code
 ✅ **Context disambiguation** - Handles multiple meanings
 ✅ **Phase awareness** - Different behavior based on workflow state
 ✅ **Complexity analysis** - Warns when change needs rethinking
-✅ **Cascade detection** - Finds downstream impacts
-✅ **Research logging** - Documents WHY decisions changed
+✅ **Cascade detection** - Finds downstream impacts (specs + code)
+✅ **Concise updates** - Precise, targeted changes only
+✅ **Abstraction boundaries** - Maintains proper abstraction levels (spec, arch, ux, design, plan)
+✅ **Code refactor checklists** - Actionable code change guides
+✅ **Research logging** - Documents WHY decisions changed (concise)
 ✅ **Safety gates** - Preview, confirm, validate, rollback
 ✅ **Dry-run mode** - Explore without modifying
 
 **Use when**:
 
+- Want to see how a feature is implemented ("check document upload")
 - Research reveals need to change direction
 - Requirements need evolution/refinement
-- Want to explore impact of potential changes
-- Need consistent updates across all artifacts
+- Want to explore impact of potential changes (specs + code)
+- Need consistent updates across all artifacts (spec, arch, ux, design, plan)
+- Need code refactor checklist for implementation changes

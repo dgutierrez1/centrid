@@ -319,6 +319,13 @@ For each component:
 
 **CRITICAL**: Always verify all screen×flow×state×viewport combinations in parallel (~90s total).
 
+**REQUIRED OUTPUT**: This step MUST return `verification_results` variable containing:
+- `screenshots`: Array of generated file paths
+- `ready_count`, `skipped_count`, `blocked_count`, `total_count`: Numbers
+- `overall_status`: "READY" | "PARTIAL" | "BLOCKED"
+
+**This data is required by Step 7** - if missing, summary will be visibly broken.
+
 #### Setup & Matrix Building
 
 1. **Check design-system app** (port 3001): Start if not running, error if fails
@@ -895,9 +902,38 @@ Screenshots Section:
 
 ---
 
+### Step 6.75: Verification Enforcement Check
+
+**MANDATORY before generating summary** - verify Step 4 was actually completed:
+
+```
+Check: Does verification_results variable exist with required fields?
+- verification_results.screenshots (array)
+- verification_results.ready_count (number)
+- verification_results.skipped_count (number)
+- verification_results.blocked_count (number)
+- verification_results.total_count (number)
+- verification_results.overall_status (string)
+
+If ANY field is missing or undefined:
+  ERROR: "Browser verification was skipped or incomplete"
+  ACTION: "Re-executing Step 4 now..."
+  STOP: Do not generate summary
+  Re-execute Step 4 completely
+```
+
+**Only proceed to Step 7 if verification_results is complete**
+
+---
+
 ### Step 7: Report Summary
 
 **IMPORTANT**: Update all "Step X" references in report messages to match new numbering (Steps 5→6, 6→7)
+
+**REQUIRED DATA** (populated from Step 4):
+- Screenshots: `{verification_results.screenshots.length}` files
+- Ready: `{verification_results.ready_count}/{verification_results.total_count}`
+- Status: `{verification_results.overall_status}`
 
 **Success message** (if READY):
 
@@ -909,8 +945,8 @@ Screenshots Section:
 **Validation Results**:
 - Screen Coverage: [X/X] screens designed
 - Component Exports: [X/X] components ready
-- Screenshots: [X/X] screenshots generated
-- Browser Verification: PASSED
+- Screenshots: {verification_results.screenshots.length} screenshots generated
+- Browser Verification: {verification_results.overall_status} ({verification_results.ready_count}/{verification_results.total_count} ready)
 
 **Created**:
 - Design validation report: specs/[feature]/design-validation.md
@@ -933,8 +969,8 @@ Screenshots Section:
 **Validation Results**:
 - Screen Coverage: [X/Y] screens designed ([N] P2/P3 missing)
 - Component Exports: [X/Y] components ready ([N] issues)
-- Screenshots: [X/Y] screenshots exist ([N] missing)
-- Browser Verification: PASSED with [N] warnings
+- Screenshots: {verification_results.screenshots.length} screenshots exist ({verification_results.skipped_count} skipped)
+- Browser Verification: {verification_results.overall_status} ({verification_results.blocked_count} blocked)
 
 **Created**:
 - Design validation report: specs/[feature]/design-validation.md
@@ -961,8 +997,8 @@ Screenshots Section:
 **Validation Results**:
 - Screen Coverage: [X/Y] screens designed
 - Component Exports: [X/Y] components ready
-- Screenshots: [X/Y] screenshots exist
-- Browser Verification: FAILED
+- Screenshots: {verification_results.screenshots.length} screenshots exist
+- Browser Verification: {verification_results.overall_status} ({verification_results.blocked_count}/{verification_results.total_count} blocked)
 
 **Created**:
 - Design validation report: specs/[feature]/design-validation.md

@@ -152,6 +152,16 @@ curl -s -o /dev/null -w "%{http_code}" http://localhost:3000
 
 ### 5. Execute User Flows
 
+**REQUIRED OUTPUT**: This step MUST return `test_results` containing:
+- `total_flows`, `passed_flows`, `failed_flows`: Numbers
+- `total_criteria`, `met_criteria`, `failed_criteria`: Numbers
+- `critical_issues`, `major_issues`, `minor_issues`: Numbers
+- `overall_status`: "PASS" | "PARTIAL" | "FAIL"
+
+**This data is required by Step 9** - if missing, summary will be visibly broken.
+
+---
+
 **Determine flows to test**:
 - If `--flow=[N]` flag: Test only Flow N
 - Otherwise: Test all flows in priority order (P1 → P2 → P3)
@@ -535,7 +545,35 @@ Next Step:
 /speckit.analyze ${FEATURE_NAME}
 ```
 
+### 8.5. Verification Enforcement Check
+
+**MANDATORY before generating summary** - verify Step 5 was actually completed:
+
+```
+Check: Does test_results variable exist with required fields?
+- test_results.total_flows (number)
+- test_results.passed_flows (number)
+- test_results.failed_flows (number)
+- test_results.met_criteria (number)
+- test_results.overall_status (string)
+
+If ANY field is missing or undefined:
+  ERROR: "UI testing was skipped or incomplete"
+  ACTION: "Re-executing user flow tests now..."
+  STOP: Do not generate summary
+  Re-execute Step 5 completely
+```
+
+**Only proceed to Step 9 if test_results is complete**
+
+---
+
 ### 9. Report Summary
+
+**REQUIRED DATA** (populated from Step 5):
+- Flows: `{test_results.passed_flows}/{test_results.total_flows}` passed
+- Criteria: `{test_results.met_criteria}/{test_results.total_criteria}` met
+- Status: `{test_results.overall_status}`
 
 **Deliverables** ✅
 - Verification report: `specs/${FEATURE_NAME}/verification.md`
@@ -543,13 +581,13 @@ Next Step:
 - Test execution log
 
 **Flows Executed** ✅
-- Total flows: ${total_flows}
-- Passed: ${passed_flows}
-- Failed: ${failed_flows}
+- Total flows: {test_results.total_flows}
+- Passed: {test_results.passed_flows}
+- Failed: {test_results.failed_flows}
 
 **Acceptance Validation** ✅
-- Criteria coverage: ${met_criteria}/${total_criteria} (${percentage}%)
-- Status: ${PASS|PARTIAL|FAIL}
+- Criteria coverage: {test_results.met_criteria}/{test_results.total_criteria}
+- Status: {test_results.overall_status}
 
 **Issues Identified** ⚠️
 - Critical: ${critical_issues}
