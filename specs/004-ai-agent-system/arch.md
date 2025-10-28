@@ -218,6 +218,7 @@ Next message includes file with 1.0 weight (explicit reference)
 
 | Endpoint | Method | Purpose | Request | Response | Auth |
 |----------|--------|---------|---------|----------|------|
+| `/threads` | GET | List all threads for user (root threads only, or with query params) | Query: `?includeArchived=false` | `{ data: { threads[] } }` | Required (JWT) |
 | `/threads` | POST | Create new thread (root or branch) | `{ title, parentId? }` | `{ data: { threadId, title, parentId } }` | Required (JWT) |
 | `/threads/:id` | GET | Fetch thread with messages, context, metadata | None | `{ data: { thread, messages[], contextReferences[], branchMetadata } }` | Required (JWT) |
 | `/threads/:id` | PATCH | Update thread (rename branch, archive) | `{ title?, archived? }` | `{ data: { thread } }` | Required (JWT) |
@@ -809,7 +810,7 @@ Frontend → POST /approve-tool-call → ToolCallService executes → Resume SSE
 
 **For /speckit.plan**:
 - **Data model** → See Domain Model section above, 9 entities including UserPreference for context rules
-- **API contracts** → See API Surface section (20 endpoints including 5 background job endpoints), full OpenAPI specs in `/contracts/`
+- **API contracts** → See API Surface section (20 endpoints including 4 background job endpoints), full OpenAPI specs in `/contracts/`
 - **Service structure** → See Service Layer section - 8 services to implement (AgentExecution, ContextAssembly, SemanticSearch, UserPreferences, Provenance, ShadowDomain, ToolCall, Consolidation)
 - **Multi-domain data gathering** → ContextAssemblyService orchestrates 6 domains: (1) Explicit context, (2) Shadow domain (via SemanticSearchService), (3) Thread tree, (4) Memory chunks, (5) User preferences (via UserPreferencesService - derived from interactions), (6) Knowledge graph (Phase 2+)
 - **Integration patterns** → SSE streaming, Supabase Realtime subscriptions, fire-and-forget API calls for background jobs (no database triggers, no Redis)
@@ -897,7 +898,7 @@ Frontend → POST /approve-tool-call → ToolCallService executes → Resume SSE
 **Architecture Approved**: 2025-10-26
 
 **Final Updates**:
-- ✅ RESTful API endpoints (19 total: 15 CRUD + 4 background jobs)
+- ✅ RESTful API endpoints (20 total: 16 CRUD + 4 background jobs)
 - ✅ Context panel layout (below messages, above input)
 - ✅ Renamed conversations/chats → threads
 - ✅ Renamed shadow entities → shadow domain
@@ -910,7 +911,7 @@ Frontend → POST /approve-tool-call → ToolCallService executes → Resume SSE
 **Architecture Summary**:
 - **Entities**: 9 (ShadowDomainEntry, Thread, Message, ThreadMemoryChunk, File, ContextReference, AgentToolCall, UserPreference, KnowledgeGraphEdge)
 - **Services**: 7 (AgentExecution, ContextAssembly, SemanticSearch, Provenance, ShadowDomain, ToolCall, Consolidation)
-- **API Endpoints**: 19 RESTful endpoints
+- **API Endpoints**: 20 RESTful endpoints (16 CRUD + 4 background jobs)
 - **Data Sources**: 6 domains gathered in parallel during context assembly (<1s target)
 
 **Next Steps**:

@@ -182,12 +182,39 @@ Claude Code has access to `/speckit` slash commands for feature development and 
 - `/speckit.tasks` - Generate dependency-ordered task lists
 - `/speckit.verify-tasks` - Validate tasks before implementation (completeness, patterns, coverage)
 - `/speckit.implement` - Execute implementation from tasks.md
+- `/speckit.test` - Run API and E2E tests to verify implementation (parallel agents)
 - `/speckit.design` - Design feature UI in design-system app
 - `/speckit.design-system` - Create/update global design system
 - `/speckit.clarify` - Ask targeted clarification questions
 - `/speckit.analyze` - Cross-artifact consistency analysis
 
 See [.specify/design-system/SETUP.md](.specify/design-system/SETUP.md) for design workflow details.
+
+### Testing Workflow
+
+Run tests after implementation to verify functionality:
+
+```bash
+npm run web:dev                  # Start production app (required for tests)
+/speckit.test                    # Run API + E2E tests (parallel agents)
+/speckit.test api-only           # Run only API tests
+/speckit.test e2e-only           # Run only E2E tests
+/speckit.test AC-001             # Run specific acceptance criterion
+```
+
+**Test Process**:
+1. `/speckit.test` extracts test scenarios from spec.md + ux.md + plan.md
+2. Spawns parallel test agents: API tests (fetch) + E2E tests (browser MCP)
+3. API tests verify contracts from plan.md (~1-2min)
+4. E2E tests verify acceptance criteria from spec.md (~5-10min)
+5. Generates unified test-report.md with both results
+
+**Test Status**:
+- ✅ PASS (≥90%): Ready for production
+- ⚠️ PARTIAL (70-89%): Fix issues before deploy
+- 🔴 FAIL (<70%): Not ready
+
+**After failures**: Review test-report.md, fix issues, re-run `/speckit.test`
 
 ## Environment Configuration
 

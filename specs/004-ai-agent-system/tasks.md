@@ -26,9 +26,9 @@
 
 **Purpose**: Project initialization and dependency setup
 
-- [ ] T001 Install required dependencies: @anthropic-ai/sdk (Claude API client), openai (embeddings), zod (validation), react-markdown (message rendering) in package.json
-- [ ] T002 [P] Configure TypeScript paths in tsconfig.json: Add @/ai-agent-system alias for apps/web/src/components/ai-agent-system/
-- [ ] T003 [P] Add SSE streaming endpoint configuration in apps/api/supabase/config.toml for agent-execution Edge Function
+- [X] T001 Install required dependencies: @anthropic-ai/sdk (Claude API client), openai (embeddings), zod (validation), react-markdown (message rendering) in package.json
+- [X] T002 [P] Configure TypeScript paths in tsconfig.json: Add @/ai-agent-system alias for apps/web/src/components/ai-agent-system/
+- [X] T003 [P] Add SSE streaming endpoint configuration in apps/api/supabase/config.toml for agent-execution Edge Function
 
 **Checkpoint**: Dependencies and configuration ready
 
@@ -42,34 +42,34 @@
 
 ### Database Schema & RLS
 
-- [ ] T004 Create shadow_entities table in apps/api/src/db/schema.ts with fields: shadow_id, owner_user_id, entity_id, entity_type (file/thread/kg_node), embedding (vector 768-dim), summary (text), structure_metadata (jsonb), last_updated, created_at
-- [ ] T005 [P] Create threads table in apps/api/src/db/schema.ts with fields: thread_id, owner_user_id, parent_id (nullable), branch_title, creator (user/agent/system), thread_summary, parent_last_message, branching_message_content, blacklisted_branches (text[]), shadow_domain_id, created_at, updated_at
-- [ ] T006 [P] Create messages table in apps/api/src/db/schema.ts with fields: message_id, thread_id, owner_user_id, role (user/assistant), content, tool_calls (jsonb[]), timestamp, tokens_used
-- [ ] T007 [P] Create thread_memory_chunks table in apps/api/src/db/schema.ts with fields: chunk_id, thread_id, owner_user_id, message_ids (uuid[]), embedding (vector 768-dim), summary, timestamp_range (jsonb), chunk_index, created_at
-- [ ] T008 [P] Create files table in apps/api/src/db/schema.ts with fields: file_id, owner_user_id, path, content, created_in_thread_id (nullable), creation_timestamp (nullable), context_summary (nullable), last_edited, last_edited_by (agent/user), edited_in_thread_id (nullable), shadow_domain_id, created_at, updated_at
-- [ ] T009 [P] Create context_references table in apps/api/src/db/schema.ts with fields: reference_id, thread_id, owner_user_id, entity_type (file/folder/thread), entity_reference, source (inherited/manual/@-mentioned/agent-added), priority_tier (1/2/3), added_timestamp, created_at
-- [ ] T010 [P] Create agent_tool_calls table in apps/api/src/db/schema.ts with fields: tool_call_id, message_id, thread_id, owner_user_id, tool_name, tool_input (jsonb), tool_output (jsonb), approval_status (pending/approved/rejected/timeout), timestamp, created_at
-- [ ] T011 [P] Create user_preferences table in apps/api/src/db/schema.ts with fields: preference_id, user_id, always_include_files (text[]), excluded_patterns (text[]), blacklisted_branches (uuid[]), context_budget (integer default 200000), last_updated, derived_from_days (integer default 30), created_at
-- [ ] T012 Create pgvector indexes in apps/api/src/db/schema.ts: shadow_entities(embedding) using ivfflat with 100 lists, threads(parent_id), files(owner_user_id, created_at), context_references(thread_id, entity_type)
-- [ ] T013 Create RLS policies in apps/api/src/db/schema.ts: All tables enforce auth.uid() = owner_user_id/user_id for SELECT, INSERT, UPDATE, DELETE operations
-- [ ] T014 Run database schema push: cd apps/api && npm run db:push (applies schema + indexes + RLS policies to remote Supabase)
+- [X] T004 Create shadow_entities table in apps/api/src/db/schema.ts with fields: shadow_id, owner_user_id, entity_id, entity_type (file/thread/kg_node), embedding (vector 768-dim), summary (text), structure_metadata (jsonb), last_updated, created_at
+- [X] T005 [P] Create threads table in apps/api/src/db/schema.ts with fields: thread_id, owner_user_id, parent_id (nullable), branch_title, creator (user/agent/system), thread_summary, parent_last_message, branching_message_content, blacklisted_branches (text[]), shadow_domain_id, created_at, updated_at
+- [X] T006 [P] Create messages table in apps/api/src/db/schema.ts with fields: message_id, thread_id, owner_user_id, role (user/assistant), content, tool_calls (jsonb[]), timestamp, tokens_used
+- [X] T007 [P] Create thread_memory_chunks table in apps/api/src/db/schema.ts with fields: chunk_id, thread_id, owner_user_id, message_ids (uuid[]), embedding (vector 768-dim), summary, timestamp_range (jsonb), chunk_index, created_at
+- [X] T008 [P] Create files table in apps/api/src/db/schema.ts with fields: file_id, owner_user_id, path, content, created_in_thread_id (nullable), creation_timestamp (nullable), context_summary (nullable), last_edited, last_edited_by (agent/user), edited_in_thread_id (nullable), shadow_domain_id, created_at, updated_at
+- [X] T009 [P] Create context_references table in apps/api/src/db/schema.ts with fields: reference_id, thread_id, owner_user_id, entity_type (file/folder/thread), entity_reference, source (inherited/manual/@-mentioned/agent-added), priority_tier (1/2/3), added_timestamp, created_at
+- [X] T010 [P] Create agent_tool_calls table in apps/api/src/db/schema.ts with fields: tool_call_id, message_id, thread_id, owner_user_id, tool_name, tool_input (jsonb), tool_output (jsonb), approval_status (pending/approved/rejected/timeout), timestamp, created_at
+- [X] T011 [P] Create user_preferences table in apps/api/src/db/schema.ts with fields: preference_id, user_id, always_include_files (text[]), excluded_patterns (text[]), blacklisted_branches (uuid[]), context_budget (integer default 200000), last_updated, derived_from_days (integer default 30), created_at
+- [X] T012 Create pgvector indexes in apps/api/src/db/schema.ts: shadow_entities(embedding) using ivfflat with 100 lists, threads(parent_id), files(owner_user_id, created_at), context_references(thread_id, entity_type)
+- [X] T013 Create RLS policies in apps/api/src/db/schema.ts: All tables enforce auth.uid() = owner_user_id/user_id for SELECT, INSERT, UPDATE, DELETE operations
+- [X] T014 Run database schema push: cd apps/api && npm run db:push (applies schema + indexes + RLS policies to remote Supabase)
 
 ### Repositories (Data Access Layer)
 
-- [ ] T015 [P] Create ShadowEntityRepository in apps/api/src/repositories/shadowEntity.ts with methods: create(entityId, entityType, embedding, summary, structureMetadata), findByEntityId(entityId, entityType), searchSemantic(query, entityTypes[], limit), update(shadowId, embedding, summary, structureMetadata), delete(shadowId)
-- [ ] T016 [P] Create ThreadRepository in apps/api/src/repositories/thread.ts with methods: create(parentId, branchTitle, creator), findById(threadId), findChildren(threadId), findByUserId(userId), update(threadId, updates), delete(threadId), updateSummary(threadId, summary)
-- [ ] T017 [P] Create MessageRepository in apps/api/src/repositories/message.ts with methods: create(threadId, role, content, toolCalls), findByThreadId(threadId, limit, offset), findById(messageId), countByThreadId(threadId), delete(messageId)
-- [ ] T018 [P] Create FileRepository in apps/api/src/repositories/file.ts with methods: create(path, content, provenance?), findById(fileId), findByPath(path), findByUserId(userId), update(fileId, content, editMetadata), delete(fileId), updateProvenance(fileId, provenance)
-- [ ] T019 [P] Create ContextReferenceRepository in apps/api/src/repositories/contextReference.ts with methods: create(threadId, entityType, entityReference, source, priorityTier), findByThreadId(threadId), delete(referenceId), bulkCreate(references[])
-- [ ] T020 [P] Create AgentToolCallRepository in apps/api/src/repositories/agentToolCall.ts with methods: create(messageId, threadId, toolName, toolInput), findById(toolCallId), updateStatus(toolCallId, status, output?), findPendingByThreadId(threadId)
-- [ ] T021 [P] Create MemoryChunkRepository in apps/api/src/repositories/memoryChunk.ts with methods: create(threadId, messageIds, embedding, summary, timestampRange, chunkIndex), findByThreadId(threadId), searchSemantic(query, threadId, limit), delete(chunkId)
-- [ ] T022 [P] Create UserPreferencesRepository in apps/api/src/repositories/userPreferences.ts with methods: findByUserId(userId), upsert(userId, preferences), updateDerived(userId, interactions), isStale(userId)
+- [X] T015 [P] Create ShadowEntityRepository in apps/api/src/repositories/shadowEntity.ts with methods: create(entityId, entityType, embedding, summary, structureMetadata), findByEntityId(entityId, entityType), searchSemantic(query, entityTypes[], limit), update(shadowId, embedding, summary, structureMetadata), delete(shadowId)
+- [X] T016 [P] Create ThreadRepository in apps/api/src/repositories/thread.ts with methods: create(parentId, branchTitle, creator), findById(threadId), findChildren(threadId), findByUserId(userId), update(threadId, updates), delete(threadId), updateSummary(threadId, summary)
+- [X] T017 [P] Create MessageRepository in apps/api/src/repositories/message.ts with methods: create(threadId, role, content, toolCalls), findByThreadId(threadId, limit, offset), findById(messageId), countByThreadId(threadId), delete(messageId)
+- [X] T018 [P] Create FileRepository in apps/api/src/repositories/file.ts with methods: create(path, content, provenance?), findById(fileId), findByPath(path), findByUserId(userId), update(fileId, content, editMetadata), delete(fileId), updateProvenance(fileId, provenance)
+- [X] T019 [P] Create ContextReferenceRepository in apps/api/src/repositories/contextReference.ts with methods: create(threadId, entityType, entityReference, source, priorityTier), findByThreadId(threadId), delete(referenceId), bulkCreate(references[])
+- [X] T020 [P] Create AgentToolCallRepository in apps/api/src/repositories/agentToolCall.ts with methods: create(messageId, threadId, toolName, toolInput), findById(toolCallId), updateStatus(toolCallId, status, output?), findPendingByThreadId(threadId)
+- [X] T021 [P] Create MemoryChunkRepository in apps/api/src/repositories/memoryChunk.ts with methods: create(threadId, messageIds, embedding, summary, timestampRange, chunkIndex), findByThreadId(threadId), searchSemantic(query, threadId, limit), delete(chunkId)
+- [X] T022 [P] Create UserPreferencesRepository in apps/api/src/repositories/userPreferences.ts with methods: findByUserId(userId), upsert(userId, preferences), updateDerived(userId, interactions), isStale(userId)
 
 ### External Service Clients
 
-- [ ] T023 [P] Create OpenAI client in apps/api/src/lib/openai.ts with generateEmbedding(text) method returning 768-dim vector using text-embedding-3-small model
-- [ ] T024 [P] Create Anthropic client in apps/api/src/lib/anthropic.ts with streamResponse(messages, tools, systemPrompt, model) method with SSE streaming support - model parameter allows task-based model selection
-- [ ] T024a [P] Create AI model config in apps/api/src/config/aiModels.ts with getModelConfig(task) function returning { model, temperature } - Maps tasks to models: 'agent-execution' → Claude 3.5 Sonnet (temp 0.7), 'summarization' → Claude 3.5 Haiku (temp 0.3), 'consolidation' → Claude 3.5 Sonnet (temp 0.3)
+- [X] T023 [P] Create OpenAI client in apps/api/src/lib/openai.ts with generateEmbedding(text) method returning 768-dim vector using text-embedding-3-small model
+- [X] T024 [P] Create Anthropic client in apps/api/src/lib/anthropic.ts with streamResponse(messages, tools, systemPrompt, model) method with SSE streaming support - model parameter allows task-based model selection
+- [X] T024a [P] Create AI model config in apps/api/src/config/aiModels.ts with getModelConfig(task) function returning { model, temperature } - Maps tasks to models: 'agent-execution' → Claude 3.5 Sonnet (temp 0.7), 'summarization' → Claude 3.5 Haiku (temp 0.3), 'consolidation' → Claude 3.5 Sonnet (temp 0.3)
 
 ### Core Services (Business Logic)
 
@@ -104,6 +104,7 @@
 #### Backend API
 
 - [ ] T037 [P] [US1] Create POST /threads Edge Function in apps/api/src/functions/create-thread/index.ts: Validate JWT → Parse { title, parentId? } → Call ThreadRepository.create → If parentId: copy explicit files as context references (ContextReferenceRepository.bulkCreate) → Return { data: { threadId, title, parentId } }
+- [ ] T037a [P] [US1] Create GET /threads Edge Function in apps/api/src/functions/list-threads/index.ts: Validate JWT → Parse query params (includeArchived=false) → ThreadRepository.findByUserId(userId, { includeArchived }) → Return { data: { threads: Thread[] } } with basic thread info (id, title, parentId, createdAt, updatedAt)
 - [ ] T038 [P] [US1] Create GET /threads/:id Edge Function in apps/api/src/functions/get-thread/index.ts: Validate JWT → ThreadRepository.findById → MessageRepository.findByThreadId (last 40) → ContextReferenceRepository.findByThreadId → Return { data: { thread, messages[], contextReferences[], branchMetadata } }
 - [ ] T039 [P] [US1] Create PATCH /threads/:id Edge Function in apps/api/src/functions/update-thread/index.ts: Validate JWT → Parse { title?, archived? } → ThreadRepository.update → Return { data: { thread } }
 - [ ] T040 [P] [US1] Create DELETE /threads/:id Edge Function in apps/api/src/functions/delete-thread/index.ts: Validate JWT → Check ThreadRepository.findChildren(id) → If children exist, return 400 error → Else: ThreadRepository.delete (CASCADE via RLS) → Return { data: { success: true } }
@@ -112,6 +113,7 @@
 
 - [ ] T041 [US1] Create Valtio state in apps/web/src/lib/state/aiAgentState.ts with structure: { currentThread: Thread | null, branchTree: { threads: Thread[], parentChildMap: Map<string, string[]> }, messages: Message[], contextReferences: ContextReference[], streamingBuffer: string | null, sseConnection: EventSource | null }
 - [ ] T042 [P] [US1] Create custom hook useCreateBranch in apps/web/src/lib/hooks/useCreateBranch.ts: Accept (parentId, title) → Optimistic add to branchTree → POST /threads → On success: navigate to new thread → On error: rollback + toast
+- [ ] T042a [P] [US1] Create custom hook useListThreads in apps/web/src/lib/hooks/useListThreads.ts: Accept (includeArchived = false) → GET /threads?includeArchived={includeArchived} → Update aiAgentState.branchTree with threads list → Build parentChildMap for hierarchical tree → Return loading/error states
 - [ ] T043 [P] [US1] Create custom hook useLoadThread in apps/web/src/lib/hooks/useLoadThread.ts: Accept threadId → GET /threads/:id → Update aiAgentState (currentThread, messages, contextReferences) → Return loading/error states
 - [ ] T044 [P] [US1] Create custom hook useUpdateThread in apps/web/src/lib/hooks/useUpdateThread.ts: Accept (threadId, updates) → Optimistic update currentThread → PATCH /threads/:id → On error: rollback + toast
 - [ ] T045 [P] [US1] Create custom hook useDeleteThread in apps/web/src/lib/hooks/useDeleteThread.ts: Accept threadId → Optimistic remove from branchTree → DELETE /threads/:id → On success: navigate to parent → On error: rollback + toast
