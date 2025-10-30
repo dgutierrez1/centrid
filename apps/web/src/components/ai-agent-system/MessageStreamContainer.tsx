@@ -35,7 +35,7 @@ export function MessageStreamContainer() {
       messages.push({
         role: msg.role,
         content: msg.isStreaming && msg.streamingBuffer ? msg.streamingBuffer : msg.content,
-        events: msg.events,
+        events: msg.events as any[] | undefined,
         timestamp: msg.timestamp,
         isStreaming: msg.isStreaming,
         isRequestLoading: msg.isRequestLoading,

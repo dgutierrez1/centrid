@@ -77,6 +77,7 @@ export interface AIAgentState {
   sseConnection: EventSource | null;
   isStreaming: boolean;
   hasStreamStarted: boolean;
+  currentRequestId: string | null;  // Track active agent request for approval handlers
 
   // Loading states
   isLoadingThread: boolean;
@@ -114,6 +115,7 @@ export const aiAgentState = proxy<AIAgentState>({
   sseConnection: null,
   isStreaming: false,
   hasStreamStarted: false,
+  currentRequestId: null,
 
   isLoadingThread: false,
   isCreatingBranch: false,

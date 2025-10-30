@@ -179,6 +179,11 @@ export function AIAgentRealtimeProvider({ userId, children }: AIAgentRealtimePro
 
     channels.push(filesChannel);
 
+    // NOTE: agent_execution_events are subscribed to in useSendMessage hook
+    // (not here) because they need to be filtered by requestId which is only
+    // known during message send. See useSendMessage.ts lines 141-156 for
+    // agent_execution_events subscription and event processing.
+
     // Cleanup on unmount or when thread changes
     return () => {
       channels.forEach((channel) => {

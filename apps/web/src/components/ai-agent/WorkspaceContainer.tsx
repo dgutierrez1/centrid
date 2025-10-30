@@ -390,43 +390,48 @@ function WorkspaceContent() {
 
   // Tool call handlers
   const handleApproveToolCall = useCallback(async (toolCallId: string) => {
-    console.log('[WorkspaceContainer] handleApproveToolCall called with:', toolCallId, 'Pending:', pendingToolCall?.toolName, 'ThreadId:', threadId);
-    if (!pendingToolCall || !threadId) {
-      console.warn('[WorkspaceContainer] Cannot approve: pendingToolCall or threadId missing', {
-        hasPending: !!pendingToolCall,
-        hasThreadId: !!threadId,
-      });
+    console.log('[WorkspaceContainer] handleApproveToolCall called with:', toolCallId, 'Pending:', pendingToolCall?.toolName);
+    if (!pendingToolCall) {
+      console.warn('[WorkspaceContainer] Cannot approve: pendingToolCall missing');
       return;
     }
 
+    const requestId = snap.currentRequestId;
+    if (!requestId) {
+      console.warn('[WorkspaceContainer] Cannot approve: currentRequestId missing. Using recovery mode from pending tools.');
+      // In recovery mode, we might not have currentRequestId - this is handled by backend via toolCallId lookup
+    }
+
     try {
-      // Call the approval endpoint
-      console.log('[WorkspaceContainer] Calling approveTool with true, passing requestId:', threadId);
-      await approveTool(toolCallId, true, undefined, threadId);
+      // Call the approval endpoint with requestId for resume (optional in recovery)
+      console.log('[WorkspaceContainer] Calling approveTool with true, requestId:', requestId || 'N/A (recovery mode)');
+      await approveTool(toolCallId, true, undefined, requestId || undefined);
       console.log('[WorkspaceContainer] Approval successful, clearing pending tool call');
       setPendingToolCall(null);
     } catch (error) {
       console.error('[WorkspaceContainer] Failed to approve tool call:', error);
     }
-  }, [pendingToolCall, threadId, approveTool]);
+  }, [pendingToolCall, snap, approveTool]);
 
   const handleRejectToolCall = useCallback(async (toolCallId: string, reason?: string) => {
-    console.log('[WorkspaceContainer] handleRejectToolCall called with:', toolCallId, 'Reason:', reason, 'ThreadId:', threadId);
-    if (!threadId) {
-      console.warn('[WorkspaceContainer] Cannot reject: threadId missing');
+    console.log('[WorkspaceContainer] handleRejectToolCall called with:', toolCallId, 'Reason:', reason);
+    if (!pendingToolCall) {
+      console.warn('[WorkspaceContainer] Cannot reject: pendingToolCall missing');
       return;
     }
 
+    const requestId = snap.currentRequestId;
+
     try {
-      // Call the approval endpoint with rejection
-      console.log('[WorkspaceContainer] Calling approveTool with false, passing requestId:', threadId);
-      await approveTool(toolCallId, false, reason || 'User rejected', threadId);
+      // Call the approval endpoint with rejection (requestId optional in recovery)
+      console.log('[WorkspaceContainer] Calling approveTool with false, requestId:', requestId || 'N/A (recovery mode)');
+      await approveTool(toolCallId, false, reason || 'User rejected', requestId || undefined);
       console.log('[WorkspaceContainer] Rejection successful, clearing pending tool call');
       setPendingToolCall(null);
     } catch (error) {
       console.error('[WorkspaceContainer] Failed to reject tool call:', error);
     }
-  }, [threadId, approveTool]);
+  }, [pendingToolCall, snap, approveTool]);
 
   // ThreadView expects different signatures - wrap them appropriately
   const handleApproveToolCallForThreadView = useCallback(() => {

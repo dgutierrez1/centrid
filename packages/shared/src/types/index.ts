@@ -3,3 +3,6 @@ export type {};
 
 // Filesystem types
 export * from './filesystem';
+
+// Agent execution event types
+export * from './agent-events';

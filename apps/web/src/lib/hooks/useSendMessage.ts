@@ -65,9 +65,11 @@ export function useSendMessage(threadId: string, options?: SendMessageOptions) {
 
         console.log('[useSendMessage] Got requestId:', requestId);
 
-        // Store for recovery
+        // Store for recovery and approval
         localStorage.setItem(`thread-${threadId}-activeRequest`, requestId);
         localStorage.setItem(`request-${requestId}-messageId`, messageId);
+        // Track request ID in state for approval handlers
+        aiAgentState.currentRequestId = requestId;
 
         // Add user message with real ID from database
         const userMessage = {
@@ -119,22 +121,94 @@ export function useSendMessage(threadId: string, options?: SendMessageOptions) {
         // Subscribe to agent_execution_events for incremental updates
         console.log('[useSendMessage] Setting up real-time subscription:', { requestId });
 
+        // Helper function to process events (defined outside try-catch for strict mode compliance)
+        const processEvent = (eventType: string, eventData: any, channel: any) => {
+          // Mark stream as started on first event
+          if (!aiAgentState.hasStreamStarted) {
+            aiAgentState.hasStreamStarted = true
+          }
+
+          switch (eventType) {
+            case 'context_ready':
+              console.log('[useSendMessage] Context ready:', eventData)
+              break
+            case 'text_chunk':
+              // Update the optimistic assistant message with streamed content
+              if (optimisticAssistantIndex >= 0 && aiAgentState.messages[optimisticAssistantIndex]) {
+                aiAgentState.messages[optimisticAssistantIndex].streamingBuffer += eventData.content
+              }
+              break
+            case 'tool_call':
+              console.log('[useSendMessage] Tool call event received:', {
+                toolCallId: eventData.toolCallId,
+                toolName: eventData.toolName,
+                hasCallback: !!options?.onToolCall,
+              })
+              if (options?.onToolCall) {
+                console.log('[useSendMessage] Triggering onToolCall callback...')
+                options.onToolCall({
+                  toolCallId: eventData.toolCallId,
+                  toolName: eventData.toolName,
+                  toolInput: eventData.toolInput,
+                })
+                console.log('[useSendMessage] onToolCall callback completed')
+              }
+              break
+            case 'completion':
+              // Update optimistic assistant message with final state
+              if (optimisticAssistantIndex >= 0 && aiAgentState.messages[optimisticAssistantIndex]) {
+                const optimisticMsg = aiAgentState.messages[optimisticAssistantIndex]
+                // Update with actual message ID from database
+                optimisticMsg.id = eventData.messageId
+                // Mark as no longer streaming
+                optimisticMsg.isStreaming = false
+                optimisticMsg.isRequestLoading = false
+                // Set final content
+                optimisticMsg.content = optimisticMsg.streamingBuffer || ''
+                // Clear streaming buffer
+                optimisticMsg.streamingBuffer = ''
+                // Set token count
+                optimisticMsg.tokensUsed = eventData.totalTokens || 0
+              }
+              aiAgentState.isStreaming = false
+              aiAgentState.hasStreamStarted = false
+              setIsStreaming(false)
+              setSseConnection(null)
+              // Unsubscribe when complete
+              supabase.removeChannel(channel)
+              localStorage.removeItem(`thread-${threadId}-activeRequest`);
+              aiAgentState.currentRequestId = null
+              return
+            case 'error':
+              throw new Error(eventData.message)
+          }
+        }
+
         try {
           // First: Fetch all existing events for replay (late connection support)
+          console.log('[useSendMessage] Fetching existing events for requestId:', requestId);
           const { data: existingEvents, error: fetchError } = await supabase
             .from('agent_execution_events')
             .select('*')
             .eq('request_id', requestId)
-            .order('created_at', { ascending: true });
+            .order('created_at', { ascending: true }) as any;
 
           if (fetchError) {
-            console.warn('[useSendMessage] Failed to fetch existing events:', fetchError);
+            console.warn('[useSendMessage] Failed to fetch existing events:', {
+              error: fetchError,
+              requestId,
+            });
           } else if (existingEvents && existingEvents.length > 0) {
-            console.log('[useSendMessage] Replaying', existingEvents.length, 'existing events');
+            console.log('[useSendMessage] Replaying', existingEvents.length, 'existing events:', {
+              types: existingEvents.map((e: any) => e.type).join(', '),
+              requestId,
+            });
             // Process existing events
-            for (const event of existingEvents) {
-              processEvent(event.type, event.data);
+            for (const event of (existingEvents as Array<{ type: string; data: any }>)) {
+              processEvent(event.type, event.data, null);
             }
+          } else {
+            console.log('[useSendMessage] No existing events found for requestId:', requestId);
           }
 
           // Second: Subscribe to new events in real-time
@@ -149,66 +223,17 @@ export function useSendMessage(threadId: string, options?: SendMessageOptions) {
                 filter: `request_id=eq.${requestId}`,
               },
               (payload: any) => {
-                console.log('[useSendMessage] Received real-time event:', payload.new.type);
-                processEvent(payload.new.type, payload.new.data);
+                console.log('[useSendMessage] Received real-time event from Supabase:', {
+                  type: payload.new.type,
+                  hasData: !!payload.new.data,
+                  requestId: payload.new.request_id,
+                });
+                processEvent(payload.new.type, payload.new.data, channel);
               }
             )
             .subscribe();
 
-          // Helper function to process events (used for both replay and real-time)
-          function processEvent(eventType: string, eventData: any) {
-            // Mark stream as started on first event
-            if (!aiAgentState.hasStreamStarted) {
-              aiAgentState.hasStreamStarted = true
-            }
-
-            switch (eventType) {
-              case 'context_ready':
-                console.log('[useSendMessage] Context ready:', eventData)
-                break
-              case 'text_chunk':
-                // Update the optimistic assistant message with streamed content
-                if (optimisticAssistantIndex >= 0 && aiAgentState.messages[optimisticAssistantIndex]) {
-                  aiAgentState.messages[optimisticAssistantIndex].streamingBuffer += eventData.content
-                }
-                break
-              case 'tool_call':
-                if (options?.onToolCall) {
-                  options.onToolCall({
-                    toolCallId: eventData.toolCallId,
-                    toolName: eventData.toolName,
-                    toolInput: eventData.toolInput,
-                  })
-                }
-                break
-              case 'completion':
-                // Update optimistic assistant message with final state
-                if (optimisticAssistantIndex >= 0 && aiAgentState.messages[optimisticAssistantIndex]) {
-                  const optimisticMsg = aiAgentState.messages[optimisticAssistantIndex]
-                  // Update with actual message ID from database
-                  optimisticMsg.id = eventData.messageId
-                  // Mark as no longer streaming
-                  optimisticMsg.isStreaming = false
-                  optimisticMsg.isRequestLoading = false
-                  // Set final content
-                  optimisticMsg.content = optimisticMsg.streamingBuffer || ''
-                  // Clear streaming buffer
-                  optimisticMsg.streamingBuffer = ''
-                  // Set token count
-                  optimisticMsg.tokensUsed = eventData.totalTokens || 0
-                }
-                aiAgentState.isStreaming = false
-                aiAgentState.hasStreamStarted = false
-                setIsStreaming(false)
-                setSseConnection(null)
-                // Unsubscribe when complete
-                supabase.removeChannel(channel)
-                localStorage.removeItem(`thread-${threadId}-activeRequest`);
-                return
-              case 'error':
-                throw new Error(eventData.message)
-            }
-          }
+          console.log('[useSendMessage] Real-time subscription created for requestId:', requestId);
 
           // Store channel reference for cleanup
           setSseConnection(channel as any)
@@ -250,6 +275,7 @@ export function useSendMessage(threadId: string, options?: SendMessageOptions) {
                   }
 
                   localStorage.removeItem(`thread-${threadId}-activeRequest`);
+                  aiAgentState.currentRequestId = null
                   aiAgentState.isStreaming = false
                   aiAgentState.hasStreamStarted = false
                   setIsStreaming(false)
@@ -264,6 +290,7 @@ export function useSendMessage(threadId: string, options?: SendMessageOptions) {
                     aiAgentState.messages[optimisticAssistantIndex].content = 'Connection lost. Attempting to reconnect...';
                   }
 
+                  aiAgentState.currentRequestId = null
                   aiAgentState.isStreaming = false
                   aiAgentState.hasStreamStarted = false
                   setIsStreaming(false)
@@ -282,6 +309,7 @@ export function useSendMessage(threadId: string, options?: SendMessageOptions) {
                   }
 
                   localStorage.removeItem(`thread-${threadId}-activeRequest`);
+                  aiAgentState.currentRequestId = null
                   aiAgentState.isStreaming = false
                   aiAgentState.hasStreamStarted = false
                   setIsStreaming(false)
@@ -302,23 +330,14 @@ export function useSendMessage(threadId: string, options?: SendMessageOptions) {
                   aiAgentState.messages[optimisticAssistantIndex].content = '? Error: ' + (error instanceof Error ? error.message : 'Streaming error')
                 }
               }
+              aiAgentState.currentRequestId = null
               aiAgentState.isStreaming = false
               aiAgentState.hasStreamStarted = false
               toast.error(error instanceof Error ? error.message : 'Streaming error')
               setIsStreaming(false)
               setSseConnection(null)
             }
-          }
 
-          processStream()
-
-        } catch (error) {
-          console.error('Error starting SSE stream:', error)
-          toast.error(error instanceof Error ? error.message : 'Streaming error')
-          aiAgentState.isStreaming = false
-          aiAgentState.hasStreamStarted = false
-          setIsStreaming(false)
-        }
       } catch (error) {
         console.error('Error sending message:', error)
         toast.error(error instanceof Error ? error.message : 'Failed to send message')
@@ -331,6 +350,7 @@ export function useSendMessage(threadId: string, options?: SendMessageOptions) {
             aiAgentState.messages.pop()
           }
         }
+        aiAgentState.currentRequestId = null
         aiAgentState.isStreaming = false
         aiAgentState.hasStreamStarted = false
         setIsStreaming(false)

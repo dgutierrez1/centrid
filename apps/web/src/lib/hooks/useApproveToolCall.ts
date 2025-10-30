@@ -17,15 +17,14 @@ export function useApproveToolCall() {
           reason,
         })
 
-        // Send approval to backend using current API endpoint
-        const response = await api.post<{
+        // Send approval to backend using correct endpoint
+        const response = await api.patch<{
           data: {
             success: boolean
             toolCallId: string
             approved: boolean
           }
-        }>('/api/agent/approve-tool', {
-          toolCallId,
+        }>(`/api/tool-calls/${toolCallId}`, {
           approved,
           reason,
         })

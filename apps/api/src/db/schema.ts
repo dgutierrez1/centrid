@@ -471,6 +471,22 @@ export const rlsPolicies = {
 
     -- No UPDATE or DELETE allowed (immutable audit trail)
   `,
+
+  agentExecutionEvents: `
+    -- Enable RLS on agent_execution_events
+    ALTER TABLE agent_execution_events ENABLE ROW LEVEL SECURITY;
+
+    -- Users can view events from their own agent requests (via FK to agent_requests)
+    CREATE POLICY "Users can view own agent execution events"
+      ON agent_execution_events FOR SELECT
+      USING (EXISTS (
+        SELECT 1 FROM agent_requests
+        WHERE agent_requests.id = agent_execution_events.request_id
+        AND agent_requests.user_id = auth.uid()
+      ));
+
+    -- No INSERT/UPDATE/DELETE - events are server-generated immutable records
+  `,
 };
 
 // ============================================================================

@@ -4,6 +4,7 @@ import { streamClaudeResponse, buildMessagesWithToolResults, formatToolsForClaud
 import { agentToolCallRepository } from '../repositories/agentToolCall.ts';
 import { messageRepository } from '../repositories/message.ts';
 import { agentRequestRepository } from '../repositories/agentRequest.ts';
+import { getAvailableTools, toolRequiresApproval } from '../config/tools.ts';
 
 export interface PrimeContext {
   totalTokens: number;
@@ -375,64 +376,127 @@ export class AgentExecutionService {
           break;
         }
 
-        // NEW: Save checkpoint before returning on first tool call
         // Process first tool call only (system prompt ensures max 1 per response)
         const toolCall = iterationToolCalls[0];
 
-        // Create tool call record in database
-        const toolCallId = await this.createToolCall(
-          threadId,
-          messageId,
-          { name: toolCall.name, input: toolCall.input },
-          userId,
-          requestId
-        );
+        // Check if tool requires approval
+        const requiresApproval = toolRequiresApproval(toolCall.name);
 
-        // NEW: Save checkpoint for resume
-        if (requestId) {
-          const checkpoint = {
-            conversationHistory: messages,
-            lastToolCall: {
-              id: toolCallId,
-              name: toolCall.name,
-              input: toolCall.input,
-            },
-            iterationCount,
-            accumulatedContent,
-            status: 'awaiting_approval',
-          };
-
-          console.log('[AgentExecution] Saving checkpoint:', {
-            requestId,
-            toolCallId,
-            iterationCount,
-          });
-
-          await agentRequestRepository.update(requestId, {
-            checkpoint,
-          });
-        }
-
-        // Yield tool call for user approval (no waiting - return immediately)
-        yield {
-          type: 'tool_call',
-          toolCallId,
+        console.log('[AgentExecution] Tool call detected:', {
           toolName: toolCall.name,
-          toolInput: toolCall.input,
-          approval_required: true,
-          revision_count: revisionCount,
-        };
-
-        console.log('[AgentExecution] Tool call emitted, returning for approval:', {
-          toolCallId,
-          toolName: toolCall.name,
-          requestId,
+          requiresApproval,
+          iterationCount,
         });
 
-        // NEW: Return immediately instead of waiting for approval
-        // The /approve-tool endpoint will call /execute (resume) when user approves
-        continueLoop = false;
-        break;
+        if (!requiresApproval) {
+          // AUTO-EXECUTE: Read-only tools execute immediately without approval
+          console.log('[AgentExecution] Auto-executing read-only tool:', {
+            toolName: toolCall.name,
+            iterationCount,
+          });
+
+          try {
+            const toolResult = await this.executeTool(
+              toolCall.name,
+              toolCall.input,
+              threadId,
+              userId
+            );
+
+            console.log('[AgentExecution] Tool executed successfully:', {
+              toolName: toolCall.name,
+              resultLength: JSON.stringify(toolResult).length,
+            });
+
+            // Add tool result to messages
+            messages.push({
+              role: 'user',
+              content: [
+                {
+                  type: 'tool_result',
+                  tool_use_id: toolCall.name + '_auto_' + Date.now(),
+                  content: JSON.stringify(toolResult),
+                },
+              ],
+            });
+
+            // Continue loop - Claude will process the result
+            console.log('[AgentExecution] Continuing execution with tool result');
+            continueLoop = true;
+            // Continue to next while iteration
+          } catch (toolError) {
+            console.error('[AgentExecution] Error executing tool:', {
+              toolName: toolCall.name,
+              error: toolError instanceof Error ? toolError.message : String(toolError),
+            });
+
+            yield {
+              type: 'error',
+              message: `Failed to execute tool ${toolCall.name}: ${
+                toolError instanceof Error ? toolError.message : String(toolError)
+              }`,
+            };
+
+            continueLoop = false;
+            break;
+          }
+        } else {
+          // APPROVAL REQUIRED: Save checkpoint and wait for user
+          // Create tool call record in database
+          const toolCallId = await this.createToolCall(
+            threadId,
+            messageId,
+            { name: toolCall.name, input: toolCall.input },
+            userId,
+            requestId
+          );
+
+          // Save checkpoint for resume
+          if (requestId) {
+            const checkpoint = {
+              conversationHistory: messages,
+              lastToolCall: {
+                id: toolCallId,
+                name: toolCall.name,
+                input: toolCall.input,
+              },
+              iterationCount,
+              accumulatedContent,
+              status: 'awaiting_approval',
+            };
+
+            console.log('[AgentExecution] Saving checkpoint for approval-required tool:', {
+              requestId,
+              toolCallId,
+              toolName: toolCall.name,
+              iterationCount,
+            });
+
+            await agentRequestRepository.update(requestId, {
+              checkpoint,
+            });
+          }
+
+          // Yield tool call for user approval
+          yield {
+            type: 'tool_call',
+            toolCallId,
+            toolName: toolCall.name,
+            toolInput: toolCall.input,
+            approval_required: true,
+            revision_count: revisionCount,
+          };
+
+          console.log('[AgentExecution] Approval-required tool call emitted, waiting for user:', {
+            toolCallId,
+            toolName: toolCall.name,
+            requestId,
+          });
+
+          // Return immediately - /approve-tool endpoint will call /execute (resume)
+          continueLoop = false;
+          break;
+        }
 
         // Continue loop to get Claude's next response with tool results
       } catch (error) {
@@ -514,69 +578,8 @@ export class AgentExecutionService {
    * Get available tools for agent
    */
   private static getAvailableTools() {
-    return [
-      {
-        name: 'write_file',
-        description: 'Write content to a file',
-        input_schema: {
-          type: 'object',
-          properties: {
-            path: { type: 'string', description: 'File path' },
-            content: { type: 'string', description: 'File content' },
-          },
-          required: ['path', 'content'],
-        },
-      },
-      {
-        name: 'create_branch',
-        description: 'Create a new conversation branch',
-        input_schema: {
-          type: 'object',
-          properties: {
-            title: { type: 'string', description: 'Branch title' },
-            contextFiles: {
-              type: 'array',
-              items: { type: 'string' },
-              description: 'Files to include',
-            },
-          },
-          required: ['title'],
-        },
-      },
-      {
-        name: 'search_files',
-        description: 'Search for files',
-        input_schema: {
-          type: 'object',
-          properties: {
-            query: { type: 'string', description: 'Search query' },
-          },
-          required: ['query'],
-        },
-      },
-      {
-        name: 'read_file',
-        description: 'Read file contents',
-        input_schema: {
-          type: 'object',
-          properties: {
-            path: { type: 'string', description: 'File path' },
-          },
-          required: ['path'],
-        },
-      },
-      {
-        name: 'list_directory',
-        description: 'List files and folders in a directory',
-        input_schema: {
-          type: 'object',
-          properties: {
-            path: { type: 'string', description: 'Directory path' },
-          },
-          required: ['path'],
-        },
-      },
-    ];
+    // Use centralized tool config instead of hardcoded definitions
+    return getAvailableTools();
   }
 
   /**
