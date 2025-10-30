@@ -1,0 +1,32 @@
+{
+  "users": [
+    {
+      "id": "test-user-1",
+      "email": "test@centrid.local",
+      "password": "TestPassword123!",
+      "name": "Test User",
+      "purpose": "Primary test user for UI verification"
+    },
+    {
+      "id": "test-user-2",
+      "email": "verify@centrid.local",
+      "password": "VerifyPassword123!",
+      "name": "Verify User",
+      "purpose": "Backup user for parallel tests"
+    },
+    {
+      "id": "test-user-3",
+      "email": "design@centrid.local",
+      "password": "DesignPassword123!",
+      "name": "Design User",
+      "purpose": "Design verification tests"
+    }
+  ],
+  "auth": {
+    "loginUrl": "/auth/login",
+    "signupUrl": "/auth/signup",
+    "logoutUrl": "/auth/logout",
+    "successIndicator": "[data-testid='user-menu']",
+    "loginTimeout": 10000
+  }
+}

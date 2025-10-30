@@ -9,7 +9,7 @@ import { ToolCallApproval } from './ToolCallApproval';
 
 export interface ThreadViewProps {
   /** Current branch */
-  currentBranch: Branch;
+  currentBranch: Branch | null;
   /** All branches */
   branches: Branch[];
   /** Messages in current thread */
@@ -73,6 +73,29 @@ export function ThreadView({
   onRemoveReference,
   className = '',
 }: ThreadViewProps) {
+  // Show empty state when no thread is selected
+  if (!currentBranch) {
+    return (
+      <div className={`flex flex-col h-full bg-white dark:bg-gray-950 ${className}`} data-testid="thread-view-empty">
+        <div className="flex-1 flex items-center justify-center p-8">
+          <div className="text-center max-w-md">
+            <div className="mb-4">
+              <svg className="w-16 h-16 mx-auto text-gray-300 dark:text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+              No thread selected
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Select a thread from the sidebar or create a new one to start a conversation
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`flex flex-col h-full bg-white dark:bg-gray-950 ${className}`} data-testid="thread-view">
       {/* Header */}

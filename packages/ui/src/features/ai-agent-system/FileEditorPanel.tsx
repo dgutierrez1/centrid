@@ -26,6 +26,8 @@ export interface FileEditorPanelProps {
   onClose: () => void;
   onGoToSource?: (branchId: string, messageId: string) => void;
   onFileChange?: (content: string) => void;
+  onDelete?: () => Promise<void>;
+  isDeleting?: boolean;
   className?: string;
 }
 

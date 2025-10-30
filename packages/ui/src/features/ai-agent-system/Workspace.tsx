@@ -17,6 +17,7 @@ export interface WorkspaceProps extends Omit<ThreadViewProps, 'className'> {
   onCreateFile?: () => void;
   onCreateFolder?: () => void;
   isSidebarOpen?: boolean;
+  isLoadingThreads?: boolean;
 
   // File editor props
   currentFile?: FileData | null;
@@ -79,10 +80,11 @@ export function Workspace({
   onStopStreaming,
   onApproveToolCall,
   onRejectToolCall,
-  onAddToExplicit,
-  onRemove,
-  onDismiss,
   onBranchThread,
+  onAddReference,
+  onReferenceClick,
+  onRemoveReference,
+  onWidgetClick,
 
   className,
 }: WorkspaceProps) {
@@ -171,11 +173,11 @@ export function Workspace({
             onStopStreaming={onStopStreaming}
             onApproveToolCall={onApproveToolCall}
             onRejectToolCall={onRejectToolCall}
-            onFileClick={onFileClick}
-            onAddToExplicit={onAddToExplicit}
-            onRemove={onRemove}
-            onDismiss={onDismiss}
             onBranchThread={onBranchThread}
+            onWidgetClick={onWidgetClick}
+            onAddReference={onAddReference}
+            onReferenceClick={onReferenceClick}
+            onRemoveReference={onRemoveReference}
           />
         </div>
 

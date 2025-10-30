@@ -12,6 +12,14 @@ Centrid solves the context loss problem in AI chat applications by maintaining a
 
 **Critical Principle**: MVP-first discipline. Scope features to deliver value in days, not weeks. Abstract only after third occurrence (Rule of Three).
 
+**File Creation Policy**:
+- DO NOT create reports, summaries, or test documentation unless explicitly requested
+- DO NOT take screenshots or save artifacts unless explicitly requested  
+- Clean up temporary test files immediately after verification
+- Prefer verbal summaries over written documents
+- `/speckit` commands are workflow automation tools that generate files by design - avoid unless formal verification is needed
+- When in doubt: Just make the code change, don't document it
+
 ## Monorepo Structure
 
 ```
@@ -544,6 +552,65 @@ const subscription = createRealtimeSubscription(
   },
   { user_id: userId }
 );
+```
+
+### Unified API Client Pattern
+
+All frontend services use axios-based HTTP client (`/lib/api/client.ts`) with unified error handling, automatic retry, and auth token injection.
+
+**Using the API Client:**
+
+```typescript
+import { api } from '@/lib/api/client'
+import { getErrorMessage } from '@/lib/api/errors'
+
+// Services call API (auth headers auto-injected)
+const folder = await api.post('/folders', { name: 'My Folder' })
+const data = await api.get('/documents')
+
+// Unified error handling
+try {
+  await api.delete(`/documents/${id}`)
+} catch (error) {
+  toast.error(getErrorMessage(error, 'delete document'))
+}
+
+// SSE streaming support
+await api.stream('/consolidate-branches', (chunk) => {
+  handleProgress(JSON.parse(chunk))
+})
+```
+
+**Auth Token Management:**
+
+- Tokens cached in `TokenStore` (synchronous access, no async overhead)
+- Synchronized by `AuthProvider` on login/logout/refresh
+- Automatic injection via axios request interceptor
+- **Performance**: 5ms latency eliminated per request
+
+**Built-in Features:**
+
+- ✅ Auth header injection (via TokenStore)
+- ✅ Retry on 5xx with exponential backoff (max 2 retries)
+- ✅ 30-second timeout on all requests
+- ✅ Consistent error format (`ApiError` class)
+- ✅ SSE streaming for long-running operations
+
+**Service Layer Pattern:**
+
+```typescript
+// Service wraps API (no business logic)
+export const FilesystemService = {
+  async createFolder(name, parentId) {
+    return api.post('/folders', { name, parent_folder_id: parentId })
+  },
+  async deleteFolder(id) {
+    await api.delete(`/folders/${id}`)
+  }
+}
+
+// Hooks/Components call services
+const { data, error, loading } = useFilesystemOperations()
 ```
 
 ### Document Processing Flow

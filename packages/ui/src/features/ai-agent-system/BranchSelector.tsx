@@ -167,7 +167,7 @@ export function BranchSelector({
             />
           </svg>
           <span className="text-sm font-medium text-gray-900 dark:text-white truncate">
-            {currentBranch.title}
+            {currentBranch?.title || 'Select a thread'}
           </span>
           {branches.length > 1 && (
             <Badge variant="secondary" className="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs shrink-0">
@@ -189,7 +189,7 @@ export function BranchSelector({
 
       <DropdownMenuContent className="w-[300px] max-h-[400px] overflow-y-auto" data-testid="branch-selector-dropdown">
         {branches.map((branch, index) => {
-          const isCurrentBranch = branch.id === currentBranch.id;
+          const isCurrentBranch = branch.id === currentBranch?.id;
           const indentPx = branch.depth * 24;
 
           // Check if this is the last child of its parent
@@ -205,7 +205,7 @@ export function BranchSelector({
               style={{ paddingLeft: `${16 + indentPx}px` }}
               onClick={() => {
                 if (!isCurrentBranch) {
-                  onSelectBranch(branch.id);
+                  onSelectBranch?.(branch.id);
                   setIsOpen(false);
                 }
               }}
@@ -254,7 +254,7 @@ export function BranchSelector({
                 </div>
                 <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                   <span>{branch.artifactCount} artifacts</span>
-                  <span>•</span>
+                  <span>?</span>
                   <span>
                     {branch.lastActivity.toLocaleString([], {
                       month: 'short',

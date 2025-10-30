@@ -23,6 +23,7 @@
     "@tiptap/pm": "^3.7.2",
     "@tiptap/react": "^3.7.2",
     "@tiptap/starter-kit": "^3.7.2",
+    "axios": "^1.13.1",
     "date-fns": "^2.30.0",
     "framer-motion": "^10.16.16",
     "lucide-react": "^0.294.0",

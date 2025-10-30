@@ -132,7 +132,7 @@ export const createAgentRequestSchema = z.object({
   preferences: z
     .object({
       model: z
-        .enum(["gpt-4o", "gpt-4o-mini", "claude-3-sonnet-20240229"])
+        .enum(["gpt-4o", "gpt-4o-mini", "claude-haiku-4-5-20251001"])
         .optional(),
       temperature: z.number().min(0).max(1).optional(),
       max_tokens: z.number().min(100).max(4000).optional(),

@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, integer, timestamp, real, jsonb, index, unique, customType } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, integer, timestamp, real, jsonb, index, unique, customType, boolean } from 'drizzle-orm/pg-core';
 
 /**
  * Database Schema for Centrid MVP
@@ -112,18 +112,41 @@ export const documentChunks = pgTable('document_chunks', {
 export const agentRequests = pgTable('agent_requests', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id').notNull(), // FK to auth.users(id) ON DELETE CASCADE - see cascadeDeleteSQL below
+  threadId: uuid('thread_id').notNull(), // NEW: Link to thread
+  triggeringMessageId: uuid('triggering_message_id').notNull(), // NEW: Which user message triggered this request
+  responseMessageId: uuid('response_message_id'), // NEW: Assistant response message (set at stream end)
   agentType: text('agent_type').notNull(),
   content: text('content').notNull(),
   status: text('status').notNull().default('pending'),
   progress: real('progress').notNull().default(0),
   results: jsonb('results'),
-  tokenCost: integer('token_cost'),
+  checkpoint: jsonb('checkpoint'), // NEW: Checkpoint for tool approval suspend/resume
+  tokenCost: integer('token_cost'), // Keep existing
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  completedAt: timestamp('completed_at', { withTimezone: true }), // NEW: When request finished
 }, (table) => ({
   userIdIdx: index('agent_requests_user_id_idx').on(table.userId),
+  threadIdIdx: index('agent_requests_thread_id_idx').on(table.threadId), // NEW
+  triggeringMessageIdx: index('agent_requests_triggering_message_idx').on(table.triggeringMessageId), // NEW
   statusIdx: index('agent_requests_status_idx').on(table.status),
   createdAtIdx: index('agent_requests_created_at_idx').on(table.createdAt),
+}));
+
+// ============================================================================
+// 5.5 AGENT_EXECUTION_EVENTS TABLE - Real-time Event Streaming
+// ============================================================================
+
+export const agentExecutionEvents = pgTable('agent_execution_events', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  requestId: uuid('request_id').notNull(), // FK to agent_requests(id) ON DELETE CASCADE
+  type: text('type').notNull(), // 'text_chunk', 'tool_call', 'completion', 'error'
+  data: jsonb('data').notNull(), // Event payload
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  requestIdIdx: index('agent_execution_events_request_id_idx').on(table.requestId),
+  requestIdCreatedAtIdx: index('agent_execution_events_request_id_created_at_idx').on(table.requestId, table.createdAt),
+  typeIdx: index('agent_execution_events_type_idx').on(table.type),
 }));
 
 // ============================================================================
@@ -158,6 +181,114 @@ export const usageEvents = pgTable('usage_events', {
   userIdIdx: index('usage_events_user_id_idx').on(table.userId),
   createdAtIdx: index('usage_events_created_at_idx').on(table.createdAt),
   eventTypeIdx: index('usage_events_event_type_idx').on(table.eventType),
+}));
+
+// ============================================================================
+// 8. THREADS TABLE (Agent System)
+// ============================================================================
+
+export const threads = pgTable('threads', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  ownerUserId: uuid('owner_user_id').notNull(), // FK to auth.users(id) ON DELETE CASCADE
+  parentThreadId: uuid('parent_thread_id'), // Self-referential for branches
+  branchTitle: text('branch_title'), // Title for branch threads
+  creator: text('creator').notNull(), // 'user' or 'agent'
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  ownerUserIdIdx: index('idx_threads_owner_user_id').on(table.ownerUserId),
+  parentThreadIdIdx: index('idx_threads_parent_thread_id').on(table.parentThreadId),
+  createdAtIdx: index('idx_threads_created_at').on(table.createdAt),
+}));
+
+// ============================================================================
+// 9. MESSAGES TABLE (Agent System)
+// ============================================================================
+
+export const messages = pgTable('messages', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  threadId: uuid('thread_id').notNull(), // FK to threads(id) ON DELETE CASCADE
+  ownerUserId: uuid('owner_user_id').notNull(), // FK to auth.users(id) ON DELETE CASCADE
+  role: text('role').notNull(), // 'user' or 'assistant'
+  content: text('content').notNull(),
+  toolCalls: jsonb('tool_calls').default([]),
+  tokensUsed: integer('tokens_used').default(0),
+  timestamp: timestamp('timestamp', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  threadIdIdx: index('idx_messages_thread_id').on(table.threadId),
+  threadTimestampIdx: index('idx_messages_thread_id_timestamp').on(table.threadId, table.timestamp),
+  ownerUserIdIdx: index('idx_messages_owner_user_id').on(table.ownerUserId),
+  createdAtIdx: index('idx_messages_created_at').on(table.timestamp),
+}));
+
+// ============================================================================
+// 10. AGENT_TOOL_CALLS TABLE (Agent System)
+// ============================================================================
+
+export const agentToolCalls = pgTable('agent_tool_calls', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  messageId: uuid('message_id').notNull(), // FK to messages(id) ON DELETE CASCADE
+  threadId: uuid('thread_id').notNull(), // FK to threads(id) ON DELETE CASCADE
+  ownerUserId: uuid('owner_user_id').notNull(), // FK to auth.users(id) ON DELETE CASCADE
+  requestId: uuid('request_id'), // NEW: FK to agent_requests(id) ON DELETE CASCADE (optional, set later)
+  toolName: text('tool_name').notNull(), // 'write_file', 'create_branch', etc
+  toolInput: jsonb('tool_input').notNull(),
+  approvalStatus: text('approval_status').default('pending'), // 'pending', 'approved', 'rejected'
+  toolOutput: jsonb('tool_output'), // Result of tool execution
+  rejectionReason: text('rejection_reason'), // Why tool was rejected
+  revisionCount: integer('revision_count').default(0), // Number of rejection + retry cycles
+  revisionHistory: jsonb('revision_history').default([]), // NEW: Track revision attempts
+  timestamp: timestamp('timestamp', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  idIdx: index('idx_agent_tool_calls_id').on(table.id),
+  threadIdIdx: index('idx_agent_tool_calls_thread_id').on(table.threadId),
+  messageIdIdx: index('idx_agent_tool_calls_message_id').on(table.messageId),
+  requestIdIdx: index('idx_agent_tool_calls_request_id').on(table.requestId), // NEW
+  approvalStatusIdx: index('idx_agent_tool_calls_approval_status').on(table.approvalStatus),
+  ownerUserIdIdx: index('idx_agent_tool_calls_owner_user_id').on(table.ownerUserId),
+  createdAtIdx: index('idx_agent_tool_calls_created_at').on(table.timestamp),
+}));
+
+// ============================================================================
+// 11. CONTEXT_REFERENCES TABLE (Agent System)
+// ============================================================================
+
+export const contextReferences = pgTable('context_references', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  threadId: uuid('thread_id').notNull(), // FK to threads(id) ON DELETE CASCADE
+  ownerUserId: uuid('owner_user_id').notNull(), // FK to auth.users(id) ON DELETE CASCADE
+  entityType: text('entity_type').notNull(), // 'file', 'document', 'thread', etc
+  entityReference: text('entity_reference').notNull(), // path or ID of referenced entity
+  source: text('source').notNull(), // 'user-added', 'agent-added', 'inherited', etc
+  priorityTier: integer('priority_tier').default(1), // Higher = more important for context
+  addedAt: timestamp('added_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  threadIdIdx: index('idx_context_references_thread_id').on(table.threadId),
+  ownerUserIdIdx: index('idx_context_references_owner_user_id').on(table.ownerUserId),
+  entityTypeIdx: index('idx_context_references_entity_type').on(table.entityType),
+}));
+
+// ============================================================================
+// 12. FILES TABLE (Agent System)
+// ============================================================================
+
+export const files = pgTable('files', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  ownerUserId: uuid('owner_user_id').notNull(), // FK to auth.users(id) ON DELETE CASCADE
+  path: text('path').notNull(), // File path in workspace
+  content: text('content').notNull(), // File content
+  isAIGenerated: boolean('is_ai_generated').default(false), // Track AI-generated files
+  createdBy: text('created_by'), // 'user' or agent name
+  lastEditedBy: text('last_edited_by'),
+  lastEditedAt: timestamp('last_edited_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  ownerUserIdIdx: index('idx_files_owner_user_id').on(table.ownerUserId),
+  pathIdx: index('idx_files_path').on(table.path),
+  userPathIdx: index('idx_files_user_path').on(table.ownerUserId, table.path),
+  isAIGeneratedIdx: index('idx_files_is_ai_generated').on(table.isAIGenerated),
+  createdAtIdx: index('idx_files_created_at').on(table.createdAt),
 }));
 
 // ============================================================================
@@ -497,6 +628,34 @@ ALTER TABLE agent_requests
   ADD CONSTRAINT agent_requests_user_id_fkey
   FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
+-- Agent Requests - Thread FK (NEW)
+ALTER TABLE agent_requests
+  DROP CONSTRAINT IF EXISTS agent_requests_thread_id_fkey;
+ALTER TABLE agent_requests
+  ADD CONSTRAINT agent_requests_thread_id_fkey
+  FOREIGN KEY (thread_id) REFERENCES threads(id) ON DELETE CASCADE;
+
+-- Agent Requests - Triggering Message FK (NEW)
+ALTER TABLE agent_requests
+  DROP CONSTRAINT IF EXISTS agent_requests_triggering_message_id_fkey;
+ALTER TABLE agent_requests
+  ADD CONSTRAINT agent_requests_triggering_message_id_fkey
+  FOREIGN KEY (triggering_message_id) REFERENCES messages(id) ON DELETE CASCADE;
+
+-- Agent Requests - Response Message FK (NEW, optional)
+ALTER TABLE agent_requests
+  DROP CONSTRAINT IF EXISTS agent_requests_response_message_id_fkey;
+ALTER TABLE agent_requests
+  ADD CONSTRAINT agent_requests_response_message_id_fkey
+  FOREIGN KEY (response_message_id) REFERENCES messages(id) ON DELETE SET NULL;
+
+-- Agent Tool Calls - Agent Request FK (NEW)
+ALTER TABLE agent_tool_calls
+  DROP CONSTRAINT IF EXISTS agent_tool_calls_request_id_fkey;
+ALTER TABLE agent_tool_calls
+  ADD CONSTRAINT agent_tool_calls_request_id_fkey
+  FOREIGN KEY (request_id) REFERENCES agent_requests(id) ON DELETE CASCADE;
+
 -- Agent Sessions
 ALTER TABLE agent_sessions
   DROP CONSTRAINT IF EXISTS agent_sessions_user_id_fkey;
@@ -548,15 +707,34 @@ USING hnsw (embedding vector_cosine_ops);
 // Must be run after schema push
 
 export const realtimePublicationSQL = `
--- Enable realtime for folders and documents tables
+-- Enable realtime for all tables (for streaming updates)
 -- Uses SET TABLE instead of ADD TABLE for idempotency
--- SET replaces the table list, so it's safe to run multiple times
-ALTER PUBLICATION supabase_realtime SET TABLE folders, documents;
+ALTER PUBLICATION supabase_realtime SET TABLE
+  agent_requests,
+  agent_execution_events,
+  agent_sessions,
+  documents,
+  document_chunks,
+  folders,
+  threads,
+  messages,
+  context_references,
+  files,
+  user_profiles;
 
 -- CRITICAL: Set REPLICA IDENTITY to FULL for DELETE events
 -- Default behavior: DELETE events only include primary key (id)
 -- FULL behavior: DELETE events include all columns (including user_id)
--- Why needed: Subscription filter "user_id=eq.[user_id]" requires user_id in DELETE events
-ALTER TABLE folders REPLICA IDENTITY FULL;
+-- Why needed: Subscription filters need user_id and other columns for authorization
+ALTER TABLE agent_requests REPLICA IDENTITY FULL;
+ALTER TABLE agent_execution_events REPLICA IDENTITY FULL;
+ALTER TABLE agent_sessions REPLICA IDENTITY FULL;
 ALTER TABLE documents REPLICA IDENTITY FULL;
+ALTER TABLE document_chunks REPLICA IDENTITY FULL;
+ALTER TABLE folders REPLICA IDENTITY FULL;
+ALTER TABLE threads REPLICA IDENTITY FULL;
+ALTER TABLE messages REPLICA IDENTITY FULL;
+ALTER TABLE context_references REPLICA IDENTITY FULL;
+ALTER TABLE files REPLICA IDENTITY FULL;
+ALTER TABLE user_profiles REPLICA IDENTITY FULL;
 `;

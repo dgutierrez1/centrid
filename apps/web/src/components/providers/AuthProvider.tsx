@@ -3,7 +3,8 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import { useRouter } from 'next/router'
-import { createClient } from '@/lib/supabase/client'
+import { supabase } from '@/lib/supabase/client'
+import { TokenStore } from '@/lib/api/tokenStore'
 import type { User } from '@supabase/supabase-js'
 
 interface AuthProviderProps {
@@ -36,29 +37,53 @@ export default function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
-  const supabase = createClient()
 
   useEffect(() => {
-    // Get initial session
+    // Get initial session and sync token to TokenStore
     const getInitialSession = async () => {
       try {
+        // Wait a tick to ensure SSR client is fully initialized
+        await new Promise(r => setTimeout(r, 0))
+
         const { data: { session } } = await supabase.auth.getSession()
+        console.log('🔐 Initial session:', { user: session?.user?.email, hasToken: !!session?.access_token, token: session?.access_token?.substring(0, 20) + '...' })
         setUser(session?.user ?? null)
+        // Sync token to TokenStore for API requests
+        TokenStore.setInitialToken(session?.access_token ?? null)
+        console.log('✅ Token synced to TokenStore')
       } catch (error) {
         console.error('Error getting initial session:', error)
         setUser(null)
+        TokenStore.setInitialToken(null)
       } finally {
         setLoading(false)
+        TokenStore.markInitialized()
       }
     }
 
     getInitialSession()
 
     // Listen for auth state changes (login, logout, token refresh)
+    // Updates TokenStore so API requests always have the latest token
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      console.log('🔄 Auth state changed:', { event: _event, user: session?.user?.email, hasToken: !!session?.access_token })
       setUser(session?.user ?? null)
+      // Sync token changes to TokenStore (login, logout, refresh)
+      TokenStore.setToken(session?.access_token ?? null)
+
+      // If this is a login event and we don't have a token, try refreshing the session
+      // This fixes a Supabase SSR bug where tokens aren't always returned
+      if (_event === 'SIGNED_IN' && !session?.access_token) {
+        console.warn('⚠️ Token missing on SIGNED_IN event. Refreshing session...')
+        const { data: refreshed } = await supabase.auth.refreshSession()
+        if (refreshed?.session?.access_token) {
+          TokenStore.setToken(refreshed.session.access_token)
+          console.log('✅ Token recovered via session refresh')
+        }
+      }
+
       setLoading(false)
 
       // Note: No need to refresh/replace route in a CSR app

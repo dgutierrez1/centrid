@@ -13,6 +13,8 @@
     "deploy": "supabase functions deploy --project-ref xennuhfmnucybtyzfgcl",
     "deploy:functions": "supabase functions deploy --project-ref xennuhfmnucybtyzfgcl",
     "deploy:function": "supabase functions deploy --project-ref xennuhfmnucybtyzfgcl",
+    "deploy:safe": "bash ../../scripts/pre-deploy.sh && npm run deploy:functions",
+    "deploy:functions:safe": "bash ../../scripts/pre-deploy.sh && npm run deploy:functions",
     "db:drop": "tsx src/db/drop.ts",
     "db:push": "tsx src/db/push.ts",
     "type-check": "tsc --noEmit"

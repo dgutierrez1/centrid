@@ -6,6 +6,11 @@
     "@centrid/shared/utils": "../../packages/shared/src/utils/index.ts",
     "@centrid/shared/schemas": "../../packages/shared/src/schemas/index.ts",
     "@centrid/shared/constants": "../../packages/shared/src/constants/index.ts",
-    "openai": "npm:openai@4"
+    "openai": "npm:openai@4",
+    "drizzle-orm": "npm:drizzle-orm@^0.29.0",
+    "drizzle-orm/": "npm:drizzle-orm@^0.29.0/",
+    "drizzle-orm/pg-core": "npm:drizzle-orm@^0.29.0/pg-core",
+    "drizzle-orm/postgres-js": "npm:drizzle-orm@^0.29.0/postgres-js",
+    "postgres": "npm:postgres@^3.4.0"
   }
 }

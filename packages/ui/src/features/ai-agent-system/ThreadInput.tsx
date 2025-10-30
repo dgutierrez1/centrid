@@ -11,6 +11,24 @@ export interface ThreadInputProps {
   onChange: (text: string) => void;
   onSendMessage: (text: string) => void;
   onStopStreaming?: () => void;
+  // Autocomplete props
+  autocompleteItems?: Array<{
+    id: string;
+    name: string;
+    path: string;
+    type: 'file' | 'folder' | 'thread';
+    branchName?: string;
+    branchId?: string;
+    relevanceScore?: number;
+    lastModified?: string;
+  }>;
+  autocompleteIsOpen?: boolean;
+  autocompleteIsLoading?: boolean;
+  autocompleteQuery?: string;
+  onAutocompleteQueryChange?: (query: string) => void;
+  onAutocompleteSelect?: (item: any) => void;
+  onAutocompleteOpen?: () => void;
+  onAutocompleteClose?: () => void;
   className?: string;
 }
 

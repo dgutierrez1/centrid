@@ -7,6 +7,7 @@ export interface MessageProps {
   events?: AgentEvent[];
   timestamp: Date;
   isStreaming?: boolean;
+  isRequestLoading?: boolean;
   streamingBuffer?: string;
   className?: string;
 }

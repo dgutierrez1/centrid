@@ -1,35 +1,18 @@
-import { createClient } from '@/lib/supabase/client';
 import type { Folder, Document } from '@centrid/shared/types';
+import { api, ApiError, handleApiError } from '@/lib/api/client';
+import { getAuthHeaders } from '@/lib/api/getAuthHeaders';
 
 /**
  * FilesystemService - Pure API functions for folder and document operations
- * Returns { data?, error? } with NO UI concerns (loading, toasts, state updates)
+ * Returns data directly or throws ApiError
  *
  * Architecture: Service Layer (pure API calls) → Custom Hooks (UI concerns) → Components
+ *
+ * All requests automatically get:
+ * - Auth header injection
+ * - Retry on 5xx errors
+ * - Consistent error handling
  */
-
-interface ApiResponse<T> {
-  data?: T;
-  error?: string;
-}
-
-/**
- * Helper to get auth headers for Edge Function calls
- */
-async function getAuthHeaders() {
-  const supabase = createClient();
-  const { data: { session } } = await supabase.auth.getSession();
-
-  if (!session?.access_token) {
-    console.error('No session found - user may not be authenticated');
-    throw new Error('Authentication required');
-  }
-
-  return {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${session.access_token}`,
-  };
-}
 
 export const FilesystemService = {
   // ===== FOLDER OPERATIONS =====
@@ -40,33 +23,11 @@ export const FilesystemService = {
   async createFolder(
     name: string,
     parentFolderId: string | null
-  ): Promise<ApiResponse<Folder>> {
-    try {
-      const headers = await getAuthHeaders();
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/folders`,
-        {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            name,
-            parent_folder_id: parentFolderId,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        return { error: errorData.message || 'Failed to create folder' };
-      }
-
-      const data = await response.json();
-      return { data };
-    } catch (error) {
-      return {
-        error: error instanceof Error ? error.message : 'Failed to create folder',
-      };
-    }
+  ): Promise<Folder> {
+    return api.post<Folder>('/folders', {
+      name,
+      parent_folder_id: parentFolderId,
+    });
   },
 
   /**
@@ -75,30 +36,8 @@ export const FilesystemService = {
   async renameFolder(
     folderId: string,
     newName: string
-  ): Promise<ApiResponse<Folder>> {
-    try {
-      const headers = await getAuthHeaders();
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/folders/${folderId}`,
-        {
-          method: 'PUT',
-          headers,
-          body: JSON.stringify({ name: newName }),
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        return { error: errorData.message || 'Failed to rename folder' };
-      }
-
-      const data = await response.json();
-      return { data };
-    } catch (error) {
-      return {
-        error: error instanceof Error ? error.message : 'Failed to rename folder',
-      };
-    }
+  ): Promise<Folder> {
+    return api.put<Folder>(`/folders/${folderId}`, { name: newName });
   },
 
   /**
@@ -107,57 +46,15 @@ export const FilesystemService = {
   async moveFolder(
     folderId: string,
     newParentId: string | null
-  ): Promise<ApiResponse<Folder>> {
-    try {
-      const headers = await getAuthHeaders();
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/folders/${folderId}`,
-        {
-          method: 'PUT',
-          headers,
-          body: JSON.stringify({ parent_folder_id: newParentId }),
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        return { error: errorData.message || 'Failed to move folder' };
-      }
-
-      const data = await response.json();
-      return { data };
-    } catch (error) {
-      return {
-        error: error instanceof Error ? error.message : 'Failed to move folder',
-      };
-    }
+  ): Promise<Folder> {
+    return api.put<Folder>(`/folders/${folderId}`, { parent_folder_id: newParentId });
   },
 
   /**
    * Delete a folder (cascade deletes children)
    */
-  async deleteFolder(folderId: string): Promise<ApiResponse<void>> {
-    try {
-      const headers = await getAuthHeaders();
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/folders/${folderId}`,
-        {
-          method: 'DELETE',
-          headers,
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        return { error: errorData.message || 'Failed to delete folder' };
-      }
-
-      return { data: undefined };
-    } catch (error) {
-      return {
-        error: error instanceof Error ? error.message : 'Failed to delete folder',
-      };
-    }
+  async deleteFolder(folderId: string): Promise<void> {
+    await api.delete(`/folders/${folderId}`);
   },
 
   // ===== DOCUMENT OPERATIONS =====
@@ -168,35 +65,12 @@ export const FilesystemService = {
   async createDocument(
     name: string,
     folderId: string | null
-  ): Promise<ApiResponse<Document>> {
-    try {
-      const headers = await getAuthHeaders();
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/documents`,
-        {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            name,
-            folder_id: folderId,
-            content_text: '', // Empty content for new documents
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        return { error: errorData.message || 'Failed to create document' };
-      }
-
-      const data = await response.json();
-      return { data };
-    } catch (error) {
-      return {
-        error:
-          error instanceof Error ? error.message : 'Failed to create document',
-      };
-    }
+  ): Promise<Document> {
+    return api.post<Document>('/documents', {
+      name,
+      folder_id: folderId,
+      content_text: '', // Empty content for new documents
+    });
   },
 
   /**
@@ -205,31 +79,8 @@ export const FilesystemService = {
   async renameDocument(
     documentId: string,
     newName: string
-  ): Promise<ApiResponse<Document>> {
-    try {
-      const headers = await getAuthHeaders();
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/documents/${documentId}`,
-        {
-          method: 'PATCH',
-          headers,
-          body: JSON.stringify({ name: newName }),
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        return { error: errorData.message || 'Failed to rename document' };
-      }
-
-      const data = await response.json();
-      return { data };
-    } catch (error) {
-      return {
-        error:
-          error instanceof Error ? error.message : 'Failed to rename document',
-      };
-    }
+  ): Promise<Document> {
+    return api.patch<Document>(`/documents/${documentId}`, { name: newName });
   },
 
   /**
@@ -238,31 +89,8 @@ export const FilesystemService = {
   async moveDocument(
     documentId: string,
     newFolderId: string | null
-  ): Promise<ApiResponse<Document>> {
-    try {
-      const headers = await getAuthHeaders();
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/documents/${documentId}`,
-        {
-          method: 'PATCH',
-          headers,
-          body: JSON.stringify({ folder_id: newFolderId }),
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        return { error: errorData.message || 'Failed to move document' };
-      }
-
-      const data = await response.json();
-      return { data };
-    } catch (error) {
-      return {
-        error:
-          error instanceof Error ? error.message : 'Failed to move document',
-      };
-    }
+  ): Promise<Document> {
+    return api.patch<Document>(`/documents/${documentId}`, { folder_id: newFolderId });
   },
 
   /**
@@ -272,80 +100,32 @@ export const FilesystemService = {
     documentId: string,
     content: string,
     version: number
-  ): Promise<ApiResponse<Document>> {
-    try {
-      const headers = await getAuthHeaders();
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/documents/${documentId}`,
-        {
-          method: 'PUT',
-          headers,
-          body: JSON.stringify({
-            content_text: content,
-            version, // For optimistic locking
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        return { error: errorData.message || 'Failed to update document' };
-      }
-
-      const data = await response.json();
-      return { data };
-    } catch (error) {
-      return {
-        error:
-          error instanceof Error ? error.message : 'Failed to update document',
-      };
-    }
+  ): Promise<Document> {
+    return api.put<Document>(`/documents/${documentId}`, {
+      content_text: content,
+      version, // For optimistic locking
+    });
   },
 
   /**
    * Delete a document
    */
-  async deleteDocument(documentId: string): Promise<ApiResponse<void>> {
-    try {
-      const headers = await getAuthHeaders();
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/documents/${documentId}`,
-        {
-          method: 'DELETE',
-          headers,
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        return { error: errorData.message || 'Failed to delete document' };
-      }
-
-      return { data: undefined };
-    } catch (error) {
-      return {
-        error:
-          error instanceof Error ? error.message : 'Failed to delete document',
-      };
-    }
+  async deleteDocument(documentId: string): Promise<void> {
+    await api.delete(`/documents/${documentId}`);
   },
 
   /**
    * Upload a document file (with progress callback)
-   * Uses multipart/form-data to upload files to Edge Function
+   * Uses XMLHttpRequest for progress tracking with multipart/form-data
    */
   async uploadDocument(
     file: File,
     folderId: string | null,
     onProgress?: (progress: number) => void
-  ): Promise<ApiResponse<Document>> {
+  ): Promise<Document> {
     try {
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (!session?.access_token) {
-        throw new Error('Authentication required');
-      }
+      const headers = await getAuthHeaders();
+      const authHeader = headers.Authorization;
 
       // Create FormData for multipart upload
       const formData = new FormData();
@@ -355,7 +135,7 @@ export const FilesystemService = {
       }
 
       // Use XMLHttpRequest for progress tracking
-      return new Promise((resolve) => {
+      return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
 
         // Track upload progress
@@ -368,54 +148,44 @@ export const FilesystemService = {
 
         // Handle completion
         xhr.addEventListener('load', () => {
-          console.log('[FilesystemService] Upload response:', {
-            status: xhr.status,
-            statusText: xhr.statusText,
-            responseLength: xhr.responseText.length,
-            responseText: xhr.responseText,
-          });
-
           if (xhr.status >= 200 && xhr.status < 300) {
             try {
               const data = JSON.parse(xhr.responseText);
-              console.log('[FilesystemService] Parsed response data:', data);
-              resolve({ data, success: true });
+              resolve(data);
             } catch (error) {
-              console.error('[FilesystemService] Failed to parse success response:', error);
-              console.error('[FilesystemService] Raw response text:', xhr.responseText);
-              resolve({ error: `Failed to parse response: ${error}` });
+              reject(new ApiError('Failed to parse response', 500));
             }
           } else {
             try {
               const errorData = JSON.parse(xhr.responseText);
-              resolve({ error: errorData.message || errorData.error || 'Upload failed' });
+              reject(new ApiError(
+                errorData.message || 'Upload failed',
+                xhr.status,
+                errorData
+              ));
             } catch (parseError) {
-              console.error('[FilesystemService] Failed to parse error response:', parseError);
-              console.error('[FilesystemService] Raw response:', xhr.responseText);
-              resolve({ error: `Upload failed (${xhr.status}): ${xhr.responseText.substring(0, 100)}` });
+              reject(new ApiError(`Upload failed (${xhr.status})`, xhr.status));
             }
           }
         });
 
         // Handle errors
         xhr.addEventListener('error', () => {
-          resolve({ error: 'Network error during upload' });
+          reject(new ApiError('Network error during upload', 0));
         });
 
         xhr.addEventListener('abort', () => {
-          resolve({ error: 'Upload cancelled' });
+          reject(new ApiError('Upload cancelled', 0));
         });
 
         // Open and send request
         xhr.open('POST', `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/documents`);
-        xhr.setRequestHeader('Authorization', `Bearer ${session.access_token}`);
+        xhr.setRequestHeader('Authorization', authHeader);
         // Don't set Content-Type - let browser set it with boundary for multipart
         xhr.send(formData);
       });
     } catch (error) {
-      return {
-        error: error instanceof Error ? error.message : 'Failed to upload document',
-      };
+      throw handleApiError(error);
     }
   },
 };

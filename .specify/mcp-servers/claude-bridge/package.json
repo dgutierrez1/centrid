@@ -1,0 +1,19 @@
+{
+  "name": "claude-bridge-mcp",
+  "version": "1.0.0",
+  "description": "Bridge MCP server for Claude Code slash commands and CLAUDE.md guidelines",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "prepare": "npm run build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3"
+  }
+}

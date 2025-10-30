@@ -1,0 +1,42 @@
+{
+  "imports": {
+    "@centrid/shared": "../../packages/shared/src/index.ts",
+    "@centrid/shared/": "../../packages/shared/src/",
+    "@centrid/shared/types": "../../packages/shared/src/types/index.ts",
+    "@centrid/shared/utils": "../../packages/shared/src/utils/index.ts",
+    "@centrid/shared/schemas": "../../packages/shared/src/schemas/index.ts",
+    "@centrid/shared/constants": "../../packages/shared/src/constants/index.ts",
+    "openai": "npm:openai@4.51.0",
+    "drizzle-orm": "npm:drizzle-orm@^0.29.0",
+    "drizzle-orm/": "npm:drizzle-orm@^0.29.0/",
+    "drizzle-orm/pg-core": "npm:drizzle-orm@^0.29.0/pg-core",
+    "drizzle-orm/postgres-js": "npm:drizzle-orm@^0.29.0/postgres-js",
+    "postgres": "npm:postgres@^3.4.0",
+    "zod": "npm:zod@3.22.4",
+    "@anthropic-ai/sdk": "npm:@anthropic-ai/sdk@0.20.0",
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2.39.0",
+    "hono": "npm:hono@4",
+    "uuid": "npm:uuid@9.0.1"
+  },
+  "compilerOptions": {
+    "allowJs": true,
+    "lib": ["deno.window"],
+    "strict": true
+  },
+  "lint": {
+    "rules": {
+      "tags": ["recommended"]
+    }
+  },
+  "fmt": {
+    "files": {
+      "include": ["src/", "supabase/"]
+    }
+  },
+  "tasks": {
+    "dev": "deno task --watch",
+    "check": "deno check **/*.ts",
+    "fmt": "deno fmt",
+    "lint": "deno lint"
+  }
+}

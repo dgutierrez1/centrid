@@ -1,0 +1,260 @@
+import { proxy } from 'valtio';
+
+export interface Thread {
+  id: string;
+  title: string;
+  summary?: string;
+  parentId: string | null;
+  depth: number;
+  artifactCount: number;
+  lastActivity: Date;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Message {
+  id: string;
+  role: 'user' | 'assistant';
+  content?: string;
+  events?: any[];
+  toolCalls?: any[];
+  timestamp: Date;
+  isStreaming?: boolean;
+  isRequestLoading?: boolean;
+  streamingBuffer?: string;
+  tokensUsed?: number;
+  idempotencyKey?: string; // Client-side request ID for deduplication
+}
+
+export interface ContextReference {
+  id: string;
+  entityType: 'file' | 'folder' | 'thread';
+  entityReference: string;
+  source: 'inherited' | 'manual' | '@-mentioned' | 'agent-added';
+  priorityTier: 1 | 2 | 3;
+  addedTimestamp: Date;
+  // Optional metadata for display
+  name?: string;
+  sourceBranch?: string;
+  relevanceScore?: number;
+  relationship?: 'sibling' | 'parent' | 'child';
+}
+
+export interface BranchTreeState {
+  threads: Thread[];
+  parentChildMap: Map<string, string[]>;
+}
+
+export interface Provenance {
+  createdAt: Date;
+  createdBy: 'agent' | 'user';
+  sourceBranch: string;
+  sourceThreadId: string;
+  sourceMessageId: string;
+  lastEditedAt?: Date;
+  lastEditedBy?: 'agent' | 'user';
+  lastEditSourceThreadId?: string;
+}
+
+export interface FileData {
+  id: string;
+  name: string;
+  content: string;
+  provenance: Provenance | null;
+}
+
+export interface AIAgentState {
+  // Current thread data
+  currentThread: Thread | null;
+  messages: Message[];
+  contextReferences: ContextReference[];
+
+  // Branch tree navigation
+  branchTree: BranchTreeState;
+
+  // Streaming state
+  streamingBuffer: string | null;
+  sseConnection: EventSource | null;
+  isStreaming: boolean;
+  hasStreamStarted: boolean;
+
+  // Loading states
+  isLoadingThread: boolean;
+  isCreatingBranch: boolean;
+  isConsolidating: boolean;
+
+  // UI state
+  selectedFileId: string | null;
+  currentFile: FileData | null;
+  sidebarCollapsed: boolean;
+  isConsolidateModalOpen: boolean;
+  consolidationProgress: {
+    step: string;
+    current: number;
+    total: number;
+  } | null;
+  consolidatedContent: string | null;
+  consolidationError: string | null;
+}
+
+/**
+ * Global AI Agent State (Valtio)
+ */
+export const aiAgentState = proxy<AIAgentState>({
+  currentThread: null,
+  messages: [],
+  contextReferences: [],
+
+  branchTree: {
+    threads: [],
+    parentChildMap: new Map(),
+  },
+
+  streamingBuffer: null,
+  sseConnection: null,
+  isStreaming: false,
+  hasStreamStarted: false,
+
+  isLoadingThread: false,
+  isCreatingBranch: false,
+  isConsolidating: false,
+
+  selectedFileId: null,
+  currentFile: null,
+  sidebarCollapsed: false,
+  isConsolidateModalOpen: false,
+  consolidationProgress: null,
+  consolidatedContent: null,
+  consolidationError: null,
+});
+
+/**
+ * State Actions
+ */
+export const aiAgentActions = {
+  // Thread actions
+  setCurrentThread(thread: Thread | null) {
+    aiAgentState.currentThread = thread;
+  },
+
+  setMessages(messages: Message[]) {
+    aiAgentState.messages = messages;
+  },
+
+  addMessage(message: Message) {
+    aiAgentState.messages.push(message);
+  },
+
+  setContextReferences(refs: ContextReference[]) {
+    aiAgentState.contextReferences = refs;
+  },
+
+  // Branch tree actions
+  setBranchTree(threads: Thread[]) {
+    aiAgentState.branchTree.threads = threads;
+
+    // Build parent-child map
+    const map = new Map<string, string[]>();
+    for (const thread of threads) {
+      if (thread.parentId) {
+        const children = map.get(thread.parentId) || [];
+        children.push(thread.id);
+        map.set(thread.parentId, children);
+      }
+    }
+    aiAgentState.branchTree.parentChildMap = map;
+  },
+
+  addThreadToBranchTree(thread: Thread) {
+    aiAgentState.branchTree.threads.push(thread);
+
+    // Update parent-child map
+    if (thread.parentId) {
+      const children = aiAgentState.branchTree.parentChildMap.get(thread.parentId) || [];
+      children.push(thread.id);
+      aiAgentState.branchTree.parentChildMap.set(thread.parentId, children);
+    }
+  },
+
+  removeThreadFromBranchTree(threadId: string) {
+    const threadIndex = aiAgentState.branchTree.threads.findIndex(t => t.id === threadId);
+    if (threadIndex >= 0) {
+      const thread = aiAgentState.branchTree.threads[threadIndex];
+      aiAgentState.branchTree.threads.splice(threadIndex, 1);
+
+      // Update parent-child map
+      if (thread.parentId) {
+        const children = aiAgentState.branchTree.parentChildMap.get(thread.parentId) || [];
+        const childIndex = children.indexOf(threadId);
+        if (childIndex >= 0) {
+          children.splice(childIndex, 1);
+        }
+      }
+    }
+  },
+
+  // Streaming actions
+  setStreamingBuffer(buffer: string | null) {
+    aiAgentState.streamingBuffer = buffer;
+  },
+
+  setSSEConnection(connection: EventSource | null) {
+    aiAgentState.sseConnection = connection;
+  },
+
+  setIsStreaming(streaming: boolean) {
+    aiAgentState.isStreaming = streaming;
+  },
+
+  setHasStreamStarted(started: boolean) {
+    aiAgentState.hasStreamStarted = started;
+  },
+
+  // Loading states
+  setIsLoadingThread(loading: boolean) {
+    aiAgentState.isLoadingThread = loading;
+  },
+
+  setIsCreatingBranch(creating: boolean) {
+    aiAgentState.isCreatingBranch = creating;
+  },
+
+  setIsConsolidating(consolidating: boolean) {
+    aiAgentState.isConsolidating = consolidating;
+  },
+
+  // UI actions
+  setSelectedFile(fileId: string | null) {
+    aiAgentState.selectedFileId = fileId;
+  },
+
+  setCurrentFile(file: FileData | null) {
+    aiAgentState.currentFile = file;
+  },
+
+  toggleSidebar() {
+    aiAgentState.sidebarCollapsed = !aiAgentState.sidebarCollapsed;
+  },
+
+  // Consolidation actions
+  setConsolidateModalOpen(open: boolean) {
+    aiAgentState.isConsolidateModalOpen = open;
+    if (!open) {
+      aiAgentState.consolidationProgress = null;
+      aiAgentState.consolidatedContent = null;
+      aiAgentState.consolidationError = null;
+    }
+  },
+
+  setConsolidationProgress(progress: { step: string; current: number; total: number } | null) {
+    aiAgentState.consolidationProgress = progress;
+  },
+
+  setConsolidatedContent(content: string | null) {
+    aiAgentState.consolidatedContent = content;
+  },
+
+  setConsolidationError(error: string | null) {
+    aiAgentState.consolidationError = error;
+  },
+};

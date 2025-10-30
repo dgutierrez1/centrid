@@ -22,17 +22,18 @@
  * ```
  */
 
-import { drizzle } from 'npm:drizzle-orm@^0.29.0/postgres-js';
-import postgres from 'npm:postgres@^3.4.0';
-import * as schema from '../../db/schema.ts';
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
+import * as schema from "../../db/schema.ts";
 
 /**
  * Configuration for database connection in Edge Functions
  */
 const DB_CONFIG = {
-  max: 1,              // Single connection per request
-  idle_timeout: 20,    // Close connection after 20s idle
-  connect_timeout: 10, // 10s connection timeout
+  max: 5, // ✅ Allow 5 pooled connections within single request
+  idle_timeout: 5, // ✅ Reduce to 5s (edge functions are short-lived)
+  connect_timeout: 5, // ✅ Faster timeout for edge context
+  prepare: false, // ✅ Disable prepared statements (OLTP not analytical)
 } as const;
 
 /**
@@ -54,12 +55,12 @@ const DB_CONFIG = {
  * ```
  */
 export async function getDB() {
-  const databaseUrl = Deno.env.get('DATABASE_URL');
+  const databaseUrl = Deno.env.get('DB_URL') || Deno.env.get('SUPABASE_DB_URL') || process.env.DB_URL || process.env.SUPABASE_DB_URL;
 
   if (!databaseUrl) {
     throw new Error(
-      'DATABASE_URL environment variable is not set. ' +
-      'Configure it in Supabase Dashboard → Edge Functions → Secrets'
+      "SUPABASE_DB_URL environment variable is not set. " +
+        "Configure it in Supabase Dashboard → Edge Functions → Secrets"
     );
   }
 
@@ -77,11 +78,11 @@ export async function getDB() {
      */
     cleanup: async () => {
       await sql.end();
-    }
+    },
   };
 }
 
 /**
  * Type exports for use in Edge Functions
  */
-export type DB = Awaited<ReturnType<typeof getDB>>['db'];
+export type DB = Awaited<ReturnType<typeof getDB>>["db"];

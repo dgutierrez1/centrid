@@ -8,8 +8,12 @@ export interface FileItem {
   id: string;
   name: string;
   path: string;
-  type: 'file' | 'folder';
+  type: 'file' | 'folder' | 'thread';
   icon?: React.ReactNode;
+  branchName?: string;
+  branchId?: string;
+  relevanceScore?: number;
+  lastModified?: string;
 }
 
 export interface FileAutocompleteProps {

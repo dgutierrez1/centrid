@@ -1,7 +1,12 @@
 // Centrid AI Filesystem - Realtime Provider
 // Version: 3.1 - Supabase Plus MVP Architecture
-// TODO: Re-enable realtime when Supabase is set up
+// Re-enabled with modern Supabase imports
 
+import { useEffect, useRef } from 'react';
+import { useSnapshot } from 'valtio';
+import { RealtimeChannel } from '@supabase/supabase-js';
+import { appState, actions } from '@/lib/state';
+import { supabase } from '@/lib/supabase/client';
 import { ReactNode } from 'react';
 
 interface RealtimeProviderProps {
@@ -9,26 +14,11 @@ interface RealtimeProviderProps {
 }
 
 export default function RealtimeProvider({ children }: RealtimeProviderProps) {
-  // Realtime disabled for now - just pass through children
-  return <>{children}</>;
-}
-
-/* REALTIME CODE - RE-ENABLE WHEN SUPABASE IS SET UP
-import { useEffect, useRef } from 'react';
-import { useUser } from '@supabase/auth-helpers-nextjs';
-import { useSnapshot } from 'valtio';
-import { RealtimeChannel } from '@supabase/supabase-js';
-import { appState, actions } from '@/lib/state';
-import { supabase } from '@/lib/supabase';
-
-// Original realtime logic:
-export default function RealtimeProvider({ children }: RealtimeProviderProps) {
-  const user = useUser();
   const state = useSnapshot(appState);
   const subscriptionsRef = useRef<RealtimeChannel[]>([]);
 
   useEffect(() => {
-    if (!user?.id) {
+    if (!state.user?.id) {
       // Clean up existing subscriptions
       subscriptionsRef.current.forEach(subscription => {
         subscription.unsubscribe();
@@ -38,7 +28,7 @@ export default function RealtimeProvider({ children }: RealtimeProviderProps) {
       return;
     }
 
-    const userId = user.id;
+    const userId = state.user.id;
     actions.setConnectionStatus('reconnecting');
 
     // Documents subscription
@@ -141,12 +131,12 @@ export default function RealtimeProvider({ children }: RealtimeProviderProps) {
 
     // Monitor connection status
     let connectionCheckInterval: NodeJS.Timeout;
-    
+
     const checkConnection = () => {
       const allSubscribed = subscriptionsRef.current.every(
         channel => channel.state === 'joined'
       );
-      
+
       if (allSubscribed) {
         actions.setConnectionStatus('connected');
       } else {
@@ -156,7 +146,7 @@ export default function RealtimeProvider({ children }: RealtimeProviderProps) {
 
     // Check connection every 5 seconds
     connectionCheckInterval = setInterval(checkConnection, 5000);
-    
+
     // Initial connection check after a delay
     setTimeout(checkConnection, 2000);
 
@@ -169,7 +159,7 @@ export default function RealtimeProvider({ children }: RealtimeProviderProps) {
       subscriptionsRef.current = [];
       actions.setConnectionStatus('disconnected');
     };
-  }, [user?.id]);
+  }, [state.user?.id]);
 
   // Handle realtime changes
   const handleDocumentChange = (payload: any) => {
@@ -190,7 +180,7 @@ export default function RealtimeProvider({ children }: RealtimeProviderProps) {
       case 'UPDATE':
         if (newRecord) {
           actions.updateDocument(newRecord.id, newRecord);
-          
+
           // Show notification for processing status changes
           if (oldRecord?.processing_status !== newRecord.processing_status) {
             if (newRecord.processing_status === 'completed') {
@@ -321,4 +311,3 @@ export default function RealtimeProvider({ children }: RealtimeProviderProps) {
 
   return <>{children}</>;
 }
-*/

@@ -10,12 +10,8 @@ import OpenAI from 'openai';
 // OpenAI Client
 // ============================================================================
 
-// Note: In Deno (Edge Functions), env vars are accessed via Deno.env.get()
-// In Node.js (local development), use process.env
+// Use process.env for TypeScript/Node.js compatibility
 const getApiKey = () => {
-  if (typeof Deno !== 'undefined') {
-    return Deno.env.get('OPENAI_API_KEY');
-  }
   return process.env.OPENAI_API_KEY;
 };
 

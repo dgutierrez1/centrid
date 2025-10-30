@@ -15,7 +15,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { updateProfileSchema } from '@centrid/shared/schemas'
+import { updateProfileSchema } from '@centrid/shared/schemas/profile.schema.ts'
 
 // CORS headers for browser requests
 const corsHeaders = {

@@ -8,12 +8,18 @@ import type { Database } from '@/types/database.types'
  * Automatically handles session persistence in localStorage.
  *
  * Usage:
+ *   import { supabase } from '@/lib/supabase/client'
+ *   const { data } = await supabase.from('table').select('*')
+ *
+ * Or:
  *   import { createClient } from '@/lib/supabase/client'
  *   const supabase = createClient()
- *   const { data } = await supabase.from('table').select('*')
  */
 export const createClient = () =>
   createBrowserClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
+
+// Singleton instance for convenience (most common usage)
+export const supabase = createClient()
