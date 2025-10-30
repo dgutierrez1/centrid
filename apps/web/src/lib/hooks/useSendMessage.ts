@@ -131,6 +131,11 @@ export function useSendMessage(threadId: string, options?: SendMessageOptions) {
               }
               break
             case 'tool_call':
+              // Update optimistic message ID to real database ID (for approval banner matching)
+              if (optimisticAssistantIndex >= 0 && aiAgentState.messages[optimisticAssistantIndex] && eventData.messageId) {
+                aiAgentState.messages[optimisticAssistantIndex].id = eventData.messageId;
+              }
+
               if (options?.onToolCall) {
                 options.onToolCall({
                   toolCallId: eventData.toolCallId,
