@@ -24,7 +24,7 @@ export function useApproveToolCall() {
             toolCallId: string
             approved: boolean
           }
-        }>(`/api/tool-calls/${toolCallId}`, {
+        }>(`/tool-calls/${toolCallId}`, {
           approved,
           reason,
         })

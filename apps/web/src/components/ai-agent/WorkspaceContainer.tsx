@@ -91,7 +91,10 @@ function WorkspaceContent() {
     onToolCall: (toolCall) => {
       console.log('[WorkspaceContainer] Tool call received:', toolCall);
       setPendingToolCall(toolCall);
-      console.log('[WorkspaceContainer] Pending tool call set to:', toolCall.toolName);
+      console.log('[WorkspaceContainer] Pending tool call state updated:', {
+        toolCallId: toolCall.toolCallId,
+        toolName: toolCall.toolName,
+      });
     }
   });
 
@@ -581,7 +584,8 @@ function WorkspaceContent() {
         messageText={messageText}
         isStreaming={isSendMessageStreaming || snap.isStreaming}
         isLoading={snap.isLoadingThread}
-        pendingToolCall={undefined} // TODO: Track pending tool calls
+        // NOTE: pendingToolCall is passed inline within messages (via pendingToolCall in individual message objects above)
+        // Do NOT pass as ThreadView prop - that would render separate modal instead of inline
         isContextExpanded={isContextExpanded}
         onSelectBranch={handleSelectBranch}
         onToggleContextPanel={handleToggleContextPanel}
