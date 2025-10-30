@@ -25,7 +25,6 @@ import { useApproveToolCall } from '@/lib/hooks/useApproveToolCall';
 import { useAuthContext } from '@/components/providers/AuthProvider';
 import { checkRequestStatus, getPendingToolsByRequest, getPendingToolsByThread } from '@/lib/api/agent-requests';
 import { supabase } from '@/lib/supabase/client';
-import toast from 'react-hot-toast';
 
 /**
  * Convert FileSystemNode tree to flat File array for WorkspaceSidebar
@@ -98,6 +97,11 @@ function WorkspaceContent() {
     }
   });
 
+  // DEBUG: Track pendingToolCall state changes
+  useEffect(() => {
+    console.log('[WorkspaceContainer] pendingToolCall state changed:', pendingToolCall);
+  }, [pendingToolCall]);
+
   // MVU F2.2: Recovery - Check for active requests on thread mount
   useEffect(() => {
     if (!threadId) return;
@@ -152,26 +156,51 @@ function WorkspaceContent() {
     checkForActiveRequest();
   }, [threadId]);
 
-  // MVU F2.3: Load pending tools on thread mount
+  // MVU F2.3: Load pending tools on thread mount (cold path - recovery only)
   useEffect(() => {
     if (!threadId) return;
+
+    // Skip query if we already have pending tool from stream event (hot path)
+    if (pendingToolCall) {
+      console.log('[PendingTools] Skipping query - already have pending tool from event');
+      return;
+    }
 
     const loadPendingApprovals = async () => {
       try {
         const pendingTools = await getPendingToolsByThread(threadId);
+
+        console.log('[PendingTools] Response from API:', {
+          count: pendingTools.length,
+          tools: pendingTools.map(t => ({
+            id: t.id,
+            toolName: t.toolName,
+            messageId: t.messageId,
+            approvalStatus: t.approvalStatus,
+          })),
+        });
 
         if (pendingTools.length > 0) {
           console.log('[PendingTools] Found pending approvals:', pendingTools.length);
 
           // Show first pending tool (UI will handle showing them one by one)
           const firstTool = pendingTools[0];
+          console.log('[PendingTools] Setting pending tool call:', {
+            toolCallId: firstTool.id,
+            toolName: firstTool.toolName,
+            messageId: firstTool.messageId,
+          });
+
           setPendingToolCall({
             toolCallId: firstTool.id,
             toolName: firstTool.toolName,
             toolInput: firstTool.toolInput,
+            messageId: firstTool.messageId,
           });
 
-          toast.info(`${pendingTools.length} pending approvals`);
+          // Pending tools loaded - will render inline in messages
+        } else {
+          console.log('[PendingTools] No pending tools found');
         }
       } catch (error) {
         console.error('[PendingTools] Failed to load:', error);
@@ -180,6 +209,55 @@ function WorkspaceContent() {
     };
 
     loadPendingApprovals();
+  }, [threadId, pendingToolCall]);
+
+  // MVU F2.4: Real-time subscription for tool approval status changes
+  useEffect(() => {
+    if (!threadId) return;
+
+    console.log('[ToolApprovalSync] Setting up real-time subscription for thread:', threadId);
+
+    const channel = supabase
+      .channel(`tool-approvals-${threadId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'agent_tool_calls',
+          filter: `thread_id=eq.${threadId}`,
+        },
+        (payload) => {
+          console.log('[ToolApprovalSync] Tool call updated:', payload);
+          const updated = payload.new as any;
+
+          // If tool was approved or rejected, clear pending state
+          if (updated.approval_status === 'approved' || updated.approval_status === 'rejected') {
+            console.log('[ToolApprovalSync] Clearing pending tool call (status changed to:', updated.approval_status + ')');
+            setPendingToolCall(null);
+          }
+          // If new pending tool appears with responseMessageId, update state
+          else if (updated.approval_status === 'pending' && updated.response_message_id) {
+            console.log('[ToolApprovalSync] New pending tool detected:', {
+              toolCallId: updated.id,
+              toolName: updated.tool_name,
+              messageId: updated.response_message_id,
+            });
+            setPendingToolCall({
+              toolCallId: updated.id,
+              toolName: updated.tool_name,
+              toolInput: updated.tool_input,
+              messageId: updated.response_message_id,
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      console.log('[ToolApprovalSync] Cleaning up subscription');
+      supabase.removeChannel(channel);
+    };
   }, [threadId]);
 
   // File hooks
@@ -523,6 +601,15 @@ function WorkspaceContent() {
     },
   ];
 
+  // Log matching
+  const lastMsg = snap.messages[snap.messages.length - 1];
+  console.log('[MATCH]', {
+    lastMsgId: lastMsg?.id,
+    pendingToolMessageId: (pendingToolCall as any)?.messageId,
+    match: lastMsg?.id === (pendingToolCall as any)?.messageId ? 'YES' : 'NO',
+    pendingToolName: (pendingToolCall as any)?.toolName,
+  });
+
   return (
     <>
       <Workspace
@@ -562,14 +649,33 @@ function WorkspaceContent() {
         branches={threadsWithActive}
         messages={snap.messages.map((m, idx) => {
         const isLastAssistantMessage = m.role === 'assistant' && idx === snap.messages.length - 1;
-        if (pendingToolCall && isLastAssistantMessage) {
-          console.log('[WorkspaceContainer] Attaching approval to message:', m.id, 'Tool:', pendingToolCall.toolName);
+        // Match pending tool call by messageId from the API response
+        // The pending tool call has messageId which is the agent message it belongs to
+        const hasMatchingMessageId = m.role === 'assistant' && pendingToolCall && m.id === (pendingToolCall as any).messageId;
+
+        if (pendingToolCall && m.role === 'assistant') {
+          console.log('[MessageMatching] Checking message:', {
+            messageId: m.id,
+            pendingToolMessageId: (pendingToolCall as any).messageId,
+            matches: hasMatchingMessageId,
+            isLast: isLastAssistantMessage,
+            toolName: pendingToolCall.toolName,
+          });
         }
+
+        const shouldShowTool = (hasMatchingMessageId || isLastAssistantMessage) && pendingToolCall;
+        if (shouldShowTool && m.role === 'assistant') {
+          console.log('[MessageMatching] WILL SHOW TOOL on message:', {
+            messageId: m.id,
+            toolName: pendingToolCall.toolName,
+          });
+        }
+
         return {
           ...m,
           events: m.events ? [...m.events] : undefined,
-          // Add pending tool call only to the last ASSISTANT message if it exists
-          ...(isLastAssistantMessage && pendingToolCall ? {
+          // Add pending tool call to the message that matches by messageId from the API
+          ...(shouldShowTool ? {
             pendingToolCall: {
               toolCallId: pendingToolCall.toolCallId,
               toolName: pendingToolCall.toolName,

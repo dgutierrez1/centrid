@@ -59,15 +59,13 @@ export function useSendMessage(threadId: string, options?: SendMessageOptions) {
         const messageId = resource.id;
 
         if (!requestId) {
-          console.error('[useSendMessage] No requestId in response!');
           throw new Error('No requestId in response');
         }
-
-        console.log('[useSendMessage] Got requestId:', requestId);
 
         // Store for recovery and approval
         localStorage.setItem(`thread-${threadId}-activeRequest`, requestId);
         localStorage.setItem(`request-${requestId}-messageId`, messageId);
+
         // Track request ID in state for approval handlers
         aiAgentState.currentRequestId = requestId;
 
@@ -82,15 +80,10 @@ export function useSendMessage(threadId: string, options?: SendMessageOptions) {
           idempotencyKey, // Track idempotency key for deduplication
         }
 
-        console.log('[useSendMessage] Adding user message:', userMessage.id, 'idempotencyKey:', idempotencyKey, 'Total messages before:', aiAgentState.messages.length);
-
         // Check if message already exists (prevent duplicates)
         const messageExists = aiAgentState.messages.some(m => m.id === userMessage.id);
         if (!messageExists) {
           aiAgentState.messages.push(userMessage);
-          console.log('[useSendMessage] User message added. Total messages after:', aiAgentState.messages.length);
-        } else {
-          console.warn('[useSendMessage] User message already exists, skipping duplicate');
         }
 
         // Add optimistic assistant message (streaming state)
@@ -107,19 +100,18 @@ export function useSendMessage(threadId: string, options?: SendMessageOptions) {
           streamingBuffer: '',
           tokensUsed: 0,
           idempotencyKey: assistantIdempotencyKey, // Track for deduplication
-        }
+          requestId: requestId, // Track which request this message responds to (for matching pending tool calls)
+        } as any
 
         // Check if this optimistic message already exists (prevent duplicates)
         const optimisticExists = aiAgentState.messages.some(m => m.id === tempAssistantId);
         if (!optimisticExists) {
           aiAgentState.messages.push(optimisticAssistantMessage);
-          console.log('[useSendMessage] Optimistic assistant message added. Total messages:', aiAgentState.messages.length);
         }
         const optimisticAssistantIndex = aiAgentState.messages.length - 1
 
         // MVU F1.2: Stream by requestId using Supabase Real-time
         // Subscribe to agent_execution_events for incremental updates
-        console.log('[useSendMessage] Setting up real-time subscription:', { requestId });
 
         // Helper function to process events (defined outside try-catch for strict mode compliance)
         const processEvent = (eventType: string, eventData: any, channel: any) => {
@@ -130,7 +122,7 @@ export function useSendMessage(threadId: string, options?: SendMessageOptions) {
 
           switch (eventType) {
             case 'context_ready':
-              console.log('[useSendMessage] Context ready:', eventData)
+              // Context loaded, ready to process
               break
             case 'text_chunk':
               // Update the optimistic assistant message with streamed content
@@ -139,19 +131,13 @@ export function useSendMessage(threadId: string, options?: SendMessageOptions) {
               }
               break
             case 'tool_call':
-              console.log('[useSendMessage] Tool call event received:', {
-                toolCallId: eventData.toolCallId,
-                toolName: eventData.toolName,
-                hasCallback: !!options?.onToolCall,
-              })
               if (options?.onToolCall) {
-                console.log('[useSendMessage] Triggering onToolCall callback...')
                 options.onToolCall({
                   toolCallId: eventData.toolCallId,
                   toolName: eventData.toolName,
                   toolInput: eventData.toolInput,
+                  messageId: eventData.messageId, // Include responseMessageId for matching
                 })
-                console.log('[useSendMessage] onToolCall callback completed')
               }
               break
             case 'completion':
@@ -186,29 +172,17 @@ export function useSendMessage(threadId: string, options?: SendMessageOptions) {
 
         try {
           // First: Fetch all existing events for replay (late connection support)
-          console.log('[useSendMessage] Fetching existing events for requestId:', requestId);
           const { data: existingEvents, error: fetchError } = await supabase
             .from('agent_execution_events')
             .select('*')
             .eq('request_id', requestId)
             .order('created_at', { ascending: true }) as any;
 
-          if (fetchError) {
-            console.warn('[useSendMessage] Failed to fetch existing events:', {
-              error: fetchError,
-              requestId,
-            });
-          } else if (existingEvents && existingEvents.length > 0) {
-            console.log('[useSendMessage] Replaying', existingEvents.length, 'existing events:', {
-              types: existingEvents.map((e: any) => e.type).join(', '),
-              requestId,
-            });
+          if (existingEvents && existingEvents.length > 0) {
             // Process existing events
             for (const event of (existingEvents as Array<{ type: string; data: any }>)) {
               processEvent(event.type, event.data, null);
             }
-          } else {
-            console.log('[useSendMessage] No existing events found for requestId:', requestId);
           }
 
           // Second: Subscribe to new events in real-time
@@ -223,31 +197,26 @@ export function useSendMessage(threadId: string, options?: SendMessageOptions) {
                 filter: `request_id=eq.${requestId}`,
               },
               (payload: any) => {
-                console.log('[useSendMessage] Received real-time event from Supabase:', {
-                  type: payload.new.type,
-                  hasData: !!payload.new.data,
-                  requestId: payload.new.request_id,
-                });
-                processEvent(payload.new.type, payload.new.data, channel);
+                // Pass request_id along with event for tool_call matching
+                const eventData = {
+                  ...payload.new.data,
+                  __requestId: payload.new.request_id, // Include request_id for matching in tool calls
+                };
+                processEvent(payload.new.type, eventData, channel);
               }
             )
             .subscribe();
-
-          console.log('[useSendMessage] Real-time subscription created for requestId:', requestId);
 
           // Store channel reference for cleanup
           setSseConnection(channel as any)
 
         } catch (error) {
-          console.error('[useSendMessage] Real-time subscription error:', error)
-
               // MVU F2.4: Enhanced error handling - check if request actually completed
               try {
                 const status = await checkRequestStatus(requestId);
 
                 if (status.status === 'completed') {
                   // Stream died but request finished
-                  console.log('[Stream] Request completed despite stream error');
 
                   if (status.responseMessageId) {
                     // Load the response message from DB
@@ -284,7 +253,6 @@ export function useSendMessage(threadId: string, options?: SendMessageOptions) {
                   return;
                 } else if (status.status === 'in_progress') {
                   // Still processing - offer reconnect
-                  console.log('[Stream] Request still in progress');
 
                   if (optimisticAssistantIndex >= 0 && aiAgentState.messages[optimisticAssistantIndex]) {
                     aiAgentState.messages[optimisticAssistantIndex].content = 'Connection lost. Attempting to reconnect...';
@@ -302,7 +270,6 @@ export function useSendMessage(threadId: string, options?: SendMessageOptions) {
                   return;
                 } else if (status.status === 'failed') {
                   // Actually failed
-                  console.error('[Stream] Request failed:', status.results?.error);
 
                   if (optimisticAssistantIndex >= 0 && aiAgentState.messages[optimisticAssistantIndex]) {
                     aiAgentState.messages[optimisticAssistantIndex].content = '? Error: ' + (status.results?.error || 'Request failed');
@@ -318,7 +285,6 @@ export function useSendMessage(threadId: string, options?: SendMessageOptions) {
                   return;
                 }
               } catch (statusCheckError) {
-                console.error('[Stream] Failed to check request status:', statusCheckError);
                 // Network error - fallback to generic error
               }
 
@@ -339,7 +305,6 @@ export function useSendMessage(threadId: string, options?: SendMessageOptions) {
             }
 
       } catch (error) {
-        console.error('Error sending message:', error)
         toast.error(error instanceof Error ? error.message : 'Failed to send message')
 
         // Remove only messages that were added (user message not added yet if error before POST)
