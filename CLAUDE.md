@@ -13,64 +13,58 @@ Centrid solves the context loss problem in AI chat applications by maintaining a
 **Critical Principle**: MVP-first discipline. Scope features to deliver value in days, not weeks. Abstract only after third occurrence (Rule of Three).
 
 **File Creation Policy**:
+
 - DO NOT create reports, summaries, or test documentation unless explicitly requested
-- DO NOT take screenshots or save artifacts unless explicitly requested  
+- DO NOT take screenshots or save artifacts unless explicitly requested
 - Clean up temporary test files immediately after verification
 - Prefer verbal summaries over written documents
 - `/speckit` commands are workflow automation tools that generate files by design - avoid unless formal verification is needed
 - When in doubt: Just make the code change, don't document it
 
+## Pattern Quick Reference
+
+**Before implementing features, check these core patterns to avoid reinventing solutions.**
+
+Claude can read pattern files on-demand for full details. Quick summaries below:
+
+<!-- AUTO-GENERATED: DO NOT EDIT -->
+<!-- Source: .specify/docs/ -->
+<!-- Last synced: 2025-11-10T05:57:39.204Z -->
+<!-- To update: Edit doc files, then run: npm run sync-docs -->
+
+| Pattern | Summary | File |
+|---------|---------|------|
+| Auth Token Store Pattern | Synchronous token cache eliminates 5ms async overhead per API call | [View](.specify/docs/frontend-token-store.md) |
+| Backend Four-Layer Architecture | GraphQL Resolvers → Controllers → Services → Repositories for clean backend separation | [View](.specify/docs/backend-four-layer.md) |
+| GraphQL Backend Integration (Pothos + Yoga) | Pothos schema builder with type-safe resolvers, DataLoaders, and GraphQL Yoga server | [View](.specify/docs/integration-graphql-backend.md) |
+| GraphQL Client Integration (urql) | urql configuration with caching, SSR support, and custom hooks for Valtio state sync | [View](.specify/docs/integration-graphql-client.md) |
+| GraphQL Client Pattern | urql-based GraphQL client with custom hooks for queries, mutations, and Valtio sync | [View](.specify/docs/frontend-api-client.md) |
+| Local Supabase Development Pattern | Committed .env.local files enable zero-config local Supabase development | [View](.specify/docs/backend-local-supabase.md) |
+| Pattern Name | One-line description for quick reference table | [View](.specify/docs/_template.md) |
+| Real-time Sync with Supabase | Real-time subscriptions keep Valtio state synchronized with server | [View](.specify/docs/integration-realtime-sync.md) |
+| Row-Level Security (RLS) Policies | Postgres RLS enforces user isolation at database level | [View](.specify/docs/data-rls-policies.md) |
+| State Management with Valtio | Valtio proxy-based state with optimistic updates and real-time sync | [View](.specify/docs/frontend-state-management.md) |
+
+<!-- END AUTO-GENERATED -->
+
+**Updating Docs**: Edit files in `.specify/docs/`, then run `npm run sync-docs`
+
 ## Monorepo Structure
 
-```
-centrid/
-├── apps/
-│   ├── web/                 # Main Next.js frontend
-│   ├── design-system/       # Component playground (isolated)
-│   └── api/                 # Self-contained backend (ALL server logic)
-│       ├── src/
-│       │   ├── services/    # Business logic (RAG, AI, document processing)
-│       │   ├── utils/       # Backend utilities
-│       │   ├── lib/         # Supabase client config
-│       │   └── functions/   # Supabase Edge Functions
-│       │       ├── process-document/
-│       │       ├── execute-ai-agent/
-│       │       └── handle-webhook/
-│       └── supabase/
-│           ├── config.toml  # Supabase config (points to src/functions/)
-│           └── migrations/  # Database schema
-├── packages/
-│   ├── ui/                  # Pure UI components (SOURCE OF TRUTH)
-│   └── shared/              # Shared types & utilities (frontend + backend)
-└── scripts/
-    └── add-component.sh     # shadcn → packages/ui workflow
-```
+**Apps**:
+- `apps/web/` - Main Next.js frontend (Pages Router)
+- `apps/design-system/` - Component playground (isolated)
+- `apps/api/` - Backend (Edge Functions + Services + Repositories + Supabase config)
 
-**Import Rules**:
+**Packages**:
+- `packages/ui/` - Pure UI components (SOURCE OF TRUTH, no server deps)
+- `packages/shared/` - Shared types & utilities (frontend + backend)
 
-- `apps/web` → MAY import from `packages/ui`, `packages/shared`
-- `apps/design-system` → ONLY imports from `packages/ui`, `packages/shared`
-- `apps/api` → MAY import from `packages/shared` only
-- `packages/ui` → MAY import from `packages/shared`
-- `packages/ui` → FORBIDDEN to import Supabase, Valtio, or from `apps/`
-- `packages/shared` → NO imports from other packages (foundation layer)
+**Import Rules**: apps/web → ui,shared | design-system → ui,shared | api → shared | ui → shared | ui ⚠️ NO Supabase/Valtio/apps
 
-**Component Placement Principle**:
+**Component Placement**: Pure UI (no server deps) → packages/ui | Business logic → apps/web/src/components | Backend → apps/api/src/services
 
-- **Reusable presentational components** → `packages/ui/src/components/` (SOURCE OF TRUTH)
-- **App-specific business logic components** → `apps/web/src/components/`
-- **Backend business logic** → `apps/api/src/services/`
-- **Edge Function implementations** → `apps/api/src/functions/[name]/`
-- When in doubt: If it's pure UI with no server deps, put it in `packages/ui`
-
-**Backend Architecture (Three-Layer)**:
-
-- **Edge Functions** (`apps/api/src/functions/`) - Thin HTTP handlers: auth verification, routing, request/response formatting
-- **Services** (`apps/api/src/services/`) - Business logic: orchestration, validation, complex operations
-- **Repositories** (`apps/api/src/repositories/`) - Data access: type-safe database queries (Drizzle ORM)
-- **Middleware** (`apps/api/src/middleware/`) - Reusable helpers: auth, validation (Zod), error handling, CORS
-
-**Rules**: Edge Functions MUST NOT contain business logic or inline queries. All database access MUST go through repositories. Services orchestrate repositories and apply business rules. Middleware eliminates boilerplate.
+**Backend Architecture**: Edge Functions (thin handlers) → Services (business logic) → Repositories (Drizzle ORM). Edge Functions MUST NOT contain business logic or inline queries.
 
 ## Development Commands
 
@@ -86,17 +80,33 @@ npm run type-check            # TypeScript check all workspaces
 npm run lint                  # Lint all workspaces
 ```
 
-### Supabase Local Development
+### Supabase Development
 
-All Supabase commands run from `apps/api/`:
+**Zero-config local/remote switching**: Committed `.env.local` files point to localhost. Just start Supabase when you want local dev.
+
+**How it works:**
+- `.env` → Remote Supabase (default)
+- `.env.local` → Local Supabase (overrides .env when present)
+- If local Supabase running → uses localhost automatically
+- If local Supabase NOT running → falls back to remote
+
+**Workflow:**
 
 ```bash
+# One-time: Start local Supabase (if you want local dev)
 cd apps/api
-supabase start                # Start local Supabase (requires Docker)
-supabase stop                 # Stop local Supabase
-supabase db reset             # Reset DB & apply migrations
-supabase gen types typescript # Generate types → ../../packages/shared/src/types/database.ts
+supabase start                # Requires Docker
+
+# Daily use: Just run dev (works with local or remote)
+npm run dev
+
+# Optional: Check local Supabase status
+cd apps/api
+supabase status               # Connection info
+supabase stop                 # Stop local instance
 ```
+
+**Local Supabase ports**: API (54321), Database (54322), Studio (54323)
 
 ### Component Workflow
 
@@ -122,21 +132,7 @@ npm run deploy:function <name>        # Deploy single function to remote
 supabase functions serve              # Serve functions locally
 ```
 
-**Shared Package Access** (`apps/api/import_map.json`):
-
-Edge Functions can import from `@centrid/shared` using a Deno import map. This allows sharing types, schemas, and utilities between frontend and backend without npm publishing.
-
-```json
-{
-  "imports": {
-    "@centrid/shared": "../../packages/shared/src/index.ts",
-    "@centrid/shared/": "../../packages/shared/src/",
-    "@centrid/shared/types": "../../packages/shared/src/types/index.ts",
-    "@centrid/shared/utils": "../../packages/shared/src/utils/index.ts",
-    "@centrid/shared/schemas": "../../packages/shared/src/schemas/index.ts"
-  }
-}
-```
+**Shared Package Access**: Edge Functions import from `@centrid/shared` via Deno import map (`apps/api/import_map.json`). Allows sharing types, schemas, and utilities without npm publishing.
 
 **Configuration** (`apps/api/supabase/config.toml`):
 
@@ -146,45 +142,44 @@ enabled = true
 policy = "per_worker"
 
 # Each function must be declared with custom entrypoint and import_map
-[functions.create-account]
-entrypoint = '../src/functions/create-account/index.ts'
+[functions.my-function]
+entrypoint = '../src/functions/my-function/index.ts'
 import_map = '../import_map.json'
-
-[functions.update-profile]
-entrypoint = '../src/functions/update-profile/index.ts'
-import_map = '../import_map.json'
-
-[functions.delete-account]
-entrypoint = '../src/functions/delete-account/index.ts'
-import_map = '../import_map.json'
+# (Repeat pattern for all functions)
 ```
 
 **Creating new Edge Functions**:
 
-1. Create function directory: `apps/api/src/functions/my-function/`
-2. Create `index.ts` with Deno.serve handler
-3. Import shared logic from `@centrid/shared`:
-   ```typescript
-   import { updateProfileSchema } from '@centrid/shared/schemas'
-   import type { Document } from '@centrid/shared/types'
-   ```
-4. Add function declaration to `apps/api/supabase/config.toml` with custom entrypoint and import_map:
-   ```toml
-   [functions.my-function]
-   entrypoint = '../src/functions/my-function/index.ts'
-   import_map = '../import_map.json'
-   ```
-5. Deploy with `npm run deploy:function my-function`
+1. Create directory `apps/api/src/functions/my-function/` with `index.ts` (Deno.serve handler)
+2. Import from `@centrid/shared`: `import { schema } from '@centrid/shared/schemas'`
+3. Add to `config.toml` (see pattern above)
+4. Deploy: `npm run deploy:function my-function`
 
-**Note**:
-- Supabase does not support auto-discovery of functions. Each function must be explicitly declared in config.toml.
-- Import map is automatically used during deployment when specified in config.toml - no need for `--import-map` flag.
-- All Edge Functions have access to `@centrid/shared` types, schemas, and utilities via the import map.
+**Note**: Functions must be explicitly declared in `config.toml` (no auto-discovery). Import map is auto-used during deployment.
+
+### Documentation Workflow
+
+**Pattern Management** (Single Source of Truth):
+
+All implementation documentation is stored in `.specify/docs/` as markdown files. The quick reference table in CLAUDE.md is auto-generated.
+
+**Creating Patterns**:
+
+Use `/speckit.pattern [file]` to extract from docs/code or create from scratch (interactive). Auto-suggests pattern name, extracts What/Why/How/Rules, shows diff if exists.
+
+**Manual Workflow**:
+
+1. Create `.specify/docs/[name].md` following template (see `.specify/docs/_template.md`)
+2. Run `npm run sync-docs` to update CLAUDE.md
+3. Commit both files together
+
+**Rules**: Run `npm run sync-docs` after doc changes. Keep docs concise (1 sentence for What/Why). Never edit AUTO-GENERATED section manually.
 
 ### /speckit Workflow Commands
 
 Claude Code has access to `/speckit` slash commands for feature development and design iteration:
 
+- `/speckit.pattern` - Extract or create architectural patterns (from docs/code or scratch)
 - `/speckit.specify` - Create/update feature specifications
 - `/speckit.plan` - Generate implementation plans
 - `/speckit.tasks` - Generate dependency-ordered task lists
@@ -211,6 +206,7 @@ npm run web:dev                  # Start production app (required for tests)
 ```
 
 **Test Process**:
+
 1. `/speckit.test` extracts test scenarios from spec.md + ux.md + plan.md
 2. Spawns parallel test agents: API tests (fetch) + E2E tests (browser MCP)
 3. API tests verify contracts from plan.md (~1-2min)
@@ -218,6 +214,7 @@ npm run web:dev                  # Start production app (required for tests)
 5. Generates unified test-report.md with both results
 
 **Test Status**:
+
 - ✅ PASS (≥90%): Ready for production
 - ⚠️ PARTIAL (70-89%): Fix issues before deploy
 - 🔴 FAIL (<70%): Not ready
@@ -228,38 +225,20 @@ npm run web:dev                  # Start production app (required for tests)
 
 ### Backend Environment (`apps/api/.env`)
 
-**Required** for backend/database (Remote Supabase):
-- `DATABASE_URL` - PostgreSQL connection string from Supabase Dashboard → Settings → Database
-  - **Port 5432 (Session Mode)**: Use for Drizzle schema push and development
-  - **Port 6543 (Transaction Mode)**: Use for Edge Functions in production (set via Supabase Dashboard → Secrets)
-  - **IMPORTANT**: URL-encode special characters in password (! = %21, @ = %40, # = %23, etc.)
+**Required**:
 
-```bash
-# Local .env (apps/api/.env) - for db:push
-DATABASE_URL="postgresql://postgres.PROJECT_REF:PASSWORD@aws-X-XX-X.pooler.supabase.com:5432/postgres"
-
-# Edge Functions Secrets (Supabase Dashboard) - for functions
-DATABASE_URL="postgresql://postgres.PROJECT_REF:PASSWORD@aws-X-XX-X.pooler.supabase.com:6543/postgres"
-```
+- `DATABASE_URL` - PostgreSQL connection string (Supabase Dashboard → Settings → Database)
+  - Port 5432 (Session Mode): For `db:push` and dev
+  - Port 6543 (Transaction Mode): For Edge Functions (set via Supabase Secrets)
+  - URL-encode special chars (! = %21, @ = %40, # = %23)
 
 ### Frontend Environment (`apps/web/.env`)
 
-**Required** for frontend:
-- `NEXT_PUBLIC_SUPABASE_URL` - Supabase project URL
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Anon key
-- `SUPABASE_SERVICE_ROLE_KEY` - Service role (server-side only)
+**Required**: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` (server-side only)
 
-**Optional** (for AI features):
-- `OPENAI_API_KEY` - For Create/Edit agents
-- `ANTHROPIC_API_KEY` - For Research agent
+**Optional**: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` (AI agents), `MERCADO_PAGO_ACCESS_TOKEN`, `MERCADO_PAGO_WEBHOOK_SECRET` (payments)
 
-**Optional** (for payments):
-- `MERCADO_PAGO_ACCESS_TOKEN`
-- `MERCADO_PAGO_WEBHOOK_SECRET`
-
-**Note**: Next.js loads .env files in this order (later files override earlier):
-1. `apps/web/.env` (all environments)
-2. `apps/web/.env.local` (local overrides, not committed)
+**Note**: `.env.local` overrides `.env` (not committed)
 
 ## Database Schema
 
@@ -274,14 +253,7 @@ Defined in `apps/api/src/db/schema.ts` using **Drizzle ORM**:
 - `agent_sessions` - Multi-turn conversation management
 - `usage_events` - Usage tracking for billing
 
-**Features**:
-
-- Type-safe schema definitions with Drizzle ORM
-- Automatic `tsvector` generation for full-text search
-- Row Level Security (RLS) enforces user isolation
-- Automatic `updated_at` triggers
-- Auto user profile creation on signup
-- Migrations in `apps/api/drizzle/migrations/`
+**Schema Features**: Type-safe Drizzle ORM, automatic `tsvector` for full-text search, Row Level Security (RLS), automatic `updated_at` triggers, auto user profile creation, custom `tsvector` type, all SQL (triggers, RLS, CASCADE foreign keys) in `schema.ts` exports
 
 **Database Commands (MVP - Remote Only)**:
 
@@ -292,24 +264,9 @@ npm run db:push            # Push schema + apply triggers/RLS/foreign keys (all-
 npm run deploy:functions   # Deploy all Edge Functions to remote
 ```
 
-**MVP Approach**: Schema lives in `apps/api/src/db/schema.ts`. Changes are pushed directly to remote Supabase using Drizzle (`drizzle-kit push --force`). The `--force` flag auto-approves data-loss statements for non-interactive deployment. Safe to drop/recreate during MVP iteration. Migrations deferred until schema is stable post-MVP. Always target remote database (not local).
-
-**Schema Features**:
-- Type-safe schema with Drizzle ORM
-- Custom `tsvector` type for full-text search (using Drizzle's `customType`)
-- All SQL (triggers, RLS policies, CASCADE foreign keys) defined in `schema.ts` exports
-- `db:push` automatically applies schema + all post-schema SQL in one command
-
-**Workflow** (clean schema recreation):
-1. `npm run db:drop` - Drop all existing tables with CASCADE
-2. `npm run db:push` - Push schema + apply all SQL (triggers, RLS, foreign keys)
-3. `npm run deploy:functions` - Deploy Edge Functions
+**MVP Approach**: Schema lives in `apps/api/src/db/schema.ts`. Changes pushed directly to remote Supabase using Drizzle (`drizzle-kit push --force`). Safe to drop/recreate during MVP. Migrations deferred until post-MVP. Always target remote database (not local).
 
 **AI Agents**:
-
-- `create`: GPT-4o (temp: 0.7) for content generation
-- `edit`: GPT-4o-mini (temp: 0.3) for improvements
-- `research`: Claude 3.5 Sonnet (temp: 0.1) for analysis
 
 Context: Up to 20 document chunks per request
 Usage limits: Free (100/mo), Pro (1000/mo), Enterprise (10000/mo)
@@ -330,32 +287,6 @@ import { Button, Card } from "@centrid/ui/components";
 import { cn } from "@centrid/shared/utils";
 import type { Document } from "@centrid/shared/types";
 ```
-
-## Component Organization
-
-### apps/web/src/components/
-
-Smart components with data fetching & business logic:
-
-- `agents/` - AgentInterface.tsx
-- `documents/` - DocumentManager.tsx
-- `layout/` - Layout, Header, Sidebar
-- `providers/` - AuthProvider, RealtimeProvider, ThemeProvider
-- `search/` - SearchInterface.tsx
-- `ui/` - App-specific UI overrides
-
-### packages/ui/src/
-
-Pure presentational components (NO server deps):
-
-- `components/` - shadcn components (Button, Card, Input, etc)
-- `features/` - Feature UI (DocumentCard, DocumentGrid, etc)
-- `layout/` - Layout primitives
-
-### packages/shared/src/
-
-- `types/` - Shared TypeScript types
-- `utils/` - Utilities (cn, formatters)
 
 ## Design System Quick Reference
 
@@ -398,102 +329,15 @@ Use `apps/design-system` to design and iterate on UI before implementing in `app
 
 ### Browser Automation with MCP
 
-**Two MCP Servers Available:**
+**Playwright Contexts MCP** (`.specify/mcp-servers/playwright-contexts/`):
 
-1. **playwright** - Standard Playwright MCP (sequential, single browser)
-2. **playwright-contexts** - Custom MCP with parallel isolated contexts
+- Parallel browser contexts for simultaneous testing (7-10x faster)
+- Full Playwright API (navigate, click, type, screenshot, evaluate)
+- Sub-agents run different flows independently
 
-**Playwright Contexts MCP** (Recommended for parallel verification):
+**Standard Viewports**: Mobile (375×812), Desktop (1440×900)
 
-Located at: `.specify/mcp-servers/playwright-contexts/`
-
-**Features:**
-- ✅ Parallel browser contexts (true isolation)
-- ✅ Sub-agents can run different flows simultaneously
-- ✅ Interactive control (see → think → act loop)
-- ✅ Full Playwright API (navigate, click, type, screenshot, evaluate JS)
-- ✅ Local & free (no cloud costs)
-
-**Configuration** (`~/.cursor/mcp.json`):
-```json
-{
-  "mcpServers": {
-    "playwright-contexts": {
-      "command": "node",
-      "args": ["/path/to/.specify/mcp-servers/playwright-contexts/dist/index.js"]
-    }
-  }
-}
-```
-
-**Usage Example:**
-```javascript
-// Sub-Agent 1: Mobile Flow 1
-browser_create_context({ contextId: "flow1-mobile", viewport: { width: 375, height: 812 }})
-browser_navigate({ contextId: "flow1-mobile", url: "http://localhost:3001/..." })
-browser_click({ contextId: "flow1-mobile", selector: "..." })
-browser_screenshot({ contextId: "flow1-mobile", path: "..." })
-
-// Sub-Agent 2: Desktop Flow 2 (runs in parallel)
-browser_create_context({ contextId: "flow2-desktop", viewport: { width: 1440, height: 900 }})
-// ... same interactive control, different context
-```
-
-**Benefits:**
-- Multiple flows × viewports verified in parallel
-- 7-10x faster than sequential verification
-- Each sub-agent explores and adapts independently
-
-**Standard Viewports:**
-
-- Mobile: 375×812
-- Desktop: 1440×900
-
-**Screenshots saved to:** `apps/design-system/public/screenshots/[feature-name]/`
-
-**Naming convention:**
-
-```
-[feature-name]/
-├── mobile-default.png
-├── mobile-hover.png
-├── mobile-error.png
-├── desktop-default.png
-└── desktop-hover.png
-```
-
-### /speckit Commands (detailed usage)
-
-**`/speckit.design-system`** - Create/update global design system:
-
-1. Interactive questionnaire about design decisions
-2. Generates/updates `.specify/design-system/tokens.md`
-3. Updates `packages/ui/colors.config.js`
-4. Screenshots showcase with Playwright MCP
-5. Iterates until approved
-
-**`/speckit.design`** - Design a specific feature:
-
-1. Loads feature `spec.md` + `plan.md`
-2. Creates component in `apps/design-system/components/[Feature].tsx`
-3. Adds to showcase
-4. Screenshots with Playwright MCP
-5. Iterates based on feedback
-6. Component ready for implementation in `apps/web`
-
-### Updating Design Tokens
-
-**Colors:**
-
-1. Edit `.specify/design-system/tokens.md` (documentation)
-2. Update `packages/ui/colors.config.js` (implementation)
-3. Restart dev servers
-
-**Spacing/Fonts:**
-
-1. Edit `.specify/design-system/tokens.md` (documentation)
-2. Update `packages/ui/tailwind.preset.js`
-3. Restart dev servers
+**Screenshots**: Save to `apps/design-system/public/screenshots/[feature-name]/` with naming pattern: `[viewport]-[state].png` (e.g., `mobile-default.png`, `desktop-hover.png`)
 
 ### Providing Design Feedback
 
@@ -517,122 +361,31 @@ browser_create_context({ contextId: "flow2-desktop", viewport: { width: 1440, he
 - "Accessibility: Focus state hard to see, needs stronger contrast"
 - "States: Add loading spinner for AI response"
 
-**Browser MCP Integration:**
-
-- Automatically renders components and takes screenshots
-- Iterates visually without manual dev server
-- Supports viewport sizes, state triggers, element interactions
-- Fallback: Manual review in browser if MCP unavailable
-
 ## Key Implementation Patterns
 
-### Frontend-Backend Integration
+See [.specify/docs/](.specify/docs/) for detailed code examples.
 
-**Three-Layer Architecture**: UI Component → Custom Hook → Service Layer → Edge Function
+**Frontend-Backend Integration**: UI → Hook → Service → Edge Function (optimistic updates + real-time reconciliation)
 
-**Service Layer** (`apps/web/src/lib/services/`): Pure functions calling Edge Functions, return `{ data?, error? }`. No UI concerns (loading, toasts, state updates).
+**Real-time Subscriptions**: Supabase subscriptions keep Valtio state synchronized. See [integration-realtime-sync.md](.specify/docs/integration-realtime-sync.md)
 
-**Custom Hooks** (`apps/web/src/lib/hooks/`): Wrap service calls, manage loading states (useState), show toast notifications (react-hot-toast), perform optimistic Valtio updates, reconcile with real-time subscriptions.
+**API Client**: urql-based GraphQL client with auth injection, retry, and SSE streaming. See [frontend-api-client.md](.specify/docs/frontend-api-client.md)
 
-**Why NO React Query/SWR**: Real-time subscriptions already keep data fresh. Adding caching libraries creates dual state (cache + Valtio), cache invalidation complexity, and optimistic update conflicts. Custom hooks are lighter and purpose-built for real-time apps.
+**Document Processing**: Upload → Storage → Edge Function → Extract → Chunk → Search Vectors → Real-time update
 
-**Pattern**: Optimistic update → Service call → On error: rollback + toast | On success: replace temp data + toast. Real-time subscriptions confirm server state automatically.
+**AI Agent Execution**: Request → pending → execute → context build → model selection → progress updates → results → usage log
 
-### Real-time Subscriptions
+## Do Not Touch
 
-```typescript
-import { createRealtimeSubscription } from "@/lib/supabase";
+**Protected Files**:
+- ❌ Database migrations (`apps/api/drizzle/migrations/`)
+- ❌ Auto-generated types (`packages/shared/src/types/database.ts`)
+- ❌ CLAUDE.md AUTO-GENERATED section (edit docs in `.specify/docs/`, run `npm run sync-docs`)
 
-const subscription = createRealtimeSubscription(
-  "agent_requests",
-  (payload) => {
-    if (payload.new.status === "completed") {
-      actions.updateAgentRequest(payload.new.id, payload.new);
-    }
-  },
-  { user_id: userId }
-);
-```
+**Security-Critical**:
+- ❌ RLS policies (defined in `schema.ts`), Edge Function auth middleware, environment handling
 
-### Unified API Client Pattern
-
-All frontend services use axios-based HTTP client (`/lib/api/client.ts`) with unified error handling, automatic retry, and auth token injection.
-
-**Using the API Client:**
-
-```typescript
-import { api } from '@/lib/api/client'
-import { getErrorMessage } from '@/lib/api/errors'
-
-// Services call API (auth headers auto-injected)
-const folder = await api.post('/folders', { name: 'My Folder' })
-const data = await api.get('/documents')
-
-// Unified error handling
-try {
-  await api.delete(`/documents/${id}`)
-} catch (error) {
-  toast.error(getErrorMessage(error, 'delete document'))
-}
-
-// SSE streaming support
-await api.stream('/consolidate-branches', (chunk) => {
-  handleProgress(JSON.parse(chunk))
-})
-```
-
-**Auth Token Management:**
-
-- Tokens cached in `TokenStore` (synchronous access, no async overhead)
-- Synchronized by `AuthProvider` on login/logout/refresh
-- Automatic injection via axios request interceptor
-- **Performance**: 5ms latency eliminated per request
-
-**Built-in Features:**
-
-- ✅ Auth header injection (via TokenStore)
-- ✅ Retry on 5xx with exponential backoff (max 2 retries)
-- ✅ 30-second timeout on all requests
-- ✅ Consistent error format (`ApiError` class)
-- ✅ SSE streaming for long-running operations
-
-**Service Layer Pattern:**
-
-```typescript
-// Service wraps API (no business logic)
-export const FilesystemService = {
-  async createFolder(name, parentId) {
-    return api.post('/folders', { name, parent_folder_id: parentId })
-  },
-  async deleteFolder(id) {
-    await api.delete(`/folders/${id}`)
-  }
-}
-
-// Hooks/Components call services
-const { data, error, loading } = useFilesystemOperations()
-```
-
-### Document Processing Flow
-
-1. User uploads file → DocumentManager
-2. File uploaded to Supabase Storage
-3. `process-document` Edge Function triggered
-4. Text extracted and chunked
-5. Full-text search vectors auto-generated (triggers)
-6. Real-time updates via RealtimeProvider
-
-### AI Agent Execution Flow
-
-1. User submits request → AgentInterface
-2. `agent_requests` record created (status: 'pending')
-3. `execute-ai-agent` Edge Function invoked
-4. Usage limits checked
-5. Context built from contextDocuments
-6. Model selected based on agent_type
-7. Progress updates: 0.1 → 0.2 → 0.3 → 0.8 → 1.0
-8. Results stored in `agent_requests.results`
-9. Usage event logged
+**When in doubt**: Ask before modifying migrations, config, auth, or RLS policies.
 
 ## Testing Local Changes
 
@@ -648,36 +401,16 @@ npm run dev                  # Start all dev servers
 
 ## Deployment
 
-### Frontend (apps/web)
-- **Platform**: Vercel (auto-deploy on git push)
-- **Shared Package**: `@centrid/shared` is automatically bundled via npm workspaces
-- **Configuration**: `next.config.js` includes `transpilePackages: ['@centrid/ui', '@centrid/shared']`
-- **No additional steps needed** - Vercel natively supports npm workspaces
+**Frontend** (`apps/web`): Vercel auto-deploy on git push.
 
-### Backend (apps/api)
+**Backend** (`apps/api`):
 
-**Edge Functions**:
 ```bash
-cd apps/api
-npm run deploy:functions        # Deploy all functions
-npm run deploy:function <name>  # Deploy single function
+npm run api:deploy              # Deploy all Edge Functions (from root, recommended)
+cd apps/api && npm run db:push  # Push database schema changes
 ```
 
-**Shared Package**: `@centrid/shared` is bundled via import map (`import_map.json`)
-- Import map is automatically used during deployment (configured in `config.toml`)
-- No npm publishing required for MVP
-- Types, schemas, and utilities are bundled with each function
-
-**Database**:
-```bash
-cd apps/api
-npm run db:push                 # Push schema changes to remote
-```
-
-**Prerequisites**:
-- Always run `npm run type-check` from project root before deploying
-- Ensure `apps/api/import_map.json` is committed to git
-- Verify all functions have `import_map = '../import_map.json'` in `config.toml`
+**Prerequisites**: Run `npm run type-check` before deploying. Ensure `import_map.json` committed and referenced in `config.toml`.
 
 ## MVP Scope Guardrails
 
@@ -714,12 +447,15 @@ Before implementing any feature:
 - Real-time propagation: <100ms
 - Document upload to chat: <60s
 
-## Known Issues & Patterns
+## Common Pitfalls
 
-### Valtio State Management
-
-- **Map vs Object**: Valtio's `useSnapshot` doesn't track `Map.get()` calls. Use plain objects with bracket notation (`state.items[id]`) instead of Maps for reactive state.
-- **Rendering Intermediate States**: Fast async operations (<100ms) may complete before React renders intermediate states. Add 100ms delay before async ops when UI feedback (loading spinners, save indicators) is critical.
+1. **Valtio Maps**: Use objects with `state.items[id]`, not `Map.get()` (reactivity breaks)
+2. **Fast async ops**: Add 100ms delay for UI feedback (loading states)
+3. **Docs table**: Auto-generated - edit `.specify/docs/`, run `npm run sync-docs`
+4. **Edge Functions**: Must declare in `config.toml` (no auto-discovery)
+5. **Local Supabase**: Use `npm run dev:local` (auto-generates `.env.local`)
+6. **Import paths**: `@/` for apps/web, `@centrid/` for packages
+7. **Component placement**: Pure UI → packages/ui (NO Supabase/Valtio imports)
 
 ---
 
