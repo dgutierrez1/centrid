@@ -14,11 +14,12 @@ import path from 'path'
 
 interface Pattern {
   title: string
+  what?: string
   summary: string
   file: string
 }
 
-function parseFrontmatter(content: string): { title?: string; summary?: string } {
+function parseFrontmatter(content: string): { title?: string; what?: string; summary?: string } {
   const frontmatterRegex = /^---\s*\n([\s\S]*?)\n---/
   const match = content.match(frontmatterRegex)
 
@@ -26,12 +27,49 @@ function parseFrontmatter(content: string): { title?: string; summary?: string }
 
   const frontmatter = match[1]
   const titleMatch = frontmatter.match(/^title:\s*(.+)$/m)
+  const whatMatch = frontmatter.match(/^what:\s*(.+)$/m)
   const summaryMatch = frontmatter.match(/^summary:\s*(.+)$/m)
 
   return {
     title: titleMatch?.[1]?.trim(),
+    what: whatMatch?.[1]?.trim(),
     summary: summaryMatch?.[1]?.trim()
   }
+}
+
+function extractWhatFromContent(content: string): string | undefined {
+  // Remove frontmatter first
+  const withoutFrontmatter = content.replace(/^---\s*\n[\s\S]*?\n---\n/, '')
+
+  // Try to find "**What**:" pattern
+  const whatMatch = withoutFrontmatter.match(/\*\*What\*\*:\s*(.+?)(?:\n|$)/i)
+  if (whatMatch) return whatMatch[1].trim()
+
+  // Try to find "## Problem" section (first paragraph)
+  const problemMatch = withoutFrontmatter.match(/##\s*Problem\s*\n\n(.+?)(?:\n\n|$)/i)
+  if (problemMatch) return problemMatch[1].trim()
+
+  // Try to find "## Solution" section (first paragraph)
+  const solutionMatch = withoutFrontmatter.match(/##\s*Solution\s*\n\n(.+?)(?:\n\n|$)/i)
+  if (solutionMatch) return solutionMatch[1].trim()
+
+  // Try to find "## Pattern" section (first paragraph)
+  const patternMatch = withoutFrontmatter.match(/##\s*Pattern\s*\n\n(.+?)(?:\n\n|$)/i)
+  if (patternMatch) return patternMatch[1].trim()
+
+  // Try to find "## Why [Title]" section (first paragraph or bullets)
+  const whyMatch = withoutFrontmatter.match(/##\s*Why\s+[^\n]+\s*\n\n(.+?)(?:\n\n|##|$)/is)
+  if (whyMatch) {
+    // Extract first sentence or paragraph
+    const text = whyMatch[1].trim()
+    const firstSentence = text.match(/^[^.\n]+\./)
+    if (firstSentence) return firstSentence[0].trim()
+    // If it starts with bullets, take the content before bullets
+    const beforeBullets = text.split(/\n-/)[0].trim()
+    if (beforeBullets && !beforeBullets.startsWith('-')) return beforeBullets
+  }
+
+  return undefined
 }
 
 function loadPatterns(): Pattern[] {
@@ -58,15 +96,19 @@ function loadPatterns(): Pattern[] {
   for (const file of files) {
     try {
       const content = fs.readFileSync(file, 'utf-8')
-      const { title, summary } = parseFrontmatter(content)
+      const { title, what: frontmatterWhat, summary } = parseFrontmatter(content)
 
       if (!title || !summary) {
         console.warn(`⚠️  Pattern file ${file} missing frontmatter (title or summary)`)
         continue
       }
 
+      // Get 'what' from frontmatter or extract from content
+      const what = frontmatterWhat || extractWhatFromContent(content)
+
       patterns.push({
         title,
+        what,
         summary,
         file: file.replace(/^\.\//, '')
       })
@@ -84,13 +126,13 @@ function loadPatterns(): Pattern[] {
 
 function generatePatternTable(patterns: Pattern[]): string {
   if (patterns.length === 0) {
-    return '| Pattern | Summary | File |\n|---------|---------|------|\n| _(No patterns found)_ | | |'
+    return '| Pattern | What | Summary | File |\n|---------|------|---------|------|\n| _(No patterns found)_ | | | |'
   }
 
-  const header = '| Pattern | Summary | File |'
-  const separator = '|---------|---------|------|'
+  const header = '| Pattern | What | Summary | File |'
+  const separator = '|---------|------|---------|------|'
   const rows = patterns.map(p =>
-    `| ${p.title} | ${p.summary} | [View](${p.file}) |`
+    `| ${p.title} | ${p.what || '_(No description)_'} | ${p.summary} | [View](${p.file}) |`
   )
 
   return [header, separator, ...rows].join('\n')

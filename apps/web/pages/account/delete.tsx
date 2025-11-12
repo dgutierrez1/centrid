@@ -16,10 +16,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@centrid/ui/components
 import { Input } from '@centrid/ui/components/input'
 import { Label } from '@centrid/ui/components/label'
 import { Alert } from '@centrid/ui/components/alert'
-import { deleteAccountSchema } from '@centrid/shared/schemas'
+import { deleteAccountSchema } from '@/lib/validations/auth'
 import { createClient } from '@/lib/supabase/client'
 import { createServerClient } from '@/lib/supabase/server'
 import { useAuthContext } from '@/components/providers/AuthProvider'
+import { useMutation } from 'urql'
+import { DeleteAccountDocument } from '@/types/graphql'
 import type { User } from '@supabase/supabase-js'
 
 interface DeleteAccountProps {
@@ -38,6 +40,9 @@ export default function DeleteAccountPage({ user: initialUser }: DeleteAccountPr
   const [confirmation, setConfirmation] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  // GraphQL mutation hook
+  const [, deleteAccount] = useMutation(DeleteAccountDocument)
 
   const handleContinue = () => {
     setStep('confirming')
@@ -63,36 +68,11 @@ export default function DeleteAccountPage({ user: initialUser }: DeleteAccountPr
         return
       }
 
-      // Get current session for JWT
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
+      // Call GraphQL mutation to delete account
+      const result = await deleteAccount({})
 
-      if (!session) {
-        setError('Session expired. Please log in again.')
-        setLoading(false)
-        return
-      }
-
-      // Call delete-account Edge Function
-      const { data: functionData, error: functionError } = await supabase.functions.invoke(
-        'delete-account',
-        {
-          body: { confirmation },
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-          },
-        }
-      )
-
-      if (functionError) {
-        setError(functionError.message || 'Failed to delete account')
-        setLoading(false)
-        return
-      }
-
-      if (functionData?.error) {
-        setError(functionData.error)
+      if (result.error) {
+        setError(result.error.message || 'Failed to delete account')
         setLoading(false)
         return
       }

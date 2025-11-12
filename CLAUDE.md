@@ -29,21 +29,23 @@ Claude can read pattern files on-demand for full details. Quick summaries below:
 
 <!-- AUTO-GENERATED: DO NOT EDIT -->
 <!-- Source: .specify/docs/ -->
-<!-- Last synced: 2025-11-10T05:57:39.204Z -->
+<!-- Last synced: 2025-11-12T00:16:46.216Z -->
 <!-- To update: Edit doc files, then run: npm run sync-docs -->
 
-| Pattern | Summary | File |
-|---------|---------|------|
-| Auth Token Store Pattern | Synchronous token cache eliminates 5ms async overhead per API call | [View](.specify/docs/frontend-token-store.md) |
-| Backend Four-Layer Architecture | GraphQL Resolvers → Controllers → Services → Repositories for clean backend separation | [View](.specify/docs/backend-four-layer.md) |
-| GraphQL Backend Integration (Pothos + Yoga) | Pothos schema builder with type-safe resolvers, DataLoaders, and GraphQL Yoga server | [View](.specify/docs/integration-graphql-backend.md) |
-| GraphQL Client Integration (urql) | urql configuration with caching, SSR support, and custom hooks for Valtio state sync | [View](.specify/docs/integration-graphql-client.md) |
-| GraphQL Client Pattern | urql-based GraphQL client with custom hooks for queries, mutations, and Valtio sync | [View](.specify/docs/frontend-api-client.md) |
-| Local Supabase Development Pattern | Committed .env.local files enable zero-config local Supabase development | [View](.specify/docs/backend-local-supabase.md) |
-| Pattern Name | One-line description for quick reference table | [View](.specify/docs/_template.md) |
-| Real-time Sync with Supabase | Real-time subscriptions keep Valtio state synchronized with server | [View](.specify/docs/integration-realtime-sync.md) |
-| Row-Level Security (RLS) Policies | Postgres RLS enforces user isolation at database level | [View](.specify/docs/data-rls-policies.md) |
-| State Management with Valtio | Valtio proxy-based state with optimistic updates and real-time sync | [View](.specify/docs/frontend-state-management.md) |
+| Pattern | What | Summary | File |
+|---------|------|---------|------|
+| Auth Token Store Pattern | Every API call was doing `await supabase.auth.getSession()` = 5ms latency overhead per request. | Synchronous token cache eliminates 5ms async overhead per API call | [View](.specify/docs/frontend-token-store.md) |
+| GraphQL Backend Architecture | Backend uses Pothos GraphQL schema builder with four-layer separation: Resolvers (field resolution) → Controllers (request/response mapping) → Services (business logic) → Repositories (data access). | Pothos schema builder with four-layer separation (Resolvers → Controllers → Services → Repositories) | [View](.specify/docs/backend-graphql-architecture.md) |
+| GraphQL Frontend Client (urql) | All frontend API calls use urql GraphQL client with custom hooks for type-safe queries and mutations synchronized with Valtio state. | urql client with custom hooks for type-safe queries, mutations, optimistic updates, and Valtio sync | [View](.specify/docs/frontend-graphql-client.md) |
+| GraphQL Schema Design Pattern | GraphQL schema exposes database tables as types with exact field matching—no computed fields or nested relations. | GraphQL types mirror database schema 1:1 for type unification across queries and realtime | [View](.specify/docs/data-graphql-schema-design.md) |
+| Pattern Name | [1 sentence describing what this pattern is] | One-line description for quick reference table | [View](.specify/docs/_template.md) |
+| Real-time Sync with Supabase | Supabase realtime subscriptions using GraphQL types for type-safe database change notifications. | Real-time subscriptions keep Valtio state synchronized with server | [View](.specify/docs/integration-realtime-sync.md) |
+| Remote Database Debugging Scripts | Command-line tools that query remote Supabase databases and logs using SQL-like JSON queries and flexible filtering | Standalone TypeScript scripts for querying remote database and API logs during development | [View](.specify/docs/backend-remote-debugging-tools.md) |
+| Remote-First Development Pattern | Remote Supabase instance as the primary development target with seamless type generation and edge function deployment for testing. | Remote Supabase as default for type generation, edge function testing, and zero-config workflows | [View](.specify/docs/backend-remote-first-development.md) |
+| Row-Level Security (RLS) Policies | All database tables use PostgreSQL Row-Level Security (RLS) to enforce user isolation at the database level. | Postgres RLS enforces user isolation at database level | [View](.specify/docs/data-rls-policies.md) |
+| State Management with Valtio | Real-time subscriptions already keep data fresh. | Valtio proxy-based state with optimistic updates and real-time sync | [View](.specify/docs/frontend-state-management.md) |
+| Type Generation Pattern | Backend uses Drizzle-inferred types from `db/types.ts`, frontend uses GraphQL Codegen types from `@/types/graphql` | Drizzle-inferred types for backend, GraphQL Codegen types for frontend—never redeclare | [View](.specify/docs/data-type-generation.md) |
+| Validation Workflow Pattern | Three-layer validation architecture using Zod for frontend forms, GraphQL schema for API contracts, and database constraints for final enforcement. | Three-layer validation with GraphQL as source of truth, no duplicate Zod schemas | [View](.specify/docs/data-validation-workflow.md) |
 
 <!-- END AUTO-GENERATED -->
 
@@ -58,9 +60,8 @@ Claude can read pattern files on-demand for full details. Quick summaries below:
 
 **Packages**:
 - `packages/ui/` - Pure UI components (SOURCE OF TRUTH, no server deps)
-- `packages/shared/` - Shared types & utilities (frontend + backend)
 
-**Import Rules**: apps/web → ui,shared | design-system → ui,shared | api → shared | ui → shared | ui ⚠️ NO Supabase/Valtio/apps
+**Import Rules**: apps/web → ui | design-system → ui | ui ⚠️ NO Supabase/Valtio/apps
 
 **Component Placement**: Pure UI (no server deps) → packages/ui | Business logic → apps/web/src/components | Backend → apps/api/src/services
 
@@ -76,37 +77,108 @@ npm run dev                    # Start all apps in parallel
 npm run web:dev               # Start main app (http://localhost:3000)
 npm run design:dev            # Start design system (http://localhost:3001)
 npm run build                 # Build all apps
-npm run type-check            # TypeScript check all workspaces
-npm run lint                  # Lint all workspaces
+npm run validate              # Type-check + lint all workspaces
+npm run codegen               # Generate GraphQL types from schema
+npm run codegen:watch         # Watch mode for GraphQL codegen
 ```
 
 ### Supabase Development
 
-**Zero-config local/remote switching**: Committed `.env.local` files point to localhost. Just start Supabase when you want local dev.
+**Remote-First Development**: Use remote Supabase for all development unless you have a specific need for local (offline work, testing destructive migrations).
 
-**How it works:**
-- `.env` → Remote Supabase (default)
-- `.env.local` → Local Supabase (overrides .env when present)
-- If local Supabase running → uses localhost automatically
-- If local Supabase NOT running → falls back to remote
+**Why Remote?**
+- ✅ Automatic type generation from production schema
+- ✅ Realistic edge function testing (deploy to remote, test with frontend)
+- ✅ No Docker or port conflicts
+- ✅ Consistent environment across team
+- ✅ RLS policies work correctly
 
-**Workflow:**
+**Default Workflow (Remote)**:
 
 ```bash
-# One-time: Start local Supabase (if you want local dev)
-cd apps/api
-supabase start                # Requires Docker
+npm run dev                    # Start all apps (uses remote by default)
+npm run codegen               # Generate GraphQL types from remote schema
+npm run deploy:function api   # Deploy edge function to remote for testing
+```
 
-# Daily use: Just run dev (works with local or remote)
-npm run dev
+**Type Generation After Schema Changes**:
 
-# Optional: Check local Supabase status
+```bash
+npm run db:push               # Push schema changes to remote
+npm run codegen               # Regenerate types from updated schema
+```
+
+**Local Development (Rarely Needed)**:
+
+Local Supabase exists for edge cases but adds Docker complexity. Only use if:
+- You're offline and need to continue development
+- Testing destructive migrations before running on remote
+
+```bash
+# One-time setup (requires Docker)
+cd apps/api && supabase start
+cd ../.. && npm run dev:local
+
+# Check status or stop
 cd apps/api
 supabase status               # Connection info
 supabase stop                 # Stop local instance
 ```
 
-**Local Supabase ports**: API (54321), Database (54322), Studio (54323)
+**Available Commands**:
+
+Note: Local commands exist but are rarely needed - remote is sufficient for 95% of workflows.
+
+```bash
+# Development (use remote by default)
+npm run dev              # Remote (recommended)
+npm run dev:local        # Local (rarely needed)
+
+# Database Operations (use remote for type generation)
+npm run db:push          # Remote (recommended)
+npm run db:push:local    # Local (rarely needed)
+npm run db:drop          # Remote
+npm run db:drop:local    # Local
+npm run db:query         # Remote
+npm run db:query:local   # Local
+
+# Testing (use remote for accurate results)
+npm run test             # Remote (recommended)
+npm run test:local       # Local (rarely needed)
+npm run test:watch       # Remote
+npm run test:watch:local # Local
+```
+
+**Remote-only commands** (no `:local` variant):
+- `deploy*` - Deploy to production
+- `supabase:start/stop/status` - Already local by default
+
+**Environment Files**:
+- `apps/web/.env.remote` - Remote Supabase config (committed, default)
+- `apps/api/.env.remote` - Remote database config (committed, default)
+- `apps/web/.env.local` - Optional local Supabase config (committed, rarely used)
+- `apps/api/.env.local` - Optional local database config (committed, rarely used)
+
+### Debugging Tools
+
+**Database queries** (`npm run db:query`): JSON-based queries with SQL-like operators. Auto-masks sensitive fields.
+
+```bash
+npm run db:query '{"table":"threads","where":{"userId":{"eq":"abc-123"}}}'
+npm run db:query '{"table":"agent_requests","where":{"status":{"in":["failed","pending"]}},"orderBy":{"createdAt":"desc"}}'
+```
+
+**Operators**: eq, ne, gt, gte, lt, lte, like, ilike, in, notIn, isNull, isNotNull
+
+**Log queries** (`npm run logs`): Remote Edge Function logs with filtering. Merges HTTP + console logs.
+
+```bash
+npm run logs                                    # Last hour
+npm run logs -- --hours=2 --errors             # Errors only
+npm run logs -- --search="abc-123" --route="/api/threads"
+```
+
+See [backend-remote-debugging-tools.md](.specify/docs/backend-remote-debugging-tools.md) for full examples.
 
 ### Component Workflow
 
@@ -123,16 +195,26 @@ supabase stop                 # Stop local instance
 
 **Important**: There is NO `apps/api/supabase/functions/` directory. Supabase CLI deploys functions from `src/functions/` using custom entrypoint configuration.
 
-All Edge Function commands run from `apps/api/`:
+**Testing Workflow (Deploy to Remote)**:
+
+Edge functions should be deployed to remote for testing, not run locally. This ensures accurate testing with the real Deno runtime, environment variables, and secrets.
+
+```bash
+# Iterative development workflow (from root)
+npm run deploy:function api           # Deploy to remote for testing
+# Test with frontend at http://localhost:3000
+
+# Or deploy all functions
+cd apps/api
+npm run deploy:functions              # Deploy all functions to remote
+```
+
+**Local Serving (Rarely Needed)**:
 
 ```bash
 cd apps/api
-npm run deploy:functions              # Deploy all functions to remote
-npm run deploy:function <name>        # Deploy single function to remote
-supabase functions serve              # Serve functions locally
+supabase functions serve              # Serve functions locally (not recommended)
 ```
-
-**Shared Package Access**: Edge Functions import from `@centrid/shared` via Deno import map (`apps/api/import_map.json`). Allows sharing types, schemas, and utilities without npm publishing.
 
 **Configuration** (`apps/api/supabase/config.toml`):
 
@@ -151,9 +233,8 @@ import_map = '../import_map.json'
 **Creating new Edge Functions**:
 
 1. Create directory `apps/api/src/functions/my-function/` with `index.ts` (Deno.serve handler)
-2. Import from `@centrid/shared`: `import { schema } from '@centrid/shared/schemas'`
-3. Add to `config.toml` (see pattern above)
-4. Deploy: `npm run deploy:function my-function`
+2. Add to `config.toml` (see pattern above)
+3. Deploy and test: `npm run deploy:function my-function` (test with frontend)
 
 **Note**: Functions must be explicitly declared in `config.toml` (no auto-discovery). Import map is auto-used during deployment.
 
@@ -195,10 +276,10 @@ See [.specify/design-system/SETUP.md](.specify/design-system/SETUP.md) for desig
 
 ### Testing Workflow
 
-Run tests after implementation to verify functionality:
+Run tests after implementation to verify functionality. Tests run against remote Supabase for realistic validation.
 
 ```bash
-npm run web:dev                  # Start production app (required for tests)
+npm run web:dev                  # Start production app (uses remote, required for tests)
 /speckit.test                    # Run API + E2E tests (parallel agents)
 /speckit.test api-only           # Run only API tests
 /speckit.test e2e-only           # Run only E2E tests
@@ -219,6 +300,8 @@ npm run web:dev                  # Start production app (required for tests)
 - ⚠️ PARTIAL (70-89%): Fix issues before deploy
 - 🔴 FAIL (<70%): Not ready
 
+**Note**: Tests run against remote Supabase (not local). Deploy edge functions to remote before testing.
+
 **After failures**: Review test-report.md, fix issues, re-run `/speckit.test`
 
 ## Environment Configuration
@@ -232,13 +315,21 @@ npm run web:dev                  # Start production app (required for tests)
   - Port 6543 (Transaction Mode): For Edge Functions (set via Supabase Secrets)
   - URL-encode special chars (! = %21, @ = %40, # = %23)
 
+**Environment Files**:
+- `apps/api/.env.remote` - Remote database config (committed, used by default)
+- `apps/api/.env.local` - Optional local database config (committed, rarely used)
+
 ### Frontend Environment (`apps/web/.env`)
 
 **Required**: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` (server-side only)
 
 **Optional**: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` (AI agents), `MERCADO_PAGO_ACCESS_TOKEN`, `MERCADO_PAGO_WEBHOOK_SECRET` (payments)
 
-**Note**: `.env.local` overrides `.env` (not committed)
+**Environment Files**:
+- `apps/web/.env.remote` - Remote Supabase config (committed, used by default)
+- `apps/web/.env.local` - Optional local overrides (NOT committed, for personal dev config only)
+
+**Note**: For apps/web, `.env.local` is NOT committed and overrides `.env` (Next.js standard). For apps/api, both `.env.remote` and `.env.local` are committed for explicit remote/local switching.
 
 ## Database Schema
 
@@ -284,8 +375,6 @@ import type { Database } from "@/types/database.types";
 
 // Shared packages (works in all apps)
 import { Button, Card } from "@centrid/ui/components";
-import { cn } from "@centrid/shared/utils";
-import type { Document } from "@centrid/shared/types";
 ```
 
 ## Design System Quick Reference
@@ -369,7 +458,7 @@ See [.specify/docs/](.specify/docs/) for detailed code examples.
 
 **Real-time Subscriptions**: Supabase subscriptions keep Valtio state synchronized. See [integration-realtime-sync.md](.specify/docs/integration-realtime-sync.md)
 
-**API Client**: urql-based GraphQL client with auth injection, retry, and SSE streaming. See [frontend-api-client.md](.specify/docs/frontend-api-client.md)
+**API Client**: urql-based GraphQL client with auth injection, retry, and SSE streaming. See [frontend-graphql-client.md](.specify/docs/frontend-graphql-client.md)
 
 **Document Processing**: Upload → Storage → Edge Function → Extract → Chunk → Search Vectors → Real-time update
 
@@ -379,7 +468,7 @@ See [.specify/docs/](.specify/docs/) for detailed code examples.
 
 **Protected Files**:
 - ❌ Database migrations (`apps/api/drizzle/migrations/`)
-- ❌ Auto-generated types (`packages/shared/src/types/database.ts`)
+- ❌ Auto-generated types (`apps/web/src/types/graphql.ts`)
 - ❌ CLAUDE.md AUTO-GENERATED section (edit docs in `.specify/docs/`, run `npm run sync-docs`)
 
 **Security-Critical**:
@@ -393,9 +482,9 @@ See [.specify/docs/](.specify/docs/) for detailed code examples.
 cd apps/api
 supabase start               # Start local Supabase
 supabase db reset            # Apply migrations
-supabase gen types typescript # Generate types
 
 cd ../..                     # Back to root
+npm run codegen              # Generate GraphQL types
 npm run dev                  # Start all dev servers
 ```
 
@@ -410,7 +499,7 @@ npm run api:deploy              # Deploy all Edge Functions (from root, recommen
 cd apps/api && npm run db:push  # Push database schema changes
 ```
 
-**Prerequisites**: Run `npm run type-check` before deploying. Ensure `import_map.json` committed and referenced in `config.toml`.
+**Prerequisites**: Run `npm run validate` before deploying. Ensure `import_map.json` committed and referenced in `config.toml`.
 
 ## MVP Scope Guardrails
 

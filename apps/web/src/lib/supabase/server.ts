@@ -1,6 +1,6 @@
 import { createServerClient as createSSRServerClient } from '@supabase/ssr'
 import type { GetServerSidePropsContext, NextApiRequest, NextApiResponse } from 'next'
-import type { Database } from '@/types/database.types'
+import type { Database } from '@/lib/types'
 
 /**
  * Server Supabase Client for Pages Router

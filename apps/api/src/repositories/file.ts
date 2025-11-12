@@ -1,9 +1,12 @@
 import { eq } from 'drizzle-orm';
 import { getDB } from '../functions/_shared/db.ts';
-import { files } from '../db/schema.ts';
+import { files, folders } from '../db/schema.ts';
+import { computeFilePath } from '../utils/pathComputation.ts';
 
 export interface CreateFileInput {
-  path: string;
+  id?: string; // Optional client-provided UUID
+  name: string; // Filename with extension (source of truth)
+  folderId?: string | null; // Folder location
   content: string;
   ownerUserId?: string;
   provenance?: {
@@ -13,7 +16,9 @@ export interface CreateFileInput {
 }
 
 export interface UpdateFileInput {
-  content: string;
+  content?: string;
+  name?: string; // Rename file
+  folderId?: string | null; // Move file
   editMetadata?: {
     lastEditedBy: 'agent' | 'user';
     editedInThreadId?: string;
@@ -27,17 +32,40 @@ export class FileRepository {
   async create(input: CreateFileInput) {
     const { db, cleanup } = await getDB();
     try {
+      // Fetch all folders to compute path
+      const userId = input.ownerUserId || '';
+      const allFolders = await db
+        .select()
+        .from(folders)
+        .where(eq(folders.userId, userId));
+
+      // Compute path from folder hierarchy + name
+      const path = computeFilePath(
+        allFolders as any[],
+        input.folderId || null,
+        input.name
+      );
+
+      const values: any = {
+        name: input.name,
+        path,
+        folderId: input.folderId || null,
+        content: input.content,
+        ownerUserId: userId,
+        lastEditedAt: new Date(),
+        lastEditedBy: input.provenance ? 'agent' : 'user',
+        isAIGenerated: input.provenance ? true : false,
+        createdBy: input.provenance ? 'agent' : 'user',
+      };
+
+      // Include client-provided ID if present
+      if (input.id) {
+        values.id = input.id;
+      }
+
       const [file] = await db
         .insert(files)
-        .values({
-          path: input.path,
-          content: input.content,
-          ownerUserId: input.ownerUserId || '',
-          lastEditedAt: new Date(),
-          lastEditedBy: input.provenance ? 'agent' : 'user',
-          isAIGenerated: input.provenance ? true : false,
-          createdBy: input.provenance ? 'agent' : 'user',
-        })
+        .values(values)
         .returning();
       return file;
     } finally {
@@ -98,16 +126,57 @@ export class FileRepository {
   /**
    * Update file
    */
-  async update(fileId: string, input: UpdateFileInput) {
+  async update(fileId: string, input: UpdateFileInput, userId?: string) {
     const { db, cleanup } = await getDB();
     try {
+      const updateData: any = {
+        lastEditedAt: new Date(),
+        lastEditedBy: input.editMetadata?.lastEditedBy || 'user',
+      };
+
+      // Update content if provided
+      if (input.content !== undefined) {
+        updateData.content = input.content;
+      }
+
+      // Update name and/or folderId (recompute path if either changes)
+      if (input.name !== undefined || input.folderId !== undefined) {
+        // Get current file to access current values
+        const [currentFile] = await db
+          .select()
+          .from(files)
+          .where(eq(files.id, fileId))
+          .limit(1);
+
+        if (!currentFile) {
+          throw new Error('File not found');
+        }
+
+        const newName = input.name !== undefined ? input.name : currentFile.name;
+        const newFolderId = input.folderId !== undefined ? input.folderId : currentFile.folderId;
+        const fileUserId = userId || currentFile.ownerUserId;
+
+        // Fetch all folders to compute new path
+        const allFolders = await db
+          .select()
+          .from(folders)
+          .where(eq(folders.userId, fileUserId));
+
+        // Recompute path
+        const newPath = computeFilePath(
+          allFolders as any[],
+          newFolderId,
+          newName
+        );
+
+        updateData.name = newName;
+        updateData.folderId = newFolderId;
+        updateData.path = newPath;
+      }
+
       const [file] = await db
         .update(files)
-        .set({
-          content: input.content,
-          lastEditedAt: new Date(),
-          lastEditedBy: input.editMetadata?.lastEditedBy || 'user',
-        })
+        .set(updateData)
         .where(eq(files.id, fileId))
         .returning();
       return file || null;

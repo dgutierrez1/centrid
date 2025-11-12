@@ -12,14 +12,12 @@ export default function WorkspacePage() {
 }
 
 /**
- * Server-Side Auth Check
- * Protects workspace - redirects to login if not authenticated
- * Auth token automatically handled by middleware + cookies
+ * Server-Side Props
+ * Auth check only - SSR handled by urql ssrExchange in _app.tsx
  */
 export const getServerSideProps: GetServerSideProps = withServerAuth(
-  async (context, { user, supabase }) => {
-    return {
-      props: {},
-    };
+  async () => {
+    // Auth check handled by withServerAuth wrapper
+    return { props: {} };
   }
 );

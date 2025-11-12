@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSnapshot } from 'valtio';
 import { aiAgentState } from '@/lib/state/aiAgentState';
-import { api } from '@/lib/api/client';
+import { graphqlClient } from '@/lib/graphql/client';
+import { AutocompleteDocument } from '@/types/graphql';
 
 interface AutocompleteItem {
   id: string;
@@ -66,40 +67,36 @@ export function useAutocomplete(threadId: string, options: UseAutocompleteOption
     setSelectedIndex(-1);
 
     try {
-      // Call search API with unified client (automatic auth + retry)
-      const response = await api.post<{
-        data: {
-          results: Array<{
-            entity_id: string;
-            name?: string;
-            title?: string;
-            path?: string;
-            id: string;
-            entity_type: 'file' | 'folder' | 'thread';
-            branch_name?: string;
-            branch_id?: string;
-            relevance_score?: number;
-            last_modified?: string;
-          }>;
-        };
-      }>('/api/search-shadow-domain', {
+      // Call GraphQL autocomplete query
+      // Build variables object without undefined values (GraphQL rejects them)
+      const variables: any = {
         query: searchQuery,
-        entityType: entityType === 'all' ? undefined : entityType,
         limit: 10,
-      });
+      };
+      
+      // Only include entityType if it's not 'all'
+      if (entityType !== 'all') {
+        variables.entityType = entityType;
+      }
+      
+      const result = await graphqlClient.query(AutocompleteDocument, variables);
 
-      const { data } = response;
+      if (result.error) {
+        throw new Error(result.error.message);
+      }
 
-      // Transform search results to AutocompleteItem format
-      const transformedItems: AutocompleteItem[] = data.results.map((result: any) => ({
-        id: result.entity_id,
-        name: result.name || result.title || 'Untitled',
-        path: result.path || result.id,
-        type: result.entity_type,
-        branchName: result.branch_name || 'Main',
-        branchId: result.branch_id,
-        relevanceScore: result.relevance_score,
-        lastModified: result.last_modified,
+      const results = result.data?.autocomplete || [];
+
+      // Transform GraphQL results to AutocompleteItem format
+      const transformedItems: AutocompleteItem[] = results.map((item: any) => ({
+        id: item.id || '',
+        name: item.name || 'Untitled',
+        path: item.path || item.id || '',
+        type: item.type || 'file',
+        branchName: item.branchName || 'Main',
+        branchId: item.branchId,
+        relevanceScore: item.relevanceScore,
+        lastModified: item.lastModified,
       }));
 
       setItems(transformedItems);

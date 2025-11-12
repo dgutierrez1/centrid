@@ -5,7 +5,7 @@
  */
 
 import { proxy } from 'valtio';
-import type { Document } from '@centrid/shared/types';
+import type { File } from '@/types/graphql';
 
 // ============================================================================
 // Types
@@ -17,7 +17,7 @@ export interface UploadProgress {
   progress: number; // 0-100
   status: 'pending' | 'uploading' | 'completed' | 'error';
   error?: string;
-  document?: Document; // Populated on successful upload
+  file?: File; // Populated on successful upload
 }
 
 // ============================================================================
@@ -65,12 +65,12 @@ export function updateUploadProgress(uploadId: string, progress: number) {
 /**
  * Mark upload completed
  */
-export function uploadCompleted(uploadId: string, document: Document) {
+export function uploadCompleted(uploadId: string, file: File) {
   const upload = uploadState.uploads.get(uploadId);
   if (upload) {
     upload.progress = 100;
     upload.status = 'completed';
-    upload.document = document;
+    upload.file = file;
     uploadState.activeUploadCount--;
   }
 }

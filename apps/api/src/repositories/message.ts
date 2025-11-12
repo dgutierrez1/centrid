@@ -1,12 +1,13 @@
 import { eq } from 'drizzle-orm';
 import { getDB } from '../functions/_shared/db.ts';
 import { messages } from '../db/schema.ts';
+import type { ContentBlock } from '../types/agent.ts';
 
 export interface CreateMessageInput {
   threadId: string;
   ownerUserId: string;
   role: 'user' | 'assistant';
-  content: string;
+  content: ContentBlock[];
   toolCalls?: any[];
   tokensUsed?: number;
 }

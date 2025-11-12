@@ -55,12 +55,18 @@ const DB_CONFIG = {
  * ```
  */
 export async function getDB() {
-  const databaseUrl = Deno.env.get('DB_URL') || Deno.env.get('SUPABASE_DB_URL') || process.env.DB_URL || process.env.SUPABASE_DB_URL;
+  // Check if running in Deno (Edge Functions) or Node.js (scripts)
+  const databaseUrl = (typeof Deno !== 'undefined'
+    ? Deno.env.get('DATABASE_URL') || Deno.env.get('DB_URL') || Deno.env.get('SUPABASE_DB_URL')
+    : undefined)
+    || process.env.DATABASE_URL
+    || process.env.DB_URL
+    || process.env.SUPABASE_DB_URL;
 
   if (!databaseUrl) {
     throw new Error(
-      "SUPABASE_DB_URL environment variable is not set. " +
-        "Configure it in Supabase Dashboard → Edge Functions → Secrets"
+      "DATABASE_URL environment variable is not set. " +
+        "Configure it in .env.remote or Supabase Dashboard → Edge Functions → Secrets"
     );
   }
 

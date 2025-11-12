@@ -1,0 +1,28 @@
+# Thread Queries
+# Fetch thread data with messages and context
+
+#import "../fragments/thread.graphql"
+
+# Get a single thread
+# Note: messages and contextReferences are queried separately
+query GetThread($id: ID!) {
+  thread(id: $id) {
+    ...ThreadFields
+  }
+}
+
+# REMOVED: List all threads (for branch tree sidebar)
+# ListThreads query removed - server no longer accepts userId, limit, offset arguments
+# Use ListAllThreads instead
+# query ListThreads($userId: ID, $limit: Int, $offset: Int) {
+#   threads(userId: $userId, limit: $limit, offset: $offset) {
+#     ...ThreadFields
+#   }
+# }
+
+# List all threads (no filters, for SSR/initial load)
+query ListAllThreads {
+  threads {
+    ...ThreadFields
+  }
+}

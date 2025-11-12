@@ -4,6 +4,7 @@ import { useLoadFile } from '@/lib/hooks/useLoadFile'
 import { useUpdateFile } from '@/lib/hooks/useUpdateFile'
 import { useDeleteFile } from '@/lib/hooks/useDeleteFile'
 import { useNavigateToSource } from '@/lib/hooks/useNavigateToSource'
+import { useGetFileProvenanceQuery } from '@/types/graphql'
 import type { FileData, Provenance } from '@centrid/ui/features/ai-agent-system'
 
 interface FileEditorPanelContainerProps {
@@ -24,8 +25,14 @@ export function FileEditorPanelContainer({
   const { deleteFile, isDeleting } = useDeleteFile()
   const { navigateToSource } = useNavigateToSource()
   const [localContent, setLocalContent] = useState('')
-  const [fullProvenance, setFullProvenance] = useState<any>(null)
-  const [isLoadingProvenance, setIsLoadingProvenance] = useState(false)
+
+  // Load full provenance data using GraphQL (T086)
+  const [provenanceResult] = useGetFileProvenanceQuery({
+    variables: { id: fileId || '' },
+    pause: !fileId || !isOpen, // Only run when fileId exists and panel is open
+  })
+
+  const fullProvenance = provenanceResult.data?.fileProvenance
 
   // Sync local content with loaded file
   useEffect(() => {
@@ -33,31 +40,6 @@ export function FileEditorPanelContainer({
       setLocalContent(file.content)
     }
   }, [file])
-
-  // Load full provenance data (T086)
-  useEffect(() => {
-    if (fileId && isOpen) {
-      loadFullProvenance(fileId)
-    }
-  }, [fileId, isOpen])
-
-  const loadFullProvenance = async (id: string) => {
-    setIsLoadingProvenance(true)
-
-    try {
-      const response = await fetch(`/api/files/${id}/provenance`)
-      if (!response.ok) {
-        throw new Error('Failed to load provenance')
-      }
-
-      const { data } = await response.json()
-      setFullProvenance(data)
-    } catch (error) {
-      console.error('Failed to load provenance:', error)
-    } finally {
-      setIsLoadingProvenance(false)
-    }
-  }
 
   const handleContentChange = (newContent: string) => {
     setLocalContent(newContent)

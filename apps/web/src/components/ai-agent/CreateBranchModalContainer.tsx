@@ -4,14 +4,14 @@ import { useCreateBranch } from '@/lib/hooks/useCreateBranch';
 
 interface CreateBranchModalContainerProps {
   isOpen: boolean;
-  parentId: string | null;
+  parentThreadId: string | null;
   parentTitle?: string;
   onClose: () => void;
 }
 
 export function CreateBranchModalContainer({
   isOpen,
-  parentId,
+  parentThreadId,
   parentTitle,
   onClose,
 }: CreateBranchModalContainerProps) {
@@ -44,7 +44,7 @@ export function CreateBranchModalContainer({
 
     // Create branch in background (non-blocking)
     // Success/error handled via toast in the hook
-    createBranch(parentId, name.trim());
+    createBranch(parentThreadId, name.trim());
   };
 
   const handleCancel = () => {

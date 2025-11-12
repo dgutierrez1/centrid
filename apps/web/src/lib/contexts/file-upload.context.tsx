@@ -11,9 +11,67 @@
 
 import { createContext, useContext, useState, useCallback, useRef, useEffect, ReactNode } from 'react';
 import { toast } from 'react-hot-toast';
-import { filesystemService } from '@/lib/services/filesystem.service';
-import { addDocument } from '@/lib/state/filesystem';
-import type { Document } from '@centrid/shared/types';
+import { graphqlClient } from '@/lib/graphql/client';
+import { addFile } from '@/lib/state/filesystem';
+import type { File } from '@/types/graphql';
+
+// GraphQL mutation for file upload
+const UPLOAD_FILE_MUTATION = `
+  mutation UploadFile($file: Upload!, $folderId: ID, $threadId: ID) {
+    uploadFile(file: $file, folderId: $folderId, threadId: $threadId) {
+      id
+      path
+      folderId
+      threadId
+      content
+      createdAt
+      updatedAt
+    }
+  }
+`;
+
+/**
+ * Upload a file using GraphQL uploadFile mutation
+ */
+async function uploadFileGraphQL(
+  file: File,
+  folderId: string | null,
+  onProgress?: (progress: number) => void
+): Promise<{ success: boolean; data?: File; error?: string }> {
+  try {
+    // Report progress at start
+    onProgress?.(0);
+
+    // Execute GraphQL mutation with file upload
+    const result = await graphqlClient.mutation(UPLOAD_FILE_MUTATION, {
+      file,
+      folderId: folderId || undefined,
+    }).toPromise();
+
+    // Check for errors
+    if (result.error) {
+      throw new Error(result.error.message);
+    }
+
+    if (!result.data?.uploadFile) {
+      throw new Error('No data returned from upload');
+    }
+
+    // Report progress complete
+    onProgress?.(100);
+
+    return {
+      success: true,
+      data: result.data.uploadFile as Document,
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Upload failed';
+    return {
+      success: false,
+      error: errorMessage,
+    };
+  }
+}
 
 export interface UploadingFile {
   id: string;
@@ -150,8 +208,8 @@ export function FileUploadProvider({ children }: FileUploadProviderProps) {
         try {
           console.log('[FileUploadProvider] Starting upload for:', nextPending.name);
 
-          // Upload via service
-          const result = await filesystemService.uploadDocument(
+          // Upload via GraphQL uploadFile mutation
+          const result = await uploadFileGraphQL(
             nextPending.file,
             nextPending.folderId,
             (progress) => {
@@ -170,12 +228,12 @@ export function FileUploadProvider({ children }: FileUploadProviderProps) {
               )
             );
 
-            // IMPORTANT: Manually add document to filesystem state
+            // IMPORTANT: Manually add file to filesystem state
             // Real-time subscription should handle this, but as fallback we add it immediately
-            // addDocument is idempotent, so duplicate adds are safe
+            // addFile is idempotent, so duplicate adds are safe
             if (result.data) {
-              console.log('[FileUploadProvider] Manually adding document to filesystem:', result.data.name);
-              addDocument(result.data as Document);
+              console.log('[FileUploadProvider] Manually adding file to filesystem:', result.data.name);
+              addFile(result.data);
             }
 
             toast.success(`Uploaded ${nextPending.name}`);

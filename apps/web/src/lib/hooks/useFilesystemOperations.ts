@@ -1,459 +1,379 @@
-import { useState } from 'react';
+/**
+ * useFilesystemOperations - Filesystem operations using GraphQL mutations
+ *
+ * Refactored to use reusable GraphQL mutation factories.
+ * Handles all folder and document CRUD operations with:
+ * - Optimistic updates
+ * - Rollback on error
+ * - Toast notifications
+ * - Loading states
+ *
+ * Architecture: UI Components → useFilesystemOperations → GraphQL Mutation Factories → GraphQL API
+ */
+
 import { useRouter } from 'next/router';
-import { toast } from 'react-hot-toast';
-import { useFileSystem } from '@/lib/contexts/filesystem.context';
-import { FilesystemService } from '@/lib/services/filesystem.service';
+import { useGraphQLMutation } from '@/lib/graphql/useGraphQLMutation';
 import {
-  filesystemState,
+  CreateFolderDocument,
+  UpdateFolderDocument,
+  DeleteFolderDocument,
+  CreateFileDocument,
+  UpdateFilePartialDocument,
+  DeleteFileDocument,
+} from '@/types/graphql';
+import { useFileSystem } from '@/lib/contexts/filesystem.context';
+import {
   addFolder,
-  addDocument,
+  addFile,
   updateFolder,
-  updateDocument,
+  updateFile,
   removeFolder,
-  removeDocument,
+  removeFile,
 } from '@/lib/state/filesystem';
 import { editorState, clearEditor, loadDocument } from '@/lib/state/editor';
-import type { Folder, Document } from '@centrid/shared/types';
-
-/**
- * useFilesystemOperations - Custom hook for filesystem operations
- *
- * Wraps FilesystemService and provides:
- * - Loading states (useState)
- * - Toast notifications (react-hot-toast)
- * - Optimistic updates (Valtio)
- * - Error rollback with actual state values
- *
- * Architecture: UI Components → useFilesystemOperations → FilesystemService → Edge Functions
- */
+import { filesystemState } from '@/lib/state/filesystem';
+import type { File, Folder } from '@/types/graphql';
 
 export function useFilesystemOperations() {
   const router = useRouter();
-  const { user, getFolder, getDocument } = useFileSystem();
-
-  // Loading states (per operation)
-  const [isCreatingFolder, setIsCreatingFolder] = useState(false);
-  const [isCreatingDocument, setIsCreatingDocument] = useState(false);
-  const [isRenaming, setIsRenaming] = useState(false);
-  const [isMoving, setIsMoving] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const { user, getFolder, getFile } = useFileSystem();
 
   // ===== FOLDER OPERATIONS =====
 
   /**
-   * Create a new folder with optimistic update
+   * Create folder mutation
    */
-  const createFolder = async (name: string, parentFolderId: string | null) => {
-    if (!user) {
-      toast.error('You must be logged in to create folders');
-      return { success: false, error: 'Not authenticated' };
-    }
-
-    setIsCreatingFolder(true);
-
-    // Optimistic update - add temporary folder immediately
-    const tempId = `temp-folder-${Date.now()}`;
-    const optimisticFolder: Folder = {
-      id: tempId,
-      name,
-      parent_folder_id: parentFolderId,
-      path: parentFolderId ? `parent/${name}` : name,
-      user_id: user.id,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-
-    addFolder(optimisticFolder);
-
-    try {
-      const { data, error } = await FilesystemService.createFolder(name, parentFolderId);
-
-      if (error) {
-        // Rollback optimistic update
-        removeFolder(tempId);
-        toast.error(`Failed to create folder: ${error}`);
-        return { success: false, error };
+  const createFolderMutation = useGraphQLMutation<
+    { id?: string; name: string; parentFolderId?: string | null },
+    any,
+    { permanentId: string }
+  >({
+    mutation: CreateFolderDocument,
+    optimisticUpdate: (permanentId, input) => {
+      if (!user) {
+        throw new Error('Not authenticated');
       }
 
-      // Replace temp with real data (real-time subscription will also update)
-      removeFolder(tempId);
-      if (data) {
-        addFolder(data);
-      }
+      const optimisticFolder: Folder = {
+        id: permanentId,
+        name: input.name,
+        parentFolderId: input.parentFolderId || null,
+        path: input.parentFolderId ? `parent/${input.name}` : input.name,
+        userId: user.id,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
 
-      toast.success(`Folder "${name}" created`);
-      return { success: true, data };
-    } catch (error) {
-      // Rollback on unexpected error
-      removeFolder(tempId);
-      toast.error('Unexpected error creating folder');
-      return { success: false, error: String(error) };
-    } finally {
-      setIsCreatingFolder(false);
-    }
-  };
+      addFolder(optimisticFolder);
+
+      // Pass permanent ID to GraphQL mutation
+      input.id = permanentId;
+
+      return { permanentId };
+    },
+    onSuccess: ({ permanentId }, data) => {
+      // Realtime subscription will confirm with same ID (no need to remove/re-add)
+      // Just ensure state is updated with server data
+      updateFolder(permanentId, data.createFolder);
+    },
+    onError: ({ permanentId }) => {
+      removeFolder(permanentId);
+    },
+    successMessage: (data) => `Folder "${data.createFolder.name}" created`,
+    errorMessage: (error) => `Failed to create folder: ${error}`,
+  });
 
   /**
-   * Rename a folder with optimistic update
+   * Rename folder mutation
    */
-  const renameFolder = async (folderId: string, newName: string) => {
-    setIsRenaming(true);
-
-    // Store original name for rollback
-    const originalFolder = getFolder(folderId);
-    if (!originalFolder) {
-      toast.error('Folder not found');
-      setIsRenaming(false);
-      return { success: false, error: 'Folder not found' };
-    }
-    const originalName = originalFolder.name;
-
-    // Optimistic update
-    updateFolder(folderId, { name: newName });
-
-    try {
-      const { data, error } = await FilesystemService.renameFolder(folderId, newName);
-
-      if (error) {
-        // Rollback optimistic update
-        updateFolder(folderId, { name: originalName });
-        toast.error(`Failed to rename folder: ${error}`);
-        return { success: false, error };
+  const renameFolderMutation = useGraphQLMutation<
+    { id: string; name?: string },
+    any,
+    { folderId: string; originalName: string }
+  >({
+    mutation: UpdateFolderDocument,
+    optimisticUpdate: (tempId, input) => {
+      const folder = getFolder(input.id);
+      if (!folder) {
+        throw new Error('Folder not found');
       }
 
-      // Real-time subscription will confirm
-      toast.success(`Folder renamed to "${newName}"`);
-      return { success: true, data };
-    } catch (error) {
-      // Rollback on unexpected error
+      const originalName = folder.name;
+      if (input.name) {
+        updateFolder(input.id, { name: input.name });
+      }
+
+      return { folderId: input.id, originalName };
+    },
+    onSuccess: ({ folderId }, data) => {
+      // Realtime subscription will confirm the update
+    },
+    onError: ({ folderId, originalName }) => {
       updateFolder(folderId, { name: originalName });
-      toast.error('Unexpected error renaming folder');
-      return { success: false, error: String(error) };
-    } finally {
-      setIsRenaming(false);
-    }
-  };
+    },
+    successMessage: (data) => `Folder renamed to "${data.updateFolder.name}"`,
+    errorMessage: (error) => `Failed to rename folder: ${error}`,
+  });
 
   /**
-   * Move a folder with optimistic update
+   * Move folder mutation
    */
-  const moveFolder = async (folderId: string, newParentId: string | null) => {
-    setIsMoving(true);
-
-    // Store original parent for rollback
-    const originalFolder = getFolder(folderId);
-    if (!originalFolder) {
-      toast.error('Folder not found');
-      setIsMoving(false);
-      return { success: false, error: 'Folder not found' };
-    }
-    const originalParentId = originalFolder.parent_folder_id;
-
-    // Optimistic update
-    updateFolder(folderId, { parent_folder_id: newParentId });
-
-    try {
-      const { data, error } = await FilesystemService.moveFolder(folderId, newParentId);
-
-      if (error) {
-        // Rollback optimistic update
-        updateFolder(folderId, { parent_folder_id: originalParentId });
-        toast.error(`Failed to move folder: ${error}`);
-        return { success: false, error };
+  const moveFolderMutation = useGraphQLMutation<
+    { id: string; parentFolderId?: string | null },
+    any,
+    { folderId: string; originalParentId: string | null }
+  >({
+    mutation: UpdateFolderDocument,
+    optimisticUpdate: (tempId, input) => {
+      const folder = getFolder(input.id);
+      if (!folder) {
+        throw new Error('Folder not found');
       }
 
-      // Real-time subscription will confirm
-      toast.success('Folder moved');
-      return { success: true, data };
-    } catch (error) {
-      // Rollback on unexpected error
-      updateFolder(folderId, { parent_folder_id: originalParentId });
-      toast.error('Unexpected error moving folder');
-      return { success: false, error: String(error) };
-    } finally {
-      setIsMoving(false);
-    }
-  };
+      const originalParentId = folder.parentFolderId;
+      updateFolder(input.id, { parentFolderId: input.parentFolderId || null });
+
+      return { folderId: input.id, originalParentId };
+    },
+    onSuccess: ({ folderId }, data) => {
+      // Realtime subscription will confirm
+    },
+    onError: ({ folderId, originalParentId }) => {
+      updateFolder(folderId, { parentFolderId: originalParentId });
+    },
+    successMessage: () => 'Folder moved',
+    errorMessage: (error) => `Failed to move folder: ${error}`,
+  });
 
   /**
-   * Delete a folder with optimistic update
+   * Delete folder mutation
    */
-  const deleteFolder = async (folderId: string) => {
-    setIsDeleting(true);
-
-    // Store original folder for rollback
-    const originalFolder = getFolder(folderId);
-    if (!originalFolder) {
-      toast.error('Folder not found');
-      setIsDeleting(false);
-      return { success: false, error: 'Folder not found' };
-    }
-
-    // Check if currently open document is in this folder
-    const currentDocId = editorState.currentDocumentId;
-    const currentDoc = currentDocId ? filesystemState.documents.find(d => d.id === currentDocId) : null;
-    const wasOpenDocInFolder = currentDoc && currentDoc.folder_id === folderId;
-
-    // Optimistic update - remove immediately
-    removeFolder(folderId);
-
-    // If currently open document was in the folder, clear editor and navigate
-    if (wasOpenDocInFolder) {
-      clearEditor();
-      router.push('/workspace');
-    }
-
-    try {
-      const { error } = await FilesystemService.deleteFolder(folderId);
-
-      if (error) {
-        // Rollback optimistic update
-        if (originalFolder) {
-          addFolder(originalFolder);
-        }
-        toast.error(`Failed to delete folder: ${error}`);
-        return { success: false, error };
+  const deleteFolderMutation = useGraphQLMutation<
+    { id: string },
+    any,
+    { originalFolder: Folder; wasOpenDocInFolder: boolean }
+  >({
+    mutation: DeleteFolderDocument,
+    optimisticUpdate: (tempId, input) => {
+      const folder = getFolder(input.id);
+      if (!folder) {
+        throw new Error('Folder not found');
       }
 
-      // Real-time subscription will confirm
-      toast.success('Folder deleted');
-      return { success: true };
-    } catch (error) {
-      // Rollback on unexpected error
-      if (originalFolder) {
-        addFolder(originalFolder);
-      }
-      toast.error('Unexpected error deleting folder');
-      return { success: false, error: String(error) };
-    } finally {
-      setIsDeleting(false);
-    }
-  };
+      // Check if currently open file is in this folder
+      const currentDocId = editorState.currentDocumentId;
+      const currentFile = currentDocId
+        ? filesystemState.files.find((f) => f.id === currentDocId)
+        : null;
+      const wasOpenDocInFolder = currentFile && currentFile.folderId === input.id;
 
-  // ===== DOCUMENT OPERATIONS =====
+      removeFolder(input.id);
+
+      if (wasOpenDocInFolder) {
+        clearEditor();
+        router.push('/workspace');
+      }
+
+      return { originalFolder: folder, wasOpenDocInFolder };
+    },
+    onSuccess: () => {
+      // Realtime subscription will confirm
+    },
+    onError: ({ originalFolder }) => {
+      addFolder(originalFolder);
+    },
+    successMessage: () => 'Folder deleted',
+    errorMessage: (error) => `Failed to delete folder: ${error}`,
+  });
+
+  // ===== FILE OPERATIONS =====
 
   /**
-   * Create a new document with optimistic update
+   * Create file mutation
    */
-  const createDocument = async (name: string, folderId: string | null) => {
-    if (!user) {
-      toast.error('You must be logged in to create documents');
-      return { success: false, error: 'Not authenticated' };
-    }
-
-    setIsCreatingDocument(true);
-
-    // Optimistic update - add temporary document immediately
-    const tempId = `temp-document-${Date.now()}`;
-    const optimisticDocument: Document = {
-      id: tempId,
-      name,
-      folder_id: folderId,
-      path: folderId ? `folder/${name}` : name,
-      user_id: user.id,
-      content_text: '',
-      content_markdown: '',
-      file_size: 0,
-      mime_type: 'text/markdown',
-      version: 0,
-      indexing_status: 'pending',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-
-    addDocument(optimisticDocument);
-
-    try {
-      const { data, error } = await FilesystemService.createDocument(name, folderId);
-
-      if (error) {
-        // Rollback optimistic update
-        removeDocument(tempId);
-        toast.error(`Failed to create document: ${error}`);
-        return { success: false, error };
+  const createFileMutation = useGraphQLMutation<
+    { id?: string; name: string; content: string; folderId?: string | null },
+    any,
+    { permanentId: string }
+  >({
+    mutation: CreateFileDocument,
+    optimisticUpdate: (permanentId, input) => {
+      if (!user) {
+        throw new Error('Not authenticated');
       }
 
-      // Replace temp with real data (real-time subscription will also update)
-      removeDocument(tempId);
-      if (data) {
-        // addDocument automatically initializes metadata
-        addDocument(data);
-      }
+      const optimisticFile: File = {
+        id: permanentId,
+        name: input.name,
+        folderId: input.folderId || null,
+        path: input.name, // Path will be computed by backend
+        ownerUserId: user.id,
+        content: input.content,
+        fileSize: 0,
+        mimeType: 'text/markdown',
+        version: 0,
+        indexingStatus: 'pending',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
 
-      toast.success(`Document "${name}" created`);
-      return { success: true, data };
-    } catch (error) {
-      // Rollback on unexpected error
-      removeDocument(tempId);
-      toast.error('Unexpected error creating document');
-      return { success: false, error: String(error) };
-    } finally {
-      setIsCreatingDocument(false);
-    }
-  };
+      addFile(optimisticFile);
+
+      // Pass permanent ID to GraphQL mutation
+      input.id = permanentId;
+
+      return { permanentId };
+    },
+    onSuccess: ({ permanentId }, data) => {
+      // Realtime subscription will confirm with same ID (no need to remove/re-add)
+      // Just ensure state is updated with server data
+      updateFile(permanentId, data.createFile as Partial<File>);
+    },
+    onError: ({ permanentId }) => {
+      removeFile(permanentId);
+    },
+    successMessage: (data) => `File "${data.createFile.name}" created`,
+    errorMessage: (error) => `Failed to create file: ${error}`,
+  });
 
   /**
-   * Rename a document with optimistic update
+   * Rename file mutation
    */
-  const renameDocument = async (documentId: string, newName: string) => {
-    setIsRenaming(true);
-
-    // Store original name for rollback
-    const originalDocument = getDocument(documentId);
-    if (!originalDocument) {
-      toast.error('Document not found');
-      setIsRenaming(false);
-      return { success: false, error: 'Document not found' };
-    }
-    const originalName = originalDocument.name;
-
-    // Optimistic update
-    updateDocument(documentId, { name: newName });
-
-    try {
-      const { data, error } = await FilesystemService.renameDocument(documentId, newName);
-
-      if (error) {
-        // Rollback optimistic update
-        updateDocument(documentId, { name: originalName });
-        toast.error(`Failed to rename document: ${error}`);
-        return { success: false, error };
+  const renameFileMutation = useGraphQLMutation<
+    { id: string; name?: string },
+    any,
+    { fileId: string; originalName: string }
+  >({
+    mutation: UpdateFilePartialDocument,
+    optimisticUpdate: (tempId, input) => {
+      const file = getFile(input.id);
+      if (!file) {
+        throw new Error('File not found');
       }
 
-      // Real-time subscription will confirm
-      toast.success(`Document renamed to "${newName}"`);
-      return { success: true, data };
-    } catch (error) {
-      // Rollback on unexpected error
-      updateDocument(documentId, { name: originalName });
-      toast.error('Unexpected error renaming document');
-      return { success: false, error: String(error) };
-    } finally {
-      setIsRenaming(false);
-    }
-  };
+      const originalName = file.name;
+      if (input.name) {
+        updateFile(input.id, { name: input.name });
+      }
+
+      return { fileId: input.id, originalName };
+    },
+    onSuccess: ({ fileId }, data) => {
+      // Realtime subscription will confirm
+    },
+    onError: ({ fileId, originalName }) => {
+      updateFile(fileId, { name: originalName });
+    },
+    successMessage: (data) => `File renamed to "${data.updateFilePartial.name}"`,
+    errorMessage: (error) => `Failed to rename file: ${error}`,
+  });
 
   /**
-   * Move a document with optimistic update
+   * Move file mutation
    */
-  const moveDocument = async (documentId: string, newFolderId: string | null) => {
-    setIsMoving(true);
-
-    // Store original folder for rollback
-    const originalDocument = getDocument(documentId);
-    if (!originalDocument) {
-      toast.error('Document not found');
-      setIsMoving(false);
-      return { success: false, error: 'Document not found' };
-    }
-    const originalFolderId = originalDocument.folder_id;
-
-    // Optimistic update
-    updateDocument(documentId, { folder_id: newFolderId });
-
-    try {
-      const { data, error } = await FilesystemService.moveDocument(documentId, newFolderId);
-
-      if (error) {
-        // Rollback optimistic update
-        updateDocument(documentId, { folder_id: originalFolderId });
-        toast.error(`Failed to move document: ${error}`);
-        return { success: false, error };
+  const moveFileMutation = useGraphQLMutation<
+    { id: string; folderId?: string | null },
+    any,
+    { fileId: string; originalFolderId: string | null }
+  >({
+    mutation: UpdateFilePartialDocument,
+    optimisticUpdate: (tempId, input) => {
+      const file = getFile(input.id);
+      if (!file) {
+        throw new Error('File not found');
       }
 
-      // Real-time subscription will confirm
-      toast.success('Document moved');
-      return { success: true, data };
-    } catch (error) {
-      // Rollback on unexpected error
-      updateDocument(documentId, { folder_id: originalFolderId });
-      toast.error('Unexpected error moving document');
-      return { success: false, error: String(error) };
-    } finally {
-      setIsMoving(false);
-    }
-  };
+      const originalFolderId = file.folderId;
+      updateFile(input.id, { folderId: input.folderId || null });
+
+      return { fileId: input.id, originalFolderId };
+    },
+    onSuccess: ({ fileId }, data) => {
+      // Realtime subscription will confirm
+    },
+    onError: ({ fileId, originalFolderId }) => {
+      updateFile(fileId, { folderId: originalFolderId });
+    },
+    successMessage: () => 'File moved',
+    errorMessage: (error) => `Failed to move file: ${error}`,
+  });
 
   /**
-   * Delete a document with optimistic update
+   * Delete file mutation
    */
-  const deleteDocument = async (documentId: string) => {
-    setIsDeleting(true);
-
-    // Store original document for rollback
-    const originalDocument = getDocument(documentId);
-    if (!originalDocument) {
-      toast.error('Document not found');
-      setIsDeleting(false);
-      return { success: false, error: 'Document not found' };
-    }
-
-    // Check if this document is currently open in editor
-    const wasOpenInEditor = editorState.currentDocumentId === documentId;
-    const previousEditorContent = wasOpenInEditor ? editorState.content : '';
-
-    // Optimistic update - remove immediately
-    removeDocument(documentId);
-
-    // If document was open, clear the editor and navigate to workspace
-    if (wasOpenInEditor) {
-      clearEditor();
-      router.push('/workspace');
-    }
-
-    try {
-      const { error } = await FilesystemService.deleteDocument(documentId);
-
-      if (error) {
-        // Rollback optimistic update
-        if (originalDocument) {
-          addDocument(originalDocument);
-          // If document was open, restore it in editor
-          if (wasOpenInEditor) {
-            loadDocument(documentId, previousEditorContent);
-          }
-        }
-        toast.error(`Failed to delete document: ${error}`);
-        return { success: false, error };
+  const deleteFileMutation = useGraphQLMutation<
+    { id: string },
+    any,
+    { originalFile: File; wasOpenInEditor: boolean; previousEditorContent: string }
+  >({
+    mutation: DeleteFileDocument,
+    optimisticUpdate: (tempId, input) => {
+      const file = getFile(input.id);
+      if (!file) {
+        throw new Error('File not found');
       }
 
-      // Real-time subscription will confirm
-      toast.success('Document deleted');
-      return { success: true };
-    } catch (error) {
-      // Rollback on unexpected error
-      if (originalDocument) {
-        addDocument(originalDocument);
-        // If document was open, restore it in editor
-        if (wasOpenInEditor) {
-          loadDocument(documentId, previousEditorContent);
-        }
+      const wasOpenInEditor = editorState.currentDocumentId === input.id;
+      const previousEditorContent = wasOpenInEditor ? editorState.content : '';
+
+      removeFile(input.id);
+
+      if (wasOpenInEditor) {
+        clearEditor();
+        router.push('/workspace');
       }
-      toast.error('Unexpected error deleting document');
-      return { success: false, error: String(error) };
-    } finally {
-      setIsDeleting(false);
-    }
-  };
+
+      return { originalFile: file, wasOpenInEditor, previousEditorContent };
+    },
+    onSuccess: () => {
+      // Realtime subscription will confirm
+    },
+    onError: ({ originalFile, wasOpenInEditor, previousEditorContent }) => {
+      addFile(originalFile);
+      if (wasOpenInEditor) {
+        loadDocument(originalFile.id || '', previousEditorContent);
+      }
+    },
+    successMessage: () => 'File deleted',
+    errorMessage: (error) => `Failed to delete file: ${error}`,
+  });
+
+  // ===== PUBLIC API =====
 
   return {
     // Folder operations
-    createFolder,
-    renameFolder,
-    moveFolder,
-    deleteFolder,
+    createFolder: async (name: string, parentFolderId: string | null) => {
+      return createFolderMutation.mutate({ name, parentFolderId });
+    },
+    renameFolder: async (folderId: string, newName: string) => {
+      return renameFolderMutation.mutate({ id: folderId, name: newName });
+    },
+    moveFolder: async (folderId: string, newParentId: string | null) => {
+      return moveFolderMutation.mutate({ id: folderId, parentFolderId: newParentId });
+    },
+    deleteFolder: async (folderId: string) => {
+      return deleteFolderMutation.mutate({ id: folderId });
+    },
 
-    // Document operations
-    createDocument,
-    renameDocument,
-    moveDocument,
-    deleteDocument,
+    // File operations (keeping public API names as "document" for backward compatibility with UI components)
+    createDocument: async (name: string, folderId: string | null) => {
+      return createFileMutation.mutate({ name, content: '', folderId });
+    },
+    renameDocument: async (fileId: string, newName: string) => {
+      return renameFileMutation.mutate({ id: fileId, name: newName });
+    },
+    moveDocument: async (fileId: string, newFolderId: string | null) => {
+      return moveFileMutation.mutate({ id: fileId, folderId: newFolderId });
+    },
+    deleteDocument: async (fileId: string) => {
+      return deleteFileMutation.mutate({ id: fileId });
+    },
 
     // Loading states
-    isCreatingFolder,
-    isCreatingDocument,
-    isRenaming,
-    isMoving,
-    isDeleting,
+    isCreatingFolder: createFolderMutation.isLoading,
+    isCreatingDocument: createFileMutation.isLoading,
+    isRenaming: renameFolderMutation.isLoading || renameFileMutation.isLoading,
+    isMoving: moveFolderMutation.isLoading || moveFileMutation.isLoading,
+    isDeleting: deleteFolderMutation.isLoading || deleteFileMutation.isLoading,
   };
 }

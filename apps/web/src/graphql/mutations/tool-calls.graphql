@@ -1,0 +1,18 @@
+# Tool Call Mutations
+# Approve and reject tool calls
+
+#import "../fragments/toolCall.graphql"
+
+# Approve a pending tool call (triggers async execution)
+mutation ApproveToolCall($id: ID!) {
+  approveToolCall(input: { id: $id }) {
+    ...ToolCallFields
+  }
+}
+
+# Reject a pending tool call
+mutation RejectToolCall($id: ID!, $reason: String) {
+  rejectToolCall(input: { id: $id, reason: $reason }) {
+    ...ToolCallFields
+  }
+}

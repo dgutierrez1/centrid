@@ -1,0 +1,35 @@
+# Usage Event Queries
+# Billing and analytics tracking
+
+# Get usage events for current user with optional date range filtering
+query ListUsageEvents(
+  $userId: ID
+  $startDate: DateTime
+  $endDate: DateTime
+  $limit: Int
+  $offset: Int
+) {
+  usageEvents(
+    userId: $userId
+    startDate: $startDate
+    endDate: $endDate
+    limit: $limit
+    offset: $offset
+  ) {
+    id
+    userId
+    eventType
+    tokensUsed
+    cost
+    metadata
+    createdAt
+  }
+}
+
+# Get aggregated usage statistics
+query GetUsageStats($userId: ID, $startDate: DateTime) {
+  usageStats(userId: $userId, startDate: $startDate) {
+    totalTokens
+    totalCost
+  }
+}

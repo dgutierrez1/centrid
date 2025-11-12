@@ -1,10 +1,11 @@
-import { proxy } from 'valtio';
+import { proxy } from "valtio";
+import type { ContentBlock } from "@/types/agent";
 
 export interface Thread {
   id: string;
   title: string;
   summary?: string;
-  parentId: string | null;
+  parentThreadId: string | null;
   depth: number;
   artifactCount: number;
   lastActivity: Date;
@@ -14,30 +15,29 @@ export interface Thread {
 
 export interface Message {
   id: string;
-  role: 'user' | 'assistant';
-  content?: string;
+  role: "user" | "assistant";
+  content?: ContentBlock[]; // ContentBlock[] from GraphQL JSON scalar
   events?: any[];
   toolCalls?: any[];
   timestamp: Date;
   isStreaming?: boolean;
   isRequestLoading?: boolean;
-  streamingBuffer?: string;
   tokensUsed?: number;
   idempotencyKey?: string; // Client-side request ID for deduplication
 }
 
 export interface ContextReference {
   id: string;
-  entityType: 'file' | 'folder' | 'thread';
+  entityType: "file" | "folder" | "thread";
   entityReference: string;
-  source: 'inherited' | 'manual' | '@-mentioned' | 'agent-added';
+  source: "inherited" | "manual" | "@-mentioned" | "agent-added";
   priorityTier: 1 | 2 | 3;
   addedTimestamp: Date;
   // Optional metadata for display
   name?: string;
   sourceBranch?: string;
   relevanceScore?: number;
-  relationship?: 'sibling' | 'parent' | 'child';
+  relationship?: "sibling" | "parent" | "child";
 }
 
 export interface BranchTreeState {
@@ -47,12 +47,12 @@ export interface BranchTreeState {
 
 export interface Provenance {
   createdAt: Date;
-  createdBy: 'agent' | 'user';
+  createdBy: "agent" | "user";
   sourceBranch: string;
   sourceThreadId: string;
   sourceMessageId: string;
   lastEditedAt?: Date;
-  lastEditedBy?: 'agent' | 'user';
+  lastEditedBy?: "agent" | "user";
   lastEditSourceThreadId?: string;
 }
 
@@ -60,6 +60,7 @@ export interface FileData {
   id: string;
   name: string;
   content: string;
+  version?: number;
   provenance: Provenance | null;
 }
 
@@ -73,11 +74,10 @@ export interface AIAgentState {
   branchTree: BranchTreeState;
 
   // Streaming state
-  streamingBuffer: string | null;
   sseConnection: EventSource | null;
   isStreaming: boolean;
   hasStreamStarted: boolean;
-  currentRequestId: string | null;  // Track active agent request for approval handlers
+  currentRequestId: string | null; // Track active agent request for approval handlers
 
   // Loading states
   isLoadingThread: boolean;
@@ -111,7 +111,6 @@ export const aiAgentState = proxy<AIAgentState>({
     parentChildMap: new Map(),
   },
 
-  streamingBuffer: null,
   sseConnection: null,
   isStreaming: false,
   hasStreamStarted: false,
@@ -143,6 +142,17 @@ export const aiAgentActions = {
     aiAgentState.messages = messages;
   },
 
+  // Batch update for thread data to prevent multiple rerenders
+  setThreadData(
+    thread: Thread | null,
+    messages: Message[],
+    contextRefs: ContextReference[]
+  ) {
+    aiAgentState.currentThread = thread;
+    aiAgentState.messages = messages;
+    aiAgentState.contextReferences = contextRefs;
+  },
+
   addMessage(message: Message) {
     aiAgentState.messages.push(message);
   },
@@ -158,10 +168,10 @@ export const aiAgentActions = {
     // Build parent-child map
     const map = new Map<string, string[]>();
     for (const thread of threads) {
-      if (thread.parentId) {
-        const children = map.get(thread.parentId) || [];
+      if (thread.parentThreadId) {
+        const children = map.get(thread.parentThreadId) || [];
         children.push(thread.id);
-        map.set(thread.parentId, children);
+        map.set(thread.parentThreadId, children);
       }
     }
     aiAgentState.branchTree.parentChildMap = map;
@@ -171,22 +181,26 @@ export const aiAgentActions = {
     aiAgentState.branchTree.threads.push(thread);
 
     // Update parent-child map
-    if (thread.parentId) {
-      const children = aiAgentState.branchTree.parentChildMap.get(thread.parentId) || [];
+    if (thread.parentThreadId) {
+      const children =
+        aiAgentState.branchTree.parentChildMap.get(thread.parentThreadId) || [];
       children.push(thread.id);
-      aiAgentState.branchTree.parentChildMap.set(thread.parentId, children);
+      aiAgentState.branchTree.parentChildMap.set(thread.parentThreadId, children);
     }
   },
 
   removeThreadFromBranchTree(threadId: string) {
-    const threadIndex = aiAgentState.branchTree.threads.findIndex(t => t.id === threadId);
+    const threadIndex = aiAgentState.branchTree.threads.findIndex(
+      (t) => t.id === threadId
+    );
     if (threadIndex >= 0) {
       const thread = aiAgentState.branchTree.threads[threadIndex];
       aiAgentState.branchTree.threads.splice(threadIndex, 1);
 
       // Update parent-child map
-      if (thread.parentId) {
-        const children = aiAgentState.branchTree.parentChildMap.get(thread.parentId) || [];
+      if (thread.parentThreadId) {
+        const children =
+          aiAgentState.branchTree.parentChildMap.get(thread.parentThreadId) || [];
         const childIndex = children.indexOf(threadId);
         if (childIndex >= 0) {
           children.splice(childIndex, 1);
@@ -196,10 +210,6 @@ export const aiAgentActions = {
   },
 
   // Streaming actions
-  setStreamingBuffer(buffer: string | null) {
-    aiAgentState.streamingBuffer = buffer;
-  },
-
   setSSEConnection(connection: EventSource | null) {
     aiAgentState.sseConnection = connection;
   },
@@ -248,7 +258,9 @@ export const aiAgentActions = {
     }
   },
 
-  setConsolidationProgress(progress: { step: string; current: number; total: number } | null) {
+  setConsolidationProgress(
+    progress: { step: string; current: number; total: number } | null
+  ) {
     aiAgentState.consolidationProgress = progress;
   },
 

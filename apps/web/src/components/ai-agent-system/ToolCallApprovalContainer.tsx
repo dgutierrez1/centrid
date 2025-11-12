@@ -19,11 +19,11 @@ export function ToolCallApprovalContainer({
   onApprove,
   onReject,
 }: ToolCallApprovalContainerProps) {
-  const { approveTool, isLoading } = useApproveToolCall(requestId)
+  const { approve, reject, isLoading } = useApproveToolCall()
 
   const handleApprove = async () => {
     try {
-      await approveTool(toolCallId, true)
+      await approve({ id: toolCallId })
       onApprove?.()
     } catch (error) {
       // Error already handled by hook with toast
@@ -33,7 +33,7 @@ export function ToolCallApprovalContainer({
 
   const handleReject = async () => {
     try {
-      await approveTool(toolCallId, false, 'User rejected')
+      await reject({ id: toolCallId, reason: 'User rejected' })
       onReject?.()
     } catch (error) {
       // Error already handled by hook with toast

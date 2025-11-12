@@ -1,12 +1,16 @@
 /**
  * Filesystem State (Valtio)
  *
- * Manages file tree data (folders + documents) with real-time updates
+ * Manages file tree data (folders + files) with real-time updates
  */
 
-import { proxy } from 'valtio';
-import { initDocumentMetadata, clearDocumentMetadata } from './documentMetadata';
-import type { Folder, Document, FileSystemNode } from '@centrid/shared/types';
+import { proxy } from "valtio";
+import {
+  initDocumentMetadata,
+  clearDocumentMetadata,
+} from "./documentMetadata";
+import type { Folder, FileSystemNode } from "@/lib/types";
+import type { File } from "@/types/graphql";
 
 // ============================================================================
 // State Definition
@@ -14,8 +18,8 @@ import type { Folder, Document, FileSystemNode } from '@centrid/shared/types';
 
 interface FilesystemState {
   folders: Folder[];
-  documents: Document[];
-  selectedDocument: Document | null;
+  files: File[];
+  selectedFile: File | null;
   selectedFolder: string | null; // folder_id for context menu/operations
   treeData: FileSystemNode[]; // Computed tree structure for UI
   loading: boolean;
@@ -24,8 +28,8 @@ interface FilesystemState {
 
 export const filesystemState = proxy<FilesystemState>({
   folders: [],
-  documents: [],
-  selectedDocument: null,
+  files: [],
+  selectedFile: null,
   selectedFolder: null,
   treeData: [],
   loading: false,
@@ -37,40 +41,40 @@ export const filesystemState = proxy<FilesystemState>({
 // ============================================================================
 
 /**
- * Build file tree structure from flat folders + documents arrays
+ * Build file tree structure from flat folders + files arrays
  * Converts flat data into hierarchical FileSystemNode tree
  */
 export function buildFileSystemTree(
   folders: Folder[],
-  documents: Document[]
+  files: File[]
 ): FileSystemNode[] {
   // Convert folders to nodes
-  const folderNodes: FileSystemNode[] = folders.map(f => ({
+  const folderNodes: FileSystemNode[] = folders.map((f) => ({
     id: f.id,
     name: f.name,
-    type: 'folder' as const,
-    parentId: f.parent_folder_id,
+    type: "folder" as const,
+    parentId: f.parentFolderId,
     path: f.path,
     children: [],
   }));
 
-  // Convert documents to nodes
-  const documentNodes: FileSystemNode[] = documents.map(d => ({
-    id: d.id,
-    name: d.name,
-    type: 'document' as const,
-    parentId: d.folder_id,
-    path: d.path,
-    fileSize: d.file_size,
-    mimeType: d.mime_type,
-    version: d.version,
-    indexingStatus: d.indexing_status,
-    updatedAt: d.updated_at,
+  // Convert files to nodes
+  const fileNodes: FileSystemNode[] = files.map((f) => ({
+    id: f.id || '',
+    name: f.name || 'Untitled',
+    type: "document" as const,
+    parentId: f.folderId || null,
+    path: f.path || '',
+    fileSize: f.fileSize || undefined,
+    mimeType: f.mimeType || undefined,
+    version: f.version || undefined,
+    indexingStatus: f.indexingStatus || undefined,
+    updatedAt: f.updatedAt || undefined,
   }));
 
   // Build tree by nesting children into parents
-  const allNodes = [...folderNodes, ...documentNodes];
-  const nodeMap = new Map(allNodes.map(n => [n.id, n]));
+  const allNodes = [...folderNodes, ...fileNodes];
+  const nodeMap = new Map(allNodes.map((n) => [n.id, n]));
   const rootNodes: FileSystemNode[] = [];
 
   for (const node of allNodes) {
@@ -78,7 +82,7 @@ export function buildFileSystemTree(
       rootNodes.push(node);
     } else {
       const parent = nodeMap.get(node.parentId);
-      if (parent && parent.type === 'folder') {
+      if (parent && parent.type === "folder") {
         if (!parent.children) {
           parent.children = [];
         }
@@ -91,14 +95,14 @@ export function buildFileSystemTree(
   const sortNodes = (nodes: FileSystemNode[]): FileSystemNode[] => {
     const sorted = nodes.sort((a, b) => {
       // Folders before documents
-      if (a.type === 'folder' && b.type === 'document') return -1;
-      if (a.type === 'document' && b.type === 'folder') return 1;
+      if (a.type === "folder" && b.type === "document") return -1;
+      if (a.type === "document" && b.type === "folder") return 1;
       // Alphabetically within same type
       return a.name.localeCompare(b.name);
     });
 
     // Recursively sort children
-    sorted.forEach(node => {
+    sorted.forEach((node) => {
       if (node.children) {
         node.children = sortNodes(node.children);
       }
@@ -111,12 +115,12 @@ export function buildFileSystemTree(
 }
 
 /**
- * Update tree data from current folders + documents state
+ * Update tree data from current folders + files state
  */
 export function updateTreeData() {
   filesystemState.treeData = buildFileSystemTree(
     filesystemState.folders,
-    filesystemState.documents
+    filesystemState.files
   );
 }
 
@@ -126,9 +130,11 @@ export function updateTreeData() {
  */
 export function addFolder(folder: Folder) {
   // Check if folder already exists (prevent duplicates from HTTP + real-time)
-  const exists = filesystemState.folders.some(f => f.id === folder.id);
+  const exists = filesystemState.folders.some((f) => f.id === folder.id);
   if (exists) {
-    console.log(`[Filesystem] Folder ${folder.id} already exists, skipping duplicate add`);
+    console.log(
+      `[Filesystem] Folder ${folder.id} already exists, skipping duplicate add`
+    );
     return;
   }
 
@@ -141,7 +147,7 @@ export function addFolder(folder: Folder) {
  * Update folder in state (from UPDATE real-time event)
  */
 export function updateFolder(folderId: string, updates: Partial<Folder>) {
-  const index = filesystemState.folders.findIndex(f => f.id === folderId);
+  const index = filesystemState.folders.findIndex((f) => f.id === folderId);
   if (index !== -1) {
     filesystemState.folders[index] = {
       ...filesystemState.folders[index],
@@ -155,51 +161,54 @@ export function updateFolder(folderId: string, updates: Partial<Folder>) {
  * Remove folder from state (from DELETE real-time event)
  */
 export function removeFolder(folderId: string) {
-  filesystemState.folders = filesystemState.folders.filter(f => f.id !== folderId);
+  filesystemState.folders = filesystemState.folders.filter(
+    (f) => f.id !== folderId
+  );
   updateTreeData();
 }
 
 /**
- * Add document to state (from INSERT real-time event)
- */
-/**
- * Add document to state (from INSERT real-time event or HTTP response)
- * IDEMPOTENT: Safe to call multiple times with same document
+ * Add file to state (from INSERT real-time event or HTTP response)
+ * IDEMPOTENT: Safe to call multiple times with same file
  * Automatically initializes metadata
  */
-export function addDocument(document: Document) {
-  // Check if document already exists (prevent duplicates from HTTP + real-time)
-  const exists = filesystemState.documents.some(d => d.id === document.id);
+export function addFile(file: File) {
+  // Check if file already exists (prevent duplicates from HTTP + real-time)
+  const exists = filesystemState.files.some((f) => f.id === file.id);
   if (exists) {
-    console.log(`[Filesystem] Document ${document.id} already exists, skipping duplicate add`);
+    console.log(
+      `[Filesystem] File ${file.id} already exists, skipping duplicate add`
+    );
     return;
   }
 
-  filesystemState.documents.push(document);
+  filesystemState.files.push(file);
   updateTreeData();
 
-  // Automatically initialize metadata when document enters state
+  // Automatically initialize metadata when file enters state
   // initDocumentMetadata is idempotent (defensive)
-  // NOTE: version is NOT stored in metadata - read from Document.version instead
-  initDocumentMetadata(document.id, document.content_text || '');
-  console.log(`[Filesystem] Added document ${document.id} and initialized metadata`);
+  // NOTE: version is NOT stored in metadata - read from File.version instead
+  initDocumentMetadata(file.id || '', file.content || "");
+  console.log(
+    `[Filesystem] Added file ${file.id} and initialized metadata`
+  );
 }
 
 /**
- * Update document in state (from UPDATE real-time event)
+ * Update file in state (from UPDATE real-time event)
  */
-export function updateDocument(documentId: string, updates: Partial<Document>) {
-  const index = filesystemState.documents.findIndex(d => d.id === documentId);
+export function updateFile(fileId: string, updates: Partial<File>) {
+  const index = filesystemState.files.findIndex((f) => f.id === fileId);
   if (index !== -1) {
-    filesystemState.documents[index] = {
-      ...filesystemState.documents[index],
+    filesystemState.files[index] = {
+      ...filesystemState.files[index],
       ...updates,
     };
 
-    // Update selected document if it's the one being updated
-    if (filesystemState.selectedDocument?.id === documentId) {
-      filesystemState.selectedDocument = {
-        ...filesystemState.selectedDocument,
+    // Update selected file if it's the one being updated
+    if (filesystemState.selectedFile?.id === fileId) {
+      filesystemState.selectedFile = {
+        ...filesystemState.selectedFile,
         ...updates,
       };
     }
@@ -209,39 +218,43 @@ export function updateDocument(documentId: string, updates: Partial<Document>) {
 }
 
 /**
- * Remove document from state (from DELETE real-time event)
+ * Remove file from state (from DELETE real-time event)
  * Automatically cleans up metadata to prevent memory leaks
  */
-export function removeDocument(documentId: string) {
-  filesystemState.documents = filesystemState.documents.filter(d => d.id !== documentId);
+export function removeFile(fileId: string) {
+  filesystemState.files = filesystemState.files.filter(
+    (f) => f.id !== fileId
+  );
 
-  // Clear selection if deleted document was selected
-  if (filesystemState.selectedDocument?.id === documentId) {
-    filesystemState.selectedDocument = null;
+  // Clear selection if deleted file was selected
+  if (filesystemState.selectedFile?.id === fileId) {
+    filesystemState.selectedFile = null;
   }
 
   // CRITICAL: Clean up metadata to prevent memory leaks
-  clearDocumentMetadata(documentId);
-  console.log(`[Filesystem] Removed document ${documentId} and cleaned up metadata`);
+  clearDocumentMetadata(fileId);
+  console.log(
+    `[Filesystem] Removed file ${fileId} and cleaned up metadata`
+  );
 
   updateTreeData();
 }
 
 /**
- * Select a document (opens in editor)
+ * Select a file (opens in editor)
  */
-export function selectDocument(documentId: string) {
-  const document = filesystemState.documents.find(d => d.id === documentId);
-  if (document) {
-    filesystemState.selectedDocument = document;
+export function selectFile(fileId: string) {
+  const file = filesystemState.files.find((f) => f.id === fileId);
+  if (file) {
+    filesystemState.selectedFile = file;
   }
 }
 
 /**
- * Clear selected document (close editor)
+ * Clear selected file (close editor)
  */
-export function clearDocumentSelection() {
-  filesystemState.selectedDocument = null;
+export function clearFileSelection() {
+  filesystemState.selectedFile = null;
 }
 
 /**
@@ -270,8 +283,8 @@ export function setLoading(loading: boolean) {
  */
 export function resetFilesystemState() {
   filesystemState.folders = [];
-  filesystemState.documents = [];
-  filesystemState.selectedDocument = null;
+  filesystemState.files = [];
+  filesystemState.selectedFile = null;
   filesystemState.selectedFolder = null;
   filesystemState.treeData = [];
   filesystemState.loading = false;

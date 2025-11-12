@@ -1,0 +1,36 @@
+# Agent Request Queries
+# Fetch agent execution requests and events
+
+#import "../fragments/agentRequest.graphql"
+
+# Get a single agent request by ID
+query GetAgentRequest($id: ID!) {
+  agentRequest(id: $id) {
+    ...AgentRequestFields
+  }
+}
+
+# Get agent request with nested execution events
+query GetAgentRequestWithEvents($id: ID!) {
+  agentRequest(id: $id) {
+    ...AgentRequestWithEvents
+  }
+}
+
+# Get all agent requests for a thread
+query ListAgentRequestsByThread($threadId: ID!) {
+  agentRequestsByThread(threadId: $threadId) {
+    ...AgentRequestFields
+  }
+}
+
+# Get execution events for a request (for replay/debugging)
+query GetAgentExecutionEvents($requestId: ID!) {
+  agentExecutionEvents(requestId: $requestId) {
+    id
+    requestId
+    type
+    data
+    createdAt
+  }
+}

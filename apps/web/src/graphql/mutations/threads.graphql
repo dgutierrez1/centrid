@@ -1,0 +1,53 @@
+# Thread Mutations
+# Create, update, and delete threads
+# Context reference mutations
+
+#import "../fragments/thread.graphql"
+#import "../fragments/contextReference.graphql"
+
+# Create a new thread (branch)
+mutation CreateThread($input: CreateThreadInput!) {
+  createThread(input: $input) {
+    ...ThreadFields
+  }
+}
+
+# Update an existing thread
+mutation UpdateThread($id: ID!, $input: UpdateThreadInput!) {
+  updateThread(id: $id, input: $input) {
+    ...ThreadFields
+  }
+}
+
+# Delete a thread
+mutation DeleteThread($id: ID!) {
+  deleteThread(id: $id)
+}
+
+# Add context reference to a thread
+mutation AddContextReference($input: AddContextReferenceInput!) {
+  addContextReference(input: $input) {
+    ...ContextReferenceFields
+  }
+}
+
+# Remove context reference from a thread
+mutation RemoveContextReference($id: ID!) {
+  removeContextReference(id: $id)
+}
+
+# Update context reference priority
+mutation UpdateContextReferencePriority($id: ID!, $priorityTier: Int!) {
+  updateContextReferencePriority(id: $id, priorityTier: $priorityTier) {
+    ...ContextReferenceFields
+  }
+}
+
+# Consolidate multiple branches into a single file
+mutation ConsolidateBranches($input: ConsolidateBranchesInput!) {
+  consolidateBranches(input: $input) {
+    requestId
+    fileId
+    status
+  }
+}

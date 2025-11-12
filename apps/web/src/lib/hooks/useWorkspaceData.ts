@@ -28,14 +28,14 @@ export function useWorkspaceData() {
       children: [],
     };
 
-    // Add documents in this folder
-    const docsInFolder = filesystem.documents.filter(
-      (doc) => doc.folder_id === folder.id
+    // Add files in this folder
+    const filesInFolder = filesystem.files.filter(
+      (file) => file.folderId === folder.id
     );
-    docsInFolder.forEach((doc) => {
+    filesInFolder.forEach((file) => {
       node.children!.push({
-        id: doc.id,
-        name: doc.name,
+        id: file.id || '',
+        name: file.name || 'Untitled',
         type: 'file' as const,
       });
     });
@@ -46,12 +46,12 @@ export function useWorkspaceData() {
     }
   });
 
-  // Add root-level documents
-  const rootDocs = filesystem.documents.filter((doc) => !doc.folder_id);
-  rootDocs.forEach((doc) => {
+  // Add root-level files
+  const rootFiles = filesystem.files.filter((file) => !file.folderId);
+  rootFiles.forEach((file) => {
     fileTreeData.push({
-      id: doc.id,
-      name: doc.name,
+      id: file.id || '',
+      name: file.name || 'Untitled',
       type: 'file' as const,
     });
   });
@@ -72,21 +72,21 @@ export function useWorkspaceData() {
     return 'idle'; // idle state (document at rest, saved)
   };
 
-  // Look up selected document name for display (not UUID)
+  // Look up selected file name for display (not UUID)
   const currentDocId = editor.currentDocumentId;
   const selectedFileName = currentDocId
-    ? filesystem.documents.find(d => d.id === currentDocId)?.name || ''
+    ? filesystem.files.find(f => f.id === currentDocId)?.name || ''
     : '';
 
-  // Compute folder path for current document
-  const computeFolderPath = (documentId: string): string => {
-    const document = filesystem.documents.find(d => d.id === documentId);
-    if (!document || !document.folder_id) {
+  // Compute folder path for current file
+  const computeFolderPath = (fileId: string): string => {
+    const file = filesystem.files.find(f => f.id === fileId);
+    if (!file || !file.folderId) {
       return 'Root';
     }
 
     const pathParts: string[] = [];
-    let currentFolderId: string | null = document.folder_id;
+    let currentFolderId: string | null = file.folderId;
 
     // Traverse up the folder hierarchy (limit to 10 to prevent infinite loops)
     let depth = 0;
@@ -104,18 +104,18 @@ export function useWorkspaceData() {
 
   const folderPath = currentDocId ? computeFolderPath(currentDocId) : 'Root';
 
-  // Get metadata for current document (for save status)
+  // Get metadata for current file (for save status)
   // IMPORTANT: Access through snapshot for Valtio reactivity
-  const currentDocMetadata = currentDocId ? documentMetadata.documents[currentDocId] : undefined;
+  const currentFileMetadata = currentDocId ? documentMetadata.documents[currentDocId] : undefined;
 
   // Calculate hasUnsavedChanges by comparing editor content with metadata
-  const hasUnsavedChanges = currentDocId && currentDocMetadata
-    ? editor.content !== currentDocMetadata.lastSavedContent
+  const hasUnsavedChanges = currentDocId && currentFileMetadata
+    ? editor.content !== currentFileMetadata.lastSavedContent
     : false;
 
   // Debug log to track status values
-  if (currentDocMetadata) {
-    console.log('[useWorkspaceData] currentDocMetadata.saveStatus:', currentDocMetadata.saveStatus);
+  if (currentFileMetadata) {
+    console.log('[useWorkspaceData] currentFileMetadata.saveStatus:', currentFileMetadata.saveStatus);
   }
 
   return {
@@ -134,11 +134,11 @@ export function useWorkspaceData() {
     // Editor content
     editorContent: editor.content,
 
-    // Save status (read from current document's metadata)
-    saveStatus: currentDocMetadata ? mapSaveStatus(currentDocMetadata.saveStatus) : 'idle',
+    // Save status (read from current file's metadata)
+    saveStatus: currentFileMetadata ? mapSaveStatus(currentFileMetadata.saveStatus) : 'idle',
 
-    // Save status metadata (read from current document's metadata)
-    lastSavedAt: currentDocMetadata?.lastSavedAt || null,
+    // Save status metadata (read from current file's metadata)
+    lastSavedAt: currentFileMetadata?.lastSavedAt || null,
     hasUnsavedChanges,
 
     // User info

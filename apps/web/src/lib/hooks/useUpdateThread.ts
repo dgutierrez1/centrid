@@ -1,36 +1,40 @@
-import { useState } from 'react';
-import toast from 'react-hot-toast';
 import { aiAgentActions, aiAgentState } from '../state/aiAgentState';
-import { api } from '../api/client';
+import { useGraphQLMutation } from '../graphql/useGraphQLMutation';
+import { UpdateThreadDocument } from '@/types/graphql';
 
 export function useUpdateThread() {
-  const [isLoading, setIsLoading] = useState(false);
+  const { mutate, isLoading } = useGraphQLMutation({
+    mutation: UpdateThreadDocument,
+    optimisticUpdate: (permanentId, input) => {
+      const oldThread = aiAgentState.currentThread;
 
-  const updateThread = async (threadId: string, updates: { title: string }) => {
-    setIsLoading(true);
-    const oldThread = aiAgentState.currentThread;
-
-    try {
       // Optimistic update
       if (oldThread) {
-        aiAgentActions.setCurrentThread({ ...oldThread, title: updates.title });
+        aiAgentActions.setCurrentThread({ ...oldThread, title: input?.input?.branchTitle || oldThread.title });
       }
 
-      // Update thread via API
-      await api.put(`/threads/${threadId}`, {
-        title: updates.title,
-      });
-
-      toast.success('Branch title updated');
-    } catch (error: any) {
+      return { oldThread };
+    },
+    onSuccess: ({ oldThread }, data) => {
+      // Real-time will reconcile with server response
+    },
+    onError: ({ oldThread }) => {
       // Rollback on error
       if (oldThread) {
         aiAgentActions.setCurrentThread(oldThread);
       }
-      toast.error(error.message || 'Failed to update branch');
-    } finally {
-      setIsLoading(false);
-    }
+    },
+    successMessage: () => 'Branch title updated',
+    errorMessage: (error) => `Failed to update branch: ${error}`,
+  });
+
+  const updateThread = async (threadId: string, updates: { title: string }) => {
+    await mutate({
+      id: threadId,
+      input: {
+        branchTitle: updates.title,
+      },
+    });
   };
 
   return { updateThread, isLoading };

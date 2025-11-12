@@ -16,9 +16,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@centrid/ui/components
 import { Input } from '@centrid/ui/components/input'
 import { Label } from '@centrid/ui/components/label'
 import { Alert } from '@centrid/ui/components/alert'
-import { signupSchema, type SignupInput } from '@centrid/shared/schemas'
+import { signupSchema, type SignupInput } from '@/lib/validations/auth'
 import { supabase } from '@/lib/supabase/client'
-import { withRetry, getAuthErrorMessage } from '@/lib/utils'
+import { api } from '@/lib/api/client'
+import { getAuthErrorMessage } from '@/lib/utils'
 
 export default function SignupPage() {
   const router = useRouter()
@@ -47,32 +48,14 @@ export default function SignupPage() {
         return
       }
 
-      // Call create-account Edge Function for atomic account+profile creation (with retry)
-      const { data: functionData, error: functionError } = await withRetry(() =>
-        supabase.functions.invoke('create-account', {
-          body: validation.data,
-        })
-      )
+      // Call REST API endpoint for atomic account+profile creation
+      await api.post('/auth/account', validation.data)
 
-      if (functionError) {
-        setError(getAuthErrorMessage(functionError, 'create account'))
-        setLoading(false)
-        return
-      }
-
-      if (functionData?.error) {
-        setError(getAuthErrorMessage(functionData.error, 'create account'))
-        setLoading(false)
-        return
-      }
-
-      // Now sign in the user with the credentials they just created (with retry)
-      const { error: signInError } = await withRetry(() =>
-        supabase.auth.signInWithPassword({
-          email: validation.data.email,
-          password: validation.data.password,
-        })
-      )
+      // Now sign in the user with the credentials they just created
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: validation.data.email,
+        password: validation.data.password,
+      })
 
       if (signInError) {
         setError('Account created, but sign-in failed. Please try logging in.')

@@ -1,0 +1,25 @@
+# Tool Call Queries
+# Fetch tool call approval workflow data
+
+#import "../fragments/toolCall.graphql"
+
+# Get a single tool call by ID
+query GetToolCall($id: ID!) {
+  toolCall(id: $id) {
+    ...ToolCallFields
+  }
+}
+
+# Get pending tool calls for a thread (for approval banner)
+query ListPendingToolCalls($threadId: ID!) {
+  pendingToolCalls(threadId: $threadId) {
+    ...ToolCallFields
+  }
+}
+
+# Get all tool calls for an agent request
+query ListToolCallsByRequest($requestId: ID!) {
+  toolCallsByRequest(requestId: $requestId) {
+    ...ToolCallFields
+  }
+}

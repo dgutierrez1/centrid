@@ -33,8 +33,9 @@ export function MessageStreamContainer() {
     if (!messageIds.has(msg.id)) {
       messageIds.add(msg.id)
       messages.push({
+        id: msg.id, // Add ID field for React keys
         role: msg.role,
-        content: msg.isStreaming && msg.streamingBuffer ? msg.streamingBuffer : msg.content,
+        content: msg.content, // Always use content (no streamingBuffer)
         events: msg.events as any[] | undefined,
         timestamp: msg.timestamp,
         isStreaming: msg.isStreaming,
@@ -55,10 +56,11 @@ export function MessageStreamContainer() {
   // - isRequestLoading is true when streaming hasn't actually started yet (no content)
   // - hasStreamStarted is true when we've received the first stream event
   if (snap.isStreaming && !hasStreamingAssistantMessage) {
-    const isRequestLoading = !snap.hasStreamStarted && !snap.streamingBuffer
+    const isRequestLoading = !snap.hasStreamStarted
     messages.push({
+      id: 'streaming-indicator', // Add ID for React keys
       role: 'assistant',
-      content: snap.streamingBuffer || undefined,
+      content: [{ type: 'text', text: '' }], // Empty text block for loading state
       timestamp: new Date(),
       isStreaming: true,
       isRequestLoading,

@@ -1,23 +1,61 @@
-import { useState } from 'react';
-import { toast } from 'react-hot-toast';
-import { AgentFileService } from '@/lib/services/agent-file.service';
 import { aiAgentState } from '@/lib/state/aiAgentState';
+import { useGraphQLMutation } from '@/lib/graphql/useGraphQLMutation';
+import { CreateFileDocument } from '@/types/graphql';
 import type { FileData, Provenance } from '@centrid/ui/features/ai-agent-system';
 
 /**
  * useCreateAgentFile - Custom hook for creating agent-generated files
  *
- * Wraps AgentFileService and provides:
- * - Loading states (useState)
- * - Toast notifications (react-hot-toast)
- * - Optimistic updates (Valtio - aiAgentState)
- * - Error rollback with actual state values
+ * Uses useGraphQLMutation for:
+ * - Optimistic updates with permanent UUID
+ * - Automatic rollback on error
+ * - Toast notifications
  *
- * Architecture: UI Components → useCreateAgentFile → AgentFileService → Edge Functions
+ * Architecture: UI Components → useCreateAgentFile → GraphQL → Edge Functions
  */
 
 export function useCreateAgentFile() {
-  const [isCreating, setIsCreating] = useState(false);
+  const { mutate, isLoading } = useGraphQLMutation({
+    mutation: CreateFileDocument,
+    optimisticUpdate: (permanentId, input) => {
+      // Store original state for rollback
+      const originalCurrentFile = aiAgentState.currentFile;
+      const originalSelectedFileId = aiAgentState.selectedFileId;
+
+      // Optimistic file with permanent UUID
+      const optimisticFile: FileData = {
+        id: permanentId, // Server will use same ID
+        name: input?.name || 'Untitled',
+        content: input?.content || '',
+        provenance: input?.provenance || null,
+      };
+
+      // Set as current file to show in editor
+      aiAgentState.currentFile = optimisticFile;
+      aiAgentState.selectedFileId = permanentId;
+
+      return { permanentId, originalCurrentFile, originalSelectedFileId, name: input?.name || 'Untitled' };
+    },
+    onSuccess: ({ permanentId }, data) => {
+      // Update with server response (real-time will also reconcile)
+      if (data.createFile) {
+        aiAgentState.currentFile = {
+          id: data.createFile.id,
+          name: data.createFile.name,
+          content: data.createFile.content || '',
+          provenance: aiAgentState.currentFile?.provenance || null,
+        };
+        aiAgentState.selectedFileId = data.createFile.id;
+      }
+    },
+    onError: ({ originalCurrentFile, originalSelectedFileId }) => {
+      // Rollback optimistic update
+      aiAgentState.currentFile = originalCurrentFile;
+      aiAgentState.selectedFileId = originalSelectedFileId;
+    },
+    successMessage: (data) => `File "${data.createFile?.name || 'Untitled'}" created`,
+    errorMessage: (error) => `Failed to create file: ${error}`,
+  });
 
   /**
    * Create a new file (typically from agent write_file tool)
@@ -27,57 +65,24 @@ export function useCreateAgentFile() {
     content: string,
     provenance?: Provenance
   ) => {
-    setIsCreating(true);
+    // Extract name from path (agent still provides path)
+    const name = path.split('/').pop() || path;
 
-    // Optimistic update - add temporary file immediately
-    const tempId = `temp-file-${Date.now()}`;
-    const optimisticFile: FileData = {
-      id: tempId,
-      name: path.split('/').pop() || 'unknown',
+    const result = await mutate({
+      name,
       content,
-      provenance: provenance || null,
-    };
+      threadId: aiAgentState.currentThread?.id,
+      folderId: null, // Agent files not associated with folders yet
+      provenance, // Pass through for context
+    });
 
-    // Store original state for rollback
-    const originalCurrentFile = aiAgentState.currentFile;
-    const originalSelectedFileId = aiAgentState.selectedFileId;
-
-    // Optimistic update - set as current file to show in editor
-    aiAgentState.currentFile = optimisticFile;
-    aiAgentState.selectedFileId = tempId;
-
-    try {
-      const { data, error } = await AgentFileService.createFile(path, content, provenance);
-
-      if (error) {
-        // Rollback optimistic update
-        aiAgentState.currentFile = originalCurrentFile;
-        aiAgentState.selectedFileId = originalSelectedFileId;
-        toast.error(`Failed to create file: ${error}`);
-        return { success: false, error };
-      }
-
-      if (data) {
-        // Replace temp with real data
-        aiAgentState.currentFile = data;
-        aiAgentState.selectedFileId = data.id;
-      }
-
-      toast.success(`File "${optimisticFile.name}" created`);
-      return { success: true, data };
-    } catch (error) {
-      // Rollback on unexpected error
-      aiAgentState.currentFile = originalCurrentFile;
-      aiAgentState.selectedFileId = originalSelectedFileId;
-      toast.error('Unexpected error creating file');
-      return { success: false, error: String(error) };
-    } finally {
-      setIsCreating(false);
-    }
+    return result.success
+      ? { success: true, data: result.data?.createFile }
+      : { success: false, error: result.error };
   };
 
   return {
     createFile,
-    isCreating,
+    isCreating: isLoading,
   };
 }

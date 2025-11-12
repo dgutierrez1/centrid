@@ -1,0 +1,7 @@
+#import "../fragments/message.graphql"
+
+query GetMessages($threadId: ID!, $limit: Int, $offset: Int) {
+  messages(threadId: $threadId, limit: $limit, offset: $offset) {
+    ...MessageFields
+  }
+}

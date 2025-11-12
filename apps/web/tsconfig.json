@@ -4,11 +4,9 @@
     "paths": {
       "@/*": ["./src/*"],
       "@centrid/ui": ["../../packages/ui/src"],
-      "@centrid/ui/*": ["../../packages/ui/src/*"],
-      "@centrid/shared": ["../../packages/shared/src"],
-      "@centrid/shared/*": ["../../packages/shared/src/*"]
+      "@centrid/ui/*": ["../../packages/ui/src/*"]
     }
   },
-  "include": ["next-env.d.ts", "src/**/*"],
+  "include": ["next-env.d.ts", "src/**/*", "pages/**/*"],
   "exclude": ["node_modules"]
 }

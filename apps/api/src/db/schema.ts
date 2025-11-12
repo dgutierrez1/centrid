@@ -1,4 +1,5 @@
 import { pgTable, uuid, text, integer, timestamp, real, jsonb, index, unique, customType, boolean } from 'drizzle-orm/pg-core';
+import type { ContentBlock } from '../types/agent.ts';
 
 /**
  * Database Schema for Centrid MVP
@@ -17,6 +18,36 @@ import { pgTable, uuid, text, integer, timestamp, real, jsonb, index, unique, cu
 const tsvector = customType<{ data: string }>({
   dataType() {
     return 'tsvector';
+  },
+});
+
+// Custom vector type for pgvector embeddings
+const vector = customType<{ data: number[]; driverData: string }>({
+  dataType() {
+    return 'vector(768)'; // OpenAI text-embedding-3-small
+  },
+  toDriver(value: number[]): string {
+    return JSON.stringify(value);
+  },
+  fromDriver(value: string): number[] {
+    return JSON.parse(value);
+  },
+});
+
+// Custom ContentBlock array type for message content (typed JSONB)
+const contentBlockArray = customType<{ data: ContentBlock[]; driverData: string }>({
+  dataType() {
+    return 'jsonb';
+  },
+  toDriver(value: ContentBlock[]): string {
+    return JSON.stringify(value);
+  },
+  fromDriver(value: string): ContentBlock[] {
+    if (typeof value === 'string') {
+      return JSON.parse(value) as ContentBlock[];
+    }
+    // Already parsed by pg driver
+    return value as ContentBlock[];
   },
 });
 
@@ -210,15 +241,17 @@ export const messages = pgTable('messages', {
   threadId: uuid('thread_id').notNull(), // FK to threads(id) ON DELETE CASCADE
   ownerUserId: uuid('owner_user_id').notNull(), // FK to auth.users(id) ON DELETE CASCADE
   role: text('role').notNull(), // 'user' or 'assistant'
-  content: text('content').notNull(),
+  content: contentBlockArray('content').notNull(), // ContentBlock[] with type safety
   toolCalls: jsonb('tool_calls').default([]),
   tokensUsed: integer('tokens_used').default(0),
   timestamp: timestamp('timestamp', { withTimezone: true }).defaultNow().notNull(),
+  requestId: uuid('request_id'), // FK to agent_requests(id) ON DELETE SET NULL (only set for user messages)
 }, (table) => ({
   threadIdIdx: index('idx_messages_thread_id').on(table.threadId),
   threadTimestampIdx: index('idx_messages_thread_id_timestamp').on(table.threadId, table.timestamp),
   ownerUserIdIdx: index('idx_messages_owner_user_id').on(table.ownerUserId),
   createdAtIdx: index('idx_messages_created_at').on(table.timestamp),
+  requestIdIdx: index('idx_messages_request_id').on(table.requestId),
 }));
 
 // ============================================================================
@@ -275,20 +308,67 @@ export const contextReferences = pgTable('context_references', {
 export const files = pgTable('files', {
   id: uuid('id').primaryKey().defaultRandom(),
   ownerUserId: uuid('owner_user_id').notNull(), // FK to auth.users(id) ON DELETE CASCADE
-  path: text('path').notNull(), // File path in workspace
+  name: text('name').notNull(), // Filename with extension (source of truth)
+  path: text('path').notNull(), // Full path computed from folder hierarchy + name
   content: text('content').notNull(), // File content
+  // Optional folder organization
+  folderId: uuid('folder_id'), // FK to folders(id) ON DELETE SET NULL
+  // Semantic search integration
+  shadowDomainId: uuid('shadow_domain_id'), // FK to shadow_entities(id) ON DELETE SET NULL
+  // Storage metadata
+  storagePath: text('storage_path'), // Supabase Storage path for large files
+  fileSize: integer('file_size'), // File size in bytes
+  mimeType: text('mime_type'), // MIME type
+  indexingStatus: text('indexing_status').default('pending'), // 'pending', 'completed', 'failed'
+  // Provenance tracking
+  source: text('source').default('user-uploaded'), // 'ai-generated', 'user-uploaded'
   isAIGenerated: boolean('is_ai_generated').default(false), // Track AI-generated files
   createdBy: text('created_by'), // 'user' or agent name
   lastEditedBy: text('last_edited_by'),
   lastEditedAt: timestamp('last_edited_at', { withTimezone: true }),
+  // Optimistic locking
+  version: integer('version').default(0), // Version number for optimistic locking
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ({
   ownerUserIdIdx: index('idx_files_owner_user_id').on(table.ownerUserId),
+  folderIdIdx: index('idx_files_folder_id').on(table.folderId),
+  nameIdx: index('idx_files_name').on(table.name),
   pathIdx: index('idx_files_path').on(table.path),
   userPathIdx: index('idx_files_user_path').on(table.ownerUserId, table.path),
   isAIGeneratedIdx: index('idx_files_is_ai_generated').on(table.isAIGenerated),
+  indexingStatusIdx: index('idx_files_indexing_status').on(table.indexingStatus),
   createdAtIdx: index('idx_files_created_at').on(table.createdAt),
+  // Prevent duplicate names in same folder
+  uniqueNameInFolder: unique('files_unique_name_in_folder').on(table.ownerUserId, table.folderId, table.name),
+}));
+
+// ============================================================================
+// 13. SHADOW_ENTITIES TABLE (Semantic Search Layer)
+// ============================================================================
+
+export const shadowEntities = pgTable('shadow_entities', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  ownerUserId: uuid('owner_user_id').notNull(), // FK to auth.users(id) ON DELETE CASCADE
+
+  // Polymorphic entity reference
+  entityId: uuid('entity_id').notNull(), // file_id, thread_id, or kg_node_id
+  entityType: text('entity_type').notNull(), // 'file' | 'thread' | 'kg_node'
+
+  // Semantic search
+  embedding: vector('embedding').notNull(), // 768-dim vector for semantic search
+  summary: text('summary').notNull(), // 2-3 sentence AI-generated summary
+
+  // Entity-specific metadata (JSONB for flexibility)
+  structureMetadata: jsonb('structure_metadata'),
+
+  // Tracking
+  lastUpdated: timestamp('last_updated', { withTimezone: true }).defaultNow().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  ownerUserIdIdx: index('idx_shadow_entities_owner_user_id').on(table.ownerUserId),
+  entityIdx: index('idx_shadow_entities_entity').on(table.entityId, table.entityType),
+  createdAtIdx: index('idx_shadow_entities_created_at').on(table.createdAt),
 }));
 
 // ============================================================================
@@ -487,6 +567,31 @@ export const rlsPolicies = {
 
     -- No INSERT/UPDATE/DELETE - events are server-generated immutable records
   `,
+
+  shadowEntities: `
+    -- Enable RLS on shadow_entities
+    ALTER TABLE shadow_entities ENABLE ROW LEVEL SECURITY;
+
+    -- Users can view own shadow entities
+    CREATE POLICY "Users can view own shadow entities"
+      ON shadow_entities FOR SELECT
+      USING (auth.uid() = owner_user_id);
+
+    -- Users can insert own shadow entities
+    CREATE POLICY "Users can insert own shadow entities"
+      ON shadow_entities FOR INSERT
+      WITH CHECK (auth.uid() = owner_user_id);
+
+    -- Users can update own shadow entities
+    CREATE POLICY "Users can update own shadow entities"
+      ON shadow_entities FOR UPDATE
+      USING (auth.uid() = owner_user_id);
+
+    -- Users can delete own shadow entities
+    CREATE POLICY "Users can delete own shadow entities"
+      ON shadow_entities FOR DELETE
+      USING (auth.uid() = owner_user_id);
+  `,
 };
 
 // ============================================================================
@@ -672,6 +777,13 @@ ALTER TABLE agent_tool_calls
   ADD CONSTRAINT agent_tool_calls_request_id_fkey
   FOREIGN KEY (request_id) REFERENCES agent_requests(id) ON DELETE CASCADE;
 
+-- Messages - Agent Request FK (for requestId field)
+ALTER TABLE messages
+  DROP CONSTRAINT IF EXISTS messages_request_id_fkey;
+ALTER TABLE messages
+  ADD CONSTRAINT messages_request_id_fkey
+  FOREIGN KEY (request_id) REFERENCES agent_requests(id) ON DELETE SET NULL;
+
 -- Agent Sessions
 ALTER TABLE agent_sessions
   DROP CONSTRAINT IF EXISTS agent_sessions_user_id_fkey;
@@ -685,6 +797,13 @@ ALTER TABLE usage_events
 ALTER TABLE usage_events
   ADD CONSTRAINT usage_events_user_id_fkey
   FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+-- Shadow Entities
+ALTER TABLE shadow_entities
+  DROP CONSTRAINT IF EXISTS shadow_entities_owner_user_id_fkey;
+ALTER TABLE shadow_entities
+  ADD CONSTRAINT shadow_entities_owner_user_id_fkey
+  FOREIGN KEY (owner_user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 -- Verify CASCADE constraints
 SELECT
@@ -736,6 +855,7 @@ ALTER PUBLICATION supabase_realtime SET TABLE
   messages,
   context_references,
   files,
+  shadow_entities,
   user_profiles;
 
 -- CRITICAL: Set REPLICA IDENTITY to FULL for DELETE events
@@ -752,5 +872,6 @@ ALTER TABLE threads REPLICA IDENTITY FULL;
 ALTER TABLE messages REPLICA IDENTITY FULL;
 ALTER TABLE context_references REPLICA IDENTITY FULL;
 ALTER TABLE files REPLICA IDENTITY FULL;
+ALTER TABLE shadow_entities REPLICA IDENTITY FULL;
 ALTER TABLE user_profiles REPLICA IDENTITY FULL;
 `;

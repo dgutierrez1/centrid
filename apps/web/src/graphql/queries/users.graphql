@@ -1,0 +1,11 @@
+# User Queries
+# Fetch current user profile
+
+#import "../fragments/user.graphql"
+
+# Get current user profile
+query GetMe {
+  me {
+    ...UserFields
+  }
+}

@@ -1,0 +1,11 @@
+fragment MessageFields on Message {
+  id
+  threadId
+  ownerUserId
+  role
+  content
+  timestamp
+  requestId
+  toolCalls
+  tokensUsed
+}

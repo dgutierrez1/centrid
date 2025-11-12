@@ -1,95 +1,98 @@
-import { useState, useEffect } from 'react';
-import { aiAgentActions } from '../state/aiAgentState';
-import { api } from '../api/client';
+import { useEffect } from "react";
+import { aiAgentState, aiAgentActions } from "../state/aiAgentState";
+import { useGraphQLQuery } from "../graphql/useGraphQLQuery";
+import { GetThreadDocument } from "@/types/graphql";
 
+/**
+ * Load thread data via GraphQL
+ *
+ * With SSR prefetching, this query returns instantly from cache on first render.
+ *
+ * @param threadId - Thread ID to load
+ */
 export function useLoadThread(threadId: string | undefined) {
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
+  // Clear state when no thread ID
   useEffect(() => {
     if (!threadId) {
-      // No thread ID - show empty state
       aiAgentActions.setCurrentThread(null);
       aiAgentActions.setMessages([]);
       aiAgentActions.setContextReferences([]);
-      return;
     }
+  }, [threadId]);
 
-    const loadThread = async () => {
-      setIsLoading(true);
-      setError(null);
-      aiAgentActions.setIsLoadingThread(true);
-
-      try {
-        // Fetch thread from API with messages included
-        const response = await api.get<{
-          data: {
-            id: string;
-            owner_user_id: string;
-            parent_thread_id: string | null;
-            branch_title: string;
-            creator: string;
-            created_at: string;
-            updated_at: string;
-            messages: any[];
-            context_references: any[];
-          };
-        }>(`/threads/${threadId}`);
-
-        const thread = response.data;
-
-        // Transform and update state
-        const transformedThread = {
-          id: thread.id,
-          title: thread.branch_title || 'Untitled Thread',
-          parentId: thread.parent_thread_id,
-          depth: 0,
-          artifactCount: 0,
-          lastActivity: new Date(thread.updated_at || thread.created_at),
-          createdAt: thread.created_at,
-          updatedAt: thread.updated_at,
-        };
-
-        const transformedMessages = (thread.messages || []).map((msg: any) => ({
-          id: msg.id,
-          threadId: msg.thread_id,
-          role: msg.role,
-          content: msg.content,
-          timestamp: new Date(msg.timestamp),
-          toolCalls: msg.tool_calls || [],
-          tokensUsed: msg.tokens_used || 0,
-        }));
-
-        const transformedRefs = (thread.context_references || []).map((ref: any) => ({
-          id: ref.id,
-          threadId: ref.thread_id,
-          ownerUserId: ref.owner_user_id,
-          entityType: ref.entity_type,
-          entityReference: ref.entity_reference,
-          source: ref.source,
-          priorityTier: ref.priority_tier || 1,
-          addedTimestamp: new Date(ref.added_at),
-        }));
-
-        // Update state
-        aiAgentActions.setCurrentThread(transformedThread);
-        aiAgentActions.setMessages(transformedMessages);
-        aiAgentActions.setContextReferences(transformedRefs);
-      } catch (err: any) {
-        console.error('Error loading thread:', err);
-        // On error, show empty state gracefully
+  // Load thread using GraphQL
+  // Cookies sent automatically - backend validates auth
+  // Query returns instantly from SSR-prefetched cache
+  const { loading, error } = useGraphQLQuery({
+    query: GetThreadDocument,
+    variables: threadId ? { id: threadId } : { id: '' }, // Provide empty string if no threadId (query will be disabled anyway)
+    // Enable query only if threadId exists
+    enabled: !!threadId,
+    syncToState: (data) => {
+      if (!data.thread) {
+        // Thread not found
         aiAgentActions.setCurrentThread(null);
         aiAgentActions.setMessages([]);
         aiAgentActions.setContextReferences([]);
-        setError(err.message || 'Failed to load thread');
-      } finally {
-        setIsLoading(false);
-        aiAgentActions.setIsLoadingThread(false);
+        return;
       }
-    };
 
-    loadThread();
-  }, [threadId]);
+      const thread = data.thread;
 
-  return { isLoading, error };
+      // Skip sync if this exact thread is already loaded (SSR or previous load)
+      if (
+        aiAgentState.currentThread?.id === thread.id &&
+        aiAgentState.messages.length > 0
+      ) {
+        return;
+      }
+
+      // Transform and update state
+      const transformedThread = {
+        id: thread.id,
+        title: thread.branchTitle || "Untitled Thread",
+        parentThreadId: thread.parentThreadId,
+        depth: 0,
+        artifactCount: 0,
+        lastActivity: new Date(thread.updatedAt || thread.createdAt),
+        createdAt: thread.createdAt,
+        updatedAt: thread.updatedAt,
+      };
+
+      const transformedMessages = (thread.messages || []).map((msg: any) => ({
+        id: msg.id,
+        threadId: msg.threadId,
+        role: msg.role,
+        content: msg.content,
+        timestamp: new Date(msg.timestamp),
+        toolCalls: msg.toolCalls || [],
+        tokensUsed: msg.tokensUsed || 0,
+      }));
+
+      const transformedRefs = (thread.contextReferences || []).map(
+        (ref: any) => ({
+          id: ref.id,
+          threadId: ref.threadId,
+          ownerUserId: ref.ownerUserId,
+          entityType: ref.entityType,
+          entityReference: ref.entityReference,
+          source: ref.source,
+          priorityTier: ref.priorityTier || 1,
+          addedTimestamp: new Date(ref.addedTimestamp),
+        })
+      );
+
+      // Batch update to prevent multiple rerenders
+      aiAgentActions.setThreadData(
+        transformedThread,
+        transformedMessages,
+        transformedRefs
+      );
+    },
+  });
+
+  // Don't sync loading state to Valtio - with SSR prefetching, loading is instant
+  // Components that need loading state can use the return value from this hook
+
+  return { isLoading: loading, error };
 }

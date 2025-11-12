@@ -4,7 +4,7 @@
 import { proxy, subscribe } from "valtio";
 import { subscribeKey } from "valtio/utils";
 import type { User } from "@supabase/supabase-js";
-import type { Database } from "@/types/database.types";
+import type { Database } from "@/lib/types";
 
 // Type definitions
 type UserProfile = Database["public"]["Tables"]["user_profiles"]["Row"];

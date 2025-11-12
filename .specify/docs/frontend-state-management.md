@@ -47,6 +47,8 @@ try {
 // Real-time subscription updates automatically
 ```
 
+**Realtime Reconciliation**: Supabase subscriptions automatically reconcile server state after optimistic updates. See [Real-time Sync Pattern](./integration-realtime-sync.md) for subscription implementation details.
+
 ## Rules
 
 - ✅ Use plain objects with bracket notation: `state.items[id]`

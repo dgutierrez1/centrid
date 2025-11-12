@@ -16,11 +16,13 @@ import { Input } from '@centrid/ui/components/input'
 import { Label } from '@centrid/ui/components/label'
 import { Alert } from '@centrid/ui/components/alert'
 import { Separator } from '@centrid/ui/components/separator'
-import { updateProfileSchema, type UpdateProfileInput } from '@centrid/shared/schemas'
+import { updateProfileSchema, type UpdateProfileInput } from '@/lib/validations/auth'
 import { createClient } from '@/lib/supabase/client'
 import { createServerClient } from '@/lib/supabase/server'
 import { useAuthContext } from '@/components/providers/AuthProvider'
-import { withRetry, getAuthErrorMessage } from '@/lib/utils'
+import { getAuthErrorMessage } from '@/lib/utils'
+import { useMutation } from 'urql'
+import { UpdateProfileDocument } from '@/types/graphql'
 import type { User } from '@supabase/supabase-js'
 
 interface ProfileProps {
@@ -47,6 +49,9 @@ export default function ProfilePage({ user: initialUser, profile: initialProfile
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
 
+  // GraphQL mutation hook
+  const [, updateProfile] = useMutation(UpdateProfileDocument)
+
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setLoading(true)
@@ -63,35 +68,14 @@ export default function ProfilePage({ user: initialUser, profile: initialProfile
         return
       }
 
-      // Get current session for JWT
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
+      // Call GraphQL mutation to update profile
+      const result = await updateProfile({
+        firstName: validation.data.firstName,
+        lastName: validation.data.lastName,
+      })
 
-      if (!session) {
-        setError('Session expired. Please log in again.')
-        setLoading(false)
-        return
-      }
-
-      // Call update-profile Edge Function (with retry)
-      const { data: functionData, error: functionError } = await withRetry(() =>
-        supabase.functions.invoke('update-profile', {
-          body: validation.data,
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-          },
-        })
-      )
-
-      if (functionError) {
-        setError(getAuthErrorMessage(functionError, 'update profile'))
-        setLoading(false)
-        return
-      }
-
-      if (functionData?.error) {
-        setError(getAuthErrorMessage(functionData.error, 'update profile'))
+      if (result.error) {
+        setError(getAuthErrorMessage(result.error, 'update profile'))
         setLoading(false)
         return
       }

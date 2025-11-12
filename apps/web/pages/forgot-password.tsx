@@ -14,7 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@centrid/ui/components
 import { Input } from '@centrid/ui/components/input'
 import { Label } from '@centrid/ui/components/label'
 import { Alert } from '@centrid/ui/components/alert'
-import { forgotPasswordSchema, type ForgotPasswordInput } from '@centrid/shared/schemas'
+import { forgotPasswordSchema, type ForgotPasswordInput } from '@/lib/validations/auth'
 import { createClient } from '@/lib/supabase/client'
 import { withRetry, getAuthErrorMessage } from '@/lib/utils'
 

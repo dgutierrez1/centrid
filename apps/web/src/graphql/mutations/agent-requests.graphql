@@ -1,0 +1,23 @@
+# Agent Request Mutations
+# Create agent execution requests
+
+#import "../fragments/agentRequest.graphql"
+
+# Create a new agent request (triggers async execution)
+mutation CreateAgentRequest(
+  $threadId: ID!
+  $triggeringMessageId: ID!
+  $agentType: String!
+  $content: String!
+) {
+  createAgentRequest(
+    input: {
+      threadId: $threadId
+      triggeringMessageId: $triggeringMessageId
+      agentType: $agentType
+      content: $content
+    }
+  ) {
+    ...AgentRequestFields
+  }
+}

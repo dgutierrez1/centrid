@@ -2,7 +2,9 @@ import { useEffect } from 'react';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase/client';
 import { aiAgentState, aiAgentActions } from '@/lib/state/aiAgentState';
-import type { Thread, Message, ContextReference } from '@/lib/state/aiAgentState';
+import type { Thread as StateThread, Message as StateMessage, ContextReference as StateContextReference } from '@/lib/state/aiAgentState';
+import type { RealtimePayload } from '@/lib/realtime/types';
+import type { Thread as DBThread, Message as DBMessage, ContextReference as DBContextReference } from '@/types/graphql';
 
 interface AIAgentRealtimeProviderProps {
   userId: string;
@@ -26,51 +28,53 @@ export function AIAgentRealtimeProvider({ userId, children }: AIAgentRealtimePro
           table: 'threads',
           filter: `owner_user_id=eq.${userId}`,
         },
-        (payload: any) => {
-          if (payload.eventType === 'INSERT') {
+        (payload: RealtimePayload<'threads'>) => {
+          if (payload.eventType === 'INSERT' && payload.new) {
             const thread = payload.new;
             aiAgentActions.addThreadToBranchTree({
-              id: thread.id,
-              title: thread.title,
-              summary: thread.summary,
-              parentId: thread.parentId,
+              id: thread.id ?? '',
+              title: thread.branchTitle ?? '',
+              summary: '', // Not in GraphQL type
+              parentThreadId: thread.parentThreadId ?? null,
               depth: 0,
               artifactCount: 0,
-              lastActivity: new Date(thread.updated_at || thread.created_at),
-              createdAt: thread.created_at,
-              updatedAt: thread.updated_at,
+              lastActivity: new Date(thread.updatedAt || thread.createdAt || Date.now()),
+              createdAt: thread.createdAt ?? new Date().toISOString(),
+              updatedAt: thread.updatedAt ?? new Date().toISOString(),
             });
-          } else if (payload.eventType === 'UPDATE') {
+          } else if (payload.eventType === 'UPDATE' && payload.new) {
             const thread = payload.new;
             // Update current thread if it matches
             const currentThread = aiAgentState.currentThread;
             if (currentThread && thread.id === currentThread.id) {
               aiAgentActions.setCurrentThread({
-                id: thread.id,
-                title: thread.title,
-                summary: thread.summary,
-                parentId: thread.parentId,
+                id: thread.id ?? '',
+                title: thread.branchTitle ?? '',
+                summary: '', // Not in GraphQL type
+                parentThreadId: thread.parentThreadId ?? null,
                 depth: 0,
                 artifactCount: 0,
-                lastActivity: new Date(thread.updated_at || thread.created_at),
-                createdAt: thread.created_at,
-                updatedAt: thread.updated_at,
+                lastActivity: new Date(thread.updatedAt || thread.createdAt || Date.now()),
+                createdAt: thread.createdAt ?? new Date().toISOString(),
+                updatedAt: thread.updatedAt ?? new Date().toISOString(),
               });
             }
             // Update in branch tree
-            aiAgentActions.removeThreadFromBranchTree(thread.id);
-            aiAgentActions.addThreadToBranchTree({
-              id: thread.id,
-              title: thread.title,
-              summary: thread.summary,
-              parentId: thread.parentId,
-              depth: 0,
-              artifactCount: 0,
-              lastActivity: new Date(thread.updated_at || thread.created_at),
-              createdAt: thread.created_at,
-              updatedAt: thread.updated_at,
-            });
-          } else if (payload.eventType === 'DELETE') {
+            if (thread.id) {
+              aiAgentActions.removeThreadFromBranchTree(thread.id);
+              aiAgentActions.addThreadToBranchTree({
+                id: thread.id,
+                title: thread.branchTitle ?? '',
+                summary: '', // Not in GraphQL type
+                parentThreadId: thread.parentThreadId ?? null,
+                depth: 0,
+                artifactCount: 0,
+                lastActivity: new Date(thread.updatedAt || thread.createdAt || Date.now()),
+                createdAt: thread.createdAt ?? new Date().toISOString(),
+                updatedAt: thread.updatedAt ?? new Date().toISOString(),
+              });
+            }
+          } else if (payload.eventType === 'DELETE' && payload.old?.id) {
             aiAgentActions.removeThreadFromBranchTree(payload.old.id);
           }
         }
@@ -95,19 +99,19 @@ export function AIAgentRealtimeProvider({ userId, children }: AIAgentRealtimePro
             table: 'messages',
             filter: `owner_user_id=eq.${userId} AND thread_id=eq.${currentThread.id}`,
           },
-          (payload: any) => {
-            if (payload.eventType === 'INSERT') {
+          (payload: RealtimePayload<'messages'>) => {
+            if (payload.eventType === 'INSERT' && payload.new) {
               const message = payload.new;
               // Check if message already exists (prevent duplicates from optimistic updates)
               const messageExists = aiAgentState.messages.some(m => m.id === message.id);
-              if (!messageExists) {
+              if (!messageExists && message.id) {
                 aiAgentActions.addMessage({
                   id: message.id,
-                  role: message.role,
-                  content: message.content,
-                  toolCalls: message.tool_calls,
-                  timestamp: new Date(message.timestamp),
-                  tokensUsed: message.tokens_used,
+                  role: (message.role as "user" | "assistant") ?? "assistant",
+                  content: message.content as any, // ContentBlock[] from JSON scalar
+                  toolCalls: message.toolCalls as any, // ToolCall[] from JSON scalar
+                  timestamp: new Date(message.timestamp ?? Date.now()),
+                  tokensUsed: message.tokensUsed ?? undefined,
                 });
               }
             }
@@ -132,24 +136,26 @@ export function AIAgentRealtimeProvider({ userId, children }: AIAgentRealtimePro
             table: 'context_references',
             filter: `owner_user_id=eq.${userId} AND thread_id=eq.${currentThread.id}`,
           },
-          (payload: any) => {
-            if (payload.eventType === 'INSERT') {
+          (payload: RealtimePayload<'context_references'>) => {
+            if (payload.eventType === 'INSERT' && payload.new) {
               const ref = payload.new;
               const currentRefs = aiAgentState.contextReferences;
-              aiAgentActions.setContextReferences([
-                ...currentRefs,
-                {
-                  id: ref.id,
-                  entityType: ref.entity_type,
-                  entityReference: ref.entity_reference,
-                  source: ref.source,
-                  priorityTier: ref.priority_tier,
-                  addedTimestamp: new Date(ref.added_timestamp),
-                },
-              ]);
-            } else if (payload.eventType === 'DELETE') {
+              if (ref.id) {
+                aiAgentActions.setContextReferences([
+                  ...currentRefs,
+                  {
+                    id: ref.id,
+                    entityType: (ref.entityType as "file" | "folder" | "thread") ?? "file",
+                    entityReference: ref.entityReference ?? '',
+                    source: (ref.source as "inherited" | "manual" | "@-mentioned" | "agent-added") ?? "manual",
+                    priorityTier: (ref.priorityTier as 1 | 2 | 3) ?? 2,
+                    addedTimestamp: new Date(ref.addedAt ?? Date.now()),
+                  },
+                ]);
+              }
+            } else if (payload.eventType === 'DELETE' && payload.old?.id) {
               const currentRefs = aiAgentState.contextReferences;
-              const refs = currentRefs.filter((ref: any) => ref.id !== payload.old.id);
+              const refs = currentRefs.filter(ref => ref.id !== payload.old?.id);
               aiAgentActions.setContextReferences(refs);
             }
           }
@@ -170,9 +176,11 @@ export function AIAgentRealtimeProvider({ userId, children }: AIAgentRealtimePro
           table: 'files',
           filter: `owner_user_id=eq.${userId}`,
         },
-        (payload: any) => {
+        (payload: RealtimePayload<'files'>) => {
           // File provenance updated - could trigger UI updates
-          console.log('File updated:', payload.new);
+          if (payload.new) {
+            console.log('File updated:', payload.new);
+          }
         }
       )
       .subscribe();

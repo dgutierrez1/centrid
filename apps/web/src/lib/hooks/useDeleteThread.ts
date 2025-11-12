@@ -1,41 +1,45 @@
-import { useState } from 'react';
 import { useRouter } from 'next/router';
-import toast from 'react-hot-toast';
 import { aiAgentActions, aiAgentState } from '../state/aiAgentState';
-import { api } from '../api/client';
+import { useGraphQLMutation } from '../graphql/useGraphQLMutation';
+import { DeleteThreadDocument } from '@/types/graphql';
 
 export function useDeleteThread() {
-  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
-  const deleteThread = async (threadId: string) => {
-    setIsLoading(true);
-
-    try {
-      // Store parent for navigation
-      const thread = aiAgentState.branchTree.threads.find(t => t.id === threadId);
-      const parentId = thread?.parentId;
+  const { mutate, isLoading } = useGraphQLMutation({
+    mutation: DeleteThreadDocument,
+    optimisticUpdate: (permanentId, input) => {
+      // Store thread for rollback
+      const thread = aiAgentState.branchTree.threads.find(t => t.id === input?.id);
+      const parentId = thread?.parentThreadId;
 
       // Optimistic removal
-      aiAgentActions.removeThreadFromBranchTree(threadId);
+      if (input?.id) {
+        aiAgentActions.removeThreadFromBranchTree(input.id);
+      }
 
-      // Delete thread via API
-      await api.delete(`/threads/${threadId}`);
-
-      toast.success('Branch deleted');
-
+      return { thread, parentId };
+    },
+    onSuccess: ({ parentId }) => {
       // Navigate to parent or home
       if (parentId) {
         router.push(`/workspace/${parentId}`);
       } else {
         router.push('/');
       }
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to delete branch');
-      // TODO: Rollback optimistic update
-    } finally {
-      setIsLoading(false);
-    }
+    },
+    onError: ({ thread }) => {
+      // Rollback optimistic update
+      if (thread) {
+        aiAgentActions.addThreadToBranchTree(thread);
+      }
+    },
+    successMessage: () => 'Branch deleted',
+    errorMessage: (error) => `Failed to delete branch: ${error}`,
+  });
+
+  const deleteThread = async (threadId: string) => {
+    await mutate({ id: threadId });
   };
 
   return { deleteThread, isLoading };

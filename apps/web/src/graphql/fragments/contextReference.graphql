@@ -1,0 +1,10 @@
+fragment ContextReferenceFields on ContextReference {
+  id
+  threadId
+  ownerUserId
+  entityType
+  entityReference
+  source
+  priorityTier
+  addedAt
+}

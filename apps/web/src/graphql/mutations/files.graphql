@@ -1,0 +1,57 @@
+# File Mutations
+# Create, update, and delete files
+
+#import "../fragments/file.graphql"
+
+# Create a new file
+mutation CreateFile(
+  $name: String!
+  $content: String!
+  $threadId: String
+  $folderId: String
+) {
+  createFile(
+    input: {
+      name: $name
+      content: $content
+      threadId: $threadId
+      folderId: $folderId
+    }
+  ) {
+    ...FileFields
+  }
+}
+
+# Upload a file via multipart form data
+mutation UploadFile($file: Upload!, $folderId: ID, $threadId: ID) {
+  uploadFile(file: $file, folderId: $folderId, threadId: $threadId) {
+    ...FileFields
+  }
+}
+
+# Update file content with optimistic locking
+mutation UpdateFile($id: ID!, $content: String!, $version: Int) {
+  updateFile(id: $id, input: { content: $content, version: $version }) {
+    ...FileFields
+  }
+}
+
+# Partial file update (rename, move, or edit content)
+mutation UpdateFilePartial(
+  $id: ID!
+  $name: String
+  $content: String
+  $folderId: String
+) {
+  updateFilePartial(
+    id: $id
+    input: { name: $name, content: $content, folderId: $folderId }
+  ) {
+    ...FileFields
+  }
+}
+
+# Delete file
+mutation DeleteFile($id: ID!) {
+  deleteFile(id: $id)
+}

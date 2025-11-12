@@ -1,0 +1,26 @@
+# Agent Session Queries
+# Multi-turn conversation session management
+
+# Get a single agent session by ID
+query GetAgentSession($id: ID!) {
+  agentSession(id: $id) {
+    id
+    userId
+    requestChain
+    contextState
+    createdAt
+    updatedAt
+  }
+}
+
+# Get all agent sessions for current user
+query ListAgentSessions($userId: ID, $limit: Int, $offset: Int) {
+  agentSessions(userId: $userId, limit: $limit, offset: $offset) {
+    id
+    userId
+    requestChain
+    contextState
+    createdAt
+    updatedAt
+  }
+}

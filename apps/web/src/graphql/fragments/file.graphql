@@ -1,0 +1,24 @@
+# File Fragment
+# Reusable file fields for queries and mutations
+
+fragment FileFields on File {
+  id
+  ownerUserId
+  path
+  name
+  content
+  folderId
+  shadowDomainId
+  storagePath
+  fileSize
+  mimeType
+  indexingStatus
+  source
+  isAIGenerated
+  createdBy
+  lastEditedBy
+  lastEditedAt
+  version
+  createdAt
+  updatedAt
+}

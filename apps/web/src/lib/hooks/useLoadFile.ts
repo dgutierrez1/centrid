@@ -1,63 +1,38 @@
-import { useState, useEffect, useCallback } from 'react'
-import toast from 'react-hot-toast'
+import { useEffect } from 'react'
 import { aiAgentState } from '@/lib/state/aiAgentState'
-import { api } from '@/lib/api/client'
+import { useGraphQLQuery } from '@/lib/graphql/useGraphQLQuery'
+import { GetFileDocument } from '@/types/graphql'
 
 export function useLoadFile(fileId: string | null) {
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const loadFile = useCallback(async (id: string) => {
-    setIsLoading(true)
-    setError(null)
-
-    try {
-      // Fetch file from backend using unified /api endpoint
-      const response = await api.get<{
-        data: {
-          file: {
-            fileId: string
-            path: string
-            content: string
-          }
-          provenance: any
+  const { loading, error, refetch } = useGraphQLQuery({
+    query: GetFileDocument,
+    variables: fileId ? { id: fileId } : undefined,
+    syncToState: (data) => {
+      if (data?.file) {
+        // Update state with loaded file
+        aiAgentState.currentFile = {
+          id: data.file.id || fileId!,
+          name: data.file.name || 'Untitled',
+          content: data.file.content || '',
+          version: data.file.version || undefined,
+          provenance: null, // GraphQL schema doesn't include provenance yet
         }
-      }>(`/files/${id}`)
-
-      const { data } = response
-
-      // Update state
-      aiAgentState.currentFile = {
-        id: data.file.fileId,
-        name: data.file.path.split('/').pop() || 'Untitled',
-        content: data.file.content,
-        provenance: data.provenance,
       }
+    },
+    requestPolicy: !fileId ? undefined : 'cache-and-network', // Skip query if no fileId
+  })
 
-      return data
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to load file'
-      setError(message)
-      toast.error(message)
-      throw err
-    } finally {
-      setIsLoading(false)
-    }
-  }, [])
-
-  // Load file when fileId changes
+  // Clear current file when fileId is null
   useEffect(() => {
-    if (fileId) {
-      loadFile(fileId)
-    } else {
+    if (!fileId) {
       aiAgentState.currentFile = null
     }
-  }, [fileId, loadFile])
+  }, [fileId])
 
   return {
     file: aiAgentState.currentFile,
-    isLoading,
-    error,
-    reload: () => fileId && loadFile(fileId),
+    isLoading: loading,
+    error: error ? String(error) : null,
+    reload: refetch,
   }
 }

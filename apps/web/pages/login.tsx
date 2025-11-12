@@ -16,7 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@centrid/ui/components
 import { Input } from '@centrid/ui/components/input'
 import { Label } from '@centrid/ui/components/label'
 import { Alert } from '@centrid/ui/components/alert'
-import { loginSchema, type LoginInput } from '@centrid/shared/schemas'
+import { loginSchema, type LoginInput } from '@/lib/validations/auth'
 import { supabase } from '@/lib/supabase/client'
 import { withRetry, getAuthErrorMessage } from '@/lib/utils'
 

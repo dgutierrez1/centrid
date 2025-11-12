@@ -16,7 +16,7 @@ import { useState, useEffect, useRef, KeyboardEvent } from 'react';
 import { Search, FileText, Folder, Clock } from 'lucide-react';
 import { Dialog, DialogContent } from '@centrid/ui/components/dialog';
 import { Input } from '@centrid/ui/components/input';
-import { cn } from '@centrid/shared/utils';
+import { cn } from '@/lib/utils/cn';
 
 export interface SearchResult {
   id: string;

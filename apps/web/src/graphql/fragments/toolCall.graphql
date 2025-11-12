@@ -1,0 +1,17 @@
+# Tool Call Fragment
+# Reusable tool call fields for queries and mutations
+
+fragment ToolCallFields on ToolCall {
+  id
+  messageId
+  threadId
+  ownerUserId
+  toolName
+  toolInput
+  approvalStatus
+  toolOutput
+  rejectionReason
+  revisionCount
+  revisionHistory
+  timestamp
+}

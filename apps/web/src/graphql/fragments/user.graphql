@@ -1,0 +1,14 @@
+# User Fragment
+# Reusable user profile fields for queries and mutations
+
+fragment UserFields on User {
+  id
+  userId
+  firstName
+  lastName
+  planType
+  usageCount
+  subscriptionStatus
+  createdAt
+  updatedAt
+}

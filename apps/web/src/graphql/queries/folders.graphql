@@ -1,0 +1,32 @@
+# Folder Queries
+# Fetch folder hierarchy with DataLoader optimization
+
+#import "../fragments/folder.graphql"
+
+# Get a single folder by ID
+query GetFolder($id: ID!) {
+  folder(id: $id) {
+    ...FolderFields
+  }
+}
+
+# Get a folder with nested children (computed in UI layer)
+query GetFolderWithChildren($id: ID!) {
+  folder(id: $id) {
+    ...FolderFields
+  }
+}
+
+# Get all folders for current user
+query ListFolders {
+  folders {
+    ...FolderFields
+  }
+}
+
+# Get root folders (no parent) for current user (children computed in UI)
+query ListRootFolders {
+  rootFolders {
+    ...FolderFields
+  }
+}

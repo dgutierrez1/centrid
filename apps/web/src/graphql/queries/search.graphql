@@ -1,0 +1,65 @@
+# Search Queries
+# Semantic search across files, threads, and concepts
+
+# Search with polymorphic union results
+query Search(
+  $query: String!
+  $limit: Int
+  $fileTypes: [String!]
+  $entityTypes: [String!]
+) {
+  search(
+    input: {
+      query: $query
+      limit: $limit
+      fileTypes: $fileTypes
+      entityTypes: $entityTypes
+    }
+  ) {
+    ... on FileSearchResult {
+      id
+      path
+      excerpt
+      relevance
+      entityType
+    }
+    ... on ThreadSearchResult {
+      id
+      title
+      excerpt
+      relevance
+      entityType
+    }
+    ... on ConceptSearchResult {
+      id
+      conceptName
+      excerpt
+      relevance
+      entityType
+    }
+  }
+}
+
+# Autocomplete query for quick fuzzy matching
+query Autocomplete(
+  $query: String!
+  $entityType: String
+  $limit: Int
+) {
+  autocomplete(
+    input: {
+      query: $query
+      entityType: $entityType
+      limit: $limit
+    }
+  ) {
+    id
+    name
+    path
+    type
+    branchName
+    branchId
+    relevanceScore
+    lastModified
+  }
+}

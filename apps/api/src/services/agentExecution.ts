@@ -5,6 +5,7 @@ import { agentToolCallRepository } from '../repositories/agentToolCall.ts';
 import { messageRepository } from '../repositories/message.ts';
 import { agentRequestRepository } from '../repositories/agentRequest.ts';
 import { getAvailableTools, toolRequiresApproval } from '../config/tools.ts';
+import type { ContentBlock } from '../types/agent.ts';
 
 export interface PrimeContext {
   totalTokens: number;
@@ -272,7 +273,7 @@ export class AgentExecutionService {
         const claudeTools = this.getAvailableTools();
         const toolsFormatted = formatToolsForClaude(claudeTools);
 
-        let iterationContent: any[] = [];
+        let iterationContent: ContentBlock[] = [];
         const iterationToolCalls: Array<{ toolId: string; name: string; input: any }> = [];
 
         console.log('[AgentExecution] Calling Claude API with', toolsFormatted.length, 'tools');
@@ -513,12 +514,20 @@ export class AgentExecutionService {
     // NEW: Save assistant message at stream end (Phase 3 - MVU B3.2)
     if (requestId) {
       try {
-        // Create assistant message with accumulated content
+        // Build content as ContentBlock array
+        const content: ContentBlock[] = [
+          {
+            type: 'text',
+            text: accumulatedContent || 'Request processing completed.',
+          },
+        ];
+
+        // Create assistant message with content blocks
         const assistantMessage = await messageRepository.create({
           threadId: threadId,
           ownerUserId: userId,
           role: 'assistant',
-          content: accumulatedContent || 'Request processing completed.',
+          content: content,
           toolCalls: toolCallsList,
           tokensUsed: totalTokens,
         });

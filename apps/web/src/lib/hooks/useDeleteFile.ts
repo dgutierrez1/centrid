@@ -1,68 +1,59 @@
-import { useState } from 'react';
-import { toast } from 'react-hot-toast';
-import { AgentFileService } from '@/lib/services/agent-file.service';
-import { aiAgentState, aiAgentActions } from '@/lib/state/aiAgentState';
-import type { FileData } from '@centrid/ui/features/ai-agent-system';
+import { aiAgentState } from '@/lib/state/aiAgentState';
+import { useGraphQLMutation } from '@/lib/graphql/useGraphQLMutation';
+import { DeleteFileDocument } from '@/types/graphql';
 
 /**
  * useDeleteFile - Custom hook for deleting files
  *
- * Wraps AgentFileService and provides:
- * - Loading states (useState)
- * - Toast notifications (react-hot-toast)
- * - Optimistic updates (Valtio - aiAgentState)
- * - Error rollback with actual state values
- * - Cleanup of UI state when deleting currently open file
+ * Uses useGraphQLMutation for:
+ * - Optimistic updates (clear current file if deleting selected)
+ * - Automatic rollback on error
+ * - Toast notifications
  *
- * Architecture: UI Components → useDeleteFile → AgentFileService → Edge Functions
+ * Architecture: UI Components → useDeleteFile → GraphQL → Edge Functions
  */
 
 export function useDeleteFile() {
-  const [isDeleting, setIsDeleting] = useState(false);
+  const { mutate, isLoading } = useGraphQLMutation({
+    mutation: DeleteFileDocument,
+    optimisticUpdate: (permanentId, input) => {
+      // Store original state for rollback
+      const originalCurrentFile = aiAgentState.currentFile;
+      const originalSelectedFileId = aiAgentState.selectedFileId;
+      const isCurrentFileBeingDeleted = aiAgentState.selectedFileId === input?.id;
+
+      // Optimistic update - remove immediately if it's the current file
+      if (isCurrentFileBeingDeleted) {
+        aiAgentState.currentFile = null;
+        aiAgentState.selectedFileId = null;
+      }
+
+      return { originalCurrentFile, originalSelectedFileId };
+    },
+    onSuccess: () => {
+      // Real-time will handle removing from file list
+    },
+    onError: ({ originalCurrentFile, originalSelectedFileId }) => {
+      // Rollback optimistic update
+      aiAgentState.currentFile = originalCurrentFile;
+      aiAgentState.selectedFileId = originalSelectedFileId;
+    },
+    successMessage: () => 'File deleted',
+    errorMessage: (error) => `Failed to delete file: ${error}`,
+  });
 
   /**
    * Delete a file with optimistic update
    */
   const deleteFile = async (fileId: string) => {
-    setIsDeleting(true);
-
-    // Store original state for rollback
-    const originalCurrentFile = aiAgentState.currentFile;
-    const originalSelectedFileId = aiAgentState.selectedFileId;
-    const isCurrentFileBeingDeleted = aiAgentState.selectedFileId === fileId;
-
-    // Optimistic update - remove immediately if it's the current file
-    if (isCurrentFileBeingDeleted) {
-      aiAgentState.currentFile = null;
-      aiAgentState.selectedFileId = null;
-    }
-
-    try {
-      const { error } = await AgentFileService.deleteFile(fileId);
-
-      if (error) {
-        // Rollback optimistic update
-        aiAgentState.currentFile = originalCurrentFile;
-        aiAgentState.selectedFileId = originalSelectedFileId;
-        toast.error(`Failed to delete file: ${error}`);
-        return { success: false, error };
-      }
-
-      toast.success('File deleted');
-      return { success: true };
-    } catch (error) {
-      // Rollback on unexpected error
-      aiAgentState.currentFile = originalCurrentFile;
-      aiAgentState.selectedFileId = originalSelectedFileId;
-      toast.error('Unexpected error deleting file');
-      return { success: false, error: String(error) };
-    } finally {
-      setIsDeleting(false);
-    }
+    const result = await mutate({ id: fileId });
+    return result.success
+      ? { success: true }
+      : { success: false, error: result.error };
   };
 
   return {
     deleteFile,
-    isDeleting,
+    isDeleting: isLoading,
   };
 }

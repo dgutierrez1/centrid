@@ -4,7 +4,7 @@ import { messageRepository } from '../repositories/message.ts';
 export interface CreateThreadInput {
   userId: string;
   title: string;
-  parentId?: string;
+  parentThreadId?: string;
 }
 
 export interface UpdateThreadInput {
@@ -48,12 +48,12 @@ export class ThreadService {
 
   /**
    * Create a new thread (root or branch)
-   * Validates parent ownership if parentId provided
+   * Validates parent ownership if parentThreadId provided
    */
   static async createThread(input: CreateThreadInput): Promise<any> {
     // If parent provided, verify it exists and user owns it
-    if (input.parentId) {
-      const parent = await threadRepository.findById(input.parentId);
+    if (input.parentThreadId) {
+      const parent = await threadRepository.findById(input.parentThreadId);
       if (!parent) {
         throw new Error('Parent thread not found');
       }
@@ -66,7 +66,7 @@ export class ThreadService {
     const thread = await threadRepository.create({
       ownerUserId: input.userId,
       branchTitle: input.title,
-      parentThreadId: input.parentId || null,
+      parentThreadId: input.parentThreadId || null,
       creator: 'user',
     });
 

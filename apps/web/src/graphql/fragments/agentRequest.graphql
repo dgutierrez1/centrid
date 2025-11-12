@@ -1,0 +1,25 @@
+# Agent Request Fragment
+# Reusable agent request fields for queries and mutations
+
+fragment AgentRequestFields on AgentRequest {
+  id
+  userId
+  threadId
+  triggeringMessageId
+  responseMessageId
+  agentType
+  content
+  status
+  progress
+  results
+  checkpoint
+  tokenCost
+  createdAt
+  updatedAt
+  completedAt
+}
+
+# Agent request with nested execution events
+fragment AgentRequestWithEvents on AgentRequest {
+  ...AgentRequestFields
+}

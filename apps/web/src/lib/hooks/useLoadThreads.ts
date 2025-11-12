@@ -1,59 +1,46 @@
-import { useState, useEffect } from 'react';
-import { aiAgentActions } from '../state/aiAgentState';
-import { api } from '../api/client';
+import { useEffect } from "react";
+import { aiAgentState, aiAgentActions } from "../state/aiAgentState";
+import { useGraphQLQuery } from "../graphql/useGraphQLQuery";
+import { ListAllThreadsDocument } from "@/types/graphql";
+import type { ListAllThreadsQueryVariables } from "@/types/graphql";
 
 /**
  * Load all threads for the current user to populate branch tree
  * Used on app initialization and after login
+ *
+ * Auth is handled automatically via cookies - no need to wait for client-side user state
  */
-export function useLoadThreads(userId: string | undefined) {
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+export function useLoadThreads() {
+  // Load threads using GraphQL
+  // Cookies are sent automatically - backend validates auth
+  const { loading, error } = useGraphQLQuery({
+    query: ListAllThreadsDocument,
+    // Don't pass variables for queries with no variables
+    // No enabled gate - trust cookies for auth
+    syncToState: (data) => {
+      // Transform GraphQL data to match state types
+      const threads = data.threads || [];
 
-  useEffect(() => {
-    if (!userId) {
-      // Clear threads when no user
-      aiAgentActions.setBranchTree([]);
-      return;
-    }
-
-    const loadThreads = async () => {
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        // Fetch threads from API
-        const response = await api.get<{
-          data: any[];
-        }>('/threads');
-
-        // Transform to match state types
-        const threads = response.data || [];
-        const transformedThreads = threads.map((thread: any) => ({
-          id: thread.id,
-          title: thread.branch_title || 'Untitled Thread',
-          parentId: thread.parent_thread_id,
-          depth: 0, // Will be calculated by state manager
-          artifactCount: 0, // TODO: count from files
-          lastActivity: new Date(thread.updated_at || thread.created_at),
-          createdAt: thread.created_at,
-          updatedAt: thread.updated_at,
-        }));
-
-        // Update branch tree state
-        aiAgentActions.setBranchTree(transformedThreads);
-      } catch (err: any) {
-        setError(err.message || 'Failed to load threads');
-        console.error('Error loading threads:', err);
-        // Set empty array on error
-        aiAgentActions.setBranchTree([]);
-      } finally {
-        setIsLoading(false);
+      // Skip sync if threads already loaded (SSR or previous load)
+      if (aiAgentState.branchTree.threads.length > 0) {
+        return;
       }
-    };
 
-    loadThreads();
-  }, [userId]);
+      const transformedThreads = threads.map((thread: any) => ({
+        id: thread.id,
+        title: thread.branchTitle || "Untitled Thread",
+        parentThreadId: thread.parentThreadId,
+        depth: 0, // Will be calculated by state manager
+        artifactCount: 0, // TODO: count from files
+        lastActivity: new Date(thread.updatedAt || thread.createdAt),
+        createdAt: thread.createdAt,
+        updatedAt: thread.updatedAt,
+      }));
 
-  return { isLoading, error };
+      // Update branch tree state
+      aiAgentActions.setBranchTree(transformedThreads);
+    },
+  });
+
+  return { isLoading: loading, error };
 }

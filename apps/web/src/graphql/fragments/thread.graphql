@@ -1,0 +1,17 @@
+# Thread Fragments
+# Reusable selections for thread data
+
+#import "./message.graphql"
+
+fragment ThreadFields on Thread {
+  id
+  branchTitle
+  parentThreadId
+  creator
+  ownerUserId
+  createdAt
+  updatedAt
+  messages {
+    ...MessageFields
+  }
+}

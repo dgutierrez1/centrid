@@ -7,9 +7,11 @@ summary: Real-time subscriptions keep Valtio state synchronized with server
 
 # Real-time Sync with Supabase
 
-## Pattern
+> **Note**: Realtime subscriptions use GraphQL types as source of truth. See [data-graphql-schema-design.md](./data-graphql-schema-design.md) for schema design principles.
 
-Supabase real-time subscriptions automatically update Valtio state when database changes occur.
+**What**: Supabase realtime subscriptions using GraphQL types for type-safe database change notifications.
+
+**Why**: GraphQL types mirror database schema exactly, enabling single type system for both queries and realtime subscriptions.
 
 ## How It Works
 
@@ -23,40 +25,48 @@ Supabase real-time subscriptions automatically update Valtio state when database
 7. Valtio state reconciles with server data
 ```
 
-## Implementation
+## Type Unification
 
 ```typescript
-import { createRealtimeSubscription } from "@/lib/supabase";
+import type { File, Folder } from '@/types/graphql';
 
-const subscription = createRealtimeSubscription(
-  "agent_requests",
-  (payload) => {
-    if (payload.new.status === "completed") {
-      actions.updateAgentRequest(payload.new.id, payload.new);
+// GraphQL query uses GraphQL types
+const { data } = useQuery(ListFilesDocument);
+const files: File[] = data.files;
+
+// Realtime subscription uses SAME GraphQL types
+createSubscription('files')
+  .filter({ owner_user_id: userId })
+  .on('INSERT', (payload) => {
+    const file: File = payload.new;  // ← Same type system!
+    addDocument(file);
+  });
+```
+
+## Implementation with Builder Pattern
+
+```typescript
+import { createSubscription } from '@/lib/realtime';
+import type { AgentRequest } from '@/types/graphql';
+
+// Type-safe subscription with automatic snake_case → camelCase
+const subscription = createSubscription('agent_requests')
+  .filter({ user_id: userId })
+  .on('UPDATE', (payload) => {
+    const request: AgentRequest = payload.new;
+    if (request.status === 'completed') {
+      updateAgentRequest(request.id, request);
     }
-  },
-  { user_id: userId }
-);
+  })
+  .subscribe();
+
+// Cleanup on unmount
+return () => subscription.unsubscribe();
 ```
 
-## Reconciliation Pattern
+## Optimistic Update Reconciliation
 
-```typescript
-// Optimistic update
-folderState.folders[tempId] = { id: tempId, name: 'New Folder' }
-
-// API call
-const folder = await api.post('/folders', { name: 'New Folder' })
-
-// Replace temp with real data
-delete folderState.folders[tempId]
-folderState.folders[folder.id] = folder
-
-// Real-time subscription confirms (redundant but ensures consistency)
-subscription.on('INSERT', (payload) => {
-  folderState.folders[payload.new.id] = payload.new
-})
-```
+Realtime subscriptions automatically reconcile server state after optimistic updates. See [State Management Pattern](./frontend-state-management.md) for full optimistic update implementation with error handling.
 
 ## Performance
 
@@ -64,17 +74,36 @@ subscription.on('INSERT', (payload) => {
 - **Scale**: Handles 100+ concurrent subscriptions per user
 - **Filtering**: Row-Level Security applies to real-time events
 
+## Architecture
+
+```
+Two data paths, one type system:
+
+Path 1: GraphQL
+  Database → Resolver → GraphQL Response → Frontend State
+
+Path 2: Realtime
+  Database → Supabase Realtime → snakeToCamel → Frontend State
+
+Both use: File, Folder, Thread types from @/types/graphql
+```
+
 ## Rules
 
-- ✅ Subscribe to tables with frequent updates
-- ✅ Filter subscriptions by user_id (RLS auto-applies)
-- ✅ Reconcile optimistic updates with real-time events
-- ✅ Unsubscribe on component unmount
-- ❌ NEVER subscribe to every table (performance impact)
-- ❌ NEVER create duplicate subscriptions
+- ✅ DO use GraphQL types for realtime subscriptions (`import type { File } from '@/types/graphql'`)
+- ✅ DO transform snake_case to camelCase automatically with `snakeToCamel`
+- ✅ DO filter subscriptions by user_id (RLS auto-applies)
+- ✅ DO reconcile optimistic updates with real-time events
+- ✅ DO unsubscribe on component unmount
+- ✅ DO reference [GraphQL schema design pattern](./data-graphql-schema-design.md) for type guidelines
+- ❌ DON'T create parallel type systems (use GraphQL types only)
+- ❌ DON'T subscribe to every table (performance impact)
+- ❌ DON'T create duplicate subscriptions
 
-## References
+## Used in
 
-- Subscription helper: `apps/web/src/lib/supabase/client.ts`
-- Context with subscriptions: `apps/web/src/lib/contexts/filesystem.context.tsx`
-- Optimistic updates: See `frontend-state-management.md` pattern
+- `apps/web/src/lib/realtime/builder.ts` - Subscription builder with snakeToCamel transformation
+- `apps/web/src/lib/realtime/hooks.ts` - React hooks for automatic cleanup
+- `apps/web/src/lib/realtime/types.ts` - Type-safe subscription types using GraphQL types
+- `apps/web/src/lib/contexts/filesystem.context.tsx` - Real-world usage with type unification
+- `apps/web/src/lib/utils/casing.ts` - snake_case to camelCase transformation

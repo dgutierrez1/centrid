@@ -1,10 +1,36 @@
-import { useState } from 'react';
 import { aiAgentState } from '@/lib/state/aiAgentState';
-import { toast } from 'react-hot-toast';
-import { api } from '@/lib/api/client';
+import { useGraphQLMutation } from '@/lib/graphql/useGraphQLMutation';
+import { UpdateThreadDocument } from '@/types/graphql';
+import toast from 'react-hot-toast';
 
 export function useHideBranch() {
-  const [isLoading, setIsLoading] = useState(false);
+  const { mutate, isLoading } = useGraphQLMutation({
+    mutation: UpdateThreadDocument,
+    optimisticUpdate: (permanentId, input) => {
+      // Store previous state for rollback (using any to bypass type checking for blacklistedBranches)
+      const currentThread = aiAgentState.currentThread as any;
+      const previousBlacklist = currentThread?.blacklistedBranches || [];
+
+      // Optimistic update: Add to blacklisted_branches
+      if (currentThread) {
+        currentThread.blacklistedBranches = input?.input?.blacklistedBranches || [];
+      }
+
+      return { previousBlacklist };
+    },
+    onSuccess: () => {
+      // Real-time will reconcile with server response
+    },
+    onError: ({ previousBlacklist }) => {
+      // Rollback on error
+      const currentThread = aiAgentState.currentThread as any;
+      if (currentThread) {
+        currentThread.blacklistedBranches = previousBlacklist;
+      }
+    },
+    successMessage: () => 'Branch hidden from context',
+    errorMessage: (error) => `Failed to hide branch: ${error}`,
+  });
 
   const hideBranch = async (branchId: string) => {
     if (!aiAgentState.currentThread) {
@@ -12,36 +38,16 @@ export function useHideBranch() {
       return;
     }
 
-    setIsLoading(true);
-
     const threadId = aiAgentState.currentThread.id;
+    const currentThread = aiAgentState.currentThread as any;
+    const previousBlacklist = currentThread.blacklistedBranches || [];
 
-    // Store previous state for rollback
-    const previousBlacklist = aiAgentState.currentThread.blacklistedBranches || [];
-
-    try {
-      // Optimistic update: Add to blacklisted_branches
-      aiAgentState.currentThread.blacklistedBranches = [
-        ...previousBlacklist,
-        branchId,
-      ];
-
-      // Call API to persist change
-      await api.patch(`/threads/${threadId}`, {
+    await mutate({
+      id: threadId,
+      input: {
         blacklistedBranches: [...previousBlacklist, branchId],
-      });
-
-      toast.success('Branch hidden from context');
-    } catch (error) {
-      // Rollback on error
-      if (aiAgentState.currentThread) {
-        aiAgentState.currentThread.blacklistedBranches = previousBlacklist;
-      }
-      toast.error('Failed to hide branch');
-      console.error('Hide branch error:', error);
-    } finally {
-      setIsLoading(false);
-    }
+      },
+    });
   };
 
   return { hideBranch, isLoading };

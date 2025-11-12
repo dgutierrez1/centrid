@@ -1,0 +1,14 @@
+# Supabase ignores - prevents files from being bundled with Edge Functions
+# These files are only for backend services and don't need to be deployed
+
+# DTOs - only used by services, not functions
+src/dtos/
+
+# Database schema and utilities - TypeScript only, not needed at runtime
+src/db/
+
+# Build and development artifacts
+node_modules/
+dist/
+.env
+.env.local

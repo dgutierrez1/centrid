@@ -1,0 +1,13 @@
+# Folder Fragment
+# Reusable folder fields for queries and mutations
+# Note: children and parent are computed in UI layer from flat folder list
+
+fragment FolderFields on Folder {
+  id
+  userId
+  name
+  parentFolderId
+  path
+  createdAt
+  updatedAt
+}

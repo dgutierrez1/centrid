@@ -1,0 +1,16 @@
+# User Mutations
+# Update user profile and delete account
+
+#import "../fragments/user.graphql"
+
+# Update current user profile
+mutation UpdateProfile($firstName: String, $lastName: String) {
+  updateProfile(input: { firstName: $firstName, lastName: $lastName }) {
+    ...UserFields
+  }
+}
+
+# Delete current user account (irreversible)
+mutation DeleteAccount {
+  deleteAccount
+}

@@ -1,0 +1,11 @@
+#import "../fragments/message.graphql"
+
+mutation CreateMessage($input: CreateMessageInput!) {
+  createMessage(input: $input) {
+    ...MessageFields
+  }
+}
+
+mutation DeleteMessage($id: ID!) {
+  deleteMessage(id: $id)
+}

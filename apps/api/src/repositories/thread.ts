@@ -91,6 +91,22 @@ export class ThreadRepository {
   }
 
   /**
+   * Find all threads for user (includes root and child threads)
+   */
+  async findAllThreads(ownerUserId: string) {
+    const { db, cleanup } = await getDB();
+    try {
+      return await db
+        .select()
+        .from(threads)
+        .where(eq(threads.ownerUserId, ownerUserId))
+        .orderBy(threads.createdAt);
+    } finally {
+      await cleanup();
+    }
+  }
+
+  /**
    * Update thread
    */
   async update(threadId: string, updates: UpdateThreadInput) {

@@ -1,0 +1,39 @@
+# File Queries
+# Fetch file data and metadata
+
+#import "../fragments/file.graphql"
+
+# Get a single file by ID
+query GetFile($id: ID!) {
+  file(id: $id) {
+    ...FileFields
+  }
+}
+
+# Get all files for current user (no filter)
+query ListAllFiles {
+  files {
+    ...FileFields
+  }
+}
+
+# Get file by path
+query GetFileByPath($path: String!) {
+  fileByPath(path: $path) {
+    ...FileFields
+  }
+}
+
+# Get file provenance (creation and edit history)
+query GetFileProvenance($id: ID!) {
+  fileProvenance(id: $id) {
+    createdIn {
+      threadId
+      messageId
+    }
+    lastModifiedIn {
+      threadId
+      messageId
+    }
+  }
+}

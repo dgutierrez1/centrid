@@ -1,9 +1,12 @@
 import { fileRepository } from '../repositories/file.ts';
 
 export interface CreateFileInput {
+  id?: string; // Optional client-provided UUID for optimistic updates
   userId: string;
-  path: string;
+  name: string; // Filename with extension
+  folderId?: string | null; // Folder location
   content: string;
+  threadId?: string; // Thread ID for provenance tracking
   provenance?: {
     threadId: string;
     contextSummary?: string;
@@ -12,6 +15,13 @@ export interface CreateFileInput {
 
 export interface UpdateFileInput {
   content: string;
+  version?: number; // For optimistic locking
+}
+
+export interface UpdateFilePartialInput {
+  name?: string; // Rename file
+  folderId?: string | null; // Move file
+  content?: string; // Update content
 }
 
 /**
@@ -25,17 +35,20 @@ export class FileService {
    * Optionally tracks provenance (which thread/context created it)
    */
   static async createFile(input: CreateFileInput): Promise<any> {
-    // Map provenance structure if provided
-    const provenanceData = input.provenance
+    // Map provenance structure if provided (support both threadId and provenance.threadId)
+    const threadId = input.threadId || input.provenance?.threadId;
+    const provenanceData = threadId
       ? {
-          createdInThreadId: input.provenance.threadId,
-          contextSummary: input.provenance.contextSummary || `Created in thread ${input.provenance.threadId}`,
+          createdInThreadId: threadId,
+          contextSummary: input.provenance?.contextSummary || `Created in thread ${threadId}`,
         }
       : null;
 
     const file = await fileRepository.create({
+      id: input.id, // Pass client-provided ID if present
       ownerUserId: input.userId,
-      path: input.path,
+      name: input.name,
+      folderId: input.folderId || null,
       content: input.content,
       provenance: provenanceData || undefined,
     });
@@ -75,7 +88,7 @@ export class FileService {
   ): Promise<any> {
     // Verify file exists and user owns it
     const file = await fileRepository.findById(fileId);
-    
+
     if (!file) {
       throw new Error('File not found');
     }
@@ -84,13 +97,47 @@ export class FileService {
       throw new Error('Access denied');
     }
 
+    // TODO: Implement optimistic locking with version check
+    // if (updates.version !== undefined && file.version !== updates.version) {
+    //   throw new Error('Version conflict');
+    // }
+
     // Update file
     const updated = await fileRepository.update(fileId, {
       content: updates.content,
-    });
+    }, userId);
 
     // TODO: Trigger shadow domain sync if content changed >20%
     // Calculate diff, if significant, re-index for semantic search
+
+    return updated;
+  }
+
+  /**
+   * Partial file update (rename, move, or edit content)
+   * Validates ownership
+   */
+  static async updateFilePartial(
+    fileId: string,
+    userId: string,
+    updates: UpdateFilePartialInput
+  ): Promise<any> {
+    // Verify file exists and user owns it
+    const file = await fileRepository.findById(fileId);
+
+    if (!file) {
+      throw new Error('File not found');
+    }
+
+    if (file.ownerUserId !== userId) {
+      throw new Error('Access denied');
+    }
+
+    // Update file (repository will recompute path if name or folderId changes)
+    const updated = await fileRepository.update(fileId, updates, userId);
+
+    // TODO: Trigger shadow domain sync if content changed
+    // Re-index for semantic search
 
     return updated;
   }
@@ -129,7 +176,7 @@ export class FileService {
    */
   static async getFileByPath(path: string, userId: string): Promise<any> {
     const file = await fileRepository.findByPath(path);
-    
+
     if (!file) {
       throw new Error(`File not found: ${path}`);
     }
@@ -139,5 +186,41 @@ export class FileService {
     }
 
     return file;
+  }
+
+  /**
+   * Get file provenance (creation and edit history)
+   * Returns thread/message context for navigating back to source
+   */
+  static async getFileProvenance(fileId: string, userId: string): Promise<{
+    createdIn: { threadId: string; messageId: string | null } | null;
+    lastModifiedIn: { threadId: string; messageId: string | null } | null;
+  }> {
+    const file = await fileRepository.findById(fileId);
+
+    if (!file) {
+      throw new Error('File not found');
+    }
+
+    if (file.ownerUserId !== userId) {
+      throw new Error('Access denied');
+    }
+
+    // Extract provenance from file metadata
+    // TODO: Add messageId tracking when we have that data in the database
+    const createdIn = file.createdInThreadId
+      ? {
+          threadId: file.createdInThreadId,
+          messageId: null, // Will be populated when we add messageId to database
+        }
+      : null;
+
+    // TODO: Add lastModifiedIn tracking when we implement edit history
+    const lastModifiedIn = null;
+
+    return {
+      createdIn,
+      lastModifiedIn,
+    };
   }
 }

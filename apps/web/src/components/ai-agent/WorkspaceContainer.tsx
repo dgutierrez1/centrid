@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { useSnapshot } from 'valtio';
 import { Workspace } from '@centrid/ui/features/ai-agent-system';
@@ -8,10 +8,12 @@ import { ConsolidateModalContainer } from '@/components/ai-agent-system/Consolid
 import { ContextPanelContainer } from '@/components/ai-agent/ContextPanelContainer';
 import { CreateDocumentModal } from '@/components/filesystem/CreateDocumentModal';
 import { CreateFolderModal } from '@/components/filesystem/CreateFolderModal';
+import { RenameModal } from '@/components/filesystem/RenameModal';
+import { DeleteConfirmationModal } from '@/components/filesystem/DeleteConfirmationModal';
 import { FileSystemProvider } from '@/lib/contexts/filesystem.context';
 import { aiAgentState, aiAgentActions } from '@/lib/state/aiAgentState';
 import { filesystemState } from '@/lib/state/filesystem';
-import type { FileSystemNode } from '@centrid/shared/types';
+import type { FileSystemNode } from '@/lib/types';
 import { useCreateBranch } from '@/lib/hooks/useCreateBranch';
 import { useLoadThread } from '@/lib/hooks/useLoadThread';
 import { useLoadThreads } from '@/lib/hooks/useLoadThreads';
@@ -20,11 +22,16 @@ import { useLoadFile } from '@/lib/hooks/useLoadFile';
 import { useUpdateFile } from '@/lib/hooks/useUpdateFile';
 import { useAddToExplicit } from '@/lib/hooks/useAddToExplicit';
 import { useFilesystemOperations } from '@/lib/hooks/useFilesystemOperations';
+import { useFileTreeActions } from '@/lib/hooks/useFileTreeActions';
 import { useCreateAgentFile } from '@/lib/hooks/useCreateAgentFile';
 import { useApproveToolCall } from '@/lib/hooks/useApproveToolCall';
 import { useAuthContext } from '@/components/providers/AuthProvider';
-import { checkRequestStatus, getPendingToolsByRequest, getPendingToolsByThread } from '@/lib/api/agent-requests';
+import { usePendingToolCall } from '@/lib/hooks/usePendingToolCall';
+import { graphqlClient } from '@/lib/graphql/client';
+import { useGraphQLQuery } from '@/lib/graphql/useGraphQLQuery';
+import { GetThreadDocument, ListPendingToolCallsDocument, GetAgentRequestDocument } from '@/types/graphql';
 import { supabase } from '@/lib/supabase/client';
+import { toast } from 'react-hot-toast';
 
 /**
  * Convert FileSystemNode tree to flat File array for WorkspaceSidebar
@@ -36,11 +43,11 @@ function flattenFileSystemNodes(nodes: readonly FileSystemNode[]): File[] {
     result.push({
       id: node.id,
       name: node.name,
-      path: node.path,
+      path: node.path || '',
       type: node.type === 'document' ? 'file' : 'folder',
-      parentId: node.parentId,
-      size: node.fileSize,
-      lastModified: node.updatedAt ? new Date(node.updatedAt) : new Date(),
+      parentId: node.parentId || null,
+      size: 0, // FileSystemNode doesn't track size
+      lastModified: new Date(), // FileSystemNode doesn't track updatedAt
     });
 
     if (node.children) {
@@ -55,14 +62,65 @@ function flattenFileSystemNodes(nodes: readonly FileSystemNode[]): File[] {
 /**
  * Inner component that uses the FileSystem context
  */
-function WorkspaceContent() {
+const WorkspaceContentInner = () => {
   const router = useRouter();
   const snap = useSnapshot(aiAgentState);
   const filesystemSnap = useSnapshot(filesystemState);
   const { user } = useAuthContext();
 
-  // Local UI state
-  const [sidebarActiveTab, setSidebarActiveTab] = useState<'files' | 'threads'>('threads');
+
+  // URL-synced state - initialized once from URL, then managed locally
+  // Only syncs back to URL on user actions to prevent initialization rerenders
+  const isInitialMount = useRef(true);
+  
+  const [sidebarActiveTab, setSidebarActiveTabState] = useState<'files' | 'threads'>(() => {
+    const tabParam = router.query.tab as string;
+    return (tabParam === 'files' || tabParam === 'threads') ? tabParam : 'threads';
+  });
+  
+  const [urlFileId, setUrlFileIdState] = useState<string | null>(() => {
+    return (router.query.fileId as string) || null;
+  });
+  
+  // Sync state to URL on changes (after initial mount)
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    
+    const query: any = { ...router.query };
+    if (sidebarActiveTab !== 'threads') {
+      query.tab = sidebarActiveTab;
+    } else {
+      delete query.tab;
+    }
+    
+    router.replace({ pathname: router.pathname, query }, undefined, { shallow: true });
+  }, [sidebarActiveTab]);
+  
+  useEffect(() => {
+    if (isInitialMount.current) return;
+    
+    const query: any = { ...router.query };
+    if (urlFileId) {
+      query.fileId = urlFileId;
+    } else {
+      delete query.fileId;
+    }
+    
+    router.replace({ pathname: router.pathname, query }, undefined, { shallow: true });
+  }, [urlFileId]);
+  
+  const setSidebarActiveTab = useCallback((tab: 'files' | 'threads') => {
+    setSidebarActiveTabState(tab);
+  }, []);
+  
+  const setUrlFileId = useCallback((fileId: string | null) => {
+    setUrlFileIdState(fileId);
+  }, []);
+
+  // Local UI state (not persisted in URL)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isFileEditorOpen, setIsFileEditorOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -77,30 +135,34 @@ function WorkspaceContent() {
     toolCallId: string;
     toolName: string;
     toolInput: any;
+    messageId?: string;
+  } | null>(null);
+  const [threadCreationIntent, setThreadCreationIntent] = useState<{
+    parentThreadId: string | null;
+    parentTitle?: string;
   } | null>(null);
 
   // Get threadId from URL
-  const threadId = router.query.docId as string | undefined;
+  // Router query is populated immediately thanks to SSR prefetching
+  const threadId = router.query.threadId as string | undefined;
 
   // Hooks - auth handled automatically by middleware + cookies
   const { createBranch, isCreating: isCreatingBranch } = useCreateBranch();
-  const { isLoading: isLoadingThreads, error: threadsError } = useLoadThreads(user?.id);
+  
+  // Loading states now come from hooks with smart cache-aware logic
+  // useGraphQLQuery returns loading=false when reading from cache
+  const { isLoading: isLoadingThreads, error: threadsError } = useLoadThreads();
   const { isLoading: isLoadingThread, error: threadError } = useLoadThread(threadId);
+  
+  // For files, we need to check the filesystem context hook
+  // It uses useGraphQLQuery internally, so loading is also cache-aware
+  const isLoadingFiles = false; // Filesystem data is prefetched via SSR
   const { sendMessage, isStreaming: isSendMessageStreaming, stopStream } = useSendMessage(threadId || '', {
     onToolCall: (toolCall) => {
-      console.log('[WorkspaceContainer] Tool call received:', toolCall);
       setPendingToolCall(toolCall);
-      console.log('[WorkspaceContainer] Pending tool call state updated:', {
-        toolCallId: toolCall.toolCallId,
-        toolName: toolCall.toolName,
-      });
     }
   });
 
-  // DEBUG: Track pendingToolCall state changes
-  useEffect(() => {
-    console.log('[WorkspaceContainer] pendingToolCall state changed:', pendingToolCall);
-  }, [pendingToolCall]);
 
   // MVU F2.2: Recovery - Check for active requests on thread mount
   useEffect(() => {
@@ -111,39 +173,42 @@ function WorkspaceContent() {
 
       if (!activeRequestId) return;
 
-      console.log('[Recovery] Checking active request:', activeRequestId);
 
       try {
-        const status = await checkRequestStatus(activeRequestId);
+        // Use GraphQL to check request status
+        const result = await graphqlClient.query(GetAgentRequestDocument, { id: activeRequestId });
 
-        if (status.status === 'completed') {
-          console.log('[Recovery] Request completed, loading response');
+        if (result.error) {
+          console.error('[Recovery] Failed to check request status:', result.error);
+          return;
+        }
 
-          // Reload thread to get the response message
-          await fetch(
-            `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/api/threads/${threadId}`,
-            {
-              headers: {
-                'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
-              }
-            }
-          ).then(r => r.json()).then(data => {
+        const request = result.data?.agentRequest;
+        if (!request) {
+          localStorage.removeItem(`thread-${threadId}-activeRequest`);
+          return;
+        }
+
+        if (request.status === 'completed') {
+
+          // Reload thread using GraphQL
+          const threadResult = await graphqlClient.query(GetThreadDocument, { id: threadId });
+
+          if (threadResult.data?.thread) {
             // Update state with new messages
-            if (data.data && data.data.messages) {
-              aiAgentState.messages = data.data.messages.map((m: any) => ({
+            if (threadResult.data.thread.messages) {
+              aiAgentState.messages = threadResult.data.thread.messages.map((m: any) => ({
                 ...m,
                 timestamp: new Date(m.timestamp),
               }));
             }
-          });
+          }
 
           localStorage.removeItem(`thread-${threadId}-activeRequest`);
           toast.success('Previous request completed!');
-        } else if (status.status === 'in_progress') {
-          console.log('[Recovery] Request in progress, showing option to reconnect');
-          toast.info('Previous request is still processing. You can reconnect to the stream.');
-        } else if (status.status === 'failed') {
-          console.log('[Recovery] Request failed');
+        } else if (request.status === 'in_progress') {
+          toast('Previous request is still processing. You can reconnect to the stream.', { duration: 5000 });
+        } else if (request.status === 'failed') {
           localStorage.removeItem(`thread-${threadId}-activeRequest`);
           toast.error('Previous request failed');
         }
@@ -157,65 +222,35 @@ function WorkspaceContent() {
   }, [threadId]);
 
   // MVU F2.3: Load pending tools on thread mount (cold path - recovery only)
-  useEffect(() => {
-    if (!threadId) return;
+  // Uses useGraphQLQuery for proper cache integration (SSR prefetched data)
+  useGraphQLQuery({
+    query: ListPendingToolCallsDocument,
+    variables: threadId ? { threadId } : { threadId: '' }, // Provide empty string if no threadId (query will be disabled anyway)
+    enabled: !!threadId && !pendingToolCall, // Skip if threadId missing or already have pending tool from stream
+    syncToState: (data) => {
+      const pendingTools = data.pendingToolCalls || [];
 
-    // Skip query if we already have pending tool from stream event (hot path)
-    if (pendingToolCall) {
-      console.log('[PendingTools] Skipping query - already have pending tool from event');
-      return;
-    }
 
-    const loadPendingApprovals = async () => {
-      try {
-        const pendingTools = await getPendingToolsByThread(threadId);
+      if (pendingTools.length > 0) {
+        // Show first pending tool (UI will handle showing them one by one)
+        const firstTool = pendingTools[0];
 
-        console.log('[PendingTools] Response from API:', {
-          count: pendingTools.length,
-          tools: pendingTools.map(t => ({
-            id: t.id,
-            toolName: t.toolName,
-            messageId: t.messageId,
-            approvalStatus: t.approvalStatus,
-          })),
+        setPendingToolCall({
+          toolCallId: firstTool.id,
+          toolName: firstTool.toolName,
+          toolInput: typeof firstTool.toolInput === 'string'
+            ? JSON.parse(firstTool.toolInput)
+            : firstTool.toolInput,
+          messageId: firstTool.messageId,
         });
-
-        if (pendingTools.length > 0) {
-          console.log('[PendingTools] Found pending approvals:', pendingTools.length);
-
-          // Show first pending tool (UI will handle showing them one by one)
-          const firstTool = pendingTools[0];
-          console.log('[PendingTools] Setting pending tool call:', {
-            toolCallId: firstTool.id,
-            toolName: firstTool.toolName,
-            messageId: firstTool.messageId,
-          });
-
-          setPendingToolCall({
-            toolCallId: firstTool.id,
-            toolName: firstTool.toolName,
-            toolInput: firstTool.toolInput,
-            messageId: firstTool.messageId,
-          });
-
-          // Pending tools loaded - will render inline in messages
-        } else {
-          console.log('[PendingTools] No pending tools found');
-        }
-      } catch (error) {
-        console.error('[PendingTools] Failed to load:', error);
-        // Silently fail - might be no pending tools
       }
-    };
-
-    loadPendingApprovals();
-  }, [threadId, pendingToolCall]);
+    },
+  });
 
   // MVU F2.4: Real-time subscription for tool approval status changes
   useEffect(() => {
     if (!threadId) return;
 
-    console.log('[ToolApprovalSync] Setting up real-time subscription for thread:', threadId);
 
     const channel = supabase
       .channel(`tool-approvals-${threadId}`)
@@ -228,21 +263,14 @@ function WorkspaceContent() {
           filter: `thread_id=eq.${threadId}`,
         },
         (payload) => {
-          console.log('[ToolApprovalSync] Tool call updated:', payload);
           const updated = payload.new as any;
 
           // If tool was approved or rejected, clear pending state
           if (updated.approval_status === 'approved' || updated.approval_status === 'rejected') {
-            console.log('[ToolApprovalSync] Clearing pending tool call (status changed to:', updated.approval_status + ')');
             setPendingToolCall(null);
           }
           // If new pending tool appears with responseMessageId, update state
           else if (updated.approval_status === 'pending' && updated.response_message_id) {
-            console.log('[ToolApprovalSync] New pending tool detected:', {
-              toolCallId: updated.id,
-              toolName: updated.tool_name,
-              messageId: updated.response_message_id,
-            });
             setPendingToolCall({
               toolCallId: updated.id,
               toolName: updated.tool_name,
@@ -255,10 +283,24 @@ function WorkspaceContent() {
       .subscribe();
 
     return () => {
-      console.log('[ToolApprovalSync] Cleaning up subscription');
       supabase.removeChannel(channel);
     };
   }, [threadId]);
+
+  // Sync URL fileId with Valtio state and file editor visibility
+  useEffect(() => {
+    if (urlFileId) {
+      // URL has a fileId - open the file editor and sync Valtio state
+      aiAgentActions.setSelectedFile(urlFileId);
+      setIsFileEditorOpen(true);
+    } else {
+      // URL has no fileId - close file editor and clear Valtio state
+      if (isFileEditorOpen) {
+        setIsFileEditorOpen(false);
+      }
+      aiAgentActions.setSelectedFile(null);
+    }
+  }, [urlFileId]);
 
   // File hooks
   const selectedFileId = snap.selectedFileId;
@@ -273,6 +315,32 @@ function WorkspaceContent() {
 
   // Filesystem operations hooks
   const { createDocument, createFolder, deleteDocument, deleteFolder, isCreatingDocument, isCreatingFolder, isDeleting } = useFilesystemOperations();
+
+  // File tree actions hook (handles file/folder operations with modals)
+  const {
+    handleFileRename,
+    handleFileDelete,
+    handleFolderRename,
+    handleFolderDelete,
+    handleCreateSubfolder,
+    handleCreateFileInFolder,
+    handleUploadToFolder,
+    handleRenameConfirm,
+    handleDeleteConfirm,
+    handleCreateSubfolderConfirm,
+    handleCreateFileInFolderConfirm,
+    renameModal,
+    deleteModal,
+    createSubfolderModal,
+    createFileInFolderModal,
+    closeRenameModal,
+    closeDeleteModal,
+    closeCreateSubfolderModal,
+    closeCreateFileInFolderModal,
+    isRenaming,
+    isDeleting: isTreeDeleting,
+    isCreating: isTreeCreating,
+  } = useFileTreeActions();
 
   // Agent file operations hook
   const { createFile: createAgentFile, isCreating: isCreatingAgentFile } = useCreateAgentFile();
@@ -330,6 +398,33 @@ function WorkspaceContent() {
     };
   }, [saveTimeout]);
 
+  // Warn user before closing tab/window with unsaved changes
+  useEffect(() => {
+    if (!hasUnsavedChanges) {
+      return;
+    }
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      // Attempt to save if possible
+      if (currentFile && selectedFileId) {
+        // Note: navigator.sendBeacon could be used here for async save during unload
+        // But for simplicity, we just warn the user
+        console.warn('Tab closing with unsaved changes');
+      }
+
+      // Show browser warning dialog
+      e.preventDefault();
+      e.returnValue = ''; // Chrome requires this
+      return ''; // Some browsers need return value
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [hasUnsavedChanges, currentFile, selectedFileId]);
+
   // Mark active thread in thread list
   const threadsWithActive = useMemo(() => {
     return snap.branchTree.threads.map(thread => ({
@@ -349,7 +444,7 @@ function WorkspaceContent() {
       if (!currentThreadId) return false;
 
       return snap.branchTree.threads.some(thread =>
-        thread && thread.parentId === currentThreadId
+        thread && thread.parentThreadId === currentThreadId
       );
     } catch (error) {
       console.error('Error calculating hasChildren:', error);
@@ -380,13 +475,13 @@ function WorkspaceContent() {
 
   // File handlers
   const handleFileClick = useCallback((fileId: string) => {
-    aiAgentActions.setSelectedFile(fileId);
-    setIsFileEditorOpen(true);
+    // Update URL - the useEffect will handle syncing Valtio state and opening the editor
+    setUrlFileId(fileId);
     // Reset save state when opening a new file
     setHasUnsavedChanges(false);
     setSaveStatus('idle');
     setLastSavedAt(null);
-  }, []);
+  }, [setUrlFileId]);
 
   const handleCreateFile = useCallback(() => {
     setIsCreateFileModalOpen(true);
@@ -406,33 +501,86 @@ function WorkspaceContent() {
     setIsCreateFolderModalOpen(false);
   }, [createFolder]);
 
-  const handleCloseFileEditor = useCallback(() => {
-    setIsFileEditorOpen(false);
-    aiAgentActions.setSelectedFile(null);
-    // Clear any pending save timeout
-    if (saveTimeout) {
-      clearTimeout(saveTimeout);
-      setSaveTimeout(null);
+  const handleCloseFileEditor = useCallback(async () => {
+    // If there are unsaved changes, save them immediately before closing
+    if (hasUnsavedChanges && currentFile && selectedFileId) {
+      // Cancel the debounced timer (we're saving immediately instead)
+      if (saveTimeout) {
+        clearTimeout(saveTimeout);
+        setSaveTimeout(null);
+      }
+
+      // Show saving indicator
+      setSaveStatus('saving');
+
+      try {
+        // Get current content from state (most up-to-date)
+        const contentToSave = currentFile.content;
+        await updateFile(selectedFileId, contentToSave);
+
+        // Save succeeded
+        setSaveStatus('saved');
+        setLastSavedAt(new Date());
+        setHasUnsavedChanges(false);
+
+        // Now safe to close
+        setUrlFileId(null);
+        setSaveStatus('idle');
+
+      } catch (error) {
+        // Save failed - show error and keep panel open
+        setSaveStatus('error');
+        console.error('Failed to save before close:', error);
+
+        // Show error toast (useUpdateFile already shows toast, but add context)
+        toast.error('Cannot close: save failed. Please try again.');
+
+        // Don't close the panel - return early
+        return;
+      }
+    } else {
+      // No unsaved changes - safe to close immediately
+      if (saveTimeout) {
+        clearTimeout(saveTimeout);
+        setSaveTimeout(null);
+      }
+
+      setUrlFileId(null);
+      setHasUnsavedChanges(false);
+      setSaveStatus('idle');
     }
-    // Reset save state
-    setHasUnsavedChanges(false);
-    setSaveStatus('idle');
-  }, [saveTimeout]);
+  }, [
+    hasUnsavedChanges,
+    currentFile,
+    selectedFileId,
+    saveTimeout,
+    updateFile,
+    setUrlFileId,
+    setSaveStatus,
+    setLastSavedAt,
+    setHasUnsavedChanges,
+    setSaveTimeout,
+  ]);
 
   const handleGoToSource = useCallback((branchId: string, messageId: string) => {
     router.push(`/workspace/${branchId}?messageId=${messageId}`);
-    setIsFileEditorOpen(false);
-  }, [router]);
+    // Clear file editor when navigating to a different thread
+    setUrlFileId(null);
+  }, [router, setUrlFileId]);
 
   // Thread handlers
   const handleThreadClick = useCallback((threadId: string) => {
-    router.push(`/workspace/${threadId}`);
+    // Only navigate if we're not already on this thread
+    if (router.query.threadId !== threadId) {
+      router.push(`/workspace/${threadId}`);
+    }
     if (isSidebarOpen) {
       setIsSidebarOpen(false);
     }
   }, [router, isSidebarOpen]);
 
   const handleCreateThread = useCallback(() => {
+    setThreadCreationIntent({ parentThreadId: null });
     setIsCreateModalOpen(true);
   }, []);
 
@@ -442,8 +590,20 @@ function WorkspaceContent() {
 
   const handleBranchThread = useCallback(() => {
     if (!snap.currentThread) return;
+    setThreadCreationIntent({
+      parentThreadId: snap.currentThread.id,
+      parentTitle: snap.currentThread.title,
+    });
     setIsCreateModalOpen(true);
   }, [snap.currentThread]);
+
+  const handleThreadCreateBranch = useCallback((parentThreadId: string, parentTitle: string) => {
+    setThreadCreationIntent({
+      parentThreadId: parentThreadId,
+      parentTitle: parentTitle,
+    });
+    setIsCreateModalOpen(true);
+  }, []);
 
   // Message handlers
   const handleMessageChange = useCallback((text: string) => {
@@ -471,7 +631,6 @@ function WorkspaceContent() {
 
   // Tool call handlers
   const handleApproveToolCall = useCallback(async (toolCallId: string) => {
-    console.log('[WorkspaceContainer] handleApproveToolCall called with:', toolCallId, 'Pending:', pendingToolCall?.toolName);
     if (!pendingToolCall) {
       console.warn('[WorkspaceContainer] Cannot approve: pendingToolCall missing');
       return;
@@ -485,9 +644,7 @@ function WorkspaceContent() {
 
     try {
       // Call the approval endpoint with requestId for resume (optional in recovery)
-      console.log('[WorkspaceContainer] Calling approveTool with true, requestId:', requestId || 'N/A (recovery mode)');
       await approveTool(toolCallId, true, undefined, requestId || undefined);
-      console.log('[WorkspaceContainer] Approval successful, clearing pending tool call');
       setPendingToolCall(null);
     } catch (error) {
       console.error('[WorkspaceContainer] Failed to approve tool call:', error);
@@ -495,7 +652,6 @@ function WorkspaceContent() {
   }, [pendingToolCall, snap, approveTool]);
 
   const handleRejectToolCall = useCallback(async (toolCallId: string, reason?: string) => {
-    console.log('[WorkspaceContainer] handleRejectToolCall called with:', toolCallId, 'Reason:', reason);
     if (!pendingToolCall) {
       console.warn('[WorkspaceContainer] Cannot reject: pendingToolCall missing');
       return;
@@ -505,9 +661,7 @@ function WorkspaceContent() {
 
     try {
       // Call the approval endpoint with rejection (requestId optional in recovery)
-      console.log('[WorkspaceContainer] Calling approveTool with false, requestId:', requestId || 'N/A (recovery mode)');
       await approveTool(toolCallId, false, reason || 'User rejected', requestId || undefined);
-      console.log('[WorkspaceContainer] Rejection successful, clearing pending tool call');
       setPendingToolCall(null);
     } catch (error) {
       console.error('[WorkspaceContainer] Failed to reject tool call:', error);
@@ -536,14 +690,12 @@ function WorkspaceContent() {
     }
   }, [addToExplicit]);
 
-  const handleRemove = useCallback((contextRefId: string) => {
+  const handleRemove = useCallback((item: Omit<import('@centrid/ui/features/ai-agent-system').ContextReferenceProps, 'isExpanded'>) => {
     // TODO: Implement remove from context
-    console.log('Remove:', contextRefId);
   }, []);
 
   const handleDismiss = useCallback((contextRefId: string) => {
     // TODO: Implement dismiss context reference
-    console.log('Dismiss:', contextRefId);
   }, []);
 
   const handleToggleContextPanel = useCallback(() => {
@@ -564,7 +716,6 @@ function WorkspaceContent() {
   }, []);
 
   const handleNotificationsClick = useCallback(() => {
-    console.log('Notifications clicked');
   }, []);
 
   // Transform context references to context groups format expected by Workspace
@@ -601,14 +752,21 @@ function WorkspaceContent() {
     },
   ];
 
-  // Log matching
-  const lastMsg = snap.messages[snap.messages.length - 1];
-  console.log('[MATCH]', {
-    lastMsgId: lastMsg?.id,
-    pendingToolMessageId: (pendingToolCall as any)?.messageId,
-    match: lastMsg?.id === (pendingToolCall as any)?.messageId ? 'YES' : 'NO',
-    pendingToolName: (pendingToolCall as any)?.toolName,
-  });
+  // Transform messages to attach pending tool call to last assistant message
+  const messages = useMemo(() => {
+    return snap.messages.map((m, idx) => {
+      const isLastAssistantMessage = m.role === 'assistant' && idx === snap.messages.length - 1;
+      if (isLastAssistantMessage && pendingToolCall) {
+        return {
+          ...m,
+          pendingToolCall,
+          onApproveToolCall: () => handleApproveToolCall(pendingToolCall.toolCallId),
+          onRejectToolCall: (reason?: string) => handleRejectToolCall(pendingToolCall.toolCallId, reason),
+        };
+      }
+      return m;
+    });
+  }, [snap.messages, pendingToolCall, handleApproveToolCall, handleRejectToolCall]);
 
   return (
     <>
@@ -621,10 +779,19 @@ function WorkspaceContent() {
         onFileClick={handleFileClick}
         onThreadClick={handleThreadClick}
         onCreateThread={handleCreateThread}
+        onThreadCreateBranch={handleThreadCreateBranch}
         onCreateFile={handleCreateFile}
         onCreateFolder={handleCreateFolder}
+        onFileRename={handleFileRename}
+        onFileDelete={handleFileDelete}
+        onFolderRename={handleFolderRename}
+        onFolderDelete={handleFolderDelete}
+        onCreateSubfolder={handleCreateSubfolder}
+        onCreateFileInFolder={handleCreateFileInFolder}
+        onUploadToFolder={handleUploadToFolder}
         isSidebarOpen={isSidebarOpen}
         isLoadingThreads={isLoadingThreads}
+        isLoadingFiles={isLoadingFiles}
 
         // File editor props
         currentFile={currentFile}
@@ -647,74 +814,37 @@ function WorkspaceContent() {
         // ThreadView props
         currentBranch={snap.currentThread}
         branches={threadsWithActive}
-        messages={snap.messages.map((m, idx) => {
-        const isLastAssistantMessage = m.role === 'assistant' && idx === snap.messages.length - 1;
-        // Match pending tool call by messageId from the API response
-        // The pending tool call has messageId which is the agent message it belongs to
-        const hasMatchingMessageId = m.role === 'assistant' && pendingToolCall && m.id === (pendingToolCall as any).messageId;
-
-        if (pendingToolCall && m.role === 'assistant') {
-          console.log('[MessageMatching] Checking message:', {
-            messageId: m.id,
-            pendingToolMessageId: (pendingToolCall as any).messageId,
-            matches: hasMatchingMessageId,
-            isLast: isLastAssistantMessage,
-            toolName: pendingToolCall.toolName,
-          });
-        }
-
-        const shouldShowTool = (hasMatchingMessageId || isLastAssistantMessage) && pendingToolCall;
-        if (shouldShowTool && m.role === 'assistant') {
-          console.log('[MessageMatching] WILL SHOW TOOL on message:', {
-            messageId: m.id,
-            toolName: pendingToolCall.toolName,
-          });
-        }
-
-        return {
-          ...m,
-          events: m.events ? [...m.events] : undefined,
-          // Add pending tool call to the message that matches by messageId from the API
-          ...(shouldShowTool ? {
-            pendingToolCall: {
-              toolCallId: pendingToolCall.toolCallId,
-              toolName: pendingToolCall.toolName,
-              toolInput: pendingToolCall.toolInput,
-            },
-            onApproveToolCall: () => handleApproveToolCall(pendingToolCall.toolCallId),
-            onRejectToolCall: (reason?: string) => handleRejectToolCall(pendingToolCall.toolCallId, reason),
-          } : {}),
-        };
-      })}
+        messages={messages}
         contextGroups={contextGroups}
         messageText={messageText}
         isStreaming={isSendMessageStreaming || snap.isStreaming}
-        isLoading={snap.isLoadingThread}
-        // NOTE: pendingToolCall is passed inline within messages (via pendingToolCall in individual message objects above)
-        // Do NOT pass as ThreadView prop - that would render separate modal instead of inline
+        isLoading={isLoadingThread}
+        pendingToolCall={pendingToolCall ? {
+          toolName: pendingToolCall.toolName,
+          toolInput: pendingToolCall.toolInput,
+        } : undefined}
         isContextExpanded={isContextExpanded}
         onSelectBranch={handleSelectBranch}
         onToggleContextPanel={handleToggleContextPanel}
         onMessageChange={handleMessageChange}
         onSendMessage={handleSendMessage}
         onStopStreaming={handleStopStreaming}
-        onApproveToolCall={handleApproveToolCallForThreadView}
-        onRejectToolCall={handleRejectToolCallForThreadView}
+        onApproveToolCall={() => pendingToolCall && handleApproveToolCall(pendingToolCall.toolCallId)}
+        onRejectToolCall={(reason?: string) => pendingToolCall && handleRejectToolCall(pendingToolCall.toolCallId, reason)}
         onAddReference={handleAddReference}
-        onAddToExplicit={handleAddToExplicit}
-        onRemove={handleRemove}
-        onDismiss={handleDismiss}
+        onRemoveReference={handleRemove}
         onBranchThread={handleBranchThread}
-        hasChildren={hasChildren}
-        onConsolidate={handleConsolidate}
       />
 
       {/* Create Branch Modal */}
       <CreateBranchModalContainer
         isOpen={isCreateModalOpen}
-        parentId={snap.currentThread?.id || null}
-        parentTitle={snap.currentThread?.title}
-        onClose={() => setIsCreateModalOpen(false)}
+        parentThreadId={threadCreationIntent?.parentThreadId || null}
+        parentTitle={threadCreationIntent?.parentTitle}
+        onClose={() => {
+          setIsCreateModalOpen(false);
+          setThreadCreationIntent(null);
+        }}
       />
 
       {/* Consolidate Modal */}
@@ -742,25 +872,78 @@ function WorkspaceContent() {
         isLoading={isCreatingFolder}
       />
 
+      {/* Rename Modal */}
+      {renameModal && (
+        <RenameModal
+          open={renameModal.open}
+          onOpenChange={(open) => !open && closeRenameModal()}
+          onConfirm={handleRenameConfirm}
+          currentName={renameModal.itemName}
+          itemType={renameModal.itemType}
+          isLoading={isRenaming}
+        />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteModal && (
+        <DeleteConfirmationModal
+          open={deleteModal.open}
+          onOpenChange={(open) => !open && closeDeleteModal()}
+          onConfirm={handleDeleteConfirm}
+          itemName={deleteModal.itemName}
+          itemType={deleteModal.itemType}
+          isLoading={isTreeDeleting}
+        />
+      )}
+
+      {/* Create Subfolder Modal */}
+      {createSubfolderModal && (
+        <CreateFolderModal
+          open={createSubfolderModal.open}
+          onOpenChange={(open) => !open && closeCreateSubfolderModal()}
+          onConfirm={handleCreateSubfolderConfirm}
+          isLoading={isTreeCreating}
+          parentFolderId={createSubfolderModal.parentFolderId}
+          parentFolderName={createSubfolderModal.parentFolderName}
+        />
+      )}
+
+      {/* Create File in Folder Modal */}
+      {createFileInFolderModal && (
+        <CreateDocumentModal
+          open={createFileInFolderModal.open}
+          onOpenChange={(open) => !open && closeCreateFileInFolderModal()}
+          onConfirm={handleCreateFileInFolderConfirm}
+          isLoading={isTreeCreating}
+          parentFolderId={createFileInFolderModal.folderId}
+          parentFolderName={createFileInFolderModal.folderName}
+        />
+      )}
 
       {/* Add Reference Modal */}
       {isAddReferenceModalOpen && (
         <ContextPanelContainer
           onAddContext={(entityType, path) => {
-            console.log('Add context:', entityType, path);
             setIsAddReferenceModalOpen(false);
           }}
           onRemoveContext={(referenceId) => {
-            console.log('Remove context:', referenceId);
           }}
         />
       )}
     </>
   );
-}
+};
+
+/**
+ * WorkspaceContent component
+ */
+const WorkspaceContent = WorkspaceContentInner;
 
 /**
  * Outer component that provides FileSystem context
+ *
+ * All data is fetched via GraphQL queries on the client.
+ * SSR/hydration is handled by urql ssrExchange in _app.tsx if enabled.
  */
 export function WorkspaceContainer() {
   return (

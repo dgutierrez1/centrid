@@ -1,0 +1,36 @@
+# GraphQL Code Generator Configuration
+# Generates TypeScript types + urql hooks from GraphQL schema
+
+schema:
+  - 'https://xennuhfmnucybtyzfgcl.supabase.co/functions/v1/api/graphql':
+      headers:
+        Authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhlbm51aGZtbnVjeWJ0eXpmZ2NsIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MTA4MzUyMCwiZXhwIjoyMDc2NjU5NTIwfQ.Ur5mzg-ZUGfIO31-buAzORvEZH-93b5uAJPa2Z6YI7Q'
+documents: 'apps/web/src/graphql/**/*.graphql'  # GraphQL query/mutation files
+generates:
+  # Generate TypeScript types + urql hooks
+  apps/web/src/types/graphql.ts:
+    plugins:
+      - 'typescript'                  # Base TypeScript types
+      - 'typescript-operations'       # Query/Mutation types
+      - 'typescript-urql'             # urql hooks (useQuery, useMutation)
+    config:
+      # urql-specific config
+      withHooks: true                 # Generate useQuery/useMutation hooks
+      withComponent: false            # Don't generate React components
+
+      # Type safety config
+      skipTypename: false             # Include __typename in types
+      avoidOptionals: false           # Allow optional fields
+      maybeValue: T | null            # Nullable type handling
+      inputMaybeValue: T | null       # Input nullable handling
+      enumsAsTypes: true              # Enums as union types
+      constEnums: true                # Use const enums
+      futureProofEnums: true          # Future-proof enum values
+      immutableTypes: false           # Allow mutations
+      useTypeImports: true            # Use import type
+
+      # Custom scalars
+      scalars:
+        DateTime: string              # DateTime → string
+        Upload: File                  # Upload → File
+        JSON: unknown                 # JSON → unknown (safer than any, requires explicit type assertions)

@@ -1,91 +1,68 @@
-import { useState } from 'react';
 import { useRouter } from 'next/router';
-import toast from 'react-hot-toast';
 import { aiAgentActions } from '../state/aiAgentState';
-import { api } from '../api/client';
+import { useGraphQLMutation } from '../graphql/useGraphQLMutation';
+import { CreateThreadDocument } from '@/types/graphql';
 
 export function useCreateBranch() {
-  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
-  const createBranch = async (parentId: string | null, title: string) => {
-    setIsLoading(true);
-    aiAgentActions.setIsCreatingBranch(true);
+  const { mutate, isLoading } = useGraphQLMutation({
+    mutation: CreateThreadDocument,
+    optimisticUpdate: (permanentId, input) => {
+      // Set creating state
+      aiAgentActions.setIsCreatingBranch(true);
 
-    let tempThread: any;
-
-    try {
-      // Optimistic update
+      // Create optimistic thread with permanent UUID
       const now = new Date();
-      tempThread = {
-        id: `temp-${Date.now()}`,
-        title,
-        parentId: parentId || undefined,
+      const thread = {
+        id: permanentId, // Server will use same ID
+        title: input?.input?.branchTitle || 'Untitled',
+        parentThreadId: input?.input?.parentThreadId || undefined,
         depth: 0,
         artifactCount: 0,
         lastActivity: now,
         createdAt: now.toISOString(),
         updatedAt: now.toISOString(),
       };
-      aiAgentActions.addThreadToBranchTree(tempThread);
 
-      // Call API to create thread
-      const response = await api.post<{
-        data: {
-          id: string;
-          branch_title: string;
-          parent_thread_id: string | null;
-          created_at: string;
-          updated_at: string;
-        };
-      }>('/threads', {
-        title,
-        parentId,
-      });
+      aiAgentActions.addThreadToBranchTree(thread);
 
-      const newThread = response.data;
-
-      // Replace temp with real thread
-      aiAgentActions.removeThreadFromBranchTree(tempThread.id);
-      aiAgentActions.addThreadToBranchTree({
-        id: newThread.id,
-        title: newThread.branch_title || 'Untitled Thread',
-        parentId: newThread.parent_thread_id,
-        depth: 0,
-        artifactCount: 0,
-        lastActivity: new Date(newThread.updated_at || newThread.created_at),
-        createdAt: newThread.created_at,
-        updatedAt: newThread.updated_at,
-      });
-
-      toast.success(`Branch "${title}" created`);
-
+      return { permanentId };
+    },
+    onSuccess: ({ permanentId }, data) => {
       // Navigate to new branch
       // Real-time subscription will reconcile the optimistic update
-      router.push(`/workspace/${newThread.id}`);
-    } catch (error: any) {
-      // Show user-friendly error message
-      let errorMessage = 'Failed to create branch. Please try again.';
-
-      if (error.message?.includes('Not authenticated')) {
-        errorMessage = 'Authentication expired. Please refresh the page and try again.';
-      } else if (error.message?.includes('already exists')) {
-        errorMessage = 'A branch with this name already exists. Please choose a different name.';
-      } else if (error.message?.toLowerCase().includes('network') || error.message?.toLowerCase().includes('fetch')) {
-        errorMessage = 'Network error. Please check your connection and try again.';
-      }
-
-      toast.error(errorMessage);
-      console.error('Branch creation error:', error);
-
-      // Rollback optimistic update on error
-      if (tempThread) {
-        aiAgentActions.removeThreadFromBranchTree(tempThread.id);
-      }
-    } finally {
-      setIsLoading(false);
+      router.push(`/workspace/${permanentId}`);
       aiAgentActions.setIsCreatingBranch(false);
-    }
+    },
+    onError: ({ permanentId }) => {
+      // Rollback optimistic update
+      aiAgentActions.removeThreadFromBranchTree(permanentId);
+      aiAgentActions.setIsCreatingBranch(false);
+    },
+    successMessage: (data) => `Branch "${data.createThread?.branchTitle || 'Untitled'}" created`,
+    errorMessage: (error) => {
+      // User-friendly error messages
+      if (error.includes('Not authenticated')) {
+        return 'Authentication expired. Please refresh the page and try again.';
+      }
+      if (error.includes('already exists')) {
+        return 'A branch with this name already exists. Please choose a different name.';
+      }
+      if (error.toLowerCase().includes('network') || error.toLowerCase().includes('fetch')) {
+        return 'Network error. Please check your connection and try again.';
+      }
+      return 'Failed to create branch. Please try again.';
+    },
+  });
+
+  const createBranch = async (parentThreadId: string | null, title: string) => {
+    await mutate({
+      input: {
+        branchTitle: title,
+        parentThreadId: parentThreadId || null,
+      },
+    });
   };
 
   return { createBranch, isLoading, isCreating: isLoading };

@@ -1,57 +1,29 @@
-import { useState, useCallback } from 'react'
-import toast from 'react-hot-toast'
-import { api } from '@/lib/api/client'
+import { useGraphQLCommand } from '@/lib/graphql/useGraphQLCommand'
+import { ApproveToolCallDocument, RejectToolCallDocument } from '@/types/graphql'
 
+/**
+ * Hook for approving or rejecting tool calls
+ *
+ * Usage:
+ * ```typescript
+ * const { approve, reject, isLoading } = useApproveToolCall()
+ *
+ * await approve({ id: toolCallId })
+ * await reject({ id: toolCallId, reason: 'User rejected' })
+ * ```
+ */
 export function useApproveToolCall() {
-  const [isLoading, setIsLoading] = useState(false)
-
-  const approveTool = useCallback(
-    async (toolCallId: string, approved: boolean, reason?: string, requestId?: string) => {
-      setIsLoading(true)
-
-      try {
-        console.log('[useApproveToolCall] Sending approval request with:', {
-          requestId,
-          toolCallId,
-          approved,
-          reason,
-        })
-
-        // Send approval to backend using correct endpoint
-        const response = await api.patch<{
-          data: {
-            success: boolean
-            toolCallId: string
-            approved: boolean
-          }
-        }>(`/tool-calls/${toolCallId}`, {
-          approved,
-          reason,
-        })
-
-        const result = response.data
-
-        if (result.success) {
-          const message = approved ? 'Tool call approved' : 'Tool call rejected'
-          toast.success(message)
-        }
-
-        return result
-      } catch (error) {
-        console.error('Error approving tool call:', error)
-        toast.error(
-          error instanceof Error ? error.message : 'Failed to approve tool call'
-        )
-        throw error
-      } finally {
-        setIsLoading(false)
-      }
+  return useGraphQLCommand({
+    commands: {
+      approve: {
+        mutation: ApproveToolCallDocument,
+        successMessage: 'Tool call approved',
+      },
+      reject: {
+        mutation: RejectToolCallDocument,
+        successMessage: 'Tool call rejected',
+      },
     },
-    []
-  )
-
-  return {
-    approveTool,
-    isLoading,
-  }
+    errorMessage: (error) => `Failed to process tool call: ${error}`,
+  })
 }

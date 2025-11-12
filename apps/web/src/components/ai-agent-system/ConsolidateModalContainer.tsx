@@ -1,6 +1,8 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { ConsolidateModal, type Branch } from '@centrid/ui/features/ai-agent-system';
-import { useConsolidation } from '@/lib/hooks/useConsolidation';
+import { useConsolidateBranches } from '@/lib/hooks/useConsolidateBranches';
+import { useSnapshot } from 'valtio';
+import { aiAgentState } from '@/lib/state/aiAgentState';
 
 interface ConsolidateModalContainerProps {
   isOpen: boolean;
@@ -13,109 +15,94 @@ interface ConsolidateModalContainerProps {
  *
  * Features:
  * - Filters child branches from global state
- * - Manages consolidation workflow via useConsolidation hook
- * - Handles SSE streaming for real-time progress updates
+ * - Manages consolidation workflow via GraphQL + realtime
+ * - Handles real-time progress updates via Supabase subscriptions
  * - Integrates with Valtio state management
  *
  * UX Spec: ux.md lines 936-965
- * Implementation: plan.md "ConsolidateModalContainer Implementation"
+ * Implementation: GraphQL mutation + realtime subscription pattern
  */
 export function ConsolidateModalContainer({
   isOpen,
   onClose,
   currentThreadId,
 }: ConsolidateModalContainerProps) {
+  const snap = useSnapshot(aiAgentState);
   const {
-    consolidationState,
-    childBranches,
-    updateSelectedBranches,
-    updateFileName,
-    updateTargetFolder,
-    startConsolidation,
-    approveConsolidation,
-    rejectConsolidation,
-  } = useConsolidation();
+    consolidate,
+    isProcessing,
+    progress,
+    result,
+    error,
+  } = useConsolidateBranches();
+
+  // Get child branches from state
+  const childBranches = useMemo(() => {
+    // Find all threads that have currentThreadId as parent
+    return snap.branchTree.threads.filter(thread => thread.parentThreadId === currentThreadId);
+  }, [snap.branchTree.threads, currentThreadId]);
 
   // Convert child branches to Branch format for ConsolidateModal
   const childBranchesForModal = useMemo(() => {
-    return childBranches.map(branch => ({
-      id: branch.id,
-      title: branch.title,
-      parentId: branch.parentId ?? null,
-      depth: branch.depth,
-      artifactCount: branch.artifactCount,
-      lastActivity: new Date(branch.lastActivity),
-      summary: branch.summary,
+    return childBranches.map(thread => ({
+      id: thread.id,
+      title: thread.title || 'Untitled',
+      parentThreadId: thread.parentThreadId || null,
+      depth: thread.depth,
+      artifactCount: thread.artifactCount,
+      lastActivity: thread.lastActivity,
+      summary: thread.summary || undefined,
     })) satisfies Branch[];
   }, [childBranches]);
 
   // Current branch for modal context
   const currentBranch = useMemo(() => {
+    const thread = snap.branchTree.threads.find(t => t.id === currentThreadId);
     return {
       id: currentThreadId,
-      title: '', // This would be populated from state
+      title: thread?.title || 'Main Thread',
     };
-  }, [currentThreadId]);
-
-  // Handle branch selection changes
-  const handleBranchSelectionChange = (selectedIds: Set<string>) => {
-    updateSelectedBranches(selectedIds);
-  };
-
-  // Handle file name and folder changes
-  const handleFileNameChange = (fileName: string) => {
-    updateFileName(fileName);
-  };
-
-  const handleTargetFolderChange = (targetFolder: string) => {
-    updateTargetFolder(targetFolder);
-  };
+  }, [currentThreadId, snap.branchTree.threads]);
 
   // Handle consolidation start
-  const handleConfirmConsolidate = (
+  const handleConfirmConsolidate = async (
     branchIds: string[],
     targetFolder: string,
     fileName: string
   ) => {
-    startConsolidation(branchIds, targetFolder, fileName);
+    await consolidate({
+      threadId: currentThreadId,
+      childBranchIds: branchIds,
+      targetFolder,
+      fileName,
+    });
   };
 
-  // Handle approval
-  const handleApproveConsolidation = (
-    targetFolder: string,
-    fileName: string
-  ) => {
-    approveConsolidation(targetFolder, fileName);
+  // Handle approval (with new pattern, approval happens automatically)
+  const handleApproveConsolidation = () => {
+    // In the new pattern, consolidation is automatically approved after generation
+    // Just close the modal
+    onClose();
   };
 
   // Handle rejection
   const handleRejectConsolidation = () => {
-    rejectConsolidation();
+    // Close modal and reset state
+    onClose();
   };
-
-  // Convert selected branch IDs to Set for modal
-  const selectedBranchIdsForModal = useMemo(() => {
-    return new Set(consolidationState.selectedBranchIds);
-  }, [consolidationState.selectedBranchIds]);
-
-  // Modal is open when parent passes isOpen prop
-  const isModalOpen = isOpen;
-
-  // Pass all child branches to modal (user selects which ones to consolidate)
-  const modalChildBranches = childBranchesForModal;
 
   return (
     <ConsolidateModal
-      isOpen={isModalOpen}
+      isOpen={isOpen}
       currentBranch={currentBranch}
-      childBranches={modalChildBranches}
+      childBranches={childBranchesForModal}
       onConfirmConsolidate={handleConfirmConsolidate}
       onApproveConsolidation={handleApproveConsolidation}
       onRejectConsolidation={handleRejectConsolidation}
       onClose={onClose}
-      consolidationProgress={consolidationState.progress}
-      consolidatedContent={consolidationState.consolidatedContent}
-      sourceProvenanceMap={consolidationState.sourceProvenanceMap || undefined}
+      consolidationProgress={progress ? progress.progress : undefined}
+      consolidatedContent={result?.content || undefined}
+      sourceProvenanceMap={result?.provenance || undefined}
     />
   );
 }

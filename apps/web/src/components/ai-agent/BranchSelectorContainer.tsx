@@ -10,15 +10,15 @@ export function BranchSelectorContainer() {
   // Calculate depth for each thread based on parent chain
   const calculateDepth = (threadId: string): number => {
     const thread = snap.branchTree.threads.find((t) => t.id === threadId);
-    if (!thread || !thread.parentId) return 0;
-    return 1 + calculateDepth(thread.parentId);
+    if (!thread || !thread.parentThreadId) return 0;
+    return 1 + calculateDepth(thread.parentThreadId);
   };
 
   // Build branch tree structure matching UI component expectations
   const branches = snap.branchTree.threads.map((thread) => ({
     id: thread.id,
     title: thread.title,
-    parentId: thread.parentId || null,
+    parentThreadId: thread.parentThreadId || null,
     depth: calculateDepth(thread.id),
     artifactCount: 0, // TODO: Calculate from messages/files
     lastActivity: new Date(thread.updatedAt),

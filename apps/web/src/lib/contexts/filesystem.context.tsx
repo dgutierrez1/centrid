@@ -12,15 +12,19 @@
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback, useRef } from 'react';
 import { toast } from 'react-hot-toast';
 import { createClient } from '@/lib/supabase/client';
-import { filesystemState, buildFileSystemTree, addFolder, updateFolder, removeFolder, addDocument, updateDocument, removeDocument } from '@/lib/state/filesystem';
+import { filesystemState, buildFileSystemTree, addFolder, updateFolder, removeFolder, addFile, updateFile, removeFile } from '@/lib/state/filesystem';
 import { initDocumentMetadata, markSaveStarted, markSaveSuccess, markSaveError, markSaveConflict, getDocumentMetadata, clearDocumentMetadata } from '@/lib/state/documentMetadata';
 import { editorState, clearEditor } from '@/lib/state/editor';
-import { FilesystemService } from '@/lib/services/filesystem.service';
+import { useFilesystemData } from '@/lib/hooks/useFilesystemData';
+import { useRealtimeSubscriptions } from '@/lib/realtime';
+import { graphqlClient } from '@/lib/graphql/client';
+import { UpdateFileDocument } from '@/types/graphql';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
-import type { Folder, Document } from '@centrid/shared/types';
+import type { Folder } from '@/lib/types';
+import type { File } from '@/types/graphql';
 
 interface SaveTask {
-  documentId: string;
+  fileId: string;
   content: string;
   version: number;
 }
@@ -32,11 +36,11 @@ interface FileSystemContextValue {
 
   // Helpers for operations
   getFolder: (folderId: string) => Folder | undefined;
-  getDocument: (documentId: string) => Document | undefined;
-  getCurrentDocumentVersion: (documentId: string) => number;
+  getFile: (fileId: string) => File | undefined;
+  getCurrentFileVersion: (fileId: string) => number;
 
   // Save queue management
-  enqueueDocumentSave: (documentId: string, content: string, version: number) => void;
+  enqueueFileSave: (fileId: string, content: string, version: number) => void;
 }
 
 const FileSystemContext = createContext<FileSystemContextValue | null>(null);
@@ -62,17 +66,17 @@ export function FileSystemProvider({ children }: FileSystemProviderProps) {
     return filesystemState.folders.find(f => f.id === folderId);
   }, []);
 
-  // Get document by ID from current state
-  const getDocument = useCallback((documentId: string): Document | undefined => {
-    return filesystemState.documents.find(d => d.id === documentId);
+  // Get file by ID from current state
+  const getFile = useCallback((fileId: string): File | undefined => {
+    return filesystemState.files.find(f => f.id === fileId);
   }, []);
 
-  // Get current version for document from Document (single source of truth)
-  const getCurrentDocumentVersion = useCallback((documentId: string): number => {
-    // ALWAYS read from Document.version (single source of truth)
+  // Get current version for file from File (single source of truth)
+  const getCurrentFileVersion = useCallback((fileId: string): number => {
+    // ALWAYS read from File.version (single source of truth)
     // Metadata no longer stores version to prevent drift
-    const doc = filesystemState.documents.find(d => d.id === documentId);
-    return doc?.version || 0;
+    const file = filesystemState.files.find(f => f.id === fileId);
+    return file?.version || 0;
   }, []);
 
   // Process save queue sequentially
@@ -85,50 +89,58 @@ export function FileSystemProvider({ children }: FileSystemProviderProps) {
 
     while (saveQueueRef.current.length > 0) {
       const task = saveQueueRef.current[0]; // Peek at first task
-      const { documentId, content, version } = task;
+      const { fileId, content, version } = task;
 
       const saveStartTime = Date.now();
 
       try {
-        // Call FilesystemService to save document
-        const result = await FilesystemService.updateDocument(documentId, content, version);
+        // Call GraphQL API to save file
+        const result = await graphqlClient.mutation(UpdateFileDocument, {
+          id: fileId,
+          content,
+          version,
+        });
 
         if (result.error) {
-          // Check if it's a version conflict
-          if (result.error.includes('version conflict') || result.error.includes('modified by another')) {
-            console.error(`[SaveQueue] Version conflict: ${documentId}`);
-            markSaveConflict(documentId);
-          } else {
-            throw new Error(result.error);
-          }
-        } else if (result.data) {
-          const newVersion = result.data.version || version + 1;
-
-          // Update Document state first (single source of truth for version)
-          updateDocument(documentId, {
-            version: newVersion,
-            content_text: content,
-            updated_at: new Date().toISOString(),
-          });
-
-          // Mark success in metadata (does NOT update version - reads from Document)
-          markSaveSuccess(documentId, content);
+          throw new Error(result.error.message);
         }
-      } catch (error) {
-        console.error(`[SaveQueue] Save error for ${documentId}:`, error);
 
-        // Look up document name for user-friendly error message
-        const document = filesystemState.documents.find(d => d.id === documentId);
-        const documentName = document?.name || 'Document';
+        if (!result.data?.updateFile) {
+          throw new Error('No data returned from update');
+        }
+
+        const newVersion = result.data.updateFile.version || version + 1;
+
+        // Update File state first (single source of truth for version)
+        updateFile(fileId, {
+          version: newVersion,
+          content: content,
+          updatedAt: new Date().toISOString(),
+        });
+
+        // Mark success in metadata (does NOT update version - reads from File)
+        markSaveSuccess(fileId, content);
+      } catch (error: any) {
+        // Check if it's a version conflict
+        if (error.message?.includes('version conflict') || error.message?.includes('modified by another')) {
+          console.error(`[SaveQueue] Version conflict: ${fileId}`);
+          markSaveConflict(fileId);
+          continue; // Skip to next task
+        }
+        console.error(`[SaveQueue] Save error for ${fileId}:`, error);
+
+        // Look up file name for user-friendly error message
+        const file = filesystemState.files.find(f => f.id === fileId);
+        const fileName = file?.name || 'File';
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
         // Show toast notification for background save failure
-        toast.error(`Failed to save "${documentName}": ${errorMessage}`, {
+        toast.error(`Failed to save "${fileName}": ${errorMessage}`, {
           duration: 6000, // Show for 6 seconds (longer than default)
-          id: `save-error-${documentId}`, // Prevent duplicate toasts for same document
+          id: `save-error-${fileId}`, // Prevent duplicate toasts for same file
         });
 
-        markSaveError(documentId, errorMessage);
+        markSaveError(fileId, errorMessage);
       }
 
       // Remove processed task from queue
@@ -138,13 +150,13 @@ export function FileSystemProvider({ children }: FileSystemProviderProps) {
     isProcessingRef.current = false;
   }, [supabase]);
 
-  // Enqueue document save
-  const enqueueDocumentSave = useCallback((documentId: string, content: string, version: number) => {
+  // Enqueue file save
+  const enqueueFileSave = useCallback((fileId: string, content: string, version: number) => {
     // Mark save started immediately
-    markSaveStarted(documentId);
+    markSaveStarted(fileId);
 
     // Add to queue
-    saveQueueRef.current.push({ documentId, content, version });
+    saveQueueRef.current.push({ fileId, content, version });
 
     // CRITICAL: Delay save processing to allow React to complete render cycle
     // 100ms ensures React + Valtio have enough time to propagate the 'saving' state
@@ -154,7 +166,11 @@ export function FileSystemProvider({ children }: FileSystemProviderProps) {
     }, 100);
   }, [processSaveQueue]);
 
-  // Initialize user and load data
+  // Load filesystem data via GraphQL
+  // Always enable - SSR already validated auth, and sync functions have skip conditions
+  const { loading: filesystemLoading, error: filesystemError, refetch: refetchFilesystem } = useFilesystemData(true);
+
+  // Initialize user
   useEffect(() => {
     const initialize = async () => {
       setLoading(true);
@@ -162,168 +178,92 @@ export function FileSystemProvider({ children }: FileSystemProviderProps) {
       const { data: { user: currentUser } } = await supabase.auth.getUser();
       setUser(currentUser);
 
-      if (currentUser) {
-        // Load initial data
-        const [foldersResult, documentsResult] = await Promise.all([
-          supabase
-            .from('folders')
-            .select('*')
-            .eq('user_id', currentUser.id)
-            .order('created_at', { ascending: true }),
-          supabase
-            .from('documents')
-            .select('*')
-            .eq('user_id', currentUser.id)
-            .order('created_at', { ascending: true }),
-        ]);
-
-        if (foldersResult.data) {
-          filesystemState.folders = foldersResult.data as Folder[];
-        }
-        if (documentsResult.data) {
-          filesystemState.documents = documentsResult.data as Document[];
-
-          // Initialize metadata for all loaded documents
-          // NOTE: version is NOT stored in metadata - read from Document.version instead
-          documentsResult.data.forEach((doc: Document) => {
-            initDocumentMetadata(doc.id, doc.content_text || '');
-          });
-        }
-
-        // Update tree structure
-        filesystemState.treeData = buildFileSystemTree(
-          filesystemState.folders,
-          filesystemState.documents
-        );
-      }
-
       setLoading(false);
     };
 
     initialize();
   }, [supabase]);
 
-  // Set up real-time subscriptions
-  useEffect(() => {
-    if (!user) return;
-
-    // Subscribe to folders table changes
-    const foldersChannel = supabase
-      .channel('folders_changes')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'folders',
-          filter: `user_id=eq.${user.id}`,
-        },
-        (payload) => {
+  // Set up real-time subscriptions using reusable pattern
+  useRealtimeSubscriptions([
+    // Subscribe to folders table
+    {
+      table: 'folders',
+      event: '*',
+      filter: user ? { user_id: user.id } : undefined,
+      callback: (payload) => {
+        if (payload.eventType === 'INSERT' && payload.new) {
           addFolder(payload.new as Folder);
+        } else if (payload.eventType === 'UPDATE' && payload.new) {
+          updateFolder(payload.new.id, payload.new as Partial<Folder>);
+        } else if (payload.eventType === 'DELETE' && payload.old) {
+          removeFolder(payload.old.id);
         }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'folders',
-          filter: `user_id=eq.${user.id}`,
-        },
-        (payload) => {
-          updateFolder((payload.new as Folder).id, payload.new as Partial<Folder>);
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'DELETE',
-          schema: 'public',
-          table: 'folders',
-          filter: `user_id=eq.${user.id}`,
-        },
-        (payload) => {
-          if (payload.old && typeof payload.old === 'object' && 'id' in payload.old) {
-            const folderId = (payload.old as any).id;
-            removeFolder(folderId);
-          } else {
-            console.error('[FileSystemContext] DELETE payload missing id:', payload);
+      },
+      enabled: !!user,
+    },
+
+    // Subscribe to files table
+    {
+      table: 'files',
+      event: '*',
+      filter: user ? { owner_user_id: user.id } : undefined,
+      callback: (payload) => {
+        if (payload.eventType === 'INSERT' && payload.new) {
+          addFile(payload.new as File);
+        } else if (payload.eventType === 'UPDATE' && payload.new) {
+          const file = payload.new as File;
+          // Validate version field is present (critical for optimistic locking)
+          if (file.version === undefined || file.version === null) {
+            console.error('[FileSystemContext] Realtime UPDATE missing version field:', file.id);
           }
-        }
-      )
-      .subscribe();
-
-    // Subscribe to documents table changes
-    const documentsChannel = supabase
-      .channel('documents_changes')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'documents',
-          filter: `user_id=eq.${user.id}`,
-        },
-        (payload) => {
-          const doc = payload.new as Document;
-          // addDocument automatically initializes metadata
-          addDocument(doc);
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'documents',
-          filter: `user_id=eq.${user.id}`,
-        },
-        (payload) => {
-          updateDocument((payload.new as Document).id, payload.new as Partial<Document>);
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'DELETE',
-          schema: 'public',
-          table: 'documents',
-          filter: `user_id=eq.${user.id}`,
-        },
-        (payload) => {
-          if (payload.old && typeof payload.old === 'object' && 'id' in payload.old) {
-            const docId = (payload.old as any).id;
-
-            // If the deleted document is currently open, clear the editor
-            if (editorState.currentDocumentId === docId) {
-              clearEditor();
-            }
-
-            removeDocument(docId);
-            // Clear metadata for deleted document
-            clearDocumentMetadata(docId);
-          } else {
-            console.error('[FileSystemContext] DELETE payload missing id:', payload);
+          updateFile(file.id || '', file);
+        } else if (payload.eventType === 'DELETE' && payload.old) {
+          const fileId = payload.old.id;
+          // If the deleted file is currently open, clear the editor
+          if (editorState.currentDocumentId === fileId) {
+            clearEditor();
           }
+          removeFile(fileId);
         }
-      )
-      .subscribe();
+      },
+      enabled: !!user,
+    },
+  ]);
 
-    // Cleanup subscriptions on unmount
-    return () => {
-      supabase.removeChannel(foldersChannel);
-      supabase.removeChannel(documentsChannel);
-    };
-  }, [supabase, user]);
+  // Show error UI if filesystem data failed to load
+  if (filesystemError && user) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <div className="max-w-md p-6 space-y-4 bg-error-50 border border-error-200 rounded-lg">
+          <div className="flex items-center space-x-2">
+            <svg className="w-6 h-6 text-error-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <h3 className="text-lg font-semibold text-error-900">Failed to Load Workspace</h3>
+          </div>
+          <p className="text-sm text-error-700">{filesystemError}</p>
+          <button
+            onClick={() => {
+              refetchFilesystem();
+            }}
+            className="w-full px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const value: FileSystemContextValue = {
     supabase,
     user,
-    loading,
+    loading: loading || filesystemLoading, // Include GraphQL loading state
     getFolder,
-    getDocument,
-    getCurrentDocumentVersion,
-    enqueueDocumentSave,
+    getFile,
+    getCurrentFileVersion,
+    enqueueFileSave,
   };
 
   return (
