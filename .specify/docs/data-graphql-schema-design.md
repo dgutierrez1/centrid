@@ -1,6 +1,9 @@
 ---
 title: GraphQL Schema Design Pattern
 summary: GraphQL types mirror database schema 1:1 for type unification across queries and realtime
+domain: data
+priority: core
+related: [data-type-generation, frontend-graphql-client, integration-realtime-sync]
 ---
 
 <!-- After editing this file, run: npm run sync-docs -->

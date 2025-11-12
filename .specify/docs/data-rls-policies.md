@@ -1,6 +1,9 @@
 ---
 title: Row-Level Security (RLS) Policies
 summary: Postgres RLS enforces user isolation at database level
+domain: data
+priority: core
+related: [backend-graphql-architecture]
 ---
 
 <!-- After editing this file, run: npm run sync-docs -->

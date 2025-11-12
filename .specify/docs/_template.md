@@ -1,6 +1,9 @@
 ---
 title: Pattern Name
 summary: One-line description for quick reference table
+domain: [frontend|backend|data|integration|devops|design|project]
+priority: [core|specialized]
+related: [pattern-names]
 ---
 
 <!-- After editing this file, run: npm run sync-docs -->

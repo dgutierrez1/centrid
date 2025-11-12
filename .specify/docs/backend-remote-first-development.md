@@ -1,6 +1,9 @@
 ---
 title: Remote-First Development Pattern
 summary: Remote Supabase as default for type generation, edge function testing, and zero-config workflows
+domain: devops
+priority: core
+related: [backend-remote-debugging-tools]
 ---
 
 # Remote-First Development Pattern

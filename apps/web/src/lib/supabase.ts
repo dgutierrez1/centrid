@@ -3,7 +3,17 @@
 
 import { createClient as createSupabaseJsClient } from "@supabase/supabase-js";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import type { Database } from "@/lib/types/ui";
+
+// Minimal Database type to satisfy @supabase/auth-helpers-nextjs constraints
+// We don't use this for type safety - GraphQL types are used instead
+type Database = {
+  public: {
+    Tables: Record<string, any>;
+    Views: Record<string, any>;
+    Functions: Record<string, any>;
+    Enums: Record<string, any>;
+  };
+};
 
 // Environment variables
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -12,6 +22,10 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error("Missing Supabase environment variables");
 }
+
+// Note: Database generic is a placeholder for @supabase/auth-helpers-nextjs.
+// We use GraphQL types (@/types/graphql) for actual type safety.
+// These clients are only used for auth, storage, and realtime subscriptions.
 
 // Client-side Supabase client (for browser usage)
 export const supabase = createClientComponentClient<Database>();
@@ -233,4 +247,3 @@ export const getUserProfile = async (userId: string) => {
 
 // Export types for convenience
 export type SupabaseClient = typeof supabase;
-export type { Database };

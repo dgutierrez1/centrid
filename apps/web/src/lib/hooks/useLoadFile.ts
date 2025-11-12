@@ -1,37 +1,55 @@
 import { useEffect } from 'react'
-import { aiAgentState } from '@/lib/state/aiAgentState'
+import { useSnapshot } from 'valtio'
+import { filesystemState, selectFile, clearFileSelection, updateFile } from '@/lib/state/filesystem'
 import { useGraphQLQuery } from '@/lib/graphql/useGraphQLQuery'
 import { GetFileDocument } from '@/types/graphql'
 
 export function useLoadFile(fileId: string | null) {
+  const filesystemSnap = useSnapshot(filesystemState)
+
+  // Check filesystemState first for optimistically-created files
+  useEffect(() => {
+    if (fileId) {
+      // Look for the file in filesystem state (includes optimistic files)
+      // Read snapshot data inside effect - always fresh on each run
+      const existingFile = filesystemSnap.files.find(f => f.id === fileId)
+
+      if (existingFile && filesystemSnap.selectedFile?.id !== fileId) {
+        // File found in filesystem state - select it immediately
+        selectFile(fileId)
+      } else if (!existingFile && filesystemSnap.selectedFile?.id !== fileId) {
+        // File not found in filesystem state - clear selection
+        clearFileSelection()
+      }
+    }
+  }, [fileId])  // Only fileId in deps - snapshot is always fresh when effect runs
+
   const { loading, error, refetch } = useGraphQLQuery({
     query: GetFileDocument,
     variables: fileId ? { id: fileId } : undefined,
+    enabled: !!fileId, // Only query when fileId exists
     syncToState: (data) => {
       if (data?.file) {
-        // Update state with loaded file
-        aiAgentState.currentFile = {
-          id: data.file.id || fileId!,
-          name: data.file.name || 'Untitled',
-          content: data.file.content || '',
-          version: data.file.version || undefined,
-          provenance: null, // GraphQL schema doesn't include provenance yet
-        }
+        // Update filesystem state with loaded file data
+        updateFile(fileId!, data.file)
       }
     },
-    requestPolicy: !fileId ? undefined : 'cache-and-network', // Skip query if no fileId
+    requestPolicy: !fileId ? undefined : 'network-only', // Always fetch fresh to prevent stale cache
   })
 
-  // Clear current file when fileId is null
+  // Clear selection when fileId is null
   useEffect(() => {
     if (!fileId) {
-      aiAgentState.currentFile = null
+      clearFileSelection()
     }
   }, [fileId])
 
+  const computedLoading = loading || (fileId !== null && filesystemSnap.selectedFile?.id !== fileId)
+
   return {
-    file: aiAgentState.currentFile,
-    isLoading: loading,
+    file: filesystemSnap.selectedFile,
+    // Show loading if query is loading OR if selected file doesn't match requested fileId
+    isLoading: computedLoading,
     error: error ? String(error) : null,
     reload: refetch,
   }

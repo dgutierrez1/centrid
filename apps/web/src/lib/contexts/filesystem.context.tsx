@@ -20,8 +20,7 @@ import { useRealtimeSubscriptions } from '@/lib/realtime';
 import { graphqlClient } from '@/lib/graphql/client';
 import { UpdateFileDocument } from '@/types/graphql';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
-import type { Folder } from '@/lib/types';
-import type { File } from '@/types/graphql';
+import type { File, Folder } from '@/types/graphql';
 
 interface SaveTask {
   fileId: string;
@@ -193,8 +192,10 @@ export function FileSystemProvider({ children }: FileSystemProviderProps) {
       filter: user ? { user_id: user.id } : undefined,
       callback: (payload) => {
         if (payload.eventType === 'INSERT' && payload.new) {
+          // payload.new already camelCase from builder - no transform needed
           addFolder(payload.new as Folder);
         } else if (payload.eventType === 'UPDATE' && payload.new) {
+          // payload.new already camelCase from builder - no transform needed
           updateFolder(payload.new.id, payload.new as Partial<Folder>);
         } else if (payload.eventType === 'DELETE' && payload.old) {
           removeFolder(payload.old.id);
@@ -210,14 +211,15 @@ export function FileSystemProvider({ children }: FileSystemProviderProps) {
       filter: user ? { owner_user_id: user.id } : undefined,
       callback: (payload) => {
         if (payload.eventType === 'INSERT' && payload.new) {
+          // payload.new already camelCase from builder - no transform needed
           addFile(payload.new as File);
         } else if (payload.eventType === 'UPDATE' && payload.new) {
-          const file = payload.new as File;
+          // payload.new already camelCase from builder - no transform needed
           // Validate version field is present (critical for optimistic locking)
-          if (file.version === undefined || file.version === null) {
-            console.error('[FileSystemContext] Realtime UPDATE missing version field:', file.id);
+          if (payload.new.version === undefined || payload.new.version === null) {
+            console.error('[FileSystemContext] Realtime UPDATE missing version field:', payload.new.id);
           }
-          updateFile(file.id || '', file);
+          updateFile(payload.new.id, payload.new as Partial<File>);
         } else if (payload.eventType === 'DELETE' && payload.old) {
           const fileId = payload.old.id;
           // If the deleted file is currently open, clear the editor

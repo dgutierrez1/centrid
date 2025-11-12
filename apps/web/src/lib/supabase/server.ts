@@ -1,12 +1,14 @@
 import { createServerClient as createSSRServerClient } from '@supabase/ssr'
 import type { GetServerSidePropsContext, NextApiRequest, NextApiResponse } from 'next'
-import type { Database } from '@/lib/types'
 
 /**
  * Server Supabase Client for Pages Router
  *
  * Creates a Supabase client for use in server-side code (getServerSideProps, API routes).
  * Handles cookie-based session management for server-side rendering.
+ *
+ * Note: No Database generic type needed - we use GraphQL for queries/mutations.
+ * These clients are only used for auth and realtime subscriptions.
  *
  * Usage in getServerSideProps:
  *   export const getServerSideProps = async (context: GetServerSidePropsContext) => {
@@ -18,8 +20,8 @@ import type { Database } from '@/lib/types'
  * Usage in API routes:
  *   export default async function handler(req: NextApiRequest, res: NextApiResponse) {
  *     const supabase = createServerClientForAPI(req, res)
- *     const { data } = await supabase.from('table').select('*')
- *     res.json({ data })
+ *     const { data: { user } } = await supabase.auth.getUser()
+ *     res.json({ user })
  *   }
  */
 
@@ -27,7 +29,7 @@ import type { Database } from '@/lib/types'
  * Create Supabase client for use in getServerSideProps
  */
 export const createServerClient = (context: GetServerSidePropsContext) => {
-  return createSSRServerClient<Database>(
+  return createSSRServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
@@ -56,7 +58,7 @@ export const createServerClient = (context: GetServerSidePropsContext) => {
  * Create Supabase client for use in API routes
  */
 export const createServerClientForAPI = (req: NextApiRequest, res: NextApiResponse) => {
-  return createSSRServerClient<Database>(
+  return createSSRServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {

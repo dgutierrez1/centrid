@@ -341,6 +341,8 @@ export type Message = {
   content?: Maybe<Scalars['JSON']['output']>;
   id?: Maybe<Scalars['ID']['output']>;
   ownerUserId?: Maybe<Scalars['String']['output']>;
+  /** Agent request ID (for user messages that trigger agent execution) */
+  requestId?: Maybe<Scalars['String']['output']>;
   role?: Maybe<Scalars['String']['output']>;
   threadId?: Maybe<Scalars['String']['output']>;
   timestamp?: Maybe<Scalars['DateTime']['output']>;
@@ -803,6 +805,8 @@ export type Thread = {
   createdAt?: Maybe<Scalars['DateTime']['output']>;
   creator?: Maybe<Scalars['String']['output']>;
   id?: Maybe<Scalars['ID']['output']>;
+  /** Messages in this thread (batched with DataLoader) */
+  messages?: Maybe<Array<Message>>;
   ownerUserId?: Maybe<Scalars['String']['output']>;
   parentThreadId?: Maybe<Scalars['String']['output']>;
   updatedAt?: Maybe<Scalars['DateTime']['output']>;
@@ -969,9 +973,9 @@ export type FileFieldsFragment = { __typename?: 'File', id?: string | null, owne
 
 export type FolderFieldsFragment = { __typename?: 'Folder', id?: string | null, userId?: string | null, name?: string | null, parentFolderId?: string | null, path?: string | null, createdAt?: string | null, updatedAt?: string | null };
 
-export type MessageFieldsFragment = { __typename?: 'Message', id?: string | null, threadId?: string | null, ownerUserId?: string | null, role?: string | null, content?: unknown | null, timestamp?: string | null };
+export type MessageFieldsFragment = { __typename?: 'Message', id?: string | null, threadId?: string | null, ownerUserId?: string | null, role?: string | null, content?: unknown | null, timestamp?: string | null, requestId?: string | null, toolCalls?: unknown | null, tokensUsed?: number | null };
 
-export type ThreadFieldsFragment = { __typename?: 'Thread', id?: string | null, branchTitle?: string | null, parentThreadId?: string | null, creator?: string | null, ownerUserId?: string | null, createdAt?: string | null, updatedAt?: string | null };
+export type ThreadFieldsFragment = { __typename?: 'Thread', id?: string | null, branchTitle?: string | null, parentThreadId?: string | null, creator?: string | null, ownerUserId?: string | null, createdAt?: string | null, updatedAt?: string | null, messages?: Array<{ __typename?: 'Message', id?: string | null, threadId?: string | null, ownerUserId?: string | null, role?: string | null, content?: unknown | null, timestamp?: string | null, requestId?: string | null, toolCalls?: unknown | null, tokensUsed?: number | null }> | null };
 
 export type ToolCallFieldsFragment = { __typename?: 'ToolCall', id?: string | null, messageId?: string | null, threadId?: string | null, ownerUserId?: string | null, toolName?: string | null, toolInput?: unknown | null, approvalStatus?: string | null, toolOutput?: unknown | null, rejectionReason?: string | null, revisionCount?: number | null, revisionHistory?: unknown | null, timestamp?: string | null };
 
@@ -1061,7 +1065,7 @@ export type CreateMessageMutationVariables = Exact<{
 }>;
 
 
-export type CreateMessageMutation = { __typename?: 'Mutation', createMessage?: { __typename?: 'Message', id?: string | null, threadId?: string | null, ownerUserId?: string | null, role?: string | null, content?: unknown | null, timestamp?: string | null } | null };
+export type CreateMessageMutation = { __typename?: 'Mutation', createMessage?: { __typename?: 'Message', id?: string | null, threadId?: string | null, ownerUserId?: string | null, role?: string | null, content?: unknown | null, timestamp?: string | null, requestId?: string | null, toolCalls?: unknown | null, tokensUsed?: number | null } | null };
 
 export type DeleteMessageMutationVariables = Exact<{
   id: Scalars['ID']['input'];
@@ -1075,7 +1079,7 @@ export type CreateThreadMutationVariables = Exact<{
 }>;
 
 
-export type CreateThreadMutation = { __typename?: 'Mutation', createThread?: { __typename?: 'Thread', id?: string | null, branchTitle?: string | null, parentThreadId?: string | null, creator?: string | null, ownerUserId?: string | null, createdAt?: string | null, updatedAt?: string | null } | null };
+export type CreateThreadMutation = { __typename?: 'Mutation', createThread?: { __typename?: 'Thread', id?: string | null, branchTitle?: string | null, parentThreadId?: string | null, creator?: string | null, ownerUserId?: string | null, createdAt?: string | null, updatedAt?: string | null, messages?: Array<{ __typename?: 'Message', id?: string | null, threadId?: string | null, ownerUserId?: string | null, role?: string | null, content?: unknown | null, timestamp?: string | null, requestId?: string | null, toolCalls?: unknown | null, tokensUsed?: number | null }> | null } | null };
 
 export type UpdateThreadMutationVariables = Exact<{
   id: Scalars['ID']['input'];
@@ -1083,7 +1087,7 @@ export type UpdateThreadMutationVariables = Exact<{
 }>;
 
 
-export type UpdateThreadMutation = { __typename?: 'Mutation', updateThread?: { __typename?: 'Thread', id?: string | null, branchTitle?: string | null, parentThreadId?: string | null, creator?: string | null, ownerUserId?: string | null, createdAt?: string | null, updatedAt?: string | null } | null };
+export type UpdateThreadMutation = { __typename?: 'Mutation', updateThread?: { __typename?: 'Thread', id?: string | null, branchTitle?: string | null, parentThreadId?: string | null, creator?: string | null, ownerUserId?: string | null, createdAt?: string | null, updatedAt?: string | null, messages?: Array<{ __typename?: 'Message', id?: string | null, threadId?: string | null, ownerUserId?: string | null, role?: string | null, content?: unknown | null, timestamp?: string | null, requestId?: string | null, toolCalls?: unknown | null, tokensUsed?: number | null }> | null } | null };
 
 export type DeleteThreadMutationVariables = Exact<{
   id: Scalars['ID']['input'];
@@ -1250,7 +1254,7 @@ export type GetMessagesQueryVariables = Exact<{
 }>;
 
 
-export type GetMessagesQuery = { __typename?: 'Query', messages?: Array<{ __typename?: 'Message', id?: string | null, threadId?: string | null, ownerUserId?: string | null, role?: string | null, content?: unknown | null, timestamp?: string | null }> | null };
+export type GetMessagesQuery = { __typename?: 'Query', messages?: Array<{ __typename?: 'Message', id?: string | null, threadId?: string | null, ownerUserId?: string | null, role?: string | null, content?: unknown | null, timestamp?: string | null, requestId?: string | null, toolCalls?: unknown | null, tokensUsed?: number | null }> | null };
 
 export type SearchQueryVariables = Exact<{
   query: Scalars['String']['input'];
@@ -1280,12 +1284,12 @@ export type GetThreadQueryVariables = Exact<{
 }>;
 
 
-export type GetThreadQuery = { __typename?: 'Query', thread?: { __typename?: 'Thread', id?: string | null, branchTitle?: string | null, parentThreadId?: string | null, creator?: string | null, ownerUserId?: string | null, createdAt?: string | null, updatedAt?: string | null } | null };
+export type GetThreadQuery = { __typename?: 'Query', thread?: { __typename?: 'Thread', id?: string | null, branchTitle?: string | null, parentThreadId?: string | null, creator?: string | null, ownerUserId?: string | null, createdAt?: string | null, updatedAt?: string | null, messages?: Array<{ __typename?: 'Message', id?: string | null, threadId?: string | null, ownerUserId?: string | null, role?: string | null, content?: unknown | null, timestamp?: string | null, requestId?: string | null, toolCalls?: unknown | null, tokensUsed?: number | null }> | null } | null };
 
 export type ListAllThreadsQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type ListAllThreadsQuery = { __typename?: 'Query', threads?: Array<{ __typename?: 'Thread', id?: string | null, branchTitle?: string | null, parentThreadId?: string | null, creator?: string | null, ownerUserId?: string | null, createdAt?: string | null, updatedAt?: string | null }> | null };
+export type ListAllThreadsQuery = { __typename?: 'Query', threads?: Array<{ __typename?: 'Thread', id?: string | null, branchTitle?: string | null, parentThreadId?: string | null, creator?: string | null, ownerUserId?: string | null, createdAt?: string | null, updatedAt?: string | null, messages?: Array<{ __typename?: 'Message', id?: string | null, threadId?: string | null, ownerUserId?: string | null, role?: string | null, content?: unknown | null, timestamp?: string | null, requestId?: string | null, toolCalls?: unknown | null, tokensUsed?: number | null }> | null }> | null };
 
 export type GetToolCallQueryVariables = Exact<{
   id: Scalars['ID']['input'];
@@ -1410,6 +1414,9 @@ export const MessageFieldsFragmentDoc = gql`
   role
   content
   timestamp
+  requestId
+  toolCalls
+  tokensUsed
 }
     `;
 export const ThreadFieldsFragmentDoc = gql`
@@ -1421,8 +1428,11 @@ export const ThreadFieldsFragmentDoc = gql`
   ownerUserId
   createdAt
   updatedAt
+  messages {
+    ...MessageFields
+  }
 }
-    `;
+    ${MessageFieldsFragmentDoc}`;
 export const ToolCallFieldsFragmentDoc = gql`
     fragment ToolCallFields on ToolCall {
   id

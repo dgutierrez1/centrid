@@ -1,6 +1,9 @@
 ---
 title: State Management with Valtio
 summary: Valtio proxy-based state with optimistic updates and real-time sync
+domain: frontend
+priority: core
+related: [integration-realtime-sync, frontend-graphql-client]
 ---
 
 <!-- After editing this file, run: npm run sync-docs -->

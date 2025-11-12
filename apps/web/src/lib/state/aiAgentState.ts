@@ -56,14 +56,6 @@ export interface Provenance {
   lastEditSourceThreadId?: string;
 }
 
-export interface FileData {
-  id: string;
-  name: string;
-  content: string;
-  version?: number;
-  provenance: Provenance | null;
-}
-
 export interface AIAgentState {
   // Current thread data
   currentThread: Thread | null;
@@ -85,8 +77,6 @@ export interface AIAgentState {
   isConsolidating: boolean;
 
   // UI state
-  selectedFileId: string | null;
-  currentFile: FileData | null;
   sidebarCollapsed: boolean;
   isConsolidateModalOpen: boolean;
   consolidationProgress: {
@@ -120,8 +110,6 @@ export const aiAgentState = proxy<AIAgentState>({
   isCreatingBranch: false,
   isConsolidating: false,
 
-  selectedFileId: null,
-  currentFile: null,
   sidebarCollapsed: false,
   isConsolidateModalOpen: false,
   consolidationProgress: null,
@@ -236,14 +224,6 @@ export const aiAgentActions = {
   },
 
   // UI actions
-  setSelectedFile(fileId: string | null) {
-    aiAgentState.selectedFileId = fileId;
-  },
-
-  setCurrentFile(file: FileData | null) {
-    aiAgentState.currentFile = file;
-  },
-
   toggleSidebar() {
     aiAgentState.sidebarCollapsed = !aiAgentState.sidebarCollapsed;
   },

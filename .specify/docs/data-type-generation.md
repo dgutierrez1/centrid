@@ -1,6 +1,9 @@
 ---
 title: Type Generation Pattern
 summary: Drizzle-inferred types for backend, GraphQL Codegen types for frontend—never redeclare
+domain: data
+priority: core
+related: [data-graphql-schema-design, backend-graphql-architecture]
 ---
 
 <!-- After editing this file, run: npm run sync-docs -->

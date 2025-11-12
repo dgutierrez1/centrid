@@ -36,7 +36,7 @@ export function FileEditorPanelContainer({
 
   // Sync local content with loaded file
   useEffect(() => {
-    if (file) {
+    if (file && file.content) {
       setLocalContent(file.content)
     }
   }, [file])
@@ -79,17 +79,25 @@ export function FileEditorPanelContainer({
     }
   }
 
-  if (!file || !isOpen) {
+  if (!isOpen) {
     return null
   }
 
-  // File data already includes provenance from state
+  // Combine file data with fetched provenance
+  const fileWithProvenance = file ? {
+    id: file.id || '',
+    name: file.name || 'Untitled',
+    content: file.content || '',
+    // Note: provenance is optional and checked in FileEditorPanel
+  } : null
+
   return (
     <FileEditorPanel
-      file={file}
+      file={fileWithProvenance}
       isOpen={isOpen}
+      isLoading={isLoading}
       onClose={onClose}
-      onGoToSource={file.provenance ? handleGoToSource : undefined}
+      onGoToSource={fullProvenance ? handleGoToSource : undefined}
       onFileChange={handleContentChange}
       onDelete={handleDelete}
       isDeleting={isDeleting}

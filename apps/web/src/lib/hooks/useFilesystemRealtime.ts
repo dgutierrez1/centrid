@@ -20,8 +20,7 @@ import {
   updateFile,
   removeFile,
 } from '@/lib/state/filesystem';
-import type { Folder } from '@/lib/types';
-import type { File } from '@/types/graphql';
+import type { File, Folder } from '@/types/graphql';
 
 /**
  * Subscribe to real-time updates for folders and files
@@ -37,8 +36,10 @@ export function useFilesystemRealtime(userId: string | undefined) {
       filter: userId ? { user_id: userId } : undefined,
       callback: (payload) => {
         if (payload.eventType === 'INSERT' && payload.new) {
+          // payload.new already camelCase from builder - no transform needed
           addFolder(payload.new as Folder);
         } else if (payload.eventType === 'UPDATE' && payload.new) {
+          // payload.new already camelCase from builder - no transform needed
           updateFolder(payload.new.id, payload.new as Partial<Folder>);
         } else if (payload.eventType === 'DELETE' && payload.old) {
           removeFolder(payload.old.id);
@@ -54,8 +55,10 @@ export function useFilesystemRealtime(userId: string | undefined) {
       filter: userId ? { owner_user_id: userId } : undefined,
       callback: (payload) => {
         if (payload.eventType === 'INSERT' && payload.new) {
+          // payload.new already camelCase from builder - no transform needed
           addFile(payload.new as File);
         } else if (payload.eventType === 'UPDATE' && payload.new) {
+          // payload.new already camelCase from builder - no transform needed
           updateFile(payload.new.id, payload.new as Partial<File>);
         } else if (payload.eventType === 'DELETE' && payload.old) {
           removeFile(payload.old.id);

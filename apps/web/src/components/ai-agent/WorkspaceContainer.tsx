@@ -13,7 +13,7 @@ import { DeleteConfirmationModal } from '@/components/filesystem/DeleteConfirmat
 import { FileSystemProvider } from '@/lib/contexts/filesystem.context';
 import { aiAgentState, aiAgentActions } from '@/lib/state/aiAgentState';
 import { filesystemState } from '@/lib/state/filesystem';
-import type { FileSystemNode } from '@/lib/types';
+import type { FileSystemNode } from '@/lib/types/ui';
 import { useCreateBranch } from '@/lib/hooks/useCreateBranch';
 import { useLoadThread } from '@/lib/hooks/useLoadThread';
 import { useLoadThreads } from '@/lib/hooks/useLoadThreads';
@@ -30,8 +30,11 @@ import { usePendingToolCall } from '@/lib/hooks/usePendingToolCall';
 import { graphqlClient } from '@/lib/graphql/client';
 import { useGraphQLQuery } from '@/lib/graphql/useGraphQLQuery';
 import { GetThreadDocument, ListPendingToolCallsDocument, GetAgentRequestDocument } from '@/types/graphql';
-import { supabase } from '@/lib/supabase/client';
+import { createSubscription } from '@/lib/realtime';
 import { toast } from 'react-hot-toast';
+import { usePersistedThreadExpansion } from '@/lib/hooks/usePersistedThreadExpansion';
+import { usePersistedFileExpansion } from '@/lib/hooks/usePersistedFileExpansion';
+import { findPathToNode } from '@/lib/utils/tree-helpers';
 
 /**
  * Convert FileSystemNode tree to flat File array for WorkspaceSidebar
@@ -119,6 +122,10 @@ const WorkspaceContentInner = () => {
   const setUrlFileId = useCallback((fileId: string | null) => {
     setUrlFileIdState(fileId);
   }, []);
+
+  // Tree expansion state with persistence
+  const threadExpansion = usePersistedThreadExpansion();
+  const fileExpansion = usePersistedFileExpansion();
 
   // Local UI state (not persisted in URL)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -251,60 +258,54 @@ const WorkspaceContentInner = () => {
   useEffect(() => {
     if (!threadId) return;
 
-
-    const channel = supabase
+    // Use builder pattern for type-safe subscription with automatic camelCase transformation
+    const subscription = createSubscription('agent_tool_calls')
       .channel(`tool-approvals-${threadId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'agent_tool_calls',
-          filter: `thread_id=eq.${threadId}`,
-        },
-        (payload) => {
-          const updated = payload.new as any;
+      .filter({ thread_id: threadId })
+      .on('UPDATE', (payload) => {
+        // payload.new is automatically camelCase from builder
+        const updated = payload.new;
 
-          // If tool was approved or rejected, clear pending state
-          if (updated.approval_status === 'approved' || updated.approval_status === 'rejected') {
-            setPendingToolCall(null);
-          }
-          // If new pending tool appears with responseMessageId, update state
-          else if (updated.approval_status === 'pending' && updated.response_message_id) {
-            setPendingToolCall({
-              toolCallId: updated.id,
-              toolName: updated.tool_name,
-              toolInput: updated.tool_input,
-              messageId: updated.response_message_id,
-            });
-          }
+        // If tool was approved or rejected, clear pending state
+        if (updated.approvalStatus === 'approved' || updated.approvalStatus === 'rejected') {
+          setPendingToolCall(null);
         }
-      )
+        // If new pending tool appears with responseMessageId, update state
+        else if (updated.approvalStatus === 'pending' && updated.responseMessageId) {
+          setPendingToolCall({
+            toolCallId: updated.id,
+            toolName: updated.toolName,
+            toolInput: updated.toolInput, // Already parsed from JSONB by builder
+            messageId: updated.responseMessageId,
+          });
+        }
+      })
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      subscription.unsubscribe();
     };
   }, [threadId]);
 
   // Sync URL fileId with Valtio state and file editor visibility
   useEffect(() => {
     if (urlFileId) {
-      // URL has a fileId - open the file editor and sync Valtio state
-      aiAgentActions.setSelectedFile(urlFileId);
+      // URL has a fileId - open the file editor
+      // useLoadFile will handle loading the file into filesystemState.selectedFile
       setIsFileEditorOpen(true);
     } else {
-      // URL has no fileId - close file editor and clear Valtio state
+      // URL has no fileId - close file editor
+      // useLoadFile will clear filesystemState.selectedFile when fileId is null
       if (isFileEditorOpen) {
         setIsFileEditorOpen(false);
       }
-      aiAgentActions.setSelectedFile(null);
     }
-  }, [urlFileId]);
+  }, [urlFileId, isFileEditorOpen]);
 
-  // File hooks
-  const selectedFileId = snap.selectedFileId;
-  const { file: currentFile, isLoading: isLoadingFile } = useLoadFile(selectedFileId);
+  // File hooks - get state from filesystem (already declared above)
+  const selectedFileId = filesystemSnap.selectedFile?.id || null;
+  const currentFile = filesystemSnap.selectedFile;
+  const { isLoading: isLoadingFile } = useLoadFile(selectedFileId);
   const { updateFile, isSaving } = useUpdateFile();
 
   // Tool approval hook
@@ -340,7 +341,12 @@ const WorkspaceContentInner = () => {
     isRenaming,
     isDeleting: isTreeDeleting,
     isCreating: isTreeCreating,
-  } = useFileTreeActions();
+  } = useFileTreeActions({
+    onFileCreated: (fileId: string) => {
+      // Open file panel and trigger auto-expand when file is created
+      setUrlFileId(fileId);
+    }
+  });
 
   // Agent file operations hook
   const { createFile: createAgentFile, isCreating: isCreatingAgentFile } = useCreateAgentFile();
@@ -355,11 +361,8 @@ const WorkspaceContentInner = () => {
   const handleFileChange = useCallback((content: string) => {
     if (!currentFile || !selectedFileId) return;
 
-    // Optimistic update
-    aiAgentActions.setCurrentFile({
-      ...currentFile,
-      content,
-    });
+    // Optimistic update handled by useUpdateFile mutation hook
+    // No need to manually update state here
 
     // Set unsaved changes flag
     setHasUnsavedChanges(true);
@@ -473,6 +476,36 @@ const WorkspaceContentInner = () => {
     setIsSidebarOpen(prev => !prev);
   }, []);
 
+  // Auto-expand tree paths when thread is selected
+  useEffect(() => {
+    if (threadId && snap.branchTree?.threads?.length > 0) {
+      const path = findPathToNode(
+        threadId,
+        snap.branchTree.threads,
+        (t) => t.parentThreadId || null,
+        (t) => t.id
+      );
+      if (path.length > 0) {
+        threadExpansion.expandPath(path);
+      }
+    }
+  }, [threadId, snap.branchTree?.threads]);
+
+  // Auto-expand tree paths when file is selected
+  useEffect(() => {
+    if (urlFileId && files.length > 0) {
+      const path = findPathToNode(
+        urlFileId,
+        files,
+        (f) => f.parentId || null,
+        (f) => f.id
+      );
+      if (path.length > 0) {
+        fileExpansion.expandPath(path);
+      }
+    }
+  }, [urlFileId, files]);
+
   // File handlers
   const handleFileClick = useCallback((fileId: string) => {
     // Update URL - the useEffect will handle syncing Valtio state and opening the editor
@@ -492,12 +525,20 @@ const WorkspaceContentInner = () => {
   }, []);
 
   const handleCreateFileConfirm = useCallback(async (name: string, folderId?: string) => {
-    await createDocument(name, folderId || null);
+    // createDocument returns { permanentId, promise }
+    const result = createDocument(name, folderId || null);
+
+    // Open file panel immediately with optimistic ID (shows loading skeleton)
+    setUrlFileId(result.permanentId);
+
+    // Wait for mutation to complete before closing modal
+    await result.promise;
+
     setIsCreateFileModalOpen(false);
-  }, [createDocument]);
+  }, [createDocument, setUrlFileId]);
 
   const handleCreateFolderConfirm = useCallback(async (name: string, parentFolderId?: string) => {
-    await createFolder(name, parentFolderId || null);
+    await createFolder(name, parentFolderId || null).promise;
     setIsCreateFolderModalOpen(false);
   }, [createFolder]);
 
@@ -572,6 +613,8 @@ const WorkspaceContentInner = () => {
   const handleThreadClick = useCallback((threadId: string) => {
     // Only navigate if we're not already on this thread
     if (router.query.threadId !== threadId) {
+      // Set optimistic loading state immediately for instant UI feedback
+      aiAgentActions.setIsLoadingThread(true);
       router.push(`/workspace/${threadId}`);
     }
     if (isSidebarOpen) {
@@ -792,10 +835,16 @@ const WorkspaceContentInner = () => {
         isSidebarOpen={isSidebarOpen}
         isLoadingThreads={isLoadingThreads}
         isLoadingFiles={isLoadingFiles}
+        // Tree expansion state
+        threadExpandedIds={threadExpansion.expandedSet}
+        onThreadToggleExpanded={threadExpansion.toggleExpanded}
+        fileExpandedIds={fileExpansion.expandedSet}
+        onFileToggleExpanded={fileExpansion.toggleExpanded}
 
         // File editor props
         currentFile={currentFile}
         isFileEditorOpen={isFileEditorOpen}
+        isFileLoading={isLoadingFile}
         onCloseFileEditor={handleCloseFileEditor}
         onGoToSource={handleGoToSource}
         onFileChange={handleFileChange}

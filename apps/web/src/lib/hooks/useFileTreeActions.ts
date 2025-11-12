@@ -41,7 +41,13 @@ interface CreateFileInFolderModalState {
   folderName: string;
 }
 
-export function useFileTreeActions() {
+export interface UseFileTreeActionsOptions {
+  onFileCreated?: (fileId: string) => void;
+}
+
+export function useFileTreeActions(options?: UseFileTreeActionsOptions) {
+  const { onFileCreated } = options || {};
+
   const {
     createDocument,
     createFolder,
@@ -127,9 +133,9 @@ export function useFileTreeActions() {
       if (!renameModal) return;
 
       if (renameModal.itemType === 'folder') {
-        await renameFolder(renameModal.itemId, newName);
+        await renameFolder(renameModal.itemId, newName).promise;
       } else {
-        await renameDocument(renameModal.itemId, newName);
+        await renameDocument(renameModal.itemId, newName).promise;
       }
 
       setRenameModal(null);
@@ -158,9 +164,9 @@ export function useFileTreeActions() {
     }
 
     if (deleteModal.itemType === 'folder') {
-      await deleteFolder(deleteModal.itemId);
+      await deleteFolder(deleteModal.itemId).promise;
     } else {
-      await deleteDocument(deleteModal.itemId);
+      await deleteDocument(deleteModal.itemId).promise;
     }
 
     setDeleteModal(null);
@@ -169,7 +175,7 @@ export function useFileTreeActions() {
   const handleCreateSubfolderConfirm = useCallback(
     async (name: string) => {
       if (!createSubfolderModal) return;
-      await createFolder(name, createSubfolderModal.parentFolderId);
+      await createFolder(name, createSubfolderModal.parentFolderId).promise;
       setCreateSubfolderModal(null);
     },
     [createSubfolderModal, createFolder]
@@ -178,10 +184,19 @@ export function useFileTreeActions() {
   const handleCreateFileInFolderConfirm = useCallback(
     async (name: string) => {
       if (!createFileInFolderModal) return;
-      await createDocument(name, createFileInFolderModal.folderId);
+
+      // Get permanentId immediately for optimistic UI updates
+      const result = createDocument(name, createFileInFolderModal.folderId);
+
+      // Notify parent that file was created (triggers panel opening + tree expansion)
+      onFileCreated?.(result.permanentId);
+
+      // Wait for server confirmation before closing modal
+      await result.promise;
+
       setCreateFileInFolderModal(null);
     },
-    [createFileInFolderModal, createDocument]
+    [createFileInFolderModal, createDocument, onFileCreated]
   );
 
   // ===== CLOSE HANDLERS =====

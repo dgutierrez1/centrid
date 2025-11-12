@@ -9,8 +9,8 @@ import {
   initDocumentMetadata,
   clearDocumentMetadata,
 } from "./documentMetadata";
-import type { Folder, FileSystemNode } from "@/lib/types";
-import type { File } from "@/types/graphql";
+import type { File, Folder } from "@/types/graphql";
+import type { FileSystemNode } from "@/lib/types/ui";
 
 // ============================================================================
 // State Definition
@@ -50,11 +50,11 @@ export function buildFileSystemTree(
 ): FileSystemNode[] {
   // Convert folders to nodes
   const folderNodes: FileSystemNode[] = folders.map((f) => ({
-    id: f.id,
-    name: f.name,
+    id: f.id || '',
+    name: f.name || 'Untitled',
     type: "folder" as const,
-    parentId: f.parentFolderId,
-    path: f.path,
+    parentId: f.parentFolderId || null,
+    path: f.path || '',
     children: [],
   }));
 
@@ -78,7 +78,7 @@ export function buildFileSystemTree(
   const rootNodes: FileSystemNode[] = [];
 
   for (const node of allNodes) {
-    if (node.parentId === null) {
+    if (node.parentId === null || node.parentId === undefined) {
       rootNodes.push(node);
     } else {
       const parent = nodeMap.get(node.parentId);

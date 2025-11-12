@@ -1,6 +1,9 @@
 ---
 title: Real-time Sync with Supabase
 summary: Real-time subscriptions keep Valtio state synchronized with server
+domain: integration
+priority: core
+related: [data-graphql-schema-design, frontend-state-management]
 ---
 
 <!-- After editing this file, run: npm run sync-docs -->

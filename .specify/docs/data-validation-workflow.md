@@ -1,6 +1,9 @@
 ---
 title: Validation Workflow Pattern
 summary: Three-layer validation with GraphQL as source of truth, no duplicate Zod schemas
+domain: data
+priority: core
+related: [data-graphql-schema-design, backend-graphql-architecture]
 ---
 
 <!-- After editing this file, run: npm run sync-docs -->

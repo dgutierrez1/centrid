@@ -17,6 +17,7 @@ export function useLoadThread(threadId: string | undefined) {
       aiAgentActions.setCurrentThread(null);
       aiAgentActions.setMessages([]);
       aiAgentActions.setContextReferences([]);
+      aiAgentActions.setIsLoadingThread(false);
     }
   }, [threadId]);
 
@@ -34,6 +35,7 @@ export function useLoadThread(threadId: string | undefined) {
         aiAgentActions.setCurrentThread(null);
         aiAgentActions.setMessages([]);
         aiAgentActions.setContextReferences([]);
+        aiAgentActions.setIsLoadingThread(false);
         return;
       }
 
@@ -44,6 +46,8 @@ export function useLoadThread(threadId: string | undefined) {
         aiAgentState.currentThread?.id === thread.id &&
         aiAgentState.messages.length > 0
       ) {
+        // Clear loading state even when skipping sync
+        aiAgentActions.setIsLoadingThread(false);
         return;
       }
 
@@ -88,8 +92,18 @@ export function useLoadThread(threadId: string | undefined) {
         transformedMessages,
         transformedRefs
       );
+
+      // Clear optimistic loading state after successful sync
+      aiAgentActions.setIsLoadingThread(false);
     },
   });
+
+  // Clear loading state on error
+  useEffect(() => {
+    if (error) {
+      aiAgentActions.setIsLoadingThread(false);
+    }
+  }, [error]);
 
   // Don't sync loading state to Valtio - with SSR prefetching, loading is instant
   // Components that need loading state can use the return value from this hook

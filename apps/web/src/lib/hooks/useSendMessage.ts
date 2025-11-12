@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 import { aiAgentState } from "@/lib/state/aiAgentState";
 import { supabase } from "@/lib/supabase/client";
 import { createSubscription } from "@/lib/realtime";
+import { parseJsonbRow } from "@/lib/realtime/config";
 import { graphqlClient } from "@/lib/graphql/client";
 import { CreateMessageDocument, GetMessagesDocument } from "@/types/graphql";
 import type { ContentBlock } from "@/types/agent";
@@ -210,17 +211,15 @@ export function useSendMessage(threadId: string, options?: SendMessageOptions) {
             .order("created_at", { ascending: true })) as any;
 
           if (existingEvents && existingEvents.length > 0) {
-            // Process existing events (parse JSONB data)
+            // Process existing events (auto-parse JSONB via helper)
             for (const event of existingEvents as Array<{
               type: string;
               data: any;
               request_id: string;
             }>) {
-              // Parse JSONB data (Supabase may return JSONB as strings)
-              const eventData = typeof event.data === 'string'
-                ? JSON.parse(event.data)
-                : event.data;
-              processEvent(event.type, { ...eventData, __requestId: event.request_id }, null);
+              // Parse JSONB fields using helper (handles both string and object)
+              const parsedEvent = parseJsonbRow('agent_execution_events', event);
+              processEvent(parsedEvent.type, { ...parsedEvent.data, __requestId: parsedEvent.request_id }, null);
             }
           }
 
@@ -228,14 +227,11 @@ export function useSendMessage(threadId: string, options?: SendMessageOptions) {
           const subscription = createSubscription('agent_execution_events')
             .channel(`agent-events-${requestId}`)
             .filter({ request_id: requestId })
-            .noTransform() // Keep snake_case for manual JSONB parsing
             .on('INSERT', (payload) => {
-              // Parse JSONB data (Supabase Realtime returns JSONB columns as strings)
+              // JSONB fields are auto-parsed by builder (data is already an object)
               const eventData = {
-                ...(typeof payload.new.data === 'string'
-                    ? JSON.parse(payload.new.data)
-                    : payload.new.data),
-                __requestId: payload.new.request_id,
+                ...payload.new.data,
+                __requestId: payload.new.requestId, // camelCase from builder
               };
               processEvent(payload.new.type, eventData, subscription);
             })

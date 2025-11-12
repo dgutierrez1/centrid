@@ -1,7 +1,9 @@
 import { aiAgentState } from '@/lib/state/aiAgentState';
+import { filesystemState, selectFile, clearFileSelection, addFile } from '@/lib/state/filesystem';
 import { useGraphQLMutation } from '@/lib/graphql/useGraphQLMutation';
 import { CreateFileDocument } from '@/types/graphql';
-import type { FileData, Provenance } from '@centrid/ui/features/ai-agent-system';
+import type { Provenance } from '@centrid/ui/features/ai-agent-system';
+import type { File } from '@/types/graphql';
 
 /**
  * useCreateAgentFile - Custom hook for creating agent-generated files
@@ -19,39 +21,40 @@ export function useCreateAgentFile() {
     mutation: CreateFileDocument,
     optimisticUpdate: (permanentId, input) => {
       // Store original state for rollback
-      const originalCurrentFile = aiAgentState.currentFile;
-      const originalSelectedFileId = aiAgentState.selectedFileId;
+      const originalSelectedFile = filesystemState.selectedFile;
 
       // Optimistic file with permanent UUID
-      const optimisticFile: FileData = {
+      const optimisticFile: File = {
         id: permanentId, // Server will use same ID
         name: input?.name || 'Untitled',
         content: input?.content || '',
-        provenance: input?.provenance || null,
+        folderId: input?.folderId || null,
+        version: 0, // New file starts at version 0
+        fileSize: 0,
+        mimeType: 'text/markdown',
+        path: input?.name || 'Untitled',
+        indexingStatus: 'pending',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       };
 
-      // Set as current file to show in editor
-      aiAgentState.currentFile = optimisticFile;
-      aiAgentState.selectedFileId = permanentId;
+      // Add to filesystem state and select it
+      addFile(optimisticFile);
+      selectFile(permanentId);
 
-      return { permanentId, originalCurrentFile, originalSelectedFileId, name: input?.name || 'Untitled' };
+      return { permanentId, originalSelectedFile, name: input?.name || 'Untitled' };
     },
     onSuccess: ({ permanentId }, data) => {
-      // Update with server response (real-time will also reconcile)
-      if (data.createFile) {
-        aiAgentState.currentFile = {
-          id: data.createFile.id,
-          name: data.createFile.name,
-          content: data.createFile.content || '',
-          provenance: aiAgentState.currentFile?.provenance || null,
-        };
-        aiAgentState.selectedFileId = data.createFile.id;
-      }
+      // Real-time subscription will update with server data via addFile (idempotent)
+      // File already added optimistically, so real-time will just confirm
     },
-    onError: ({ originalCurrentFile, originalSelectedFileId }) => {
+    onError: ({ originalSelectedFile }) => {
       // Rollback optimistic update
-      aiAgentState.currentFile = originalCurrentFile;
-      aiAgentState.selectedFileId = originalSelectedFileId;
+      if (originalSelectedFile) {
+        filesystemState.selectedFile = originalSelectedFile;
+      } else {
+        clearFileSelection();
+      }
     },
     successMessage: (data) => `File "${data.createFile?.name || 'Untitled'}" created`,
     errorMessage: (error) => `Failed to create file: ${error}`,

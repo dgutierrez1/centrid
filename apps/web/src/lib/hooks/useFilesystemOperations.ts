@@ -342,30 +342,30 @@ export function useFilesystemOperations() {
 
   return {
     // Folder operations
-    createFolder: async (name: string, parentFolderId: string | null) => {
+    createFolder: (name: string, parentFolderId: string | null) => {
       return createFolderMutation.mutate({ name, parentFolderId });
     },
-    renameFolder: async (folderId: string, newName: string) => {
+    renameFolder: (folderId: string, newName: string) => {
       return renameFolderMutation.mutate({ id: folderId, name: newName });
     },
-    moveFolder: async (folderId: string, newParentId: string | null) => {
+    moveFolder: (folderId: string, newParentId: string | null) => {
       return moveFolderMutation.mutate({ id: folderId, parentFolderId: newParentId });
     },
-    deleteFolder: async (folderId: string) => {
+    deleteFolder: (folderId: string) => {
       return deleteFolderMutation.mutate({ id: folderId });
     },
 
     // File operations (keeping public API names as "document" for backward compatibility with UI components)
-    createDocument: async (name: string, folderId: string | null) => {
+    createDocument: (name: string, folderId: string | null) => {
       return createFileMutation.mutate({ name, content: '', folderId });
     },
-    renameDocument: async (fileId: string, newName: string) => {
+    renameDocument: (fileId: string, newName: string) => {
       return renameFileMutation.mutate({ id: fileId, name: newName });
     },
-    moveDocument: async (fileId: string, newFolderId: string | null) => {
+    moveDocument: (fileId: string, newFolderId: string | null) => {
       return moveFileMutation.mutate({ id: fileId, folderId: newFolderId });
     },
-    deleteDocument: async (fileId: string) => {
+    deleteDocument: (fileId: string) => {
       return deleteFileMutation.mutate({ id: fileId });
     },
 

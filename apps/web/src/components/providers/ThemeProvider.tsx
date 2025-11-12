@@ -3,14 +3,14 @@
 
 import { useEffect, ReactNode } from 'react';
 import { useSnapshot } from 'valtio';
-import { appState, actions } from '@/lib/state';
+import { themeState } from '@/lib/state/theme';
 
 interface ThemeProviderProps {
   children: ReactNode;
 }
 
 export default function ThemeProvider({ children }: ThemeProviderProps) {
-  const state = useSnapshot(appState);
+  const state = useSnapshot(themeState);
 
   // Apply theme to document
   useEffect(() => {
@@ -54,42 +54,6 @@ export default function ThemeProvider({ children }: ThemeProviderProps) {
       return () => {
         mediaQuery.removeEventListener('change', handleSystemThemeChange);
       };
-    }
-  }, [state.theme]);
-
-  // Initialize theme from localStorage or system preference
-  useEffect(() => {
-    const initializeTheme = () => {
-      try {
-        const savedTheme = localStorage.getItem('centrid-theme') as 'light' | 'dark' | 'system';
-        
-        if (savedTheme && ['light', 'dark', 'system'].includes(savedTheme)) {
-          actions.setTheme(savedTheme);
-        } else {
-          // Default to system preference
-          const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-          actions.setTheme('system');
-        }
-      } catch (error) {
-        console.warn('Failed to load theme from localStorage:', error);
-        actions.setTheme('system');
-      }
-    };
-
-    // Only initialize on client side
-    if (typeof window !== 'undefined') {
-      initializeTheme();
-    }
-  }, []);
-
-  // Save theme to localStorage when it changes
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem('centrid-theme', state.theme);
-      } catch (error) {
-        console.warn('Failed to save theme to localStorage:', error);
-      }
     }
   }, [state.theme]);
 

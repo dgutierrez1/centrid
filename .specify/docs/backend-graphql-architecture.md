@@ -1,6 +1,9 @@
 ---
 title: GraphQL Backend Architecture
 summary: Pothos schema builder with four-layer separation (Resolvers → Controllers → Services → Repositories)
+domain: backend
+priority: core
+related: [data-graphql-schema-design, data-rls-policies, data-validation-workflow]
 ---
 
 <!-- After editing this file, run: npm run sync-docs -->

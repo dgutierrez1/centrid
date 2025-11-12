@@ -80,7 +80,7 @@ export interface UseGraphQLMutationOptions<
 
 export interface UseGraphQLMutationResult<TInput extends AnyVariables, TOutput = any> {
   /** Execute the mutation */
-  mutate: (input: TInput) => Promise<{ success: boolean; data?: TOutput; error?: string }>;
+  mutate: (input: TInput) => { permanentId: string; promise: Promise<{ success: boolean; data?: TOutput; error?: string }> };
 
   /** Mutation is in progress */
   isLoading: boolean;
@@ -112,13 +112,13 @@ export function useGraphQLMutation<
   const [isLoading, setIsLoading] = useState(false);
 
   const mutate = useCallback(
-    async (input: TInput): Promise<{ success: boolean; data?: TOutput; error?: string }> => {
+    (input: TInput): { permanentId: string; promise: Promise<{ success: boolean; data?: TOutput; error?: string }> } => {
       setIsLoading(true);
 
       // Generate permanent UUID that will be used by both client and server
       const permanentId = crypto.randomUUID();
 
-      // Execute optimistic update with permanent ID
+      // Execute optimistic update with permanent ID (synchronous)
       let context: TContext;
       try {
         context = optimisticUpdate(permanentId, input);
@@ -126,49 +126,57 @@ export function useGraphQLMutation<
         setIsLoading(false);
         const errorMsg = error instanceof Error ? error.message : 'Optimistic update failed';
         toast.error(errorMessage(errorMsg));
-        return { success: false, error: errorMsg };
+        return {
+          permanentId,
+          promise: Promise.resolve({ success: false, error: errorMsg })
+        };
       }
 
-      try {
-        // Execute GraphQL mutation (server will use same permanentId)
-        const response = await executeMutation(input);
-
-        if (response.error) {
-          throw new Error(response.error.message);
-        }
-
-        if (!response.data) {
-          throw new Error('No data returned from mutation');
-        }
-
-        // Success: Update state with server response
-        // Since server used same ID, realtime will merge cleanly (no race condition)
+      // Return permanentId immediately, promise for async completion
+      const promise = (async () => {
         try {
-          onSuccess(context, response.data);
+          // Execute GraphQL mutation (server will use same permanentId)
+          const response = await executeMutation(input);
+
+          if (response.error) {
+            throw new Error(response.error.message);
+          }
+
+          if (!response.data) {
+            throw new Error('No data returned from mutation');
+          }
+
+          // Success: Update state with server response
+          // Since server used same ID, realtime will merge cleanly (no race condition)
+          try {
+            onSuccess(context, response.data);
+          } catch (error) {
+            console.error('[useGraphQLMutation] onSuccess callback failed:', error);
+          }
+
+          // Show success toast
+          toast.success(successMessage(response.data));
+
+          return { success: true, data: response.data };
         } catch (error) {
-          console.error('[useGraphQLMutation] onSuccess callback failed:', error);
+          // Rollback optimistic update
+          try {
+            onError(context);
+          } catch (rollbackError) {
+            console.error('[useGraphQLMutation] onError rollback failed:', rollbackError);
+          }
+
+          // Show error toast
+          const errorMsg = error instanceof Error ? error.message : 'Mutation failed';
+          toast.error(errorMessage(errorMsg));
+
+          return { success: false, error: errorMsg };
+        } finally {
+          setIsLoading(false);
         }
+      })();
 
-        // Show success toast
-        toast.success(successMessage(response.data));
-
-        return { success: true, data: response.data };
-      } catch (error) {
-        // Rollback optimistic update
-        try {
-          onError(context);
-        } catch (rollbackError) {
-          console.error('[useGraphQLMutation] onError rollback failed:', rollbackError);
-        }
-
-        // Show error toast
-        const errorMsg = error instanceof Error ? error.message : 'Mutation failed';
-        toast.error(errorMessage(errorMsg));
-
-        return { success: false, error: errorMsg };
-      } finally {
-        setIsLoading(false);
-      }
+      return { permanentId, promise };
     },
     [executeMutation, optimisticUpdate, onSuccess, onError, successMessage, errorMessage]
   );

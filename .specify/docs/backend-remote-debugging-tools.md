@@ -1,6 +1,9 @@
 ---
 title: Remote Database Debugging Scripts
 summary: Standalone TypeScript scripts for querying remote database and API logs during development
+domain: devops
+priority: specialized
+related: [backend-remote-first-development]
 ---
 
 <!-- After editing this file, run: npm run sync-docs -->

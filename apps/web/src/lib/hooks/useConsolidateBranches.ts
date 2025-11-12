@@ -10,6 +10,8 @@
  */
 
 import { useState, useCallback } from 'react';
+import { createSubscription } from '@/lib/realtime';
+import { parseJsonbRow } from '@/lib/realtime/config';
 import { supabase } from '@/lib/supabase/client';
 import { graphqlClient } from '@/lib/graphql/client';
 import { ConsolidateBranchesDocument } from '@/types/graphql';
@@ -93,7 +95,7 @@ export function useConsolidateBranches(): UseConsolidateBranchesResult {
       // ========================================================================
 
       // Helper function to process events
-      const processEvent = (eventType: string, eventData: any, channel: any) => {
+      const processEvent = (eventType: string, eventData: any, subscription: any) => {
         switch (eventType) {
           case 'consolidation_progress':
             setProgress({
@@ -117,16 +119,20 @@ export function useConsolidateBranches(): UseConsolidateBranchesResult {
             });
             setIsProcessing(false);
             toast.success('Consolidation complete!');
-            // Unsubscribe when complete
-            supabase.removeChannel(channel);
+            // Unsubscribe when complete (only for hot path - subscription is null during cold path replay)
+            if (subscription) {
+              subscription.unsubscribe();
+            }
             break;
 
           case 'consolidation_error':
             setError(eventData.message || 'Consolidation failed');
             setIsProcessing(false);
             toast.error(eventData.message || 'Consolidation failed');
-            // Unsubscribe on error
-            supabase.removeChannel(channel);
+            // Unsubscribe on error (only for hot path)
+            if (subscription) {
+              subscription.unsubscribe();
+            }
             break;
 
           default:
@@ -135,7 +141,7 @@ export function useConsolidateBranches(): UseConsolidateBranchesResult {
       };
 
       try {
-        // First: Fetch existing events (late connection support)
+        // First: Fetch existing events (late connection support - cold path)
         const { data: existingEvents, error: fetchError } = await supabase
           .from('agent_execution_events')
           .select('*')
@@ -143,27 +149,22 @@ export function useConsolidateBranches(): UseConsolidateBranchesResult {
           .order('created_at', { ascending: true }) as any;
 
         if (existingEvents && existingEvents.length > 0) {
-          // Process existing events
-          for (const event of (existingEvents as Array<{ type: string; data: any }>)) {
-            processEvent(event.type, event.data, null);
+          // Process existing events with JSONB parsing for 'data' field
+          for (const event of (existingEvents as Array<{ type: string; data: any; request_id: string }>)) {
+            const parsedEvent = parseJsonbRow('agent_execution_events', event);
+            processEvent(parsedEvent.type, parsedEvent.data, null);
           }
         }
 
-        // Second: Subscribe to new events in real-time
-        const channel = supabase
+        // Second: Subscribe to new events in real-time (hot path)
+        // Use builder pattern for type-safe subscription with automatic JSONB parsing
+        const subscription = createSubscription('agent_execution_events')
           .channel(`consolidation-${requestId}`)
-          .on(
-            'postgres_changes',
-            {
-              event: 'INSERT',
-              schema: 'public',
-              table: 'agent_execution_events',
-              filter: `request_id=eq.${requestId}`,
-            },
-            (payload: any) => {
-              processEvent(payload.new.type, payload.new.data, channel);
-            }
-          )
+          .filter({ request_id: requestId })
+          .on('INSERT', (payload) => {
+            // payload.new is automatically camelCase with parsed JSONB from builder
+            processEvent(payload.new.type, payload.new.data, subscription);
+          })
           .subscribe();
 
       } catch (subscriptionError) {

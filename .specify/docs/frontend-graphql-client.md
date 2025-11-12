@@ -1,6 +1,9 @@
 ---
 title: GraphQL Frontend Client (urql)
 summary: urql client with custom hooks for type-safe queries, mutations, optimistic updates, and Valtio sync
+domain: frontend
+priority: core
+related: [frontend-state-management, data-graphql-schema-design, frontend-token-store]
 ---
 
 <!-- After editing this file, run: npm run sync-docs -->

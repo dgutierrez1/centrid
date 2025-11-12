@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { aiAgentState } from '@/lib/state/aiAgentState'
+import { filesystemState, updateFile as updateFileInState } from '@/lib/state/filesystem'
 import { useGraphQLMutation } from '@/lib/graphql/useGraphQLMutation'
 import { UpdateFileDocument } from '@/types/graphql'
 
@@ -8,26 +8,28 @@ export function useUpdateFile() {
     mutation: UpdateFileDocument,
     optimisticUpdate: (permanentId, input) => {
       // Store previous content for rollback
-      const previousContent = aiAgentState.currentFile?.content
+      const previousContent = filesystemState.selectedFile?.content
 
-      // Optimistic update
-      if (aiAgentState.currentFile) {
-        aiAgentState.currentFile.content = input?.content || ''
+      // Optimistic update in filesystem state
+      if (filesystemState.selectedFile && input?.id) {
+        updateFileInState(input.id, { content: input.content || '' })
       }
 
-      return { previousContent }
+      return { previousContent, fileId: input?.id }
     },
-    onSuccess: ({ previousContent }, data) => {
+    onSuccess: ({ previousContent, fileId }, data) => {
       // Update state with server response
-      if (aiAgentState.currentFile && data.updateFile) {
-        aiAgentState.currentFile.content = data.updateFile.content || aiAgentState.currentFile.content
-        aiAgentState.currentFile.version = data.updateFile.version
+      if (fileId && data.updateFile) {
+        updateFileInState(fileId, {
+          content: data.updateFile.content || undefined,
+          version: data.updateFile.version || undefined,
+        })
       }
     },
-    onError: ({ previousContent }) => {
+    onError: ({ previousContent, fileId }) => {
       // Rollback optimistic update
-      if (aiAgentState.currentFile && previousContent !== undefined) {
-        aiAgentState.currentFile.content = previousContent
+      if (fileId && previousContent !== undefined) {
+        updateFileInState(fileId, { content: previousContent })
       }
     },
     successMessage: () => 'File saved',
@@ -35,10 +37,14 @@ export function useUpdateFile() {
   })
 
   const updateFile = useCallback(async (fileId: string, content: string) => {
+    // Read version from filesystem state (single source of truth)
+    const file = filesystemState.files.find(f => f.id === fileId)
+    const version = file?.version
+
     const result = await mutate({
       id: fileId,
       content,
-      version: aiAgentState.currentFile?.version,
+      version,
     })
 
     if (!result.success) {

@@ -7,6 +7,7 @@
 
 import { createClient } from '@/lib/supabase';
 import { snakeToCamel } from '@/lib/utils/casing';
+import { getJsonbFields } from './config';
 import type {
   TableName,
   TableRow,
@@ -191,19 +192,71 @@ export class RealtimeSubscriptionBuilder<T extends TableName> {
   }
 
   /**
-   * Transform payload from snake_case to camelCase
+   * Transform payload from snake_case to camelCase + parse JSONB fields
    *
    * @param payload - Raw payload from Supabase
-   * @returns Transformed payload with camelCase keys
+   * @returns Transformed payload with camelCase keys and parsed JSONB
    *
    * @private
    */
   private transformPayload(payload: any): RealtimePayload<T> {
-    return {
+    // Step 1: Transform snake_case → camelCase
+    const transformed = {
       ...payload,
       new: payload.new ? snakeToCamel<TableRow<T>>(payload.new) : null,
       old: payload.old ? snakeToCamel<Partial<TableRow<T>>>(payload.old) : null,
     };
+
+    // Step 2: Parse JSONB fields (operates on camelCase keys)
+    const jsonbFields = getJsonbFields(this.table);
+
+    if (transformed.new) {
+      transformed.new = this.parseJsonbFields(transformed.new, jsonbFields.camel);
+    }
+
+    if (transformed.old) {
+      transformed.old = this.parseJsonbFields(transformed.old, jsonbFields.camel);
+    }
+
+    return transformed;
+  }
+
+  /**
+   * Parse JSONB fields in a row
+   *
+   * Supabase Realtime returns JSONB columns as stringified JSON, while GraphQL
+   * queries return parsed objects. This method auto-parses JSONB fields based
+   * on the config in apps/web/src/lib/realtime/config.ts.
+   *
+   * @param row - Row data (already camelCased)
+   * @param jsonbFields - Set of JSONB field names (camelCase)
+   * @returns Row with parsed JSONB fields
+   *
+   * @private
+   */
+  private parseJsonbFields<R>(row: R, jsonbFields: Set<string>): R {
+    if (!row || typeof row !== 'object') return row;
+
+    const parsed = { ...row };
+
+    for (const field of jsonbFields) {
+      const value = (parsed as any)[field];
+
+      // Only parse if field exists and is a string
+      if (value !== undefined && value !== null && typeof value === 'string') {
+        try {
+          (parsed as any)[field] = JSON.parse(value);
+        } catch (error) {
+          console.error(
+            `[Realtime] Failed to parse JSONB field ${this.table}.${field}:`,
+            error
+          );
+          // Keep original value on parse error
+        }
+      }
+    }
+
+    return parsed;
   }
 }
 

@@ -1,6 +1,9 @@
 ---
 title: Auth Token Store Pattern
 summary: Synchronous token cache eliminates 5ms async overhead per API call
+domain: frontend
+priority: specialized
+related: [frontend-graphql-client]
 ---
 
 <!-- After editing this file, run: npm run sync-docs -->
