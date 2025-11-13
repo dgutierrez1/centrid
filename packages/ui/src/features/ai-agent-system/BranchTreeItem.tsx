@@ -1,11 +1,11 @@
 import React from 'react';
 import { Badge } from '../../components/badge';
-import { cn } from '@centrid/shared/utils';
+import { cn } from '../../lib/utils';
 
 export interface BranchTreeNode {
   id: string;
   title: string;
-  parentId: string | null;
+  parentThreadId: string | null;
   depth: number;
   artifactCount: number;
   lastActivity?: Date;
@@ -68,7 +68,7 @@ export function BranchTreeItem({
 
   // Check if this is the last child of its parent
   const isLastChild =
-    !nextBranch || nextBranch.depth <= branch.depth || nextBranch.parentId !== branch.parentId;
+    !nextBranch || nextBranch.depth <= branch.depth || nextBranch.parentThreadId !== branch.parentThreadId;
 
   // Common tree line styles
   const TreeLines = () =>

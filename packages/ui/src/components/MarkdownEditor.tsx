@@ -8,13 +8,14 @@
 'use client';
 
 import * as React from 'react';
-import { useEditor, EditorContent, Editor } from '@tiptap/react';
+import type { Editor } from '@tiptap/react';
+import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import { Markdown } from '@tiptap/markdown';
 import { Button } from './button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './tooltip';
-import { cn } from '@centrid/shared/utils';
+import { cn } from '../lib/utils';
 
 export interface MarkdownEditorProps {
   /** Markdown content to display */

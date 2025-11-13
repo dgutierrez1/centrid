@@ -13,7 +13,7 @@
  */
 
 import React, { useEffect, useRef } from 'react';
-import { cn } from '@centrid/shared/utils';
+import { cn } from '../lib/utils';
 
 export interface SlideOutMenuProps {
   isOpen: boolean;

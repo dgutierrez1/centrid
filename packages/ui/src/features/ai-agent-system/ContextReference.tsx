@@ -55,19 +55,19 @@ export function ContextReference({
   const [isHovered, setIsHovered] = useState(false);
 
   // Tier colors
-  const tierColors = {
+  const tierColors: Record<number, string> = {
     1: 'border-l-primary-600', // Explicit (coral)
     2: 'border-l-purple-600', // Semantic (purple)
     3: 'border-l-blue-600', // Branch (blue)
   };
 
-  const tierBadgeColors = {
+  const tierBadgeColors: Record<number, string> = {
     1: 'bg-primary-600 text-white',
     2: 'bg-purple-600 text-white',
     3: 'bg-blue-600 text-white',
   };
 
-  const tierLabels = {
+  const tierLabels: Record<number, string> = {
     1: 'Explicit',
     2: 'Semantic',
     3: 'Branch',
@@ -110,7 +110,7 @@ export function ContextReference({
   const getContextSummary = () => {
     // If we have a source branch, use that as the primary context
     if (sourceBranch) {
-      const shortBranch = sourceBranch.length > 12 ? sourceBranch.substring(0, 12) + '...' : sourceBranch;
+      const shortBranch = sourceBranch.length > 12 ? `${sourceBranch.substring(0, 12)  }...` : sourceBranch;
       if (relevanceScore !== undefined) {
         return `${shortBranch} (${Math.round(relevanceScore * 100)}%)`;
       }

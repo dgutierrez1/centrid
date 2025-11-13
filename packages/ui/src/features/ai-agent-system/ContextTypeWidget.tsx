@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Badge } from '../../components/badge';
-import { ContextReferenceProps } from './ContextReference';
+import type { ContextReferenceProps } from './ContextReference';
 
 export interface ContextTypeWidgetProps {
   /** Context type (removed frequently-used and excluded) */
@@ -39,49 +39,21 @@ export function ContextTypeWidget({
   const tooltipItems = items.slice(0, maxItemsCollapsed);
   const tooltipRemainingCount = count > maxItemsCollapsed ? count - maxItemsCollapsed : 0;
 
-  // Add keyframe animations
-  React.useEffect(() => {
-    if (typeof document !== 'undefined') {
-      const styleId = 'context-widget-animations';
-      if (!document.getElementById(styleId)) {
-        const style = document.createElement('style');
-        style.id = styleId;
-        style.innerHTML = `
-          @keyframes expand {
-            from {
-              opacity: 0.7;
-              transform: scale(0.95);
-            }
-            to {
-              opacity: 1;
-              transform: scale(1);
-            }
-          }
-          @keyframes collapse {
-            from {
-              opacity: 0.7;
-              transform: scale(0.95);
-            }
-            to {
-              opacity: 1;
-              transform: scale(1);
-            }
-          }
-          @keyframes fadeIn {
-            from {
-              opacity: 0;
-              transform: translateY(4px);
-            }
-            to {
-              opacity: 1;
-              transform: translateY(0);
-            }
-          }
-        `;
-        document.head.appendChild(style);
-      }
-    }
-  }, []);
+  // Label mapping for collapsed (1 word) and expanded (2 words) states
+  const labelMap = {
+    collapsed: {
+      semantic: 'Similar',
+      branch: 'Linked',
+      artifacts: 'Files',
+      explicit: 'Added',
+    },
+    expanded: {
+      semantic: 'Like This',
+      branch: 'Connected To',
+      artifacts: 'AI Created',
+      explicit: 'Pinned Items',
+    },
+  };
 
   // Type-specific colors (removed frequently-used and excluded)
   const typeColors = {
@@ -187,7 +159,7 @@ export function ContextTypeWidget({
         // Describe explicit references with file info
         if (count === 1) {
           const fileName = items[0].name;
-          const shortName = fileName.length > 14 ? fileName.substring(0, 14) + '...' : fileName;
+          const shortName = fileName.length > 14 ? `${fileName.substring(0, 14)  }...` : fileName;
           return shortName;
         }
         return `${count} files added`;
@@ -204,21 +176,11 @@ export function ContextTypeWidget({
         }
         return `${count} related docs`;
 
-      case 'frequently-used':
-        // Show the frequently used file name
-        if (count === 1) {
-          const fileName = items[0].name;
-          const shortName = fileName.length > 14 ? fileName.substring(0, 14) + '...' : fileName;
-          return shortName;
-        }
-        const frequentFile = items[0].name.substring(0, 12);
-        return `${frequentFile}... +${count - 1}`;
-
       case 'branch':
         // Show branch name or count
         const branchName = items[0]?.sourceBranch;
         if (branchName) {
-          const shortBranch = branchName.length > 14 ? branchName.substring(0, 14) + '...' : branchName;
+          const shortBranch = branchName.length > 14 ? `${branchName.substring(0, 14)  }...` : branchName;
           if (count === 1) {
             return shortBranch;
           }
@@ -230,20 +192,11 @@ export function ContextTypeWidget({
         // Show artifact name
         if (count === 1) {
           const fileName = items[0].name;
-          const shortName = fileName.length > 14 ? fileName.substring(0, 14) + '...' : fileName;
+          const shortName = fileName.length > 14 ? `${fileName.substring(0, 14)  }...` : fileName;
           return shortName;
         }
         const artifactFile = items[0].name.substring(0, 12);
         return `${artifactFile}... +${count - 1}`;
-
-      case 'excluded':
-        // Show excluded file name
-        if (count === 1) {
-          const fileName = items[0].name;
-          const shortName = fileName.length > 14 ? fileName.substring(0, 14) + '...' : fileName;
-          return shortName;
-        }
-        return `${count} removed`;
 
       default:
         // Fallback
@@ -282,23 +235,23 @@ export function ContextTypeWidget({
         onMouseLeave={() => setShowTooltip(false)}
       >
         <div
-          className={`relative w-auto max-w-[160px] h-10 px-3 py-2 ${colors.bg} cursor-pointer hover:shadow-md hover:scale-[1.02] transition-all duration-200 ease-out shrink-0 rounded-full border ${colors.border} shadow-sm ${className}`}
+          className={`relative w-auto max-w-[160px] h-9 px-4 py-2 ${colors.bg} cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all duration-200 shrink-0 rounded-full border ${colors.border} shadow-sm overflow-hidden ${className}`}
           onClick={onClick}
           data-testid={`context-widget-${type}-collapsed`}
           style={{
-            animation: 'collapse 0.3s ease-in-out',
+            transitionTimingFunction: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
           }}
         >
           {/* Single row: Icon + Count + Label + Metric (if semantic) */}
-          <div className="flex items-center gap-2 h-full justify-center">
+          <div className={`flex items-center gap-2 h-full justify-center transition-opacity duration-200 ${!isExpanded ? 'opacity-100' : 'opacity-0'}`}>
             <span className={`${colors.text} shrink-0`}>
               {typeIcons[type]}
             </span>
             <span className={`text-sm font-bold ${colors.text} shrink-0`}>
               {count}
             </span>
-            <span className={`text-xs font-medium ${colors.text} opacity-70 shrink-0`}>
-              {getCountLabel()}
+            <span className={`text-xs font-semibold ${colors.text} opacity-80 tracking-wide shrink-0`}>
+              {labelMap.collapsed[type] || getCountLabel()}
             </span>
             {getMetric() && (
               <span className={`text-xs font-medium ${colors.text} opacity-70 shrink-0`}>
@@ -388,17 +341,18 @@ export function ContextTypeWidget({
     );
   }
 
-  // Expanded state: Show top items + overflow (narrower width: 140px, full height to match container)
+  // Expanded state: Show top items + overflow (narrower width: 140px, height fills parent)
   return (
     <div
-      className={`relative h-full w-[140px] p-2 border-l-4 ${colors.border} ${colors.bg} cursor-pointer hover:shadow-md transition-all duration-300 ease-in-out shrink-0 rounded-2xl border bg-card text-card-foreground shadow-sm ${className}`}
+      className={`relative h-full w-[140px] p-2 border-l-4 ${colors.border} ${colors.bg} cursor-pointer hover:shadow-md transition-all duration-300 shrink-0 rounded-2xl border bg-card text-card-foreground shadow-sm overflow-hidden ${className}`}
       onClick={onClick}
       data-testid={`context-widget-${type}-expanded`}
       title={title}
       style={{
-        animation: 'expand 0.3s ease-in-out',
+        transitionTimingFunction: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
       }}
     >
+      <div className={`transition-opacity duration-200 delay-50 ${isExpanded ? 'opacity-100' : 'opacity-0'} h-full flex flex-col`}>
       {/* Header */}
       <div className="flex items-center justify-between mb-1">
         <div className="flex items-center gap-1.5">
@@ -408,13 +362,16 @@ export function ContextTypeWidget({
           <span className={`text-xs font-semibold ${colors.text}`}>
             {count}
           </span>
+          <span className={`text-xs font-semibold ${colors.text}`}>
+            {labelMap.expanded[type] || title}
+          </span>
         </div>
       </div>
 
       {/* Type-specific summary/insight */}
       {getExpandedSummary() && (
         <div className="mb-2 px-1">
-          <p className="text-[9px] text-gray-500 dark:text-gray-400 leading-tight">
+          <p className="text-[10px] text-gray-600 dark:text-gray-400 leading-tight">
             {getExpandedSummary()}
           </p>
         </div>
@@ -453,17 +410,17 @@ export function ContextTypeWidget({
 
               {/* Name */}
               <div className="flex-1 min-w-0">
-                <div className={`text-[10px] font-medium ${colors.text} truncate`}>
+                <div className={`text-xs font-medium ${colors.text} truncate`}>
                   {item.name}
                 </div>
                 {/* Type-specific metadata */}
                 {type === 'semantic' && item.relevanceScore !== undefined && (
-                  <div className={`text-[9px] ${colors.text} opacity-70`}>
+                  <div className={`text-[10px] ${colors.text} opacity-70`}>
                     {Math.round(item.relevanceScore * 100)}% match
                   </div>
                 )}
                 {item.sourceBranch && type !== 'semantic' && (
-                  <div className={`text-[9px] ${colors.text} opacity-70 truncate`}>
+                  <div className={`text-[10px] ${colors.text} opacity-70 truncate`}>
                     {item.sourceBranch}
                   </div>
                 )}
@@ -479,6 +436,7 @@ export function ContextTypeWidget({
           )}
         </div>
       )}
+      </div>
     </div>
   );
 }

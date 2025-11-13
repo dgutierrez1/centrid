@@ -1,6 +1,6 @@
 import { Badge } from '../../components/badge';
 import { Button } from '../../components/button';
-import { cn } from '@centrid/shared/utils';
+import { cn } from '../../lib/utils';
 import type { Provenance } from './FileEditorPanel';
 
 export interface ProvenanceHeaderProps {

@@ -1,30 +1,45 @@
 import React, { useEffect, useRef } from 'react';
-import { Message, MessageProps } from './Message';
+import type { MessageProps } from './Message';
+import { Message } from './Message';
+import { MessageStreamSkeleton } from './MessageStreamSkeleton';
 import { ScrollArea } from '../../components/scroll-area';
 
 export interface MessageStreamProps {
   messages: MessageProps[];
   isStreaming?: boolean;
+  isLoading?: boolean;
   className?: string;
 }
 
-export function MessageStream({
+const MessageStreamComponent = ({
   messages,
   isStreaming = false,
+  isLoading = false,
   className = '',
-}: MessageStreamProps) {
-  const scrollRef = useRef<HTMLDivElement>(null);
+}: MessageStreamProps) => {
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const hasScrolledInitially = useRef(false);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    // First scroll: instant (no animation) to avoid visible scrolling during mount/rerenders
+    // Subsequent scrolls: smooth animation for better UX when new messages arrive
+    if (!hasScrolledInitially.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+      hasScrolledInitially.current = true;
+    } else {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages.length, isStreaming]);
 
+  // Show loading skeleton when loading
+  if (isLoading) {
+    return <MessageStreamSkeleton className={className} />;
+  }
+
   return (
     <ScrollArea className={`h-full ${className}`} data-testid="message-stream">
-      <div ref={scrollRef} className="flex flex-col gap-4 p-4">
+      <div className="w-full flex flex-col gap-4 p-4">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center py-12">
             <div className="text-gray-400 dark:text-gray-600 mb-2">
@@ -50,11 +65,18 @@ export function MessageStream({
             </p>
           </div>
         ) : (
-          messages.map((message, index) => (
-            <Message key={index} {...message} />
-          ))
+          <>
+            {messages.map((message) => (
+              <Message key={message.id} {...message} />
+            ))}
+            {/* Invisible anchor element for auto-scroll */}
+            <div ref={messagesEndRef} />
+          </>
         )}
       </div>
     </ScrollArea>
   );
-}
+};
+
+// Export memoized component to prevent re-renders when props unchanged
+export const MessageStream = React.memo(MessageStreamComponent);

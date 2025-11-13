@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '../../components/button';
 import { Input } from '../../components/input';
-import { cn } from '@centrid/shared/utils';
+import { cn } from '../../lib/utils';
 
 export interface CreateBranchModalProps {
   isOpen: boolean;
@@ -83,7 +83,7 @@ export function CreateBranchModal({
   };
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
+    const {value} = e.target;
     setBranchName(value);
     setLocalError(null);
   };

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { cn } from '@centrid/shared/utils';
+import { cn } from '../../lib/utils';
 import { FileTreeNode, type FileTreeNodeData } from '@centrid/ui/features/filesystem-markdown-editor';
+import { ThreadTreeNode as SharedThreadTreeNode, type ThreadNode } from './ThreadTreeNode';
 
 export interface Thread {
   id: string;
@@ -8,8 +9,9 @@ export interface Thread {
   artifactCount: number;
   lastActivity: Date;
   isActive?: boolean;
-  parentId?: string | null;
+  parentThreadId?: string | null;
   depth?: number;
+  children?: Thread[];
 }
 
 export interface File {
@@ -33,28 +35,45 @@ export interface WorkspaceSidebarProps {
   onCreateThread?: () => void;
   onCreateFile?: () => void;
   onCreateFolder?: () => void;
+  onUploadFiles?: () => void;
+  onThreadCreateBranch?: (parentThreadId: string, parentTitle: string) => void;
+  onThreadRename?: (threadId: string, currentTitle: string) => void;
+  onThreadDelete?: (threadId: string, title: string) => void;
+  // File/folder operation handlers
+  onFileRename?: (fileId: string, fileName: string) => void;
+  onFileDelete?: (fileId: string, fileName: string) => void;
+  onFolderRename?: (folderId: string, folderName: string) => void;
+  onFolderDelete?: (folderId: string, folderName: string) => void;
+  onCreateSubfolder?: (parentFolderId: string, parentFolderName: string) => void;
+  onCreateFileInFolder?: (folderId: string, folderName: string) => void;
+  onUploadToFolder?: (folderId: string, folderName: string) => void;
   className?: string;
+  isLoadingFiles?: boolean;
+  isLoadingThreads?: boolean;
+  // Tree expansion state (parent-controlled)
+  threadExpandedIds?: Set<string>;
+  onThreadToggleExpanded?: (threadId: string) => void;
+  fileExpandedIds?: Set<string>;
+  onFileToggleExpanded?: (fileId: string) => void;
 }
 
-// Helper function to build tree structure (generic for both threads and files)
-function buildTree<T extends { id: string; parentId?: string | null }>(
-  items: T[]
-): (T & { children: T[] })[] {
-  const itemMap = new Map<string, T & { children: T[] }>();
-  const rootItems: (T & { children: T[] })[] = [];
+// Helper function to build thread tree structure
+function buildThreadTree(threads: Thread[]): (Thread & { children: Thread[] })[] {
+  const itemMap = new Map<string, Thread & { children: Thread[] }>();
+  const rootItems: (Thread & { children: Thread[] })[] = [];
 
   // First pass: create map with children arrays
-  items.forEach(item => {
-    itemMap.set(item.id, { ...item, children: [] });
+  threads.forEach(thread => {
+    itemMap.set(thread.id, { ...thread, children: [] });
   });
 
   // Second pass: build parent-child relationships
-  items.forEach(item => {
-    const itemWithChildren = itemMap.get(item.id)!;
-    if (item.parentId === null || item.parentId === undefined) {
+  threads.forEach(thread => {
+    const itemWithChildren = itemMap.get(thread.id)!;
+    if (thread.parentThreadId === null || thread.parentThreadId === undefined) {
       rootItems.push(itemWithChildren);
     } else {
-      const parent = itemMap.get(item.parentId);
+      const parent = itemMap.get(thread.parentThreadId);
       if (parent) {
         parent.children.push(itemWithChildren);
       } else {
@@ -67,14 +86,33 @@ function buildTree<T extends { id: string; parentId?: string | null }>(
   return rootItems;
 }
 
-// Thread tree builder
-function buildThreadTree(threads: Thread[]): (Thread & { children: Thread[] })[] {
-  return buildTree(threads);
-}
-
 // File tree builder
 function buildFileTree(files: File[]): (File & { children: File[] })[] {
-  return buildTree(files);
+  const itemMap = new Map<string, File & { children: File[] }>();
+  const rootItems: (File & { children: File[] })[] = [];
+
+  // First pass: create map with children arrays
+  files.forEach(file => {
+    itemMap.set(file.id, { ...file, children: [] });
+  });
+
+  // Second pass: build parent-child relationships
+  files.forEach(file => {
+    const itemWithChildren = itemMap.get(file.id)!;
+    if (file.parentId === null || file.parentId === undefined) {
+      rootItems.push(itemWithChildren);
+    } else {
+      const parent = itemMap.get(file.parentId);
+      if (parent) {
+        parent.children.push(itemWithChildren);
+      } else {
+        // Parent not found, treat as root
+        rootItems.push(itemWithChildren);
+      }
+    }
+  });
+
+  return rootItems;
 }
 
 // Convert flat File array to nested FileTreeNodeData structure
@@ -113,40 +151,6 @@ function convertToFileTreeNodes(files: File[]): FileTreeNodeData[] {
   return rootNodes;
 }
 
-// Recursive component to render thread tree
-interface ThreadTreeNodeProps {
-  threads: (Thread & { children: Thread[] })[];
-  expandedThreads: Set<string>;
-  onThreadClick: (threadId: string) => void;
-  onToggleExpanded: (threadId: string) => void;
-  depth: number;
-}
-
-// Icon component for thread type (DAG nodes)
-function ThreadIcon({ depth, hasChildren }: { depth: number; hasChildren: boolean }) {
-  // Root/Branch nodes - circular node icon representing DAG branch points
-  if (hasChildren) {
-    return (
-      <svg className="w-4 h-4 text-gray-400 dark:text-gray-500" fill="currentColor" viewBox="0 0 24 24">
-        <circle cx="12" cy="12" r="8" strokeWidth="2" stroke="currentColor" fill="none" />
-        <circle cx="12" cy="12" r="3" fill="currentColor" />
-      </svg>
-    );
-  }
-
-  // Leaf nodes - simple leaf icon representing terminal nodes in DAG
-  return (
-    <svg className="w-4 h-4 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M12 3c-1.5 4-4 6-7 7 3 1 5.5 3 7 7 1.5-4 4-6 7-7-3-1-5.5-3-7-7z"
-      />
-    </svg>
-  );
-}
-
 // Icon component for files and folders
 function FileIcon({ type }: { type: 'file' | 'folder' }) {
   if (type === 'folder') {
@@ -161,114 +165,6 @@ function FileIcon({ type }: { type: 'file' | 'folder' }) {
     <svg className="w-4 h-4 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
     </svg>
-  );
-}
-
-function ThreadTreeNode({
-  threads,
-  expandedThreads,
-  onThreadClick,
-  onToggleExpanded,
-  depth,
-}: ThreadTreeNodeProps) {
-  return (
-    <>
-      {threads.map((thread, index) => {
-        const hasChildren = thread.children && thread.children.length > 0;
-        const isExpanded = expandedThreads.has(thread.id);
-        const paddingLeft = depth * 20; // 20px per depth level for graph spacing
-        const isLastChild = index === threads.length - 1;
-
-        return (
-          <div key={thread.id} className="relative">
-            {/* Tree lines - Graph style - Higher z-index to stay visible */}
-            {depth > 0 && (
-              <>
-                {/* Vertical line from parent - extends to connect with horizontal line */}
-                <div
-                  className="absolute w-px bg-gray-300 dark:bg-gray-600 z-20 pointer-events-none"
-                  style={{
-                    left: `${16 + (depth - 1) * 20 + 8}px`, // parent paddingLeft + icon half-width (8px)
-                    top: '-23px', // Start from parent's icon center (negative to go up into parent)
-                    height: isLastChild ? '48px' : 'calc(100% + 23px)' // extend to horizontal line
-                  }}
-                />
-                {/* Horizontal line - shortened to not overlap with node icon */}
-                <div
-                  className="absolute h-px bg-gray-300 dark:bg-gray-600 z-20 pointer-events-none"
-                  style={{
-                    left: `${16 + (depth - 1) * 20 + 8}px`, // from parent icon center
-                    top: '25px', // Align with icon center
-                    width: `${12}px` // shortened to 12px to stop before node icon (8px radius)
-                  }}
-                />
-              </>
-            )}
-
-            <div
-              className={cn(
-                'w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors group cursor-pointer relative z-10',
-                thread.isActive
-                  ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 shadow-sm'
-                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100/50 dark:hover:bg-gray-800/50'
-              )}
-              style={{ paddingLeft: `${16 + paddingLeft}px` }}
-              onClick={() => onThreadClick(thread.id)}
-            >
-              {/* Hover-reveal chevron for expand/collapse - only for nodes with children */}
-              {hasChildren && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onToggleExpanded(thread.id);
-                  }}
-                  className={cn(
-                    'flex-shrink-0 w-4 h-4 flex items-center justify-center text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400 transition-opacity -ml-1',
-                    'opacity-0 group-hover:opacity-100'
-                  )}
-                  aria-label={isExpanded ? 'Collapse thread' : 'Expand thread'}
-                >
-                  <svg
-                    className={cn('w-3 h-3 transition-transform', isExpanded && 'rotate-90')}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </button>
-              )}
-
-              {/* Icon - Tree lines connect directly */}
-              <div className={cn('flex-shrink-0', !hasChildren && 'ml-3')}>
-                <ThreadIcon depth={depth} hasChildren={hasChildren} />
-              </div>
-
-              {/* Content */}
-              <div className="flex-1 min-w-0">
-                <div className="font-medium truncate">{thread.title}</div>
-                <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                  {thread.artifactCount} artifact{thread.artifactCount !== 1 ? 's' : ''}
-                </div>
-              </div>
-            </div>
-
-            {/* Children */}
-            {hasChildren && isExpanded && (
-              <div className="mt-0.5">
-                <ThreadTreeNode
-                  threads={thread.children}
-                  expandedThreads={expandedThreads}
-                  onThreadClick={onThreadClick}
-                  onToggleExpanded={onToggleExpanded}
-                  depth={depth + 1}
-                />
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </>
   );
 }
 
@@ -377,40 +273,88 @@ export function WorkspaceSidebar({
   onCreateThread,
   onCreateFile,
   onCreateFolder,
+  onUploadFiles,
+  onThreadCreateBranch,
+  onThreadRename,
+  onThreadDelete,
+  onFileRename,
+  onFileDelete,
+  onFolderRename,
+  onFolderDelete,
+  onCreateSubfolder,
+  onCreateFileInFolder,
+  onUploadToFolder,
   className,
+  isLoadingFiles = false,
+  isLoadingThreads = false,
+  threadExpandedIds,
+  onThreadToggleExpanded,
+  fileExpandedIds,
+  onFileToggleExpanded,
 }: WorkspaceSidebarProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFileId, setSelectedFileId] = useState<string>('');
+  const [searchOpen, setSearchOpen] = useState(false);
 
-  // Initialize with all parent threads expanded by default
-  const [expandedThreads, setExpandedThreads] = useState<Set<string>>(() => {
+  // Fallback to local state if parent doesn't provide expansion control
+  const [localExpandedThreads, setLocalExpandedThreads] = useState<Set<string>>(() => {
     const parentsWithChildren = threads.filter(t =>
-      threads.some(child => child.parentId === t.id)
+      threads.some(child => child.parentThreadId === t.id)
     );
     return new Set(parentsWithChildren.map(t => t.id));
   });
 
+  const [localExpandedFiles, setLocalExpandedFiles] = useState<Set<string>>(new Set());
+
+  // Use parent-controlled state if provided, otherwise use local state
+  const expandedThreads = threadExpandedIds ?? localExpandedThreads;
+  const expandedFiles = fileExpandedIds ?? localExpandedFiles;
+
   const filteredFiles = files.filter((file) =>
-    file.name.toLowerCase().includes(searchQuery.toLowerCase())
+    file.name?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const filteredThreads = threads.filter((thread) =>
-    thread.title.toLowerCase().includes(searchQuery.toLowerCase())
+    thread.title?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const threadTree = buildThreadTree(filteredThreads);
   const fileTreeNodes = convertToFileTreeNodes(filteredFiles);
 
   const toggleThreadExpanded = (threadId: string) => {
-    setExpandedThreads(prev => {
-      const next = new Set(prev);
-      if (next.has(threadId)) {
-        next.delete(threadId);
-      } else {
-        next.add(threadId);
-      }
-      return next;
-    });
+    if (onThreadToggleExpanded) {
+      // Use parent-controlled callback if provided
+      onThreadToggleExpanded(threadId);
+    } else {
+      // Otherwise update local state
+      setLocalExpandedThreads(prev => {
+        const next = new Set(prev);
+        if (next.has(threadId)) {
+          next.delete(threadId);
+        } else {
+          next.add(threadId);
+        }
+        return next;
+      });
+    }
+  };
+
+  const toggleFileExpanded = (fileId: string) => {
+    if (onFileToggleExpanded) {
+      // Use parent-controlled callback if provided
+      onFileToggleExpanded(fileId);
+    } else {
+      // Otherwise update local state
+      setLocalExpandedFiles(prev => {
+        const next = new Set(prev);
+        if (next.has(fileId)) {
+          next.delete(fileId);
+        } else {
+          next.add(fileId);
+        }
+        return next;
+      });
+    }
   };
 
   const handleFileSelect = (fileId: string) => {
@@ -446,77 +390,129 @@ export function WorkspaceSidebar({
         </button>
       </div>
 
-      {/* Search & Actions */}
-      <div className="p-3 border-b border-gray-200 dark:border-gray-700">
-        <input
-          type="text"
-          placeholder={`Search ${activeTab}...`}
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-        />
+      {/* Icon Button Row */}
+      <div className="p-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between flex-shrink-0">
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
+          {activeTab === 'threads' ? 'Threads' : 'Files'}
+        </h2>
+        <div className="flex gap-1">
+          {/* Search Icon Button */}
+          <button
+            onClick={() => setSearchOpen(!searchOpen)}
+            className="flex-shrink-0 text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors h-8 w-8 flex items-center justify-center"
+            title="Search"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </button>
 
-        {/* Action Buttons */}
-        <div className="mt-2 flex gap-2">
+          {/* New Button - Different per tab */}
           {activeTab === 'threads' && onCreateThread && (
             <button
               onClick={onCreateThread}
-              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 border border-gray-200 dark:border-gray-700 rounded-md hover:border-primary-300 dark:hover:border-primary-600 transition-colors"
-              aria-label="Create new thread"
+              className="flex-shrink-0 text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors h-8 w-8 flex items-center justify-center"
+              title="New Thread"
             >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
-              New Thread
             </button>
           )}
 
-          {activeTab === 'files' && (
-            <>
-              {onCreateFile && (
-                <button
-                  onClick={onCreateFile}
-                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800/50 rounded-md hover:bg-primary-100 dark:hover:bg-primary-900/30 transition-colors"
-                  aria-label="Create new file"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  New File
-                </button>
-              )}
+          {activeTab === 'files' && onCreateFile && (
+            <button
+              onClick={onCreateFile}
+              className="flex-shrink-0 text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors h-8 w-8 flex items-center justify-center"
+              title="New File"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+            </button>
+          )}
 
-              {onCreateFolder && (
-                <button
-                  onClick={onCreateFolder}
-                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50 rounded-md hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
-                  aria-label="Create new folder"
-                >
-                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z" />
-                  </svg>
-                  New Folder
-                </button>
-              )}
-            </>
+          {/* New Folder Button - Files tab only */}
+          {activeTab === 'files' && onCreateFolder && (
+            <button
+              onClick={onCreateFolder}
+              className="flex-shrink-0 text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors h-8 w-8 flex items-center justify-center"
+              title="New Folder"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+              </svg>
+            </button>
+          )}
+
+          {/* Upload Button - Files tab only */}
+          {activeTab === 'files' && onUploadFiles && (
+            <button
+              onClick={onUploadFiles}
+              className="flex-shrink-0 text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors h-8 w-8 flex items-center justify-center"
+              title="Upload Files"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+            </button>
           )}
         </div>
       </div>
+
+      {/* Collapsible Filter Input */}
+      {searchOpen && (
+        <div className="p-3 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              placeholder={`Search ${activeTab}...`}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="flex-1 px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+              autoFocus
+            />
+            <button
+              onClick={() => setSearchOpen(false)}
+              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-400"
+              title="Close search"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
         {activeTab === 'threads' && (
           <div className="p-2">
-            {threadTree.length === 0 ? (
+            {isLoadingThreads ? (
+              <div className="text-sm text-gray-500 dark:text-gray-400 text-center py-8">
+                <div className="flex items-center justify-center gap-2">
+                  <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <span>Loading threads...</span>
+                </div>
+              </div>
+            ) : threadTree.length === 0 ? (
               <div className="text-sm text-gray-500 dark:text-gray-400 text-center py-8">
                 No threads found
               </div>
             ) : (
-              <ThreadTreeNode
-                threads={threadTree as any}
+              <SharedThreadTreeNode
+                threads={threadTree as ThreadNode[]}
+                variant="icon"
                 expandedThreads={expandedThreads}
                 onThreadClick={onThreadClick}
                 onToggleExpanded={toggleThreadExpanded}
+                onCreateBranch={onThreadCreateBranch}
+                onRename={onThreadRename}
+                onDelete={onThreadDelete}
                 depth={0}
               />
             )}
@@ -525,7 +521,17 @@ export function WorkspaceSidebar({
 
         {activeTab === 'files' && (
           <div className="p-2">
-            {fileTreeNodes.length === 0 ? (
+            {isLoadingFiles ? (
+              <div className="text-sm text-gray-500 dark:text-gray-400 text-center py-8">
+                <div className="flex items-center justify-center gap-2">
+                  <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <span>Loading files...</span>
+                </div>
+              </div>
+            ) : fileTreeNodes.length === 0 ? (
               <div className="text-sm text-gray-500 dark:text-gray-400 text-center py-8">
                 No files found
               </div>
@@ -536,7 +542,20 @@ export function WorkspaceSidebar({
                   node={node}
                   selectedFile={selectedFileId}
                   onSelect={handleFileSelect}
+                  onRename={(id, name, type) => {
+                    if (type === 'file') onFileRename?.(id, name);
+                    if (type === 'folder') onFolderRename?.(id, name);
+                  }}
+                  onDelete={(id, name, type) => {
+                    if (type === 'file') onFileDelete?.(id, name);
+                    if (type === 'folder') onFolderDelete?.(id, name);
+                  }}
+                  onCreateSubfolder={onCreateSubfolder}
+                  onCreateFileInFolder={onCreateFileInFolder}
+                  onUploadToFolder={onUploadToFolder}
                   level={0}
+                  expandedIds={expandedFiles}
+                  onToggleExpanded={toggleFileExpanded}
                 />
               ))
             )}

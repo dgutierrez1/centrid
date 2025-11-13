@@ -1,5 +1,5 @@
 import React from 'react';
-import { cn } from '@centrid/shared/utils';
+import { cn } from '../../lib/utils';
 
 export interface WorkspaceHeaderProps {
   /** Sidebar toggle button click handler */

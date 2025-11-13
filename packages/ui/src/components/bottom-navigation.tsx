@@ -12,7 +12,7 @@
  */
 
 import React from 'react';
-import { cn } from '@centrid/shared/utils';
+import { cn } from '../lib/utils';
 
 export interface BottomNavigationTab {
   id: string;

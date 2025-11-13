@@ -19,9 +19,9 @@ export interface EmptyStateProps {
  * ```tsx
  * <EmptyState
  *   icon="FileText"
- *   title="No documents yet"
- *   description="Upload your first document to get started"
- *   actionLabel="Upload Document"
+ *   title="No files yet"
+ *   description="Upload your first file to get started"
+ *   actionLabel="Upload File"
  *   onAction={() => console.log('Upload clicked')}
  * />
  * ```

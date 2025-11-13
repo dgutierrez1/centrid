@@ -114,9 +114,6 @@ export type { ContextMenuProps, ContextMenuItem } from './context-menu';
 
 export { FolderIcon, DocumentIcon, MarkdownIcon, TextFileIcon, getFileIcon } from './icons';
 
-export { WorkspaceLayout } from './workspace-layout';
-export type { WorkspaceLayoutProps } from './workspace-layout';
-
 export { PanelDivider } from './panel-divider';
 export type { PanelDividerProps } from './panel-divider';
 

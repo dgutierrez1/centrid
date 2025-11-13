@@ -3,8 +3,8 @@
  * Pure presentational component with no business logic
  */
 
-import { DragEvent, ReactNode } from 'react';
-import { cn } from '@centrid/shared/utils';
+import type { DragEvent, ReactNode } from 'react';
+import { cn } from '../lib/utils';
 
 export interface DropZoneProps {
   /** Called when files are dropped */
@@ -44,7 +44,7 @@ export function DropZone({
 
     if (disabled) return;
 
-    const files = e.dataTransfer.files;
+    const {files} = e.dataTransfer;
     if (files.length > 0 && onDrop) {
       onDrop(files);
     }

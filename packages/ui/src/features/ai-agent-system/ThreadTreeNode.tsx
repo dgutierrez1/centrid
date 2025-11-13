@@ -1,5 +1,14 @@
 import React from 'react';
-import { cn } from '@centrid/shared/utils';
+import { cn } from '../../lib/utils';
+import { GitBranch, MoreVertical } from 'lucide-react';
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@centrid/ui/components';
 
 export interface ThreadNode {
   id: string;
@@ -7,7 +16,7 @@ export interface ThreadNode {
   artifactCount: number;
   lastActivity?: Date;
   isActive?: boolean;
-  parentId?: string | null;
+  parentThreadId?: string | null;
   depth?: number;
   children?: ThreadNode[];
 }
@@ -27,34 +36,15 @@ export interface ThreadTreeNodeProps {
   onCheckboxToggle?: (threadId: string) => void;
   /** Expand/collapse toggle handler */
   onToggleExpanded: (threadId: string) => void;
+  /** Create branch handler (icon variant) */
+  onCreateBranch?: (parentThreadId: string, parentTitle: string) => void;
+  /** Rename handler (icon variant) */
+  onRename?: (threadId: string, currentTitle: string) => void;
+  /** Delete handler (icon variant) */
+  onDelete?: (threadId: string, title: string) => void;
   /** Current depth level (for recursion) */
   depth?: number;
   className?: string;
-}
-
-// Icon component for thread type (DAG nodes) - icon variant only
-function ThreadIcon({ depth, hasChildren }: { depth: number; hasChildren: boolean }) {
-  // Root/Branch nodes - circular node icon representing DAG branch points
-  if (hasChildren) {
-    return (
-      <svg className="w-4 h-4 text-gray-400 dark:text-gray-500" fill="currentColor" viewBox="0 0 24 24">
-        <circle cx="12" cy="12" r="8" strokeWidth="2" stroke="currentColor" fill="none" />
-        <circle cx="12" cy="12" r="3" fill="currentColor" />
-      </svg>
-    );
-  }
-
-  // Leaf nodes - simple leaf icon representing terminal nodes in DAG
-  return (
-    <svg className="w-4 h-4 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M12 3c-1.5 4-4 6-7 7 3 1 5.5 3 7 7 1.5-4 4-6 7-7-3-1-5.5-3-7-7z"
-      />
-    </svg>
-  );
 }
 
 /**
@@ -78,6 +68,9 @@ export function ThreadTreeNode({
   onThreadClick,
   onCheckboxToggle,
   onToggleExpanded,
+  onCreateBranch,
+  onRename,
+  onDelete,
   depth = 0,
   className = '',
 }: ThreadTreeNodeProps) {
@@ -119,70 +112,111 @@ export function ThreadTreeNode({
             <div
               className={cn(
                 'w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors group relative z-10',
-                variant === 'icon' && 'cursor-pointer',
                 variant === 'icon' && thread.isActive
                   ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 shadow-sm'
-                  : variant === 'icon'
-                    ? 'text-gray-700 dark:text-gray-300 hover:bg-gray-100/50 dark:hover:bg-gray-800/50'
-                    : 'text-gray-700 dark:text-gray-300'
+                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100/50 dark:hover:bg-gray-800/50'
               )}
               style={{ paddingLeft: `${16 + paddingLeft}px` }}
-              onClick={() => {
-                if (variant === 'icon') {
-                  if (hasChildren) {
-                    onToggleExpanded(thread.id);
-                  }
-                  onThreadClick?.(thread.id);
-                }
-              }}
             >
-              {/* Checkbox variant: Expand/collapse chevron + checkbox */}
+              {/* 1. Chevron - Expand/Collapse (only if has children) */}
+              {hasChildren && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleExpanded(thread.id);
+                  }}
+                  className="flex-shrink-0 w-4 h-4 flex items-center justify-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  aria-label={isExpanded ? 'Collapse' : 'Expand'}
+                >
+                  <svg
+                    className={cn('w-3 h-3 transition-transform', isExpanded && 'rotate-90')}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              )}
+              {!hasChildren && <div className="w-4" />}
+
+              {/* 2. Checkbox (checkbox variant only) */}
               {variant === 'checkbox' && (
-                <>
-                  {/* Collapse/expand toggle */}
-                  {hasChildren ? (
-                    <button
-                      onClick={() => onToggleExpanded(thread.id)}
-                      className="shrink-0 w-4 h-4 flex items-center justify-center text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-                      aria-label={isExpanded ? 'Collapse' : 'Expand'}
-                    >
-                      <svg
-                        className={cn('w-3 h-3 transition-transform', isExpanded && 'rotate-90')}
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
-                    </button>
-                  ) : (
-                    <div className="w-4" /> // Spacer for alignment
-                  )}
-
-                  {/* Checkbox */}
-                  <input
-                    type="checkbox"
-                    checked={isSelected}
-                    onChange={() => onCheckboxToggle?.(thread.id)}
-                    className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded shrink-0"
-                  />
-                </>
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  onChange={() => onCheckboxToggle?.(thread.id)}
+                  className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded shrink-0"
+                />
               )}
 
-              {/* Icon variant: DAG node icon */}
-              {variant === 'icon' && (
-                <div className="flex-shrink-0">
-                  <ThreadIcon depth={depth} hasChildren={hasChildren} />
-                </div>
-              )}
-
-              {/* Content */}
-              <div className="flex-1 min-w-0">
+              {/* 5. Thread Content - Clickable area */}
+              <div
+                onClick={() => {
+                  if (variant === 'icon') {
+                    onThreadClick?.(thread.id);
+                  }
+                }}
+                className={cn('flex-1 min-w-0', variant === 'icon' && 'cursor-pointer')}
+              >
                 <div className="font-medium truncate">{thread.title}</div>
                 <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                   {thread.artifactCount} artifact{thread.artifactCount !== 1 ? 's' : ''}
                 </div>
               </div>
+
+              {/* 5. Branch Icon - Always visible (icon variant only) */}
+              {variant === 'icon' && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onCreateBranch?.(thread.id, thread.title);
+                  }}
+                  className="flex-shrink-0 text-gray-400 hover:text-primary-600 dark:hover:text-primary-500 transition-colors"
+                  title="Create branch"
+                >
+                  <GitBranch className="w-4 h-4 rotate-90" />
+                </button>
+              )}
+
+              {/* 6. Three-dot Menu - Hover-visible (icon variant only) */}
+              {variant === 'icon' && (onRename || onDelete) && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {onRename && (
+                      <DropdownMenuItem
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onRename(thread.id, thread.title);
+                        }}
+                      >
+                        Rename
+                      </DropdownMenuItem>
+                    )}
+                    {onRename && onDelete && <DropdownMenuSeparator />}
+                    {onDelete && (
+                      <DropdownMenuItem
+                        className="text-error-600 focus:text-error-600"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDelete(thread.id, thread.title);
+                        }}
+                      >
+                        Delete
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </div>
 
             {/* Children */}
@@ -196,6 +230,9 @@ export function ThreadTreeNode({
                   onThreadClick={onThreadClick}
                   onCheckboxToggle={onCheckboxToggle}
                   onToggleExpanded={onToggleExpanded}
+                  onCreateBranch={onCreateBranch}
+                  onRename={onRename}
+                  onDelete={onDelete}
                   depth={depth + 1}
                 />
               </div>

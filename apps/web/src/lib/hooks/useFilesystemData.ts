@@ -18,7 +18,12 @@
 
 import { useGraphQLQuery } from "@/lib/graphql/useGraphQLQuery";
 import { ListFoldersDocument, ListAllFilesDocument } from "@/types/graphql";
-import type { ListFoldersQuery, ListAllFilesQuery, File, Folder } from "@/types/graphql";
+import type {
+  ListFoldersQuery,
+  ListAllFilesQuery,
+  File,
+  Folder,
+} from "@/types/graphql";
 import { filesystemState, updateTreeData } from "@/lib/state/filesystem";
 import { openFile } from "@/lib/state/fileMetadata";
 

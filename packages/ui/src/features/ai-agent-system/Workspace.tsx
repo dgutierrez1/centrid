@@ -1,8 +1,9 @@
 import React from 'react';
-import { cn } from '@centrid/shared/utils';
+import { cn } from '../../lib/utils';
+import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { WorkspaceSidebar, type Thread, type File } from './WorkspaceSidebar';
 import { ThreadView, type ThreadViewProps } from './ThreadView';
-import { FileEditorPanel, type FileData } from './FileEditorPanel';
+import { FileEditorPanel, type FileData, type FileEditorPanelProps } from './FileEditorPanel';
 import { WorkspaceHeader } from './WorkspaceHeader';
 
 export interface WorkspaceProps extends Omit<ThreadViewProps, 'className'> {
@@ -16,14 +17,41 @@ export interface WorkspaceProps extends Omit<ThreadViewProps, 'className'> {
   onCreateThread?: () => void;
   onCreateFile?: () => void;
   onCreateFolder?: () => void;
+  onUploadFiles?: () => void;
+  onThreadCreateBranch?: (parentThreadId: string, parentTitle: string) => void;
+  onThreadRename?: (threadId: string, currentTitle: string) => void;
+  onThreadDelete?: (threadId: string, title: string) => void;
+  // File/folder operation handlers
+  onFileRename?: (fileId: string, fileName: string) => void;
+  onFileDelete?: (fileId: string, fileName: string) => void;
+  onFolderRename?: (folderId: string, folderName: string) => void;
+  onFolderDelete?: (folderId: string, folderName: string) => void;
+  onCreateSubfolder?: (parentFolderId: string, parentFolderName: string) => void;
+  onCreateFileInFolder?: (folderId: string, folderName: string) => void;
+  onUploadToFolder?: (folderId: string, folderName: string) => void;
   isSidebarOpen?: boolean;
   isLoadingThreads?: boolean;
+  isLoadingFiles?: boolean;
+  // Tree expansion state (parent-controlled)
+  threadExpandedIds?: Set<string>;
+  onThreadToggleExpanded?: (threadId: string) => void;
+  fileExpandedIds?: Set<string>;
+  onFileToggleExpanded?: (fileId: string) => void;
 
-  // File editor props
-  currentFile?: FileData | null;
+  // File editor props - accepts any file-like object
+  currentFile?: FileEditorPanelProps['file'];
   isFileEditorOpen: boolean;
+  isFileLoading?: boolean;
   onCloseFileEditor: () => void;
   onGoToSource?: (branchId: string, messageId: string) => void;
+  onFileChange?: (content: string) => void;
+  saveStatus?: 'idle' | 'saving' | 'saved' | 'error' | 'offline';
+  lastSavedAt?: Date | null;
+  hasUnsavedChanges?: boolean;
+  sidebarWidth?: number;
+  onSidebarResize?: (width: number) => void;
+  fileEditorWidth?: number;
+  onFileEditorResize?: (width: number) => void;
 
   // Header props
   onToggleSidebar?: () => void;
@@ -47,13 +75,39 @@ export function Workspace({
   onCreateThread,
   onCreateFile,
   onCreateFolder,
+  onUploadFiles,
+  onThreadCreateBranch,
+  onThreadRename,
+  onThreadDelete,
+  onFileRename,
+  onFileDelete,
+  onFolderRename,
+  onFolderDelete,
+  onCreateSubfolder,
+  onCreateFileInFolder,
+  onUploadToFolder,
   isSidebarOpen = false,
+  isLoadingThreads = false,
+  isLoadingFiles = false,
+  threadExpandedIds,
+  onThreadToggleExpanded,
+  fileExpandedIds,
+  onFileToggleExpanded,
 
   // File editor props
   currentFile,
   isFileEditorOpen,
+  isFileLoading = false,
   onCloseFileEditor,
   onGoToSource,
+  onFileChange,
+  saveStatus = 'idle',
+  lastSavedAt = null,
+  hasUnsavedChanges = false,
+  sidebarWidth = 20,
+  onSidebarResize,
+  fileEditorWidth = 30,
+  onFileEditorResize,
 
   // Header props
   onToggleSidebar,
@@ -130,68 +184,131 @@ export function Workspace({
                 onCreateThread={onCreateThread}
                 onCreateFile={onCreateFile}
                 onCreateFolder={onCreateFolder}
+                onUploadFiles={onUploadFiles}
+                onThreadCreateBranch={onThreadCreateBranch}
+                onThreadRename={onThreadRename}
+                onThreadDelete={onThreadDelete}
+                onFileRename={onFileRename}
+                onFileDelete={onFileDelete}
+                onFolderRename={onFolderRename}
+                onFolderDelete={onFolderDelete}
+                onCreateSubfolder={onCreateSubfolder}
+                onCreateFileInFolder={onCreateFileInFolder}
+                onUploadToFolder={onUploadToFolder}
+                isLoadingFiles={isLoadingFiles}
+                isLoadingThreads={isLoadingThreads}
+                threadExpandedIds={threadExpandedIds}
+                onThreadToggleExpanded={onThreadToggleExpanded}
+                fileExpandedIds={fileExpandedIds}
+                onFileToggleExpanded={onFileToggleExpanded}
               />
             </div>
           </>
         )}
 
-        {/* Desktop Sidebar - 20% */}
-        <div className="w-[20%] min-w-[240px] max-w-[320px] hidden md:block">
-          <WorkspaceSidebar
-            activeTab={sidebarActiveTab}
-            onTabChange={onSidebarTabChange}
-            files={files}
-            threads={threads}
-            onFileClick={onFileClick}
-            onThreadClick={onThreadClick}
-            onCreateThread={onCreateThread}
-            onCreateFile={onCreateFile}
-            onCreateFolder={onCreateFolder}
-          />
-        </div>
+        {/* Desktop Layout with Resizable Panels */}
+        <div className="hidden md:flex flex-1 overflow-hidden">
+          <PanelGroup direction="horizontal">
+            {/* Sidebar Panel - Resizable with localStorage */}
+            <Panel
+              size={sidebarWidth}
+              minSize={15}
+              maxSize={25}
+              onResize={(size) => {
+                onSidebarResize?.(size);
+              }}
+            >
+              <WorkspaceSidebar
+                activeTab={sidebarActiveTab}
+                onTabChange={onSidebarTabChange}
+                files={files}
+                threads={threads}
+                onFileClick={onFileClick}
+                onThreadClick={onThreadClick}
+                onCreateThread={onCreateThread}
+                onCreateFile={onCreateFile}
+                onCreateFolder={onCreateFolder}
+                onUploadFiles={onUploadFiles}
+                onThreadCreateBranch={onThreadCreateBranch}
+                onThreadRename={onThreadRename}
+                onThreadDelete={onThreadDelete}
+                onFileRename={onFileRename}
+                onFileDelete={onFileDelete}
+                onFolderRename={onFolderRename}
+                onFolderDelete={onFolderDelete}
+                onCreateSubfolder={onCreateSubfolder}
+                onCreateFileInFolder={onCreateFileInFolder}
+                onUploadToFolder={onUploadToFolder}
+                isLoadingFiles={isLoadingFiles}
+                isLoadingThreads={isLoadingThreads}
+                threadExpandedIds={threadExpandedIds}
+                onThreadToggleExpanded={onThreadToggleExpanded}
+                fileExpandedIds={fileExpandedIds}
+                onFileToggleExpanded={onFileToggleExpanded}
+              />
+            </Panel>
 
-        {/* ThreadView - 50% or 80% depending on file editor */}
-        <div className={cn(
-          'flex-1 transition-all duration-300',
-          isFileEditorOpen ? 'w-[50%]' : 'w-[80%]'
-        )}>
-          <ThreadView
-            currentBranch={currentBranch}
-            branches={branches}
-            messages={messages}
-            contextGroups={contextGroups}
-            messageText={messageText}
-            isStreaming={isStreaming}
-            isLoading={isLoading}
-            pendingToolCall={pendingToolCall}
-            showBranchSelector={false}
-            isContextExpanded={isContextExpanded}
-            onSelectBranch={onSelectBranch}
-            onToggleContextPanel={onToggleContextPanel}
-            onMessageChange={onMessageChange}
-            onSendMessage={onSendMessage}
-            onStopStreaming={onStopStreaming}
-            onApproveToolCall={onApproveToolCall}
-            onRejectToolCall={onRejectToolCall}
-            onBranchThread={onBranchThread}
-            onWidgetClick={onWidgetClick}
-            onAddReference={onAddReference}
-            onReferenceClick={onReferenceClick}
-            onRemoveReference={onRemoveReference}
-          />
-        </div>
+            <PanelResizeHandle className="w-1 bg-gray-200 dark:bg-gray-700 hover:bg-primary-500 transition-colors" />
 
-        {/* FileEditorPanel - 30% (slides in from right) */}
-        {isFileEditorOpen && currentFile && (
-          <div className="w-[30%] min-w-[400px] max-w-[600px] hidden md:block">
-            <FileEditorPanel
-              file={currentFile}
-              isOpen={isFileEditorOpen}
-              onClose={onCloseFileEditor}
-              onGoToSource={onGoToSource}
-            />
-          </div>
-        )}
+            {/* ThreadView Panel - Flexible (calculated size) */}
+            <Panel
+              size={isFileEditorOpen ? (100 - sidebarWidth - fileEditorWidth) : (100 - sidebarWidth)}
+              minSize={30}
+            >
+              <ThreadView
+                currentBranch={currentBranch}
+                branches={branches}
+                messages={messages}
+                contextGroups={contextGroups}
+                messageText={messageText}
+                isStreaming={isStreaming}
+                isLoading={isLoading}
+                pendingToolCall={pendingToolCall}
+                showBranchSelector={false}
+                isContextExpanded={isContextExpanded}
+                onSelectBranch={onSelectBranch}
+                onToggleContextPanel={onToggleContextPanel}
+                onMessageChange={onMessageChange}
+                onSendMessage={onSendMessage}
+                onStopStreaming={onStopStreaming}
+                onApproveToolCall={onApproveToolCall}
+                onRejectToolCall={onRejectToolCall}
+                onBranchThread={onBranchThread}
+                onWidgetClick={onWidgetClick}
+                onAddReference={onAddReference}
+                onReferenceClick={onReferenceClick}
+                onRemoveReference={onRemoveReference}
+              />
+            </Panel>
+
+            {/* FileEditorPanel - Resizable */}
+            {isFileEditorOpen && (
+              <>
+                <PanelResizeHandle className="w-1 bg-gray-200 dark:bg-gray-700 hover:bg-primary-500 transition-colors" />
+                <Panel
+                  size={fileEditorWidth}
+                  minSize={20}
+                  maxSize={50}
+                  onResize={(size) => {
+                    onFileEditorResize?.(size);
+                  }}
+                >
+                  <FileEditorPanel
+                    file={currentFile}
+                    isOpen={isFileEditorOpen}
+                    isLoading={isFileLoading}
+                    onClose={onCloseFileEditor}
+                    onGoToSource={onGoToSource}
+                    onFileChange={onFileChange}
+                    saveStatus={saveStatus}
+                    lastSavedAt={lastSavedAt}
+                    hasUnsavedChanges={hasUnsavedChanges}
+                  />
+                </Panel>
+              </>
+            )}
+          </PanelGroup>
+        </div>
       </div>
     </div>
   );

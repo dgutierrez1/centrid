@@ -10,7 +10,7 @@ import { Badge } from '../../components/badge';
 export interface Branch {
   id: string;
   title: string;
-  parentId: string | null;
+  parentThreadId: string | null;
   depth: number;
   artifactCount: number;
   lastActivity: Date;
@@ -56,9 +56,9 @@ export function BranchSelector({
         if (branch.depth === 0) return true;
         // Check if any ancestor is collapsed
         let checkBranch = branch;
-        while (checkBranch.parentId) {
-          if (collapsedBranchIds.has(checkBranch.parentId)) return false;
-          checkBranch = branches.find(b => b.id === checkBranch.parentId)!;
+        while (checkBranch.parentThreadId) {
+          if (collapsedBranchIds.has(checkBranch.parentThreadId)) return false;
+          checkBranch = branches.find(b => b.id === checkBranch.parentThreadId)!;
           if (!checkBranch) break;
         }
         return true;
@@ -72,10 +72,10 @@ export function BranchSelector({
         {visibleBranches.map((branch, index) => {
           const isSelected = selectedBranchIds.includes(branch.id);
           const isCollapsed = collapsedBranchIds.has(branch.id);
-          const hasChildren = branches.some(b => b.parentId === branch.id);
+          const hasChildren = branches.some(b => b.parentThreadId === branch.id);
           const indentPx = branch.depth * 24;
           const nextBranch = visibleBranches[index + 1];
-          const isLastChild = !nextBranch || nextBranch.depth <= branch.depth || nextBranch.parentId !== branch.parentId;
+          const isLastChild = !nextBranch || nextBranch.depth <= branch.depth || nextBranch.parentThreadId !== branch.parentThreadId;
 
           return (
             <div
@@ -194,7 +194,7 @@ export function BranchSelector({
 
           // Check if this is the last child of its parent
           const nextBranch = branches[index + 1];
-          const isLastChild = !nextBranch || nextBranch.depth <= branch.depth || nextBranch.parentId !== branch.parentId;
+          const isLastChild = !nextBranch || nextBranch.depth <= branch.depth || nextBranch.parentThreadId !== branch.parentThreadId;
 
           return (
             <DropdownMenuItem

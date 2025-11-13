@@ -5,7 +5,7 @@
 
 import { Progress } from './progress';
 import { Button } from './button';
-import { cn } from '@centrid/shared/utils';
+import { cn } from '../lib/utils';
 
 export interface UploadFileItem {
   id: string;

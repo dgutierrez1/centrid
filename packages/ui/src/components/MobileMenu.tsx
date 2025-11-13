@@ -8,7 +8,7 @@
 
 import * as React from 'react';
 import { Button } from './button';
-import { cn } from '@centrid/shared/utils';
+import { cn } from '../lib/utils';
 
 export interface MobileMenuProps {
   /** Whether the menu is open */

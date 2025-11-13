@@ -2,14 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '../../components/button';
 import { Input } from '../../components/input';
 import { Badge } from '../../components/badge';
-import { cn } from '@centrid/shared/utils';
+import { cn } from '../../lib/utils';
 import { ThreadTreeNode, type ThreadNode } from './ThreadTreeNode';
 
 // Branch interface for backward compatibility
 export interface Branch {
   id: string;
   title: string;
-  parentId: string | null;
+  parentThreadId: string | null;
   depth: number;
   artifactCount: number;
   lastActivity: Date;
@@ -51,7 +51,7 @@ function buildThreadTree(branches: Branch[]): ThreadNode[] {
       title: branch.title,
       artifactCount: branch.artifactCount,
       lastActivity: branch.lastActivity,
-      parentId: branch.parentId,
+      parentThreadId: branch.parentThreadId,
       children: [],
     });
   });
@@ -59,10 +59,10 @@ function buildThreadTree(branches: Branch[]): ThreadNode[] {
   // Second pass: build parent-child relationships
   branches.forEach(branch => {
     const node = branchMap.get(branch.id)!;
-    if (branch.parentId === null || branch.parentId === undefined) {
+    if (branch.parentThreadId === null || branch.parentThreadId === undefined) {
       rootNodes.push(node);
     } else {
-      const parent = branchMap.get(branch.parentId);
+      const parent = branchMap.get(branch.parentThreadId);
       if (parent) {
         if (!parent.children) parent.children = [];
         parent.children.push(node);
@@ -116,7 +116,7 @@ export function ConsolidateModal({
     const rootBranch: Branch = {
       id: currentBranch.id,
       title: currentBranch.title,
-      parentId: null,
+      parentThreadId: null,
       depth: 0,
       artifactCount: 0,
       lastActivity: new Date(),
@@ -136,7 +136,7 @@ export function ConsolidateModal({
       setSelectedBranchIds(new Set(childBranches.map((b) => b.id)));
       // Expand all parent nodes by default
       const parentsWithChildren = allBranches.filter(b =>
-        allBranches.some(child => child.parentId === b.id)
+        allBranches.some(child => child.parentThreadId === b.id)
       );
       setExpandedIds(new Set(parentsWithChildren.map(b => b.id)));
       setFileName('consolidated-analysis.md');
@@ -293,7 +293,7 @@ export function ConsolidateModal({
                 <div className="px-3 py-2 bg-gray-100 dark:bg-gray-800 rounded-md">
                   <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Full Path</div>
                   <div className="text-sm font-mono text-gray-900 dark:text-gray-100">
-                    {targetFolder.endsWith('/') ? targetFolder : targetFolder + '/'}{fileName}
+                    {targetFolder.endsWith('/') ? targetFolder : `${targetFolder  }/`}{fileName}
                   </div>
                 </div>
               </div>
@@ -397,7 +397,7 @@ export function ConsolidateModal({
                 <div className="px-3 py-2 bg-gray-100 dark:bg-gray-800 rounded-md">
                   <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Full Path</div>
                   <div className="text-sm font-mono text-gray-900 dark:text-gray-100">
-                    {targetFolder.endsWith('/') ? targetFolder : targetFolder + '/'}{fileName}
+                    {targetFolder.endsWith('/') ? targetFolder : `${targetFolder  }/`}{fileName}
                   </div>
                 </div>
               </div>
@@ -414,7 +414,7 @@ export function ConsolidateModal({
                   Consolidation Complete
                 </h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400 font-mono">
-                  {targetFolder.endsWith('/') ? targetFolder : targetFolder + '/'}{fileName}
+                  {targetFolder.endsWith('/') ? targetFolder : `${targetFolder  }/`}{fileName}
                 </p>
               </div>
             )}

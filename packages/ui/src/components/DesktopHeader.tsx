@@ -8,7 +8,7 @@
 
 import * as React from 'react';
 import { Button } from './button';
-import { cn } from '@centrid/shared/utils';
+import { cn } from '../lib/utils';
 
 export interface DesktopHeaderProps {
   /** App logo (first letter) */
@@ -87,7 +87,7 @@ export function DesktopHeader({
               )}
               onClick={() => onTabChange?.('documents')}
             >
-              Documents
+              Files
             </Button>
           </nav>
         </div>

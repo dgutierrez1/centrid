@@ -26,7 +26,7 @@ export function useLoadThread(threadId: string | undefined) {
   // Query returns instantly from SSR-prefetched cache
   const { loading, error } = useGraphQLQuery({
     query: GetThreadDocument,
-    variables: threadId ? { id: threadId } : { id: '' }, // Provide empty string if no threadId (query will be disabled anyway)
+    variables: threadId ? { id: threadId } : { id: "" }, // Provide empty string if no threadId (query will be disabled anyway)
     // Enable query only if threadId exists
     enabled: !!threadId,
     syncToState: (data) => {

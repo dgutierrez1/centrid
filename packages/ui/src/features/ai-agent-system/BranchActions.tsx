@@ -1,5 +1,5 @@
 import { Button } from '../../components/button';
-import { cn } from '@centrid/shared/utils';
+import { cn } from '../../lib/utils';
 
 export interface BranchActionsProps {
   currentBranch?: {

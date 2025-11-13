@@ -1,45 +1,50 @@
 import React from 'react';
-import { AgentStreamMessage, type AgentEvent } from './AgentStreamMessage';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeHighlight from 'rehype-highlight';
+import { ToolCallWidget } from './ToolCallWidget';
+import type { ContentBlockDTO, PendingToolCall } from '../../types/agent';
 
 export interface MessageProps {
+  id: string; // Unique message ID for React keys
   role: 'user' | 'assistant';
-  content?: string;
-  events?: AgentEvent[];
+  content?: ContentBlockDTO[] | string; // ContentBlockDTO[] for new messages, string for legacy/user messages
   timestamp: Date;
   isStreaming?: boolean;
   isRequestLoading?: boolean;
-  streamingBuffer?: string;
   className?: string;
+  // Tool approval props (optional - only present when tool requires approval)
+  pendingToolCall?: PendingToolCall;
+  onApproveToolCall?: () => void;
+  onRejectToolCall?: (reason?: string) => void;
 }
 
-export function Message({
+const MessageComponent = ({
   role,
   content,
-  events,
   timestamp,
   isStreaming = false,
-  streamingBuffer = '',
   className = '',
-}: MessageProps) {
-  const displayContent = isStreaming ? streamingBuffer : content;
+  pendingToolCall,
+  onApproveToolCall,
+  onRejectToolCall,
+}: MessageProps) => {
   const isUser = role === 'user';
 
-  // If this is an assistant message with events, use AgentStreamMessage
-  if (role === 'assistant' && events && events.length > 0) {
-    return (
-      <AgentStreamMessage
-        events={events}
-        timestamp={timestamp}
-        isStreaming={isStreaming}
-        autoCollapseOldTools={true}
-        className={className}
-      />
-    );
-  }
+  // Always use content (no streamingBuffer)
+  const displayContent = content;
+
+  // Backwards compatibility: wrap string content in text block
+  // Memoize to avoid recreating array on every render
+  const contentBlocks: ContentBlockDTO[] = React.useMemo(() => {
+    return Array.isArray(displayContent)
+      ? displayContent
+      : [{ type: 'text', text: displayContent || '' }];
+  }, [displayContent]);
 
   return (
     <div
-      className={`flex gap-3 animate-fade-in ${
+      className={`w-full flex gap-3 animate-fade-in ${
         isUser ? 'flex-row-reverse' : 'flex-row'
       } ${className}`}
       data-testid={`message-${role}`}
@@ -79,7 +84,7 @@ export function Message({
       <div className={`flex-1 min-w-0 ${isUser ? 'max-w-[80%]' : ''}`}>
         {/* Message Box with shimmer border when streaming (assistant only) */}
         <div
-          className={`rounded-lg relative ${
+          className={`w-full rounded-lg relative ${
             isUser
               ? 'bg-primary-50 dark:bg-primary-950/30 border border-primary-200 dark:border-primary-800/50 px-3 py-2'
               : isStreaming
@@ -91,18 +96,55 @@ export function Message({
             <div className="absolute inset-[3px] bg-white dark:bg-gray-800/50 rounded-lg" />
           )}
           <div className={!isUser && isStreaming ? 'relative z-10 px-3 py-2' : ''}>
-            <div
-              className={`prose prose-sm max-w-none ${
-                isUser
-                  ? 'prose-primary dark:prose-invert text-gray-900 dark:text-gray-100'
-                  : 'prose-gray dark:prose-invert text-gray-900 dark:text-gray-100'
-              }`}
-            >
-              {displayContent}
-              {!isUser && isStreaming && (
-                <span className="inline-block ml-1.5 w-[3px] h-5 bg-gradient-to-b from-primary-400 via-primary-500 to-primary-600 animate-pulse relative top-[3px] rounded-full shadow-lg shadow-primary-500/60 ring-1 ring-primary-300/30"></span>
-              )}
-            </div>
+            {/* Render content blocks */}
+            {contentBlocks.map((block, index) => {
+              if (block.type === 'text') {
+                return (
+                  <div
+                    key={index}
+                    className={`prose prose-sm max-w-none ${
+                      isUser
+                        ? 'prose-primary dark:prose-invert text-gray-900 dark:text-gray-100'
+                        : 'prose-gray dark:prose-invert text-gray-900 dark:text-gray-100'
+                    }`}
+                  >
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      rehypePlugins={[rehypeHighlight]}
+                    >
+                      {block.text}
+                    </ReactMarkdown>
+                    {/* Streaming cursor - only show on last text block when streaming */}
+                    {!isUser && isStreaming && index === contentBlocks.length - 1 && (
+                      <span className="inline-block ml-1.5 w-[3px] h-5 bg-gradient-to-b from-primary-400 via-primary-500 to-primary-600 animate-pulse relative top-[3px] rounded-full shadow-lg shadow-primary-500/60 ring-1 ring-primary-300/30"></span>
+                    )}
+                  </div>
+                );
+              }
+
+              if (block.type === 'tool_use') {
+                // Check if this tool block is the pending approval
+                const isPendingApproval =
+                  block.status === 'pending' &&
+                  pendingToolCall?.toolCallId === block.id;
+
+                return (
+                  <ToolCallWidget
+                    key={block.id}
+                    id={block.id}
+                    name={block.name}
+                    input={block.input}
+                    status={block.status}
+                    result={block.result}
+                    error={block.error}
+                    onApprove={isPendingApproval ? onApproveToolCall : undefined}
+                    onReject={isPendingApproval ? onRejectToolCall : undefined}
+                  />
+                );
+              }
+
+              return null;
+            })}
 
             {/* Timestamp - relocated to bottom right of message box */}
             {timestamp && (
@@ -117,4 +159,7 @@ export function Message({
       </div>
     </div>
   );
-}
+};
+
+// Export memoized component to prevent re-renders when props unchanged
+export const Message = React.memo(MessageComponent);

@@ -79,8 +79,8 @@ export function SaveIndicator({
   } else if (status === 'offline') {
     // Show offline state
     effectiveStatus = 'offline';
-  } else if (!isNewDocument && hasUnsavedChanges && status !== 'saving' && status !== 'error') {
-    // Show pending countdown (has unsaved changes, not currently saving/error)
+  } else if (!isNewDocument && hasUnsavedChanges) {
+    // Show pending countdown (has unsaved changes, not currently saving/error/offline)
     effectiveStatus = 'pending';
   } else if (status === 'saved' || (!hasUnsavedChanges && lastSavedAt !== null)) {
     // Show success cloud (explicitly saved or no unsaved changes)

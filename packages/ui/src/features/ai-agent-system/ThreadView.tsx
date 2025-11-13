@@ -1,9 +1,11 @@
 import React from 'react';
-import { BranchSelector, Branch } from './BranchSelector';
+import type { Branch } from './BranchSelector';
+import { BranchSelector } from './BranchSelector';
 import { MessageStream } from './MessageStream';
-import { MessageProps } from './Message';
-import { ContextPanel, ContextGroup } from './ContextPanel';
-import { ContextReferenceProps } from './ContextReference';
+import type { MessageProps } from './Message';
+import type { ContextGroup } from './ContextPanel';
+import { ContextPanel } from './ContextPanel';
+import type { ContextReferenceProps } from './ContextReference';
 import { ThreadInput } from './ThreadInput';
 import { ToolCallApproval } from './ToolCallApproval';
 
@@ -48,7 +50,7 @@ export interface ThreadViewProps {
   className?: string;
 }
 
-export function ThreadView({
+const ThreadViewComponent = ({
   currentBranch,
   branches,
   messages,
@@ -72,7 +74,7 @@ export function ThreadView({
   onReferenceClick,
   onRemoveReference,
   className = '',
-}: ThreadViewProps) {
+}: ThreadViewProps) => {
   // Show empty state when no thread is selected
   if (!currentBranch) {
     return (
@@ -97,7 +99,7 @@ export function ThreadView({
   }
 
   return (
-    <div className={`flex flex-col h-full bg-white dark:bg-gray-950 ${className}`} data-testid="thread-view">
+    <div className={`w-full flex flex-col h-full bg-white dark:bg-gray-950 ${className}`} data-testid="thread-view">
       {/* Header */}
       {showBranchSelector ? (
         <div className="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4">
@@ -163,8 +165,8 @@ export function ThreadView({
       )}
 
       {/* Message Stream */}
-      <div className="flex-1 overflow-hidden">
-        <MessageStream messages={messages} isStreaming={isStreaming} />
+      <div className="w-full flex-1 overflow-hidden">
+        <MessageStream messages={messages} isStreaming={isStreaming} isLoading={isLoading} />
       </div>
 
       {/* Tool Approval (if pending) */}
@@ -203,4 +205,7 @@ export function ThreadView({
       />
     </div>
   );
-}
+};
+
+// Export memoized component to prevent re-renders when props unchanged
+export const ThreadView = React.memo(ThreadViewComponent);

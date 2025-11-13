@@ -5,6 +5,9 @@ export type { MessageProps } from './Message';
 export { MessageStream } from './MessageStream';
 export type { MessageStreamProps } from './MessageStream';
 
+export { MessageStreamSkeleton } from './MessageStreamSkeleton';
+export type { MessageStreamSkeletonProps } from './MessageStreamSkeleton';
+
 export { ThreadInput } from './ThreadInput';
 export type { ThreadInputProps } from './ThreadInput';
 
@@ -23,6 +26,9 @@ export type { BranchTreeItemProps, BranchTreeNode } from './BranchTreeItem';
 export { ToolCallApproval } from './ToolCallApproval';
 export type { ToolCallApprovalProps } from './ToolCallApproval';
 
+export { ToolCallWidget } from './ToolCallWidget';
+export type { ToolCallWidgetProps } from './ToolCallWidget';
+
 export { ThreadView } from './ThreadView';
 export type { ThreadViewProps } from './ThreadView';
 
@@ -32,6 +38,9 @@ export type { WorkspaceSidebarProps, Thread, File } from './WorkspaceSidebar';
 export { FileEditorPanel } from './FileEditorPanel';
 export type { FileEditorPanelProps, FileData, Provenance } from './FileEditorPanel';
 
+export { FilePanelSkeleton } from './FilePanelSkeleton';
+export type { FilePanelSkeletonProps } from './FilePanelSkeleton';
+
 export { Workspace } from './Workspace';
 export type { WorkspaceProps } from './Workspace';
 
@@ -40,6 +49,12 @@ export type { ContextTypeWidgetProps } from './ContextTypeWidget';
 
 export { ExplicitContextWidget } from './ExplicitContextWidget';
 export type { ExplicitContextWidgetProps } from './ExplicitContextWidget';
+
+export { AddReferenceButton } from './AddReferenceButton';
+export type { AddReferenceButtonProps } from './AddReferenceButton';
+
+export { OverflowButton } from './OverflowButton';
+export type { OverflowButtonProps } from './OverflowButton';
 
 export { WorkspaceHeader } from './WorkspaceHeader';
 export type { WorkspaceHeaderProps } from './WorkspaceHeader';

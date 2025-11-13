@@ -73,7 +73,7 @@ export function FileTree({
 function Node({ node, style, dragHandle }: { node: NodeApi<FileSystemNode>; style: React.CSSProperties; dragHandle?: any }) {
   const nodeData = node.data;
   const isFolder = nodeData.type === 'folder';
-  const isSelected = node.isSelected;
+  const {isSelected} = node;
 
   return (
     <div

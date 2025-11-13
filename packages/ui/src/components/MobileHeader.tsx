@@ -8,7 +8,7 @@
 
 import * as React from 'react';
 import { Button } from './button';
-import { cn } from '@centrid/shared/utils';
+import { cn } from '../lib/utils';
 
 export interface MobileHeaderProps {
   /** App logo (first letter) */

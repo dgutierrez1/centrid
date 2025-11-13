@@ -117,7 +117,15 @@ const WorkspaceContentInner = () => {
     
     router.replace({ pathname: router.pathname, query }, undefined, { shallow: true });
   }, [urlFileId]);
-  
+
+  // Sync urlFileId state when URL changes (browser back/forward navigation)
+  useEffect(() => {
+    const fileIdFromUrl = (router.query.fileId as string) || null;
+    if (fileIdFromUrl !== urlFileId) {
+      setUrlFileIdState(fileIdFromUrl);
+    }
+  }, [router.query.fileId, urlFileId]);
+
   const setSidebarActiveTab = useCallback((tab: 'files' | 'threads') => {
     setSidebarActiveTabState(tab);
   }, []);
@@ -306,9 +314,11 @@ const WorkspaceContentInner = () => {
   }, [urlFileId, isFileEditorOpen]);
 
   // File hooks - get state from filesystem (already declared above)
+  // Use urlFileId as source of truth (not selectedFileId from Valtio)
+  // This fixes race condition where selectedFileId is null before query completes
+  const { isLoading: isLoadingFile } = useLoadFile(urlFileId);
   const selectedFileId = filesystemSnap.selectedFile?.id || null;
   const currentFile = filesystemSnap.selectedFile;
-  const { isLoading: isLoadingFile } = useLoadFile(selectedFileId);
   const { updateFile, isSaving } = useUpdateFile();
 
   // Tool approval hook

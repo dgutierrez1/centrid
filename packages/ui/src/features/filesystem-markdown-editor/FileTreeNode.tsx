@@ -3,7 +3,7 @@
  * Recursive component for displaying file/folder hierarchy
  */
 
-import { useState } from 'react';
+import React from 'react';
 import {
   Button,
   DropdownMenu,
@@ -42,12 +42,29 @@ export interface FileTreeNodeProps {
   onCreateFileInFolder?: (folderId: string, folderName: string) => void;
   onUploadToFolder?: (folderId: string, folderName: string) => void;
   level?: number;
+  // Parent-controlled expansion state
+  expandedIds?: Set<string>;
+  onToggleExpanded?: (id: string) => void;
 }
 
-export function FileTreeNode({ node, selectedFile, onSelect, onRename, onDelete, onCreateSubfolder, onCreateFileInFolder, onUploadToFolder, level = 0 }: FileTreeNodeProps) {
-  const [expanded, setExpanded] = useState(node.expanded ?? false);
+export function FileTreeNode({
+  node,
+  selectedFile,
+  onSelect,
+  onRename,
+  onDelete,
+  onCreateSubfolder,
+  onCreateFileInFolder,
+  onUploadToFolder,
+  level = 0,
+  expandedIds,
+  onToggleExpanded
+}: FileTreeNodeProps) {
   const isFolder = node.type === 'folder';
   const isSelected = node.id === selectedFile;
+
+  // Use parent-controlled state if provided, otherwise fall back to node.expanded
+  const expanded = expandedIds ? expandedIds.has(node.id) : (node.expanded ?? false);
 
   return (
     <div>
@@ -60,7 +77,10 @@ export function FileTreeNode({ node, selectedFile, onSelect, onRename, onDelete,
         style={{ paddingLeft: `${level * 16 + 8}px` }}
         onClick={() => {
           if (isFolder) {
-            setExpanded(!expanded);
+            // Use parent-controlled toggle if provided, otherwise no-op (backward compatible)
+            if (onToggleExpanded) {
+              onToggleExpanded(node.id);
+            }
           } else {
             onSelect(node.id);
           }
@@ -158,6 +178,8 @@ export function FileTreeNode({ node, selectedFile, onSelect, onRename, onDelete,
               onCreateFileInFolder={onCreateFileInFolder}
               onUploadToFolder={onUploadToFolder}
               level={level + 1}
+              expandedIds={expandedIds}
+              onToggleExpanded={onToggleExpanded}
             />
           ))}
         </div>

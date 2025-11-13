@@ -3,7 +3,8 @@
  * Pure UI component with no business logic - all state and handlers passed as props
  */
 
-import React, { ReactNode } from 'react';
+import type { ReactNode } from 'react';
+import React from 'react';
 import {
   Button,
   Dialog,
@@ -15,7 +16,7 @@ import {
   ScrollArea,
 } from '@centrid/ui/components';
 import { UploadProgress, type UploadFileItem } from '@centrid/ui/components';
-import { cn } from '@centrid/shared/utils';
+import { cn } from '../../lib/utils';
 
 export interface FileUploadModalProps {
   /** Whether the modal is open */
@@ -97,7 +98,7 @@ export function FileUploadModal({
   const inputId = React.useMemo(() => `file-upload-${Math.random().toString(36).substr(2, 9)}`, []);
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
+    const {files} = e.target;
     console.log('[FileUploadModal] File input changed', { filesCount: files?.length });
     if (files && files.length > 0 && onFilesSelected) {
       onFilesSelected(files);
@@ -146,7 +147,7 @@ export function FileUploadModal({
               onDrop={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                const files = e.dataTransfer.files;
+                const {files} = e.dataTransfer;
                 console.log('[FileUploadModal] Files dropped', { filesCount: files.length });
                 if (files.length > 0 && onFilesSelected) {
                   onFilesSelected(files);

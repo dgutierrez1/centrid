@@ -1,7 +1,9 @@
 import React from 'react';
-import { cn } from '@centrid/shared/utils';
-import { MarkdownEditor } from '@centrid/ui/components';
+import { cn } from '../../lib/utils';
+import { MarkdownEditor, SaveIndicator, type SaveStatus } from '@centrid/ui/components';
+import { FilePanelSkeleton } from './FilePanelSkeleton';
 
+// Legacy interfaces kept for backwards compatibility
 export interface Provenance {
   createdAt: Date;
   createdBy: 'agent' | 'user';
@@ -17,17 +19,22 @@ export interface FileData {
   id: string;
   name: string;
   content: string;
-  provenance: Provenance | null;
+  provenance?: Provenance | null;
 }
 
+// Accept any file-like object with required fields
 export interface FileEditorPanelProps {
-  file: FileData;
+  file?: (Pick<FileData, 'id' | 'name' | 'content'> & Partial<FileData>) | null;
   isOpen: boolean;
+  isLoading?: boolean;
   onClose: () => void;
   onGoToSource?: (branchId: string, messageId: string) => void;
   onFileChange?: (content: string) => void;
   onDelete?: () => Promise<void>;
   isDeleting?: boolean;
+  saveStatus?: SaveStatus;
+  lastSavedAt?: Date | null;
+  hasUnsavedChanges?: boolean;
   className?: string;
 }
 
@@ -47,15 +54,32 @@ function formatTimeAgo(date: Date): string {
 export function FileEditorPanel({
   file,
   isOpen,
+  isLoading = false,
   onClose,
   onGoToSource,
   onFileChange,
+  saveStatus = 'idle',
+  lastSavedAt = null,
+  hasUnsavedChanges = false,
   className,
 }: FileEditorPanelProps) {
   if (!isOpen) return null;
 
+  // Show skeleton while loading
+  if (isLoading || !file) {
+    return <FilePanelSkeleton className={className} />;
+  }
+
+  // Shimmer wrapper when saving
+  const isSaving = saveStatus === 'saving';
+  const contentWrapperClasses = cn(
+    'flex flex-col h-full bg-white dark:bg-gray-800',
+    isSaving ? 'border-l-0' : 'border-l border-gray-200 dark:border-gray-700',
+    className
+  );
+
   return (
-    <div className={cn('flex flex-col h-full bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700', className)}>
+    <div className={cn('relative', contentWrapperClasses)}>
       {/* Provenance Header */}
       {file.provenance && (
         <div className="border-b border-gray-200 dark:border-gray-700 p-4 bg-blue-50 dark:bg-blue-900/20">
@@ -95,12 +119,20 @@ export function FileEditorPanel({
 
       {/* File Header */}
       <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white truncate">
-          {file.name}
-        </h2>
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white truncate">
+            {file.name}
+          </h2>
+          <SaveIndicator
+            status={saveStatus}
+            lastSavedAt={lastSavedAt}
+            hasUnsavedChanges={hasUnsavedChanges}
+            debounceMs={3000}
+          />
+        </div>
         <button
           onClick={onClose}
-          className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+          className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors ml-2"
           aria-label="Close file editor"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -111,26 +143,20 @@ export function FileEditorPanel({
 
       {/* File Content */}
       <div className="flex-1 overflow-hidden bg-white dark:bg-gray-900">
-        {file.name.endsWith('.md') ? (
-          <MarkdownEditor
-            content={file.content}
-            onChange={onFileChange}
-            readOnly={false}
-            showToolbar={true}
-            className="h-full"
-            placeholder="Start writing..."
-          />
-        ) : (
-          <div className="h-full overflow-y-auto p-6">
-            <textarea
-              value={file.content}
-              onChange={(e) => onFileChange?.(e.target.value)}
-              className="w-full h-full text-sm text-gray-800 dark:text-gray-200 bg-transparent font-mono border-none focus:outline-none resize-none"
-              placeholder="Start typing..."
-            />
-          </div>
-        )}
+        <MarkdownEditor
+          content={file.content}
+          onChange={onFileChange}
+          readOnly={false}
+          showToolbar={true}
+          className="h-full"
+          placeholder="Start writing..."
+        />
       </div>
+
+      {/* Shimmer border when saving - 1px left border animation */}
+      {isSaving && (
+        <div className="absolute inset-y-0 left-0 w-[1px] bg-gradient-to-b from-primary-600/30 via-primary-500 to-primary-600/30 dark:from-primary-400/30 dark:via-primary-300 dark:to-primary-400/30 animate-shimmer bg-[length:100%_200%]" />
+      )}
     </div>
   );
 }
