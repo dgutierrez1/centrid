@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useSnapshot } from 'valtio';
 import { filesystemState } from '@/lib/state/filesystem';
 import { editorState } from '@/lib/state/editor';
-import { documentMetadataState } from '@/lib/state/documentMetadata';
+import { fileMetadataState } from '@/lib/state/fileMetadata';
 import type { FileTreeNodeData } from '@centrid/ui/features/filesystem-markdown-editor';
 
 /**
@@ -12,7 +12,7 @@ import type { FileTreeNodeData } from '@centrid/ui/features/filesystem-markdown-
 export function useWorkspaceData() {
   const filesystem = useSnapshot(filesystemState);
   const editor = useSnapshot(editorState);
-  const documentMetadata = useSnapshot(documentMetadataState);
+  const fileMetadata = useSnapshot(fileMetadataState);
   const [user, setUser] = useState({ initials: 'U', name: 'User' });
 
   // Convert filesystem state to file tree format expected by DesktopWorkspace
@@ -106,7 +106,9 @@ export function useWorkspaceData() {
 
   // Get metadata for current file (for save status)
   // IMPORTANT: Access through snapshot for Valtio reactivity
-  const currentFileMetadata = currentDocId ? documentMetadata.documents[currentDocId] : undefined;
+  const currentFileMetadata = (currentDocId && fileMetadata.currentFile?.fileId === currentDocId)
+    ? fileMetadata.currentFile
+    : undefined;
 
   // Calculate hasUnsavedChanges by comparing editor content with metadata
   const hasUnsavedChanges = currentDocId && currentFileMetadata

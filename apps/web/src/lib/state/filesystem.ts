@@ -5,10 +5,6 @@
  */
 
 import { proxy } from "valtio";
-import {
-  initDocumentMetadata,
-  clearDocumentMetadata,
-} from "./documentMetadata";
 import type { File, Folder } from "@/types/graphql";
 import type { FileSystemNode } from "@/lib/types/ui";
 
@@ -184,22 +180,17 @@ export function addFile(file: File) {
 
   filesystemState.files.push(file);
   updateTreeData();
-
-  // Automatically initialize metadata when file enters state
-  // initDocumentMetadata is idempotent (defensive)
-  // NOTE: version is NOT stored in metadata - read from File.version instead
-  initDocumentMetadata(file.id || '', file.content || "");
-  console.log(
-    `[Filesystem] Added file ${file.id} and initialized metadata`
-  );
+  console.log(`[Filesystem] Added file ${file.id}`);
 }
 
 /**
- * Update file in state (from UPDATE real-time event)
+ * Update file in state (from UPDATE real-time event or GraphQL fetch)
+ * Uses upsert pattern: updates existing file or adds new one
  */
 export function updateFile(fileId: string, updates: Partial<File>) {
   const index = filesystemState.files.findIndex((f) => f.id === fileId);
   if (index !== -1) {
+    // File exists, update it
     filesystemState.files[index] = {
       ...filesystemState.files[index],
       ...updates,
@@ -214,6 +205,16 @@ export function updateFile(fileId: string, updates: Partial<File>) {
     }
 
     updateTreeData();
+    console.log(`[Filesystem] Updated file ${fileId}`);
+  } else {
+    // File doesn't exist, add it if we have a complete file object
+    // This handles the case where a file is fetched individually before being in the list
+    if (updates.id) {
+      console.log(`[Filesystem] File ${fileId} not found, adding as new file`);
+      addFile(updates as File);
+    } else {
+      console.warn(`[Filesystem] Cannot add file ${fileId}: missing id field`);
+    }
   }
 }
 
@@ -231,13 +232,8 @@ export function removeFile(fileId: string) {
     filesystemState.selectedFile = null;
   }
 
-  // CRITICAL: Clean up metadata to prevent memory leaks
-  clearDocumentMetadata(fileId);
-  console.log(
-    `[Filesystem] Removed file ${fileId} and cleaned up metadata`
-  );
-
   updateTreeData();
+  console.log(`[Filesystem] Removed file ${fileId}`);
 }
 
 /**

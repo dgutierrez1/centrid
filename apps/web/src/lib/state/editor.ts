@@ -2,7 +2,7 @@
  * Editor State (Valtio)
  *
  * Manages ONLY UI state for the markdown editor
- * Document metadata (versions, save status) is managed in documentMetadata.ts
+ * File metadata (versions, save status) is managed in fileMetadata.ts
  */
 
 import { proxy } from 'valtio';

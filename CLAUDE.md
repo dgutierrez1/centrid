@@ -29,12 +29,13 @@ Claude can read pattern files on-demand for full details or use pattern loading 
 
 <!-- AUTO-GENERATED: DO NOT EDIT -->
 <!-- Source: .specify/docs/ -->
-<!-- Last synced: 2025-11-12T16:40:24.624Z -->
+<!-- Last synced: 2025-11-12T17:45:00.000Z -->
 <!-- To update: Edit doc files, then run: npm run sync-docs -->
 
 | Pattern | What | Summary | File |
 |---------|------|---------|------|
 | Auth Token Store Pattern | Every API call was doing `await supabase.auth.getSession()` = 5ms latency overhead per request. | Synchronous token cache eliminates 5ms async overhead per API call | [View](.specify/docs/frontend-token-store.md) |
+| Clean Code Standards | Code quality standards for functions, naming, TypeScript usage, and code organization | Function size, naming, complexity, and TypeScript strictness rules for maintainable code | [View](.specify/docs/development-clean-code.md) |
 | Database Schema Pattern | Database schema defined in `apps/api/src/db/schema.ts` using Drizzle ORM with MVP-first approach—changes pushed directly to remote Supabase without migrations during MVP phase. | Drizzle ORM schema with MVP-first approach and remote-only push workflow | [View](.specify/docs/data-database-schema.md) |
 | Design Iteration Workflow | Use `apps/design-system` to design and iterate on UI before implementing in `apps/web`, with Playwright MCP for automated screenshot generation and parallel browser testing. | Design-first workflow using design-system app with Playwright automation for rapid iteration | [View](.specify/docs/design-iteration-workflow.md) |
 | Edge Functions Pattern | All Edge Function code lives in `apps/api/src/functions/` (single source of truth). Each function must be declared in `apps/api/supabase/config.toml` with a custom entrypoint and import map configuration. | Deploy-to-remote workflow for Supabase Edge Functions with custom entrypoint configuration | [View](.specify/docs/backend-edge-functions.md) |

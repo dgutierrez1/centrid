@@ -20,7 +20,7 @@ import { useGraphQLQuery } from "@/lib/graphql/useGraphQLQuery";
 import { ListFoldersDocument, ListAllFilesDocument } from "@/types/graphql";
 import type { ListFoldersQuery, ListAllFilesQuery, File, Folder } from "@/types/graphql";
 import { filesystemState, updateTreeData } from "@/lib/state/filesystem";
-import { initDocumentMetadata } from "@/lib/state/documentMetadata";
+import { openFile } from "@/lib/state/fileMetadata";
 
 export interface UseFilesystemDataResult {
   /** Data is being fetched */
@@ -64,13 +64,8 @@ export function useFilesystemData(enabled = true): UseFilesystemDataResult {
         // Always sync to ensure latest data with name field
         filesystemState.files = data.files as File[];
 
-        // Initialize metadata for all loaded files
-        // NOTE: version is NOT stored in metadata - read from File.version instead
-        data.files.forEach((file) => {
-          if (file.id) {
-            initDocumentMetadata(file.id, file.content || "");
-          }
-        });
+        // Metadata is now initialized per-file when opened (not for all files upfront)
+        // See fileMetadataState in fileMetadata.ts - only tracks currently opened file
 
         updateTreeData();
       }

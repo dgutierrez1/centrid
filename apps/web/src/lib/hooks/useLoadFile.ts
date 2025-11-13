@@ -7,22 +7,14 @@ import { GetFileDocument } from '@/types/graphql'
 export function useLoadFile(fileId: string | null) {
   const filesystemSnap = useSnapshot(filesystemState)
 
-  // Check filesystemState first for optimistically-created files
+  // Select file immediately when fileId changes (optimistic selection for instant UX)
   useEffect(() => {
     if (fileId) {
-      // Look for the file in filesystem state (includes optimistic files)
-      // Read snapshot data inside effect - always fresh on each run
-      const existingFile = filesystemSnap.files.find(f => f.id === fileId)
-
-      if (existingFile && filesystemSnap.selectedFile?.id !== fileId) {
-        // File found in filesystem state - select it immediately
-        selectFile(fileId)
-      } else if (!existingFile && filesystemSnap.selectedFile?.id !== fileId) {
-        // File not found in filesystem state - clear selection
-        clearFileSelection()
-      }
+      // Always call selectFile - it's idempotent and ensures selectedFile stays in sync
+      // This prevents race conditions with Valtio snapshots captured at render time
+      selectFile(fileId)
     }
-  }, [fileId])  // Only fileId in deps - snapshot is always fresh when effect runs
+  }, [fileId])
 
   const { loading, error, refetch } = useGraphQLQuery({
     query: GetFileDocument,
@@ -30,8 +22,10 @@ export function useLoadFile(fileId: string | null) {
     enabled: !!fileId, // Only query when fileId exists
     syncToState: (data) => {
       if (data?.file) {
-        // Update filesystem state with loaded file data
+        // Update filesystem state with loaded file data (uses upsert - adds if not exists)
         updateFile(fileId!, data.file)
+        // File is already selected by the effect above, just ensure state is fresh
+        selectFile(fileId!)
       }
     },
     requestPolicy: !fileId ? undefined : 'network-only', // Always fetch fresh to prevent stale cache

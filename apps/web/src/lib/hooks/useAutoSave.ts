@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useSnapshot } from 'valtio';
 import { editorState } from '../state/editor';
-import { getDocumentMetadata } from '../state/documentMetadata';
+import { fileMetadataState } from '../state/fileMetadata';
 import { useFileSystem } from '../contexts/filesystem.context';
 
 export interface UseAutoSaveOptions {
@@ -14,11 +14,15 @@ export interface UseAutoSaveOptions {
  * Auto-save hook with debounced saving
  * Automatically enqueues saves after 5 seconds of inactivity
  * Provider handles actual save execution, retries, and metadata updates
+ *
+ * NOTE: This hook is DEAD CODE - not imported anywhere except archived components
+ * TODO: Move to _archived-components or delete
  */
 export function useAutoSave({ documentId, onSave, debounceMs = 5000 }: UseAutoSaveOptions) {
   const snap = useSnapshot(editorState);
+  const metadataSnap = useSnapshot(fileMetadataState);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const { getCurrentDocumentVersion } = useFileSystem();
+  const { getCurrentFileVersion } = useFileSystem();
 
   // Debounced save effect
   useEffect(() => {
@@ -27,9 +31,9 @@ export function useAutoSave({ documentId, onSave, debounceMs = 5000 }: UseAutoSa
       return;
     }
 
-    const metadata = getDocumentMetadata(documentId);
-    if (!metadata) {
-      return; // Metadata not initialized yet
+    const metadata = metadataSnap.currentFile;
+    if (!metadata || metadata.fileId !== documentId) {
+      return; // Metadata not initialized yet or different file
     }
 
     // Check if content has changed since last save
@@ -38,8 +42,8 @@ export function useAutoSave({ documentId, onSave, debounceMs = 5000 }: UseAutoSa
       return; // No changes to save
     }
 
-    // Don't queue another save if one is already pending/saving
-    if (metadata.pendingSave) {
+    // Don't queue another save if one is already saving
+    if (metadata.saveStatus === 'saving') {
       return;
     }
 
@@ -50,10 +54,10 @@ export function useAutoSave({ documentId, onSave, debounceMs = 5000 }: UseAutoSa
 
     // Set new timeout for debounced save
     timeoutRef.current = setTimeout(() => {
-      const currentMetadata = getDocumentMetadata(documentId);
-      if (currentMetadata) {
-        // Read version from Document (single source of truth)
-        const currentVersion = getCurrentDocumentVersion(documentId);
+      const currentMetadata = metadataSnap.currentFile;
+      if (currentMetadata && currentMetadata.fileId === documentId) {
+        // Read version from File (single source of truth)
+        const currentVersion = getCurrentFileVersion(documentId);
         onSave(documentId, snap.content, currentVersion);
       }
     }, debounceMs);
@@ -63,7 +67,7 @@ export function useAutoSave({ documentId, onSave, debounceMs = 5000 }: UseAutoSa
         clearTimeout(timeoutRef.current);
       }
     };
-  }, [snap.content, snap.currentDocumentId, documentId, onSave, debounceMs, getCurrentDocumentVersion]);
+  }, [snap.content, snap.currentDocumentId, documentId, onSave, debounceMs, getCurrentFileVersion, metadataSnap.currentFile]);
 }
 
 /**

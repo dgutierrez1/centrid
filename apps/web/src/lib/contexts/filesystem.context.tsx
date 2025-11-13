@@ -13,7 +13,8 @@ import { createContext, useContext, useEffect, useState, ReactNode, useCallback,
 import { toast } from 'react-hot-toast';
 import { createClient } from '@/lib/supabase/client';
 import { filesystemState, buildFileSystemTree, addFolder, updateFolder, removeFolder, addFile, updateFile, removeFile } from '@/lib/state/filesystem';
-import { initDocumentMetadata, markSaveStarted, markSaveSuccess, markSaveError, markSaveConflict, getDocumentMetadata, clearDocumentMetadata } from '@/lib/state/documentMetadata';
+import { syncRealtimeUpdate } from '@/lib/state/fileMetadata';
+import { aiAgentState } from '@/lib/state/aiAgentState';
 import { editorState, clearEditor } from '@/lib/state/editor';
 import { useFilesystemData } from '@/lib/hooks/useFilesystemData';
 import { useRealtimeSubscriptions } from '@/lib/realtime';
@@ -219,6 +220,18 @@ export function FileSystemProvider({ children }: FileSystemProviderProps) {
           if (payload.new.version === undefined || payload.new.version === null) {
             console.error('[FileSystemContext] Realtime UPDATE missing version field:', payload.new.id);
           }
+
+          // Sync metadata if this is the currently opened file
+          const isCurrentFile = aiAgentState.currentFile?.id === payload.new.id;
+          if (isCurrentFile && payload.new.content !== undefined) {
+            const currentEditorContent = aiAgentState.currentFile?.content || '';
+            const result = syncRealtimeUpdate(payload.new.content, currentEditorContent);
+
+            if (result.hasConflict) {
+              toast.error(`Conflict detected: ${payload.new.name || 'File'} was modified by another user`);
+            }
+          }
+
           updateFile(payload.new.id, payload.new as Partial<File>);
         } else if (payload.eventType === 'DELETE' && payload.old) {
           const fileId = payload.old.id;

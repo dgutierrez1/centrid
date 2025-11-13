@@ -13,6 +13,8 @@ import { DeleteConfirmationModal } from '@/components/filesystem/DeleteConfirmat
 import { FileSystemProvider } from '@/lib/contexts/filesystem.context';
 import { aiAgentState, aiAgentActions } from '@/lib/state/aiAgentState';
 import { filesystemState } from '@/lib/state/filesystem';
+import { fileMetadataState, openFile, closeFile } from '@/lib/state/fileMetadata';
+import { useSaveCurrentFile } from '@/lib/hooks/useSaveCurrentFile';
 import type { FileSystemNode } from '@/lib/types/ui';
 import { useCreateBranch } from '@/lib/hooks/useCreateBranch';
 import { useLoadThread } from '@/lib/hooks/useLoadThread';
@@ -69,6 +71,7 @@ const WorkspaceContentInner = () => {
   const router = useRouter();
   const snap = useSnapshot(aiAgentState);
   const filesystemSnap = useSnapshot(filesystemState);
+  const metadataSnap = useSnapshot(fileMetadataState);
   const { user } = useAuthContext();
 
 
@@ -351,55 +354,25 @@ const WorkspaceContentInner = () => {
   // Agent file operations hook
   const { createFile: createAgentFile, isCreating: isCreatingAgentFile } = useCreateAgentFile();
 
-  // Auto-save state
-  const [saveTimeout, setSaveTimeout] = useState<NodeJS.Timeout | null>(null);
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  // Save coordination hook (state lives in fileMetadata)
+  const { saveFile, handleContentChange, saveAndThen, clearSaveTimeout, hasUnsavedChanges: checkHasUnsavedChanges } = useSaveCurrentFile({
+    onSave: async (fileId: string, content: string) => {
+      await updateFile(fileId, content);
+    },
+    autoSaveDelay: 3000,
+  });
 
-  // Auto-save logic
+  // Auto-save logic using centralized hook
   const handleFileChange = useCallback((content: string) => {
     if (!currentFile || !selectedFileId) return;
+    handleContentChange(selectedFileId, content);
+  }, [currentFile, selectedFileId, handleContentChange]);
 
-    // Optimistic update handled by useUpdateFile mutation hook
-    // No need to manually update state here
-
-    // Set unsaved changes flag
-    setHasUnsavedChanges(true);
-    setSaveStatus('idle');
-
-    // Clear existing timeout
-    if (saveTimeout) {
-      clearTimeout(saveTimeout);
-    }
-
-    // Set new timeout for auto-save (3 seconds)
-    const timeout = setTimeout(async () => {
-      if (!selectedFileId) return;
-
-      setSaveStatus('saving');
-      try {
-        await updateFile(selectedFileId, content);
-        setSaveStatus('saved');
-        setLastSavedAt(new Date());
-        setHasUnsavedChanges(false);
-      } catch (error) {
-        setSaveStatus('error');
-        console.error('Failed to save file:', error);
-      }
-    }, 3000);
-
-    setSaveTimeout(timeout);
-  }, [currentFile, selectedFileId, saveTimeout, updateFile]);
-
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (saveTimeout) {
-        clearTimeout(saveTimeout);
-      }
-    };
-  }, [saveTimeout]);
+  // Compute hasUnsavedChanges for UI and beforeunload
+  const hasUnsavedChanges = useMemo(() => {
+    if (!currentFile || !selectedFileId) return false;
+    return checkHasUnsavedChanges(selectedFileId, currentFile.content || '');
+  }, [currentFile, selectedFileId, checkHasUnsavedChanges]);
 
   // Warn user before closing tab/window with unsaved changes
   useEffect(() => {
@@ -506,14 +479,23 @@ const WorkspaceContentInner = () => {
     }
   }, [urlFileId, files]);
 
+  // Sync file opening/closing with metadata state
+  useEffect(() => {
+    if (currentFile && selectedFileId) {
+      // File opened - initialize metadata (only if not already tracking this file)
+      if (metadataSnap.currentFile?.fileId !== selectedFileId) {
+        openFile(selectedFileId, currentFile.content || '');
+      }
+    } else if (!currentFile && metadataSnap.currentFile) {
+      // File closed - clear metadata
+      closeFile();
+    }
+  }, [currentFile, selectedFileId, metadataSnap.currentFile]);
+
   // File handlers
   const handleFileClick = useCallback((fileId: string) => {
     // Update URL - the useEffect will handle syncing Valtio state and opening the editor
     setUrlFileId(fileId);
-    // Reset save state when opening a new file
-    setHasUnsavedChanges(false);
-    setSaveStatus('idle');
-    setLastSavedAt(null);
   }, [setUrlFileId]);
 
   const handleCreateFile = useCallback(() => {
@@ -543,65 +525,27 @@ const WorkspaceContentInner = () => {
   }, [createFolder]);
 
   const handleCloseFileEditor = useCallback(async () => {
-    // If there are unsaved changes, save them immediately before closing
-    if (hasUnsavedChanges && currentFile && selectedFileId) {
-      // Cancel the debounced timer (we're saving immediately instead)
-      if (saveTimeout) {
-        clearTimeout(saveTimeout);
-        setSaveTimeout(null);
-      }
-
-      // Show saving indicator
-      setSaveStatus('saving');
-
-      try {
-        // Get current content from state (most up-to-date)
-        const contentToSave = currentFile.content;
-        await updateFile(selectedFileId, contentToSave);
-
-        // Save succeeded
-        setSaveStatus('saved');
-        setLastSavedAt(new Date());
-        setHasUnsavedChanges(false);
-
-        // Now safe to close
-        setUrlFileId(null);
-        setSaveStatus('idle');
-
-      } catch (error) {
-        // Save failed - show error and keep panel open
-        setSaveStatus('error');
-        console.error('Failed to save before close:', error);
-
-        // Show error toast (useUpdateFile already shows toast, but add context)
-        toast.error('Cannot close: save failed. Please try again.');
-
-        // Don't close the panel - return early
-        return;
-      }
-    } else {
-      // No unsaved changes - safe to close immediately
-      if (saveTimeout) {
-        clearTimeout(saveTimeout);
-        setSaveTimeout(null);
-      }
-
+    if (!currentFile || !selectedFileId) {
       setUrlFileId(null);
-      setHasUnsavedChanges(false);
-      setSaveStatus('idle');
+      return;
     }
-  }, [
-    hasUnsavedChanges,
-    currentFile,
-    selectedFileId,
-    saveTimeout,
-    updateFile,
-    setUrlFileId,
-    setSaveStatus,
-    setLastSavedAt,
-    setHasUnsavedChanges,
-    setSaveTimeout,
-  ]);
+
+    const contentToSave = currentFile.content || '';
+    const hasChanges = checkHasUnsavedChanges(selectedFileId, contentToSave);
+
+    if (hasChanges) {
+      // Save and then close on success
+      const result = await saveAndThen(selectedFileId, contentToSave, () => {
+        setUrlFileId(null);
+      });
+      // If save failed, saveAndThen won't call onSuccess, so we stay open
+      // The hook already shows error toast via toast.error
+    } else {
+      // No changes - just close
+      clearSaveTimeout();
+      setUrlFileId(null);
+    }
+  }, [currentFile, selectedFileId, checkHasUnsavedChanges, saveAndThen, clearSaveTimeout, setUrlFileId]);
 
   const handleGoToSource = useCallback((branchId: string, messageId: string) => {
     router.push(`/workspace/${branchId}?messageId=${messageId}`);
@@ -848,8 +792,8 @@ const WorkspaceContentInner = () => {
         onCloseFileEditor={handleCloseFileEditor}
         onGoToSource={handleGoToSource}
         onFileChange={handleFileChange}
-        saveStatus={saveStatus}
-        lastSavedAt={lastSavedAt}
+        saveStatus={metadataSnap.currentFile?.saveStatus || 'idle'}
+        lastSavedAt={metadataSnap.currentFile?.lastSavedAt || null}
         hasUnsavedChanges={hasUnsavedChanges}
 
         // Header props
