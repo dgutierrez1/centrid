@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
+import { useQueryState, parseAsStringEnum } from 'nuqs';
 import { useSnapshot } from 'valtio';
 import { Workspace } from '@centrid/ui/features/ai-agent-system';
 import type { File } from '@centrid/ui/features/ai-agent-system/WorkspaceSidebar';
@@ -75,64 +76,13 @@ const WorkspaceContentInner = () => {
   const { user } = useAuthContext();
 
 
-  // URL-synced state - initialized once from URL, then managed locally
-  // Only syncs back to URL on user actions to prevent initialization rerenders
-  const isInitialMount = useRef(true);
-  
-  const [sidebarActiveTab, setSidebarActiveTabState] = useState<'files' | 'threads'>(() => {
-    const tabParam = router.query.tab as string;
-    return (tabParam === 'files' || tabParam === 'threads') ? tabParam : 'threads';
-  });
-  
-  const [urlFileId, setUrlFileIdState] = useState<string | null>(() => {
-    return (router.query.fileId as string) || null;
-  });
-  
-  // Sync state to URL on changes (after initial mount)
-  useEffect(() => {
-    if (isInitialMount.current) {
-      isInitialMount.current = false;
-      return;
-    }
-    
-    const query: any = { ...router.query };
-    if (sidebarActiveTab !== 'threads') {
-      query.tab = sidebarActiveTab;
-    } else {
-      delete query.tab;
-    }
-    
-    router.replace({ pathname: router.pathname, query }, undefined, { shallow: true });
-  }, [sidebarActiveTab]);
-  
-  useEffect(() => {
-    if (isInitialMount.current) return;
-    
-    const query: any = { ...router.query };
-    if (urlFileId) {
-      query.fileId = urlFileId;
-    } else {
-      delete query.fileId;
-    }
-    
-    router.replace({ pathname: router.pathname, query }, undefined, { shallow: true });
-  }, [urlFileId]);
+  // URL-synced state using nuqs (handles bidirectional sync automatically)
+  const [sidebarActiveTab, setSidebarActiveTab] = useQueryState(
+    'tab',
+    parseAsStringEnum(['files', 'threads'] as const).withDefault('threads')
+  );
 
-  // Sync urlFileId state when URL changes (browser back/forward navigation)
-  useEffect(() => {
-    const fileIdFromUrl = (router.query.fileId as string) || null;
-    if (fileIdFromUrl !== urlFileId) {
-      setUrlFileIdState(fileIdFromUrl);
-    }
-  }, [router.query.fileId, urlFileId]);
-
-  const setSidebarActiveTab = useCallback((tab: 'files' | 'threads') => {
-    setSidebarActiveTabState(tab);
-  }, []);
-  
-  const setUrlFileId = useCallback((fileId: string | null) => {
-    setUrlFileIdState(fileId);
-  }, []);
+  const [urlFileId, setUrlFileId] = useQueryState('fileId');
 
   // Tree expansion state with persistence
   const threadExpansion = usePersistedThreadExpansion();
