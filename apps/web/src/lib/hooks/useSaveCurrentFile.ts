@@ -12,6 +12,7 @@ import {
   markSaveSuccess,
   markSaveError,
   getCurrentFileMetadata,
+  updateCurrentContent,
 } from '@/lib/state/fileMetadata';
 
 interface UseSaveCurrentFileOptions {
@@ -81,6 +82,9 @@ export function useSaveCurrentFile({
    */
   const handleContentChange = useCallback(
     (fileId: string, content: string) => {
+      // Update live content in metadata
+      updateCurrentContent(content);
+
       // Clear existing timeout
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
@@ -130,11 +134,11 @@ export function useSaveCurrentFile({
   /**
    * Check if file has unsaved changes
    */
-  const hasUnsavedChanges = useCallback(
-    (fileId: string, currentContent: string): boolean => {
+  const checkHasUnsavedChanges = useCallback(
+    (fileId: string): boolean => {
       const metadata = getCurrentFileMetadata();
       if (!metadata || metadata.fileId !== fileId) return false;
-      return currentContent !== metadata.lastSavedContent;
+      return metadata.currentContent !== metadata.lastSavedContent;
     },
     []
   );
@@ -145,6 +149,6 @@ export function useSaveCurrentFile({
     handleContentChange,
     saveAndThen,
     clearSaveTimeout,
-    hasUnsavedChanges,
+    checkHasUnsavedChanges,
   };
 }

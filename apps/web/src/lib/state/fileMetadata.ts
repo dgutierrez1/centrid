@@ -20,8 +20,9 @@ export interface FileMetadata {
   // UI-only save tracking
   saveStatus: SaveStatus;
   errorMessage: string | null;
-  // Client tracking (different from server timestamps)
-  lastSavedContent: string; // What client last sent (to detect unsaved changes)
+  // Content tracking
+  currentContent: string;    // Live editor content (updated on every keystroke)
+  lastSavedContent: string;  // What was last saved to server (checkpoint)
   lastSavedAt: Date | null;  // When client last saved (UI display only)
   // NOTE: version is NOT here - read from File.version (single source of truth)
 }
@@ -48,6 +49,7 @@ export function openFile(fileId: string, initialContent: string) {
   fileMetadataState.currentFile = {
     fileId,
     saveStatus: 'idle',
+    currentContent: initialContent,
     lastSavedContent: initialContent,
     lastSavedAt: initialContent ? new Date() : null,
     errorMessage: null,
@@ -68,6 +70,17 @@ export function closeFile() {
  */
 export function getCurrentFileMetadata(): FileMetadata | null {
   return fileMetadataState.currentFile;
+}
+
+/**
+ * Update current editor content (called on every keystroke)
+ */
+export function updateCurrentContent(content: string) {
+  if (!fileMetadataState.currentFile) {
+    console.warn('[FileMetadata] updateCurrentContent called but no file is open');
+    return;
+  }
+  fileMetadataState.currentFile.currentContent = content;
 }
 
 /**

@@ -14,7 +14,7 @@ import { DeleteConfirmationModal } from '@/components/filesystem/DeleteConfirmat
 import { FileSystemProvider } from '@/lib/contexts/filesystem.context';
 import { aiAgentState, aiAgentActions } from '@/lib/state/aiAgentState';
 import { filesystemState } from '@/lib/state/filesystem';
-import { fileMetadataState, openFile, closeFile } from '@/lib/state/fileMetadata';
+import { fileMetadataState, openFile, closeFile, getCurrentFileMetadata } from '@/lib/state/fileMetadata';
 import { useSaveCurrentFile } from '@/lib/hooks/useSaveCurrentFile';
 import type { FileSystemNode } from '@/lib/types/ui';
 import { useCreateBranch } from '@/lib/hooks/useCreateBranch';
@@ -315,7 +315,7 @@ const WorkspaceContentInner = () => {
   const { createFile: createAgentFile, isCreating: isCreatingAgentFile } = useCreateAgentFile();
 
   // Save coordination hook (state lives in fileMetadata)
-  const { saveFile, handleContentChange, saveAndThen, clearSaveTimeout, hasUnsavedChanges: checkHasUnsavedChanges } = useSaveCurrentFile({
+  const { saveFile, handleContentChange, saveAndThen, clearSaveTimeout, checkHasUnsavedChanges } = useSaveCurrentFile({
     onSave: async (fileId: string, content: string) => {
       await updateFile(fileId, content);
     },
@@ -330,9 +330,9 @@ const WorkspaceContentInner = () => {
 
   // Compute hasUnsavedChanges for UI and beforeunload
   const hasUnsavedChanges = useMemo(() => {
-    if (!currentFile || !selectedFileId) return false;
-    return checkHasUnsavedChanges(selectedFileId, currentFile.content || '');
-  }, [currentFile, selectedFileId, checkHasUnsavedChanges]);
+    if (!selectedFileId || !metadataSnap.currentFile) return false;
+    return metadataSnap.currentFile.currentContent !== metadataSnap.currentFile.lastSavedContent;
+  }, [selectedFileId, metadataSnap.currentFile]);
 
   // Warn user before closing tab/window with unsaved changes
   useEffect(() => {
@@ -485,27 +485,36 @@ const WorkspaceContentInner = () => {
   }, [createFolder]);
 
   const handleCloseFileEditor = useCallback(async () => {
-    if (!currentFile || !selectedFileId) {
+    // Allow close even if file didn't load properly (stuck/error state)
+    if (!selectedFileId) {
+      clearSaveTimeout();
       setUrlFileId(null);
       return;
     }
 
-    const contentToSave = currentFile.content || '';
-    const hasChanges = checkHasUnsavedChanges(selectedFileId, contentToSave);
+    // Read fresh content from Valtio proxy (not stale snapshot)
+    const metadata = getCurrentFileMetadata();
+    if (!metadata || metadata.fileId !== selectedFileId) {
+      clearSaveTimeout();
+      setUrlFileId(null);
+      return;
+    }
+
+    const contentToSave = metadata.currentContent;
+    const hasChanges = checkHasUnsavedChanges(selectedFileId);
 
     if (hasChanges) {
       // Save and then close on success
-      const result = await saveAndThen(selectedFileId, contentToSave, () => {
+      await saveAndThen(selectedFileId, contentToSave, () => {
         setUrlFileId(null);
       });
       // If save failed, saveAndThen won't call onSuccess, so we stay open
-      // The hook already shows error toast via toast.error
     } else {
       // No changes - just close
       clearSaveTimeout();
       setUrlFileId(null);
     }
-  }, [currentFile, selectedFileId, checkHasUnsavedChanges, saveAndThen, clearSaveTimeout, setUrlFileId]);
+  }, [selectedFileId, checkHasUnsavedChanges, saveAndThen, clearSaveTimeout, setUrlFileId]);
 
   const handleGoToSource = useCallback((branchId: string, messageId: string) => {
     router.push(`/workspace/${branchId}?messageId=${messageId}`);

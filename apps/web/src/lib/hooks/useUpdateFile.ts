@@ -41,14 +41,16 @@ export function useUpdateFile() {
     const file = filesystemState.files.find(f => f.id === fileId)
     const version = file?.version
 
-    const result = await mutate({
+    const { promise } = mutate({
       id: fileId,
       content,
       version,
     })
 
+    const result = await promise
+
     if (!result.success) {
-      throw new Error(result.error)
+      throw new Error(result.error || 'Update failed')
     }
 
     return result.data?.updateFile
