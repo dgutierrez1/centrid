@@ -7,7 +7,21 @@
 import { UserProfileRepository } from '../repositories/userProfile.ts';
 import { getSupabaseServiceClient } from '../lib/supabase.ts';
 import { createLogger } from '../utils/logger.ts';
-import type { UserProfile, CreateUserResponseDTO, DeleteUserResponseDTO } from '../db/types.js';
+import type { UserProfile } from '../db/types.js';
+
+// Response DTOs
+export type CreateUserResponseDTO = {
+  user: {
+    id: string;
+    email: string;
+  };
+  profile: UserProfile;
+};
+
+export type DeleteUserResponseDTO = {
+  success: boolean;
+  message: string;
+};
 
 const logger = createLogger('UserService');
 const userProfileRepository = new UserProfileRepository();

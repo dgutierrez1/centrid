@@ -213,26 +213,3 @@ export type ContextReference = ContextReferenceEntity;
 export type File = FileEntity;
 export type ShadowEntity = ShadowEntityEntity;
 export type AgentExecutionEvent = AgentExecutionEventEntity;
-
-// ============================================================================
-// DTO TYPES
-// ============================================================================
-// These types are used for API input/output validation
-
-export type CreateFolderInput = Omit<InsertFolder, 'id' | 'createdAt' | 'updatedAt'>;
-export type UpdateFolderInput = Partial<CreateFolderInput>;
-
-export type UpdateAgentRequestInput = Partial<Omit<AgentRequest, 'id' | 'createdAt'>>;
-
-export type CreateUserResponseDTO = {
-  user: {
-    id: string;
-    email: string;
-  };
-  profile: UserProfile;
-};
-
-export type DeleteUserResponseDTO = {
-  success: boolean;
-  message: string;
-};

@@ -24,12 +24,12 @@ const UserType = builder.objectRef<UserProfile>('User').implement({
     createdAt: t.field({
       type: 'DateTime',
       description: 'Profile creation timestamp',
-      resolve: (user) => new Date(user.createdAt),
+      resolve: (user) => user.createdAt,
     }),
     updatedAt: t.field({
       type: 'DateTime',
       description: 'Last update timestamp',
-      resolve: (user) => new Date(user.updatedAt),
+      resolve: (user) => user.updatedAt,
     }),
   }),
 });

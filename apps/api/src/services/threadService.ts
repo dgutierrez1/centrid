@@ -1,17 +1,36 @@
 import { threadRepository } from '../repositories/thread.ts';
 import { messageRepository } from '../repositories/message.ts';
 
+/**
+ * Service-layer CreateThreadInput adds server-side context not in GraphQL Input:
+ * - userId: Injected from auth context by GraphQL resolver (prevents client spoofing)
+ * - title: Domain term used by service layer (maps to 'branchTitle' in database/GraphQL)
+ *
+ * GraphQL CreateThreadInput uses 'branchTitle' (database field name).
+ * Service layer uses 'title' (domain term) and maps to 'branchTitle' in repository calls.
+ */
 export interface CreateThreadInput {
-  userId: string;
-  title: string;
+  userId: string; // From auth context (not in GraphQL Input)
+  title: string; // Domain term (maps to 'branchTitle' in DB)
   parentThreadId?: string;
 }
 
+/**
+ * Service-layer UpdateThreadInput uses domain terms:
+ * - title: Maps to 'branchTitle' in database
+ * - summary: Maps to 'threadSummary' in database
+ *
+ * GraphQL UpdateThreadInput uses database field names (branchTitle, not title).
+ */
 export interface UpdateThreadInput {
-  title?: string;
-  summary?: string;
+  title?: string; // Domain term (maps to 'branchTitle')
+  summary?: string; // Domain term (maps to 'threadSummary')
 }
 
+/**
+ * Service-layer response type with aggregated data.
+ * Includes thread entity + computed fields (messageCount, messages array).
+ */
 export interface ThreadWithMessages {
   id: string;
   branchTitle: string;
@@ -22,7 +41,6 @@ export interface ThreadWithMessages {
   updatedAt: Date;
   messages: any[];
   messageCount: number;
-  // Optional fields from thread
   threadSummary?: string | null;
 }
 

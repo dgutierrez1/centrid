@@ -3,12 +3,20 @@ import { agentRequestRepository } from '../repositories/agentRequest.ts';
 import type { ContentBlock } from '../types/agent.ts';
 import type { Message } from '../db/types.ts';
 
+/**
+ * Service-layer CreateMessageInput adds server-side context not in GraphQL Input:
+ * - userId: Injected from auth context by GraphQL resolver (prevents client spoofing)
+ * - contextReferences: Service-layer concern for associating message with context entities
+ *
+ * GraphQL CreateMessageInput includes: threadId, role, content, toolCalls, tokensUsed.
+ * Service layer tracks additional metadata (contextReferences) not exposed to clients.
+ */
 export interface CreateMessageInput {
   threadId: string;
-  userId: string;
+  userId: string; // From auth context (not in GraphQL Input)
   content: string;
   role: 'user' | 'assistant';
-  contextReferences?: any[];
+  contextReferences?: any[]; // Service-layer metadata (not in GraphQL)
 }
 
 /**

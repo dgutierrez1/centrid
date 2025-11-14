@@ -32,7 +32,7 @@ export function useLoadThreads() {
         parentThreadId: thread.parentThreadId,
         depth: 0, // Will be calculated by state manager
         artifactCount: 0, // TODO: count from files
-        lastActivity: new Date(thread.updatedAt || thread.createdAt),
+        lastActivity: thread.updatedAt || thread.createdAt,
         createdAt: thread.createdAt,
         updatedAt: thread.updatedAt,
       }));

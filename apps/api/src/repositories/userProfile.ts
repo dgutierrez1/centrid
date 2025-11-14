@@ -61,7 +61,7 @@ export class UserProfileRepository {
         .update(userProfiles)
         .set({
           ...input,
-          updatedAt: new Date(),
+          updatedAt: new Date().toISOString(),
         })
         .where(eq(userProfiles.userId, userId))
         .returning();

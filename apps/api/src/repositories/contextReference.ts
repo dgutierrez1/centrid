@@ -22,7 +22,7 @@ export class ContextReferenceRepository {
         .insert(contextReferences)
         .values({
           ...input,
-          addedAt: new Date(),
+          addedAt: new Date().toISOString(),
         })
         .returning();
       return reference;
@@ -70,7 +70,7 @@ export class ContextReferenceRepository {
         .insert(contextReferences)
         .values(references.map(r => ({
           ...r,
-          addedAt: new Date(),
+          addedAt: new Date().toISOString(),
         })))
         .returning();
     } finally {

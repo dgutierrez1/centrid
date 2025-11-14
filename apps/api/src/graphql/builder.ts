@@ -23,7 +23,7 @@ export const builder = new SchemaBuilder<{
   // Scalars
   Scalars: {
     ID: { Input: string; Output: string };
-    DateTime: { Input: Date; Output: string };
+    DateTime: { Input: string; Output: string };
     Upload: { Input: Promise<FileUpload>; Output: never };
     JSON: { Input: any; Output: any };
   };
@@ -31,23 +31,21 @@ export const builder = new SchemaBuilder<{
   plugins: [ValidationPlugin, DataloaderPlugin],
 });
 
-// Define DateTime scalar
+// Define DateTime scalar (ISO 8601 string pass-through)
 builder.scalarType("DateTime", {
-  serialize: (date: Date | string) => {
-    // Handle both Date objects and ISO strings
-    if (date instanceof Date) {
-      return date.toISOString();
+  serialize: (value: string) => {
+    // Database returns ISO strings with mode: 'string', pass through directly
+    if (typeof value === "string") {
+      return value;
     }
-    if (typeof date === "string") {
-      return date;
-    }
-    throw new Error("DateTime must be a Date object or ISO string");
+    throw new Error("DateTime must be an ISO string from database");
   },
   parseValue: (value) => {
+    // GraphQL input expects ISO strings, pass through directly
     if (typeof value === "string") {
-      return new Date(value);
+      return value;
     }
-    throw new Error("DateTime must be a string");
+    throw new Error("DateTime input must be an ISO string");
   },
 });
 

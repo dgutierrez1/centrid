@@ -1,4 +1,4 @@
-import { aiAgentState, type ContextReference } from '@/lib/state/aiAgentState';
+import { aiAgentState, type UIContextReference } from '@/lib/state/aiAgentState';
 import { useGraphQLMutation } from '@/lib/graphql/useGraphQLMutation';
 import { AddContextReferenceDocument } from '@/types/graphql';
 
@@ -17,7 +17,7 @@ export function useAddToExplicit(threadId: string) {
       };
     },
     any,
-    { previousReferences: ContextReference[]; currentRef: ContextReference }
+    { previousReferences: UIContextReference[]; currentRef: UIContextReference }
   >({
     mutation: AddContextReferenceDocument,
     optimisticUpdate: (_permanentId, input) => {

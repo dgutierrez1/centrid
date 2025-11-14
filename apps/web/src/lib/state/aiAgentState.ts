@@ -1,38 +1,66 @@
 import { proxy } from "valtio";
 import type { ContentBlock } from "@/types/agent";
 
-export interface Thread {
+/**
+ * UI-enhanced Thread type with computed fields for state management.
+ *
+ * Extends GraphQL Thread type with client-side computed properties:
+ * - depth: Computed from thread hierarchy (how deep in branch tree)
+ * - artifactCount: Computed from associated files/folders
+ * - summary: Aggregated from thread messages/context
+ * - lastActivity: Computed from latest message timestamp
+ *
+ * @see apps/web/src/types/graphql.ts for base GraphQL Thread type
+ */
+export interface UIThread {
   id: string;
-  title: string;
-  summary?: string;
+  title: string; // Renamed from 'branchTitle' for UI clarity
+  summary?: string; // Computed field (not in database)
   parentThreadId: string | null;
-  depth: number;
-  artifactCount: number;
-  lastActivity: Date;
+  depth: number; // Computed from hierarchy (not in database)
+  artifactCount: number; // Computed from files (not in database)
+  lastActivity: string; // Computed from messages (not in database)
   createdAt: string;
   updatedAt: string;
 }
 
-export interface Message {
+/**
+ * UI-enhanced Message type with client-side state fields.
+ *
+ * Extends GraphQL Message type with ephemeral UI state:
+ * - events: Aggregated from agent_execution_events (computed)
+ * - isStreaming: Client-side loading state for real-time updates
+ * - isRequestLoading: Client-side state for pending requests
+ * - idempotencyKey: Client-side request deduplication
+ *
+ * @see apps/web/src/types/graphql.ts for base GraphQL Message type
+ */
+export interface UIMessage {
   id: string;
   role: "user" | "assistant";
   content?: ContentBlock[]; // ContentBlock[] from GraphQL JSON scalar
-  events?: any[];
+  events?: any[]; // Aggregated from agent_execution_events (not in Message table)
   toolCalls?: any[];
-  timestamp: Date;
-  isStreaming?: boolean;
-  isRequestLoading?: boolean;
+  timestamp: string;
+  isStreaming?: boolean; // Client-side state (not in database)
+  isRequestLoading?: boolean; // Client-side state (not in database)
   tokensUsed?: number;
-  idempotencyKey?: string; // Client-side request ID for deduplication
+  idempotencyKey?: string; // Client-side request ID for deduplication (not in database)
 }
 
-export interface ContextReference {
+/**
+ * UI-enhanced ContextReference type.
+ *
+ * May include computed fields for display purposes.
+ * @see apps/web/src/types/graphql.ts for base GraphQL ContextReference type
+ */
+export interface UIContextReference {
   id: string;
   entityType: "file" | "folder" | "thread";
   entityReference: string;
   source: "inherited" | "manual" | "@-mentioned" | "agent-added";
   priorityTier: 1 | 2 | 3;
-  addedTimestamp: Date;
+  addedTimestamp: string;
   // Optional metadata for display
   name?: string;
   sourceBranch?: string;
@@ -41,7 +69,7 @@ export interface ContextReference {
 }
 
 export interface BranchTreeState {
-  threads: Thread[];
+  threads: UIThread[];
   parentChildMap: Map<string, string[]>;
 }
 
@@ -58,9 +86,9 @@ export interface Provenance {
 
 export interface AIAgentState {
   // Current thread data
-  currentThread: Thread | null;
-  messages: Message[];
-  contextReferences: ContextReference[];
+  currentThread: UIThread | null;
+  messages: UIMessage[];
+  contextReferences: UIContextReference[];
 
   // Branch tree navigation
   branchTree: BranchTreeState;
@@ -122,35 +150,35 @@ export const aiAgentState = proxy<AIAgentState>({
  */
 export const aiAgentActions = {
   // Thread actions
-  setCurrentThread(thread: Thread | null) {
+  setCurrentThread(thread: UIThread | null) {
     aiAgentState.currentThread = thread;
   },
 
-  setMessages(messages: Message[]) {
+  setMessages(messages: UIMessage[]) {
     aiAgentState.messages = messages;
   },
 
   // Batch update for thread data to prevent multiple rerenders
   setThreadData(
-    thread: Thread | null,
-    messages: Message[],
-    contextRefs: ContextReference[]
+    thread: UIThread | null,
+    messages: UIMessage[],
+    contextRefs: UIContextReference[]
   ) {
     aiAgentState.currentThread = thread;
     aiAgentState.messages = messages;
     aiAgentState.contextReferences = contextRefs;
   },
 
-  addMessage(message: Message) {
+  addMessage(message: UIMessage) {
     aiAgentState.messages.push(message);
   },
 
-  setContextReferences(refs: ContextReference[]) {
+  setContextReferences(refs: UIContextReference[]) {
     aiAgentState.contextReferences = refs;
   },
 
   // Branch tree actions
-  setBranchTree(threads: Thread[]) {
+  setBranchTree(threads: UIThread[]) {
     aiAgentState.branchTree.threads = threads;
 
     // Build parent-child map
@@ -165,7 +193,7 @@ export const aiAgentActions = {
     aiAgentState.branchTree.parentChildMap = map;
   },
 
-  addThreadToBranchTree(thread: Thread) {
+  addThreadToBranchTree(thread: UIThread) {
     aiAgentState.branchTree.threads.push(thread);
 
     // Update parent-child map

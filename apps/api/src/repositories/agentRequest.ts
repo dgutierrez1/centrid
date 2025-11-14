@@ -89,7 +89,7 @@ export class AgentRequestRepository {
         .update(agentRequests)
         .set({
           ...updates,
-          updatedAt: new Date(),
+          updatedAt: new Date().toISOString(),
         })
         .where(eq(agentRequests.id, requestId))
         .returning();

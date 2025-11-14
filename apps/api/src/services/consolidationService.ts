@@ -218,7 +218,7 @@ export class ConsolidationService {
       await agentRequestRepository.update(requestId, {
         status: "completed",
         progress: 1.0,
-        completedAt: new Date(),
+        completedAt: new Date().toISOString(),
         results: {
           fileId,
           filePath,
@@ -243,7 +243,7 @@ export class ConsolidationService {
       await agentRequestRepository.update(requestId, {
         status: "failed",
         progress: 1.0,
-        completedAt: new Date(),
+        completedAt: new Date().toISOString(),
         results: {
           error:
             error instanceof Error ? error.message : "Consolidation failed",

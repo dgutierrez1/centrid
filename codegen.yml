@@ -34,3 +34,19 @@ generates:
         DateTime: string              # DateTime → string
         Upload: File                  # Upload → File
         JSON: unknown                 # JSON → unknown (safer than any, requires explicit type assertions)
+
+  # Backend API types (for service layer and testing)
+  apps/api/src/types/graphql.ts:
+    plugins:
+      - 'typescript'                  # Base TypeScript types only (no operations/hooks)
+    config:
+      # Type safety config
+      skipTypename: false             # Include __typename in types
+      enumsAsTypes: true              # Enums as union types
+      useTypeImports: true            # Use import type
+
+      # Custom scalars (match frontend)
+      scalars:
+        DateTime: string
+        Upload: File
+        JSON: unknown

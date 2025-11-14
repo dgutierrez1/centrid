@@ -52,7 +52,7 @@ export class FileRepository {
         folderId: input.folderId || null,
         content: input.content,
         ownerUserId: userId,
-        lastEditedAt: new Date(),
+        lastEditedAt: new Date().toISOString(),
         lastEditedBy: input.provenance ? 'agent' : 'user',
         isAIGenerated: input.provenance ? true : false,
         createdBy: input.provenance ? 'agent' : 'user',
@@ -130,7 +130,7 @@ export class FileRepository {
     const { db, cleanup } = await getDB();
     try {
       const updateData: any = {
-        lastEditedAt: new Date(),
+        lastEditedAt: new Date().toISOString(),
         lastEditedBy: input.editMetadata?.lastEditedBy || 'user',
       };
 

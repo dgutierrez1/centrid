@@ -1,27 +1,24 @@
 import { fileRepository } from '../repositories/file.ts';
+import type { UpdateFileInput, UpdateFilePartialInput } from '../types/graphql.js';
 
+/**
+ * Service-layer CreateFileInput adds server-side context not in GraphQL Input:
+ * - userId: Injected from auth context by GraphQL resolver (prevents client spoofing)
+ * - provenance: Internal metadata for tracking file creation context
+ *
+ * Other fields match GraphQL CreateFileInput type.
+ */
 export interface CreateFileInput {
   id?: string; // Optional client-provided UUID for optimistic updates
-  userId: string;
+  userId: string; // From auth context (not in GraphQL Input)
   name: string; // Filename with extension
   folderId?: string | null; // Folder location
   content: string;
   threadId?: string; // Thread ID for provenance tracking
-  provenance?: {
+  provenance?: {   // Internal metadata (not exposed to clients)
     threadId: string;
     contextSummary?: string;
   };
-}
-
-export interface UpdateFileInput {
-  content: string;
-  version?: number; // For optimistic locking
-}
-
-export interface UpdateFilePartialInput {
-  name?: string; // Rename file
-  folderId?: string | null; // Move file
-  content?: string; // Update content
 }
 
 /**

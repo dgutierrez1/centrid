@@ -553,7 +553,7 @@ export class AgentExecutionService {
             toolsExecuted: toolCallsList.length,
             toolsApproved: toolCallsList.filter((t) => t.approved).length,
           },
-          completedAt: new Date(),
+          completedAt: new Date().toISOString(),
         });
 
         // NEW: Update all tool calls to link to message (Phase 3 - MVU B3.3)
@@ -573,7 +573,7 @@ export class AgentExecutionService {
         await agentRequestRepository.update(requestId, {
           status: 'failed',
           progress: 1.0,
-          completedAt: new Date(),
+          completedAt: new Date().toISOString(),
           results: {
             error: error instanceof Error ? error.message : String(error),
           },

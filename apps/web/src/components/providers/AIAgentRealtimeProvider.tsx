@@ -1,6 +1,6 @@
 import { useRealtimeSubscriptions } from '@/lib/realtime';
 import { aiAgentState, aiAgentActions } from '@/lib/state/aiAgentState';
-import type { Thread as StateThread, Message as StateMessage, ContextReference as StateContextReference } from '@/lib/state/aiAgentState';
+import type { UIThread, UIMessage, UIContextReference } from '@/lib/state/aiAgentState';
 import type { Thread as DBThread, Message as DBMessage, ContextReference as DBContextReference } from '@/types/graphql';
 
 interface AIAgentRealtimeProviderProps {

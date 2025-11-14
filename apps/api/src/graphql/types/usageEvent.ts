@@ -37,7 +37,7 @@ const UsageEventType = builder.objectRef<UsageEvent>('UsageEvent').implement({
     }),
     createdAt: t.field({
       type: 'DateTime',
-      resolve: (event) => new Date(event.createdAt),
+      resolve: (event) => event.createdAt,
     }),
   }),
 });

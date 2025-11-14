@@ -1,9 +1,26 @@
 /**
  * Agent System Type Definitions (UI Package)
  *
- * Local TypeScript types for UI components.
- * Duplicated across packages since we don't use shared packages.
- * These types are used by pure UI components for rendering.
+ * ⚠️ INTENTIONALLY DUPLICATED TYPES ⚠️
+ *
+ * These types (TextBlock, ToolUseBlock, ToolResultBlock, ImageBlock, ContentBlock, PendingToolCall)
+ * are duplicated across THREE locations and must be manually synchronized:
+ *
+ * 1. apps/api/src/types/agent.ts (backend)
+ * 2. apps/web/src/types/agent.ts (frontend)
+ * 3. packages/ui/src/types/agent.ts (THIS FILE - shared UI)
+ *
+ * Why duplicated?
+ * - These types span runtime boundaries (Deno backend / Node build / Browser)
+ * - MVP pragmatism: Duplication is simpler than shared package setup
+ * - UI package must remain pure (no backend dependencies)
+ *
+ * When updating these types:
+ * 1. Make the change in ALL THREE files
+ * 2. Verify no drift with diff/grep
+ * 3. Run `npm run validate` to catch type mismatches
+ *
+ * TODO (Post-MVP): Consider GraphQL union types or shared types package
  */
 
 /**

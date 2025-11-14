@@ -34,12 +34,12 @@ const ShadowEntityType = builder.objectRef<ShadowEntity>('ShadowEntity').impleme
     lastUpdated: t.field({
       type: 'DateTime',
       description: 'Last update timestamp (embedding, summary, metadata)',
-      resolve: (entity) => new Date(entity.lastUpdated),
+      resolve: (entity) => entity.lastUpdated,
     }),
     createdAt: t.field({
       type: 'DateTime',
       description: 'Creation timestamp',
-      resolve: (entity) => new Date(entity.createdAt),
+      resolve: (entity) => entity.createdAt,
     }),
   }),
 });

@@ -5,7 +5,7 @@
  */
 
 import { folderRepository } from '../repositories/folder.ts';
-import type { CreateFolderInput, UpdateFolderInput } from '../db/types.js';
+import type { CreateFolderInput, UpdateFolderInput } from '../types/graphql.js';
 
 export class FolderService {
   /**
@@ -74,9 +74,9 @@ export class FolderService {
     }
 
     // Validate parent if moving
-    if (updates.parent_folder_id !== undefined) {
-      if (updates.parent_folder_id !== null) {
-        const parent = await folderRepository.findById(updates.parent_folder_id, userId);
+    if (updates.parentFolderId !== undefined) {
+      if (updates.parentFolderId !== null) {
+        const parent = await folderRepository.findById(updates.parentFolderId, userId);
         if (!parent) {
           throw new Error('Parent folder not found');
         }
@@ -85,10 +85,10 @@ export class FolderService {
 
     // Compute new path if name or parent changes
     let path: string | undefined;
-    if (updates.name || updates.parent_folder_id !== undefined) {
+    if (updates.name || updates.parentFolderId !== undefined) {
       const newName = updates.name || folder.name;
-      const newParentId = updates.parent_folder_id !== undefined
-        ? updates.parent_folder_id
+      const newParentId = updates.parentFolderId !== undefined
+        ? updates.parentFolderId
         : folder.parentFolderId;
 
       if (newParentId) {
@@ -101,7 +101,7 @@ export class FolderService {
 
     const updated = await folderRepository.update(folderId, {
       name: updates.name,
-      parentFolderId: updates.parent_folder_id,
+      parentFolderId: updates.parentFolderId,
       path,
     });
 

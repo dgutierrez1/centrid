@@ -28,7 +28,7 @@ export class MessageRepository {
           content: input.content,
           toolCalls: input.toolCalls || [],
           tokensUsed: input.tokensUsed || 0,
-          timestamp: new Date(),
+          timestamp: new Date().toISOString(),
         })
         .returning();
       return message;

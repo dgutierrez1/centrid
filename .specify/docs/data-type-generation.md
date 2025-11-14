@@ -10,16 +10,16 @@ related: [data-graphql-schema-design, backend-graphql-architecture]
 
 # Type Generation Pattern
 
-**What**: Backend uses Drizzle-inferred types from `db/types.ts`, frontend uses GraphQL Codegen types from `@/types/graphql`
+**What**: Backend uses Drizzle-inferred types from `db/types.ts` for database entities and GraphQL Codegen types from `types/graphql.ts` for Input types. Frontend uses GraphQL Codegen types from `@/types/graphql`.
 
 **Why**: Single source of truth prevents type redeclaration, field mismatches, and manual type maintenance
 
 **How**:
 
-Backend (Code-First):
+Backend Database Entities:
 ```typescript
-// Import from Drizzle-inferred types
-import type { Thread, CreateFolderInput } from '../db/types.js'
+// Import Drizzle-inferred types for database operations
+import type { Thread, InsertThread } from '../db/types.js'
 
 // GraphQL schema references database types
 const ThreadType = builder.objectRef<Thread>("Thread").implement({
@@ -30,49 +30,84 @@ const ThreadType = builder.objectRef<Thread>("Thread").implement({
 })
 ```
 
-Frontend (Schema-First):
+Backend GraphQL Input Types:
+```typescript
+// Import GraphQL Input types (auto-generated from schema)
+import type { UpdateFileInput, UpdateFilePartialInput } from '../types/graphql.js'
+
+// Services can use GraphQL types directly when they match
+export class FileService {
+  static async updateFile(fileId: string, userId: string, updates: UpdateFileInput) {
+    // ...
+  }
+}
+
+// Services define custom Input types ONLY when adding server-side context
+export interface CreateFileInput {
+  userId: string; // From auth context (not in GraphQL)
+  name: string;
+  content: string;
+  provenance?: { threadId: string }; // Internal metadata (not exposed)
+}
+```
+
+Frontend Types:
 ```typescript
 // Import from GraphQL Codegen (auto-generated from introspection)
 import type { Thread, Message } from '@/types/graphql'
 
-// Extend with client-only fields using intersection types
-export type ThreadWithUIState = Thread & {
-  isStreaming?: boolean;  // UI-only field
-  depth?: number;         // Computed client-side
+// UI state types with UI prefix for computed/client-side fields
+export interface UIThread {
+  id: string;
+  title: string; // Renamed from 'branchTitle'
+  depth: number; // Computed from hierarchy (not in database)
+  artifactCount: number; // Computed from files (not in database)
+  lastActivity: string; // Computed from messages (not in database)
 }
 ```
 
 **Type Flow Architecture**:
 ```
 Database Schema (Drizzle)
-  ↓ InferSelectModel (compile-time type inference)
-apps/api/src/db/types.ts (Backend source of truth)
-  ↓ Pothos builder references these types
-GraphQL Schema (built programmatically)
+  ↓ InferSelectModel/InsertModel (compile-time type inference)
+apps/api/src/db/types.ts (Backend entity types - AUTO-GENERATED)
+  ↓ Pothos builder references database types
+GraphQL Schema (built programmatically via Pothos)
   ↓ Published at /api/graphql endpoint
-GraphQL Codegen (introspects published schema)
-  ↓
-apps/web/src/types/graphql.ts (Frontend source of truth)
+  ↓ GraphQL Codegen introspects published schema
+  ├─→ apps/web/src/types/graphql.ts (Frontend types)
+  └─→ apps/api/src/types/graphql.ts (Backend Input types)
 ```
 
 **Rules**:
-- ✅ DO: Backend imports from `../db/types.js` (Drizzle InferSelectModel)
-- ✅ DO: Frontend imports from `@/types/graphql` (GraphQL Codegen)
-- ✅ DO: Extend types with client-only fields using intersection types (`Thread & { depth: number }`)
-- ✅ DO: Run `npm run codegen` after schema changes to regenerate frontend types
-- ✅ DO: Run `npm run db:push` to sync database and auto-update backend types
-- ❌ DON'T: Manually redefine types that exist in generated sources
-- ❌ DON'T: Create duplicate type definitions across services/repositories/state
-- ❌ DON'T: Import GraphQL types in backend (backend creates the schema, doesn't consume it)
+
+Backend:
+- ✅ DO: Import database entities from `../db/types.js` (Drizzle InferSelectModel)
+- ✅ DO: Import GraphQL Input types from `../types/graphql.js` (GraphQL Codegen) when they match service needs
+- ✅ DO: Define custom Service Input types ONLY when adding server-side context (userId, provenance, etc.)
+- ✅ DO: Keep `db/types.ts` purely auto-generated (NO manual DTOs)
+- ❌ DON'T: Add manual types to `db/types.ts` (violates auto-generated contract)
+- ❌ DON'T: Import across apps (`apps/api` importing from `apps/web` breaks deployment)
+
+Frontend:
+- ✅ DO: Import from `@/types/graphql` (GraphQL Codegen)
+- ✅ DO: Use `UI` prefix for state types with computed/client-side fields (`UIThread`, `UIMessage`)
+- ✅ DO: Document why UI types differ from GraphQL types (computed fields, client-side state)
+- ❌ DON'T: Shadow GraphQL types (use `UIThread` instead of `Thread` in state files)
+- ❌ DON'T: Manually redefine types that exist in generated GraphQL types
+
+Workflow:
+- ✅ DO: Run `npm run db:push` after schema changes (syncs database + auto-updates Drizzle types)
+- ✅ DO: Run `npm run codegen` after GraphQL schema changes (regenerates frontend + backend GraphQL types)
+- ✅ DO: Run `npm run validate` before commits (catches type mismatches across workspace)
 
 **Used in**:
-- `apps/api/src/db/types.ts` - Backend type definitions (16 files import from here)
-- `apps/api/src/db/schema.ts` - Drizzle database schema (source for type inference)
-- `apps/web/src/types/graphql.ts` - Frontend type definitions (auto-generated, 2083 lines)
-- `codegen.yml` - GraphQL Codegen configuration (introspects remote schema)
-- `apps/api/src/graphql/types/*.ts` - GraphQL type definitions using Pothos builder
-- `apps/web/src/lib/hooks/*.ts` - Frontend hooks importing GraphQL types
+- `apps/api/src/db/types.ts` - Backend database entity types (auto-generated from Drizzle)
+- `apps/api/src/types/graphql.ts` - Backend GraphQL Input types (auto-generated from schema)
+- `apps/web/src/types/graphql.ts` - Frontend GraphQL types (auto-generated from schema)
+- `codegen.yml` - GraphQL Codegen configuration (generates both frontend + backend types)
+- `apps/api/src/services/*.ts` - Services import from `../db/types.js` and `../types/graphql.js`
+- `apps/web/src/lib/state/aiAgentState.ts` - UI state types (UIThread, UIMessage, UIContextReference)
 
-**Known Violations** (to be fixed):
-- `apps/web/src/lib/state/aiAgentState.ts` - Manually defines Thread, Message, ContextReference with field mismatches
-- `apps/web/src/lib/types/index.ts` - Manually defines Folder, File instead of importing from GraphQL
+**Intentional Type Duplication**:
+- `apps/api/src/types/agent.ts`, `apps/web/src/types/agent.ts`, `packages/ui/src/types/agent.ts` - ContentBlock types manually synchronized (MVP pragmatism, see file headers for sync instructions)

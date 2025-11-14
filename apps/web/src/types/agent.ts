@@ -1,9 +1,26 @@
 /**
  * Agent System Type Definitions (Frontend)
  *
- * Local TypeScript types for frontend components.
- * Duplicated from backend (apps/api/src/types/agent.ts) since we don't use shared packages.
- * GraphQL exposes content as JSON scalar (untyped), so we type-assert to these types.
+ * ⚠️ INTENTIONALLY DUPLICATED TYPES ⚠️
+ *
+ * These types (TextBlock, ToolUseBlock, ToolResultBlock, ImageBlock, ContentBlock, PendingToolCall)
+ * are duplicated across THREE locations and must be manually synchronized:
+ *
+ * 1. apps/api/src/types/agent.ts (backend)
+ * 2. apps/web/src/types/agent.ts (THIS FILE - frontend)
+ * 3. packages/ui/src/types/agent.ts (shared UI)
+ *
+ * Why duplicated?
+ * - These types span runtime boundaries (Deno backend / Node build / Browser)
+ * - MVP pragmatism: Duplication is simpler than shared package setup
+ * - GraphQL exposes content as JSON scalar (untyped), so we type-assert to these types
+ *
+ * When updating these types:
+ * 1. Make the change in ALL THREE files
+ * 2. Verify no drift with diff/grep
+ * 3. Run `npm run validate` to catch type mismatches
+ *
+ * TODO (Post-MVP): Consider GraphQL union types or shared types package
  */
 
 /**

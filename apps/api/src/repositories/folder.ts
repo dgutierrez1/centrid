@@ -87,7 +87,7 @@ export const folderRepository = {
   async update(folderId: string, updates: { name?: string; parentFolderId?: string | null; path?: string }) {
     const { db, cleanup } = await getDB();
     try {
-      const setClause: any = { updatedAt: new Date() };
+      const setClause: any = { updatedAt: new Date().toISOString() };
 
       if (updates.name !== undefined) setClause.name = updates.name;
       if (updates.parentFolderId !== undefined) setClause.parentFolderId = updates.parentFolderId;

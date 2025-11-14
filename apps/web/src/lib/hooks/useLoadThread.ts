@@ -58,7 +58,7 @@ export function useLoadThread(threadId: string | undefined) {
         parentThreadId: thread.parentThreadId,
         depth: 0,
         artifactCount: 0,
-        lastActivity: new Date(thread.updatedAt || thread.createdAt),
+        lastActivity: thread.updatedAt || thread.createdAt,
         createdAt: thread.createdAt,
         updatedAt: thread.updatedAt,
       };
@@ -68,7 +68,7 @@ export function useLoadThread(threadId: string | undefined) {
         threadId: msg.threadId,
         role: msg.role,
         content: msg.content,
-        timestamp: new Date(msg.timestamp),
+        timestamp: msg.timestamp,
         toolCalls: msg.toolCalls || [],
         tokensUsed: msg.tokensUsed || 0,
       }));
@@ -82,7 +82,7 @@ export function useLoadThread(threadId: string | undefined) {
           entityReference: ref.entityReference,
           source: ref.source,
           priorityTier: ref.priorityTier || 1,
-          addedTimestamp: new Date(ref.addedTimestamp),
+          addedTimestamp: ref.addedTimestamp,
         })
       );
 

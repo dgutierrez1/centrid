@@ -43,7 +43,7 @@ const ToolCallType = builder.objectRef<AgentToolCall>('ToolCall').implement({
     timestamp: t.field({
       type: 'DateTime',
       description: 'Creation timestamp',
-      resolve: (toolCall) => new Date(toolCall.timestamp),
+      resolve: (toolCall) => toolCall.timestamp,
     }),
   }),
 });

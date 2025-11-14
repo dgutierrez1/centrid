@@ -28,7 +28,7 @@ export class AgentToolCallRepository {
           toolInput: input.toolInput,
           requestId: input.requestId || null,
           approvalStatus: 'pending',
-          timestamp: new Date(),
+          timestamp: new Date().toISOString(),
         })
         .returning();
       return toolCall;
