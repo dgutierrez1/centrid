@@ -10,6 +10,7 @@ import DataloaderPlugin from "@pothos/plugin-dataloader";
 import type DataLoader from "dataloader";
 import type { Folder, Message } from "../db/types.js";
 import type { FileUpload } from "graphql-upload";
+import { isValidUUID, validateUUID } from "../utils/validation.js";
 
 // Initialize builder with plugins
 export const builder = new SchemaBuilder<{
@@ -23,12 +24,33 @@ export const builder = new SchemaBuilder<{
   // Scalars
   Scalars: {
     ID: { Input: string; Output: string };
+    UUID: { Input: string; Output: string };
     DateTime: { Input: string; Output: string | null };
     Upload: { Input: Promise<FileUpload>; Output: never };
     JSON: { Input: any; Output: any };
   };
 }>({
   plugins: [ValidationPlugin, DataloaderPlugin],
+});
+
+// Define UUID scalar (with format validation)
+builder.scalarType("UUID", {
+  description: "UUID scalar type with format validation (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)",
+  serialize: (value) => {
+    // Output validation (from database to client)
+    if (typeof value !== "string") {
+      throw new Error("UUID must be a string");
+    }
+    if (!isValidUUID(value)) {
+      throw new Error(`Invalid UUID format: "${value}"`);
+    }
+    return value;
+  },
+  parseValue: (value) => {
+    // Input validation (from client to server)
+    validateUUID(value); // Throws descriptive error if invalid
+    return value;
+  },
 });
 
 // Define DateTime scalar (ISO 8601 string pass-through)

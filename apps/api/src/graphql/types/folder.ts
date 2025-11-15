@@ -71,7 +71,12 @@ FolderType.implement({
 const CreateFolderInput = builder.inputType('CreateFolderInput', {
   description: 'Input for creating a new folder',
   fields: (t) => ({
-    id: t.id({ required: false, description: 'Optional client-provided UUID (for optimistic updates)' }),
+    id: t.field({
+      type: 'UUID',
+      required: false,
+      nullable: true,
+      description: 'Optional client-provided UUID (for optimistic updates)',
+    }),
     name: t.string({ required: true, description: 'Folder name' }),
     parentFolderId: t.string({ required: false, description: 'Parent folder ID (null for root)' }),
   }),

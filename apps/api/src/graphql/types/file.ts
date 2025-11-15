@@ -128,7 +128,8 @@ const FileProvenanceType = builder.objectType("FileProvenance", {
 const CreateFileInput = builder.inputType("CreateFileInput", {
   description: "Input for creating a new file",
   fields: (t) => ({
-    id: t.id({
+    id: t.field({
+      type: "UUID",
       required: false,
       nullable: true,
       description: "Optional client-provided UUID (for optimistic updates)",

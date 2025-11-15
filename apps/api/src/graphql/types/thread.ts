@@ -137,7 +137,8 @@ const MessageType = builder.objectRef<Message>("Message").implement({
 // Input types for mutations
 const CreateThreadInput = builder.inputType("CreateThreadInput", {
   fields: (t) => ({
-    id: t.id({
+    id: t.field({
+      type: "UUID",
       required: false,
       nullable: true,
       description: "Optional client-provided UUID (for optimistic updates)",
