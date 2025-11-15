@@ -74,12 +74,12 @@ export interface BranchTreeState {
 }
 
 export interface Provenance {
-  createdAt: Date;
+  createdAt: string; // ISO 8601 string from GraphQL
   createdBy: "agent" | "user";
   sourceBranch: string;
   sourceThreadId: string;
   sourceMessageId: string;
-  lastEditedAt?: Date;
+  lastEditedAt?: string; // ISO 8601 string from GraphQL
   lastEditedBy?: "agent" | "user";
   lastEditSourceThreadId?: string;
 }

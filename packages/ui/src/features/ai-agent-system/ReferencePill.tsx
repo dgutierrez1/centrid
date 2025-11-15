@@ -8,8 +8,8 @@ export interface ReferencePillProps {
   name: string;
   /** Source branch (for tooltip) */
   sourceBranch?: string;
-  /** Timestamp (for tooltip) */
-  timestamp?: Date;
+  /** Timestamp (for tooltip) - ISO 8601 string */
+  timestamp?: string;
   /** Click handler */
   onClick?: () => void;
   /** Remove handler */
@@ -100,7 +100,7 @@ export function ReferencePill({
               )}
               {timestamp && (
                 <p className="text-xs text-gray-300 dark:text-gray-300">
-                  Added: {timestamp.toLocaleString()}
+                  Added: {new Date(timestamp).toLocaleString()}
                 </p>
               )}
             </div>

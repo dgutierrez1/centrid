@@ -13,13 +13,15 @@ import { ApiError } from './errors'
  * Get auth headers with access token (synchronous, no async overhead)
  *
  * Token is kept in sync via Supabase auth listener in AuthProvider.
- * Throws ApiError if user is not authenticated.
+ * Returns empty headers if user is not authenticated (backend handles auth enforcement).
  */
 export function getAuthHeaders(): Record<string, string> {
   const token = TokenStore.getToken()
 
   if (!token) {
-    throw new ApiError('Not authenticated', 401)
+    return {
+      'Content-Type': 'application/json',
+    }
   }
 
   return {

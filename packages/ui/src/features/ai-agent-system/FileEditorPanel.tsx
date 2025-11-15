@@ -5,12 +5,12 @@ import { FilePanelSkeleton } from './FilePanelSkeleton';
 
 // Legacy interfaces kept for backwards compatibility
 export interface Provenance {
-  createdAt: Date;
+  createdAt: string; // ISO 8601 string from GraphQL
   createdBy: 'agent' | 'user';
   sourceBranch: string;
   sourceThreadId: string;
   sourceMessageId: string;
-  lastEditedAt?: Date;
+  lastEditedAt?: string; // ISO 8601 string from GraphQL
   lastEditedBy?: 'agent' | 'user';
   lastEditSourceThreadId?: string;
 }
@@ -33,14 +33,15 @@ export interface FileEditorPanelProps {
   onDelete?: () => Promise<void>;
   isDeleting?: boolean;
   saveStatus?: SaveStatus;
-  lastSavedAt?: Date | null;
+  lastSavedAt?: string | null; // ISO 8601 string from GraphQL
   hasUnsavedChanges?: boolean;
   className?: string;
 }
 
-function formatTimeAgo(date: Date): string {
+function formatTimeAgo(date: string): string {
+  const dateObj = new Date(date);
   const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
+  const diffMs = now.getTime() - dateObj.getTime();
   const diffMins = Math.floor(diffMs / 60000);
   const diffHours = Math.floor(diffMins / 60);
   const diffDays = Math.floor(diffHours / 24);

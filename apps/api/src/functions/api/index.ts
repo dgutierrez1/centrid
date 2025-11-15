@@ -2,6 +2,7 @@
  * Centrid API - Unified Edge Function
  * Consolidates all backend routes using Hono framework
  * With DATABASE_URL environment variable support
+ * Updated: 2025-11-14 - Timestamp standardization (rebuild #4 - Date conversion)
  */
 
 import { Hono } from 'hono';

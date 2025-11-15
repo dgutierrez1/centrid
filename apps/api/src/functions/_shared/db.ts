@@ -34,7 +34,17 @@ const DB_CONFIG = {
   idle_timeout: 5, // ✅ Reduce to 5s (edge functions are short-lived)
   connect_timeout: 5, // ✅ Faster timeout for edge context
   prepare: false, // ✅ Disable prepared statements (OLTP not analytical)
-} as const;
+  // ✅ Custom type parsers for timestamps (makes mode: 'string' work in Deno)
+  // Without this, postgres.js returns Date objects regardless of Drizzle's mode setting
+  types: {
+    date: {
+      to: 1184, // Use TIMESTAMPTZ as the target type OID
+      from: [1082, 1114, 1184], // Handle DATE, TIMESTAMP, and TIMESTAMPTZ
+      serialize: (x: any) => (x instanceof Date ? x.toISOString() : x),
+      parse: (x: any) => x, // Return as string instead of Date object
+    },
+  },
+};
 
 /**
  * Get a database client for Edge Function requests

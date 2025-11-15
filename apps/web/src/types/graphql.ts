@@ -992,6 +992,7 @@ export type CreateAgentRequestMutationVariables = Exact<{
 export type CreateAgentRequestMutation = { __typename?: 'Mutation', createAgentRequest?: { __typename?: 'AgentRequest', id?: string | null, userId?: string | null, threadId?: string | null, triggeringMessageId?: string | null, responseMessageId?: string | null, agentType?: string | null, content?: string | null, status?: string | null, progress?: number | null, results?: unknown | null, checkpoint?: unknown | null, tokenCost?: number | null, createdAt?: string | null, updatedAt?: string | null, completedAt?: string | null } | null };
 
 export type CreateFileMutationVariables = Exact<{
+  id?: InputMaybe<Scalars['ID']['input']>;
   name: Scalars['String']['input'];
   content: Scalars['String']['input'];
   threadId?: InputMaybe<Scalars['String']['input']>;
@@ -1037,6 +1038,7 @@ export type DeleteFileMutationVariables = Exact<{
 export type DeleteFileMutation = { __typename?: 'Mutation', deleteFile?: boolean | null };
 
 export type CreateFolderMutationVariables = Exact<{
+  id?: InputMaybe<Scalars['ID']['input']>;
   name: Scalars['String']['input'];
   parentFolderId?: InputMaybe<Scalars['String']['input']>;
 }>;
@@ -1476,9 +1478,9 @@ export function useCreateAgentRequestMutation() {
   return Urql.useMutation<CreateAgentRequestMutation, CreateAgentRequestMutationVariables>(CreateAgentRequestDocument);
 };
 export const CreateFileDocument = gql`
-    mutation CreateFile($name: String!, $content: String!, $threadId: String, $folderId: String) {
+    mutation CreateFile($id: ID, $name: String!, $content: String!, $threadId: String, $folderId: String) {
   createFile(
-    input: {name: $name, content: $content, threadId: $threadId, folderId: $folderId}
+    input: {id: $id, name: $name, content: $content, threadId: $threadId, folderId: $folderId}
   ) {
     ...FileFields
   }
@@ -1534,8 +1536,8 @@ export function useDeleteFileMutation() {
   return Urql.useMutation<DeleteFileMutation, DeleteFileMutationVariables>(DeleteFileDocument);
 };
 export const CreateFolderDocument = gql`
-    mutation CreateFolder($name: String!, $parentFolderId: String) {
-  createFolder(input: {name: $name, parentFolderId: $parentFolderId}) {
+    mutation CreateFolder($id: ID, $name: String!, $parentFolderId: String) {
+  createFolder(input: {id: $id, name: $name, parentFolderId: $parentFolderId}) {
     ...FolderFields
   }
 }

@@ -9,7 +9,7 @@ export interface MessageProps {
   id: string; // Unique message ID for React keys
   role: 'user' | 'assistant';
   content?: ContentBlockDTO[] | string; // ContentBlockDTO[] for new messages, string for legacy/user messages
-  timestamp: Date;
+  timestamp: string; // ISO 8601 string from GraphQL
   isStreaming?: boolean;
   isRequestLoading?: boolean;
   className?: string;
@@ -150,7 +150,7 @@ const MessageComponent = ({
             {timestamp && (
               <div className={`flex mt-2 pt-1 border-t border-gray-100 dark:border-gray-700/50 ${isUser ? 'justify-start' : 'justify-end'}`}>
                 <span className="text-xs text-gray-500 dark:text-gray-400">
-                  {timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </span>
               </div>
             )}

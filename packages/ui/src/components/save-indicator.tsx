@@ -8,7 +8,7 @@ export type SaveStatus = 'saving' | 'saved' | 'error' | 'offline' | 'idle';
 export interface SaveIndicatorProps {
   status: SaveStatus;
   className?: string;
-  lastSavedAt?: Date | null;
+  lastSavedAt?: string | null; // ISO 8601 string from GraphQL
   hasUnsavedChanges?: boolean;
   debounceMs?: number; // For countdown timer
 }
@@ -16,9 +16,10 @@ export interface SaveIndicatorProps {
 /**
  * Format relative time from a date (e.g., "2 minutes ago")
  */
-function getRelativeTime(date: Date): string {
+function getRelativeTime(date: string): string {
+  const dateObj = new Date(date);
   const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
+  const diffMs = now.getTime() - dateObj.getTime();
   const diffSeconds = Math.floor(diffMs / 1000);
   const diffMinutes = Math.floor(diffSeconds / 60);
   const diffHours = Math.floor(diffMinutes / 60);
@@ -34,10 +35,10 @@ function getRelativeTime(date: Date): string {
   if (diffDays < 7) return `${diffDays} days ago`;
 
   // For older dates, show the actual date
-  return date.toLocaleDateString(undefined, {
+  return dateObj.toLocaleDateString(undefined, {
     month: 'short',
     day: 'numeric',
-    year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
+    year: dateObj.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
   });
 }
 

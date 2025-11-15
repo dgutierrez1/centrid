@@ -137,6 +137,11 @@ const MessageType = builder.objectRef<Message>("Message").implement({
 // Input types for mutations
 const CreateThreadInput = builder.inputType("CreateThreadInput", {
   fields: (t) => ({
+    id: t.id({
+      required: false,
+      nullable: true,
+      description: "Optional client-provided UUID (for optimistic updates)",
+    }),
     branchTitle: t.string({ required: true }),
     parentThreadId: t.id({ required: false, nullable: true }),
   }),
@@ -271,6 +276,7 @@ builder.mutationField("createThread", (t) =>
     },
     resolve: async (parent, args, context) => {
       return await threadRepository.create({
+        id: args.input.id || undefined,
         ownerUserId: context.userId,
         parentThreadId: args.input.parentThreadId || null,
         branchTitle: args.input.branchTitle,

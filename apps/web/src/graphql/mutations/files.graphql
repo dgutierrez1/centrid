@@ -5,6 +5,7 @@
 
 # Create a new file
 mutation CreateFile(
+  $id: ID
   $name: String!
   $content: String!
   $threadId: String
@@ -12,6 +13,7 @@ mutation CreateFile(
 ) {
   createFile(
     input: {
+      id: $id
       name: $name
       content: $content
       threadId: $threadId

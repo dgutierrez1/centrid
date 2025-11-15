@@ -3,6 +3,7 @@ import { getDB } from '../functions/_shared/db.ts';
 import { threads } from '../db/schema.ts';
 
 export interface CreateThreadInput {
+  id?: string;
   ownerUserId: string;
   parentThreadId?: string | null;
   branchTitle: string;
@@ -21,14 +22,21 @@ export class ThreadRepository {
   async create(input: CreateThreadInput) {
     const { db, cleanup } = await getDB();
     try {
+      const values: any = {
+        ownerUserId: input.ownerUserId,
+        parentThreadId: input.parentThreadId || null,
+        branchTitle: input.branchTitle,
+        creator: input.creator,
+      };
+
+      // Use client-provided ID if available (for optimistic updates)
+      if (input.id) {
+        values.id = input.id;
+      }
+
       const [thread] = await db
         .insert(threads)
-        .values({
-          ownerUserId: input.ownerUserId,
-          parentThreadId: input.parentThreadId || null,
-          branchTitle: input.branchTitle,
-          creator: input.creator,
-        })
+        .values(values)
         .returning();
       return thread;
     } finally {

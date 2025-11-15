@@ -8,13 +8,13 @@ export const mockMessage = {
     id: 'msg_user_001',
     role: 'user' as const,
     content: [{ type: 'text', text: 'Can you help me with this file?' }],
-    timestamp: new Date('2025-01-01T12:00:00Z'),
+    timestamp: '2025-01-01T12:00:00.000Z',
   },
   assistant: {
     id: 'msg_assistant_001',
     role: 'assistant' as const,
     content: [{ type: 'text', text: 'Of course! Let me take a look.' }],
-    timestamp: new Date('2025-01-01T12:00:01Z'),
+    timestamp: '2025-01-01T12:00:01.000Z',
   },
   withToolPending: {
     id: 'msg_assistant_002',
@@ -29,7 +29,7 @@ export const mockMessage = {
         status: 'pending',
       },
     ],
-    timestamp: new Date('2025-01-01T12:00:02Z'),
+    timestamp: '2025-01-01T12:00:02.000Z',
   },
   withToolCompleted: {
     id: 'msg_assistant_003',
@@ -46,7 +46,7 @@ export const mockMessage = {
       },
       { type: 'text', text: 'Does this help?' },
     ],
-    timestamp: new Date('2025-01-01T12:00:03Z'),
+    timestamp: '2025-01-01T12:00:03.000Z',
   },
 };
 

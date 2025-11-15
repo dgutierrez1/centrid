@@ -27,6 +27,11 @@ export function useCreateBranch() {
 
       aiAgentActions.addThreadToBranchTree(thread);
 
+      // Pass permanent ID to GraphQL mutation
+      if (input?.input) {
+        input.input.id = permanentId;
+      }
+
       return { permanentId };
     },
     onSuccess: ({ permanentId }, data) => {
