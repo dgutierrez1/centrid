@@ -8,9 +8,9 @@ import SchemaBuilder from "@pothos/core";
 import ValidationPlugin from "@pothos/plugin-validation";
 import DataloaderPlugin from "@pothos/plugin-dataloader";
 import type DataLoader from "dataloader";
-import type { Folder, Message } from "../db/types.js";
+import type { Folder, Message } from "../db/types.ts";
 import type { FileUpload } from "graphql-upload";
-import { isValidUUID, validateUUID } from "../utils/validation.js";
+import { isValidUUID, validateUUID } from "../utils/validation.ts";
 
 // Initialize builder with plugins
 export const builder = new SchemaBuilder<{

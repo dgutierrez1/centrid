@@ -1,6 +1,9 @@
 import { eq, and, isNull } from 'drizzle-orm';
 import { getDB } from '../functions/_shared/db.ts';
 import { threads } from '../db/schema.ts';
+import { createLogger } from '../utils/logger.ts';
+
+const logger = createLogger('repositories/thread');
 
 export interface CreateThreadInput {
   id?: string;
@@ -39,6 +42,16 @@ export class ThreadRepository {
         .values(values)
         .returning();
       return thread;
+    } catch (error) {
+      logger.error('Database insert failed', {
+        error,
+        input: {
+          id: input.id,
+          parentThreadId: input.parentThreadId,
+          branchTitle: input.branchTitle,
+        },
+      });
+      throw error;
     } finally {
       await cleanup();
     }
@@ -126,6 +139,9 @@ export class ThreadRepository {
         .where(eq(threads.id, threadId))
         .returning();
       return thread || null;
+    } catch (error) {
+      logger.error('Database update failed', { error, threadId, updates });
+      throw error;
     } finally {
       await cleanup();
     }
@@ -138,6 +154,9 @@ export class ThreadRepository {
     const { db, cleanup } = await getDB();
     try {
       await db.delete(threads).where(eq(threads.id, threadId));
+    } catch (error) {
+      logger.error('Database delete failed', { error, threadId });
+      throw error;
     } finally {
       await cleanup();
     }

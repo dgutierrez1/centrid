@@ -55,8 +55,8 @@ builder.queryField('agentExecutionEventsSince', (t) =>
       timestamp: t.arg({ type: 'DateTime', required: true, description: 'ISO timestamp to fetch events after' }),
     },
     resolve: async (parent, args, context) => {
-      const timestampStr = args.timestamp.toISOString();
-      return await agentExecutionEventRepository.findByRequestIdSinceTimestamp(args.requestId, timestampStr);
+      // args.timestamp is already an ISO string from DateTime scalar
+      return await agentExecutionEventRepository.findByRequestIdSinceTimestamp(args.requestId, args.timestamp);
     },
   })
 );

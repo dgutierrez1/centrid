@@ -171,17 +171,14 @@ const SearchInput = builder.inputType("SearchInput", {
     query: t.string({ required: true, description: "Search query" }),
     limit: t.int({
       required: false,
-      nullable: true,
       description: "Max results (default: 10)",
     }),
     fileTypes: t.stringList({
       required: false,
-      nullable: true,
       description: 'Filter by file extensions (e.g., ["ts", "md"])',
     }),
     entityTypes: t.stringList({
       required: false,
-      nullable: true,
       description:
         'Filter by entity types (file, thread, concept). Default: ["file"]',
     }),
@@ -197,13 +194,11 @@ const AutocompleteInput = builder.inputType("AutocompleteInput", {
     }),
     entityType: t.string({
       required: false,
-      nullable: true,
       description:
         "Filter by entity type: files, folders, threads. Default: all",
     }),
     limit: t.int({
       required: false,
-      nullable: true,
       description: "Max results (default: 10)",
     }),
   }),

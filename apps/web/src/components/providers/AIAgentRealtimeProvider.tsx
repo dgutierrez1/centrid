@@ -23,17 +23,23 @@ export function AIAgentRealtimeProvider({ userId, children }: AIAgentRealtimePro
         if (payload.eventType === 'INSERT' && payload.new) {
           // payload.new is automatically camelCase from builder
           const thread = payload.new;
-          aiAgentActions.addThreadToBranchTree({
-            id: thread.id ?? '',
-            title: thread.branchTitle ?? '',
-            summary: '', // Not in GraphQL type
-            parentThreadId: thread.parentThreadId ?? null,
-            depth: 0,
-            artifactCount: 0,
-            lastActivity: new Date(thread.updatedAt || thread.createdAt || Date.now()),
-            createdAt: thread.createdAt ?? new Date().toISOString(),
-            updatedAt: thread.updatedAt ?? new Date().toISOString(),
-          });
+
+          // Check if thread already exists (prevent duplicates from optimistic updates)
+          const threadExists = aiAgentState.branchTree.threads.some(t => t.id === thread.id);
+
+          if (!threadExists) {
+            aiAgentActions.addThreadToBranchTree({
+              id: thread.id ?? '',
+              title: thread.branchTitle ?? '',
+              summary: '', // Not in GraphQL type
+              parentThreadId: thread.parentThreadId ?? null,
+              depth: 0,
+              artifactCount: 0,
+              lastActivity: new Date(thread.updatedAt || thread.createdAt || Date.now()),
+              createdAt: thread.createdAt ?? new Date().toISOString(),
+              updatedAt: thread.updatedAt ?? new Date().toISOString(),
+            });
+          }
         } else if (payload.eventType === 'UPDATE' && payload.new) {
           const thread = payload.new;
           // Update current thread if it matches

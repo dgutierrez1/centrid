@@ -14,6 +14,7 @@ export type Scalars = {
   Float: { input: number; output: number; }
   DateTime: { input: string; output: string; }
   JSON: { input: unknown; output: unknown; }
+  UUID: { input: any; output: any; }
   Upload: { input: File; output: File; }
 };
 
@@ -201,7 +202,7 @@ export type CreateFileInput = {
   /** Folder ID to organize file */
   folderId?: InputMaybe<Scalars['String']['input']>;
   /** Optional client-provided UUID (for optimistic updates) */
-  id?: InputMaybe<Scalars['ID']['input']>;
+  id?: InputMaybe<Scalars['UUID']['input']>;
   /** Filename with extension (e.g., 'document.md') */
   name: Scalars['String']['input'];
   /** Thread ID to link file to (creates context reference) */
@@ -211,7 +212,7 @@ export type CreateFileInput = {
 /** Input for creating a new folder */
 export type CreateFolderInput = {
   /** Optional client-provided UUID (for optimistic updates) */
-  id?: InputMaybe<Scalars['ID']['input']>;
+  id?: InputMaybe<Scalars['UUID']['input']>;
   /** Folder name */
   name: Scalars['String']['input'];
   /** Parent folder ID (null for root) */
@@ -243,6 +244,8 @@ export type CreateShadowEntityInput = {
 
 export type CreateThreadInput = {
   branchTitle: Scalars['String']['input'];
+  /** Optional client-provided UUID (for optimistic updates) */
+  id?: InputMaybe<Scalars['UUID']['input']>;
   parentThreadId?: InputMaybe<Scalars['ID']['input']>;
 };
 

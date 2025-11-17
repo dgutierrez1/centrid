@@ -2,6 +2,9 @@ import { messageRepository } from '../repositories/message.ts';
 import { agentRequestRepository } from '../repositories/agentRequest.ts';
 import type { ContentBlock } from '../types/agent.ts';
 import type { Message } from '../db/types.ts';
+import { createLogger } from '../utils/logger.ts';
+
+const logger = createLogger('MessageService');
 
 /**
  * Service-layer CreateMessageInput adds server-side context not in GraphQL Input:
@@ -34,7 +37,7 @@ export class MessageService {
    * Route handler must validate before calling this method
    */
   static async createMessage(input: CreateMessageInput): Promise<Message> {
-    console.log('[MessageService] Creating message', {
+    logger.info('Creating message', {
       threadId: input.threadId,
       role: input.role,
     });
@@ -66,11 +69,11 @@ export class MessageService {
         agentType: 'assistant', // Default type
         content: input.content,
       });
-      console.log('[MessageService] Created agent_request', { requestId: agentRequest.id });
+      logger.info('Created agent_request', { requestId: agentRequest.id });
 
       // Update message with requestId (save to database for GraphQL exposure)
       updatedMessage = await messageRepository.update(message.id, { requestId: agentRequest.id });
-      console.log('[MessageService] Linked message to agent_request', {
+      logger.info('Linked message to agent_request', {
         messageId: message.id,
         requestId: agentRequest.id,
       });

@@ -5,7 +5,7 @@
 
 # Create a new file
 mutation CreateFile(
-  $id: ID
+  $id: UUID
   $name: String!
   $content: String!
   $threadId: String

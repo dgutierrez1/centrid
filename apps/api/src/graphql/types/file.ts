@@ -6,7 +6,7 @@
 import { builder } from "../builder.ts";
 import { FileService } from "../../services/fileService.ts";
 import { fileRepository } from "../../repositories/file.ts";
-import type { File } from "../db/types.js";
+import type { File } from "../../db/types.js";
 
 // ============================================================================
 // File Type
@@ -131,7 +131,6 @@ const CreateFileInput = builder.inputType("CreateFileInput", {
     id: t.field({
       type: "UUID",
       required: false,
-      nullable: true,
       description: "Optional client-provided UUID (for optimistic updates)",
     }),
     name: t.string({
@@ -141,12 +140,10 @@ const CreateFileInput = builder.inputType("CreateFileInput", {
     content: t.string({ required: true, description: "File content" }),
     threadId: t.string({
       required: false,
-      nullable: true,
       description: "Thread ID to link file to (creates context reference)",
     }),
     folderId: t.string({
       required: false,
-      nullable: true,
       description: "Folder ID to organize file",
     }),
   }),
@@ -158,7 +155,6 @@ const UpdateFileInput = builder.inputType("UpdateFileInput", {
     content: t.string({ required: true, description: "New file content" }),
     version: t.int({
       required: false,
-      nullable: true,
       description: "Current version for optimistic locking",
     }),
   }),
@@ -169,17 +165,14 @@ const UpdateFilePartialInput = builder.inputType("UpdateFilePartialInput", {
   fields: (t) => ({
     name: t.string({
       required: false,
-      nullable: true,
       description: "New filename (rename)",
     }),
     content: t.string({
       required: false,
-      nullable: true,
       description: "New content",
     }),
     folderId: t.string({
       required: false,
-      nullable: true,
       description: "New folder ID (move)",
     }),
   }),

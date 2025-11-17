@@ -104,8 +104,8 @@ export class UserService {
       planType: profile.planType,
       usageCount: profile.usageCount,
       subscriptionStatus: profile.subscriptionStatus,
-      createdAt: profile.createdAt.toISOString(),
-      updatedAt: profile.updatedAt.toISOString(),
+      createdAt: profile.createdAt, // Already ISO string from database
+      updatedAt: profile.updatedAt, // Already ISO string from database
     };
   }
 
@@ -135,8 +135,8 @@ export class UserService {
       planType: updated.planType,
       usageCount: updated.usageCount,
       subscriptionStatus: updated.subscriptionStatus,
-      createdAt: updated.createdAt.toISOString(),
-      updatedAt: updated.updatedAt.toISOString(),
+      createdAt: updated.createdAt, // Already ISO string from database
+      updatedAt: updated.updatedAt, // Already ISO string from database
     };
   }
 

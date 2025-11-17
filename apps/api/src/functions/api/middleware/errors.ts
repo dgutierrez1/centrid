@@ -5,19 +5,17 @@
 
 import type { Context } from 'hono';
 import type { HTTPException } from 'hono/http-exception';
+import { createLogger } from '../../../utils/logger.ts';
+
+const logger = createLogger('middleware/error');
 
 export const errorHandler = (err: Error | HTTPException, c: Context) => {
-  // Log error with context
-  console.error(JSON.stringify({
-    level: 'error',
-    message: err.message,
-    stack: err.stack,
-    requestId: c.get('requestId'),
-    userId: c.get('userId'),
+  // Log error with structured logger (AsyncLocalStorage context auto-injected)
+  logger.error('Unhandled error in request', {
+    error: err,
     path: c.req.path,
     method: c.req.method,
-    timestamp: new Date().toISOString(),
-  }));
+  });
 
   // Return formatted error response
   return c.json(

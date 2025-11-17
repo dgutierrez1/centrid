@@ -9,7 +9,7 @@ import { messageRepository } from "../../repositories/message.ts";
 import { contextReferenceRepository } from "../../repositories/contextReference.ts";
 import { MessageService } from "../../services/messageService.ts";
 import { ConsolidationService } from "../../services/consolidationService.ts";
-import type { Thread, Message, ContextReference } from "../db/types.js";
+import type { Thread, Message, ContextReference } from "../../db/types.js";
 import DataLoader from "dataloader";
 
 // ============================================================================
@@ -140,21 +140,19 @@ const CreateThreadInput = builder.inputType("CreateThreadInput", {
     id: t.field({
       type: "UUID",
       required: false,
-      nullable: true,
       description: "Optional client-provided UUID (for optimistic updates)",
     }),
     branchTitle: t.string({ required: true }),
-    parentThreadId: t.id({ required: false, nullable: true }),
+    parentThreadId: t.id({ required: false }),
   }),
 });
 
 const UpdateThreadInput = builder.inputType("UpdateThreadInput", {
   fields: (t) => ({
-    branchTitle: t.string({ required: false, nullable: true }),
-    parentThreadId: t.id({ required: false, nullable: true }),
+    branchTitle: t.string({ required: false }),
+    parentThreadId: t.id({ required: false }),
     blacklistedBranches: t.stringList({
       required: false,
-      nullable: true,
       description: "Array of branch IDs to hide from context",
     }),
   }),
@@ -180,7 +178,6 @@ const AddContextReferenceInput = builder.inputType("AddContextReferenceInput", {
     }),
     priorityTier: t.int({
       required: false,
-      nullable: true,
       description: "Priority: 1 (high) to 3 (low)",
     }),
   }),
@@ -202,12 +199,10 @@ const CreateMessageInput = builder.inputType("CreateMessageInput", {
     }),
     toolCalls: t.stringList({
       required: false,
-      nullable: true,
       description: "Tool call IDs referenced in this message",
     }),
     tokensUsed: t.int({
       required: false,
-      nullable: true,
       description: "Number of tokens used",
     }),
   }),
@@ -246,8 +241,8 @@ builder.queryField("messages", (t) =>
         required: true,
         description: "Thread ID to fetch messages for",
       }),
-      limit: t.arg.int({ required: false, nullable: true }),
-      offset: t.arg.int({ required: false, nullable: true }),
+      limit: t.arg.int({ required: false }),
+      offset: t.arg.int({ required: false }),
     },
     resolve: async (parent, args, context) => {
       // Verify thread ownership

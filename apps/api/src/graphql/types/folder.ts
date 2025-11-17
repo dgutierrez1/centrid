@@ -74,7 +74,6 @@ const CreateFolderInput = builder.inputType('CreateFolderInput', {
     id: t.field({
       type: 'UUID',
       required: false,
-      nullable: true,
       description: 'Optional client-provided UUID (for optimistic updates)',
     }),
     name: t.string({ required: true, description: 'Folder name' }),

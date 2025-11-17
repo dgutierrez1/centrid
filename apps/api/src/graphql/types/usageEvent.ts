@@ -73,8 +73,8 @@ builder.queryField('usageEvents', (t) =>
       const userId = args.userId || context.userId;
 
       return await usageEventRepository.findByUserId(userId, {
-        startDate: args.startDate?.toISOString(),
-        endDate: args.endDate?.toISOString(),
+        startDate: args.startDate, // Already ISO string from DateTime scalar
+        endDate: args.endDate, // Already ISO string from DateTime scalar
         limit: args.limit,
         offset: args.offset,
       });
@@ -92,7 +92,7 @@ builder.queryField('usageStats', (t) =>
     },
     resolve: async (parent, args, context) => {
       const userId = args.userId || context.userId;
-      const startDate = args.startDate?.toISOString();
+      const startDate = args.startDate; // Already ISO string from DateTime scalar
 
       const [totalTokens, totalCost] = await Promise.all([
         usageEventRepository.getTotalTokensByUserId(userId, startDate),

@@ -33,12 +33,22 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.20.0",
+    "@pothos/core": "^4.2.0",
+    "@pothos/plugin-dataloader": "^4.2.0",
+    "@pothos/plugin-validation": "^4.2.0",
+    "@supabase/supabase-js": "^2.39.0",
     "@types/pg": "^8.15.5",
+    "dataloader": "^2.2.3",
     "drizzle-orm": "^0.44.6",
+    "graphql": "^16.12.0",
     "graphql-upload": "^17.0.0",
+    "graphql-yoga": "^5.10.6",
+    "hono": "^4.7.11",
     "openai": "^6.6.0",
     "pg": "^8.16.3",
     "postgres": "^3.4.7",
+    "uuid": "^9.0.1",
     "zod": "^4.1.12"
   },
   "devDependencies": {

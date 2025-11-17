@@ -722,6 +722,13 @@ ALTER TABLE folders
   ADD CONSTRAINT folders_parent_folder_id_fkey
   FOREIGN KEY (parent_folder_id) REFERENCES folders(id) ON DELETE CASCADE;
 
+-- Threads (self-referential hierarchy for branches)
+ALTER TABLE threads
+  DROP CONSTRAINT IF EXISTS threads_parent_thread_id_fkey;
+ALTER TABLE threads
+  ADD CONSTRAINT threads_parent_thread_id_fkey
+  FOREIGN KEY (parent_thread_id) REFERENCES threads(id) ON DELETE CASCADE;
+
 -- Documents (user ownership + folder hierarchy)
 ALTER TABLE documents
   DROP CONSTRAINT IF EXISTS documents_user_id_fkey;
