@@ -1,5 +1,5 @@
 import { proxy } from "valtio";
-import type { ContentBlock } from "@/types/agent";
+import type { ContentBlock } from "@/types/graphql";
 
 /**
  * UI-enhanced Thread type with computed fields for state management.

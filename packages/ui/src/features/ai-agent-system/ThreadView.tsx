@@ -7,7 +7,6 @@ import type { ContextGroup } from './ContextPanel';
 import { ContextPanel } from './ContextPanel';
 import type { ContextReferenceProps } from './ContextReference';
 import { ThreadInput } from './ThreadInput';
-import { ToolCallApproval } from './ToolCallApproval';
 
 export interface ThreadViewProps {
   /** Current branch */
@@ -24,12 +23,6 @@ export interface ThreadViewProps {
   isStreaming?: boolean;
   /** Loading state */
   isLoading?: boolean;
-  /** Pending tool approval */
-  pendingToolCall?: {
-    toolName: string;
-    toolInput: Record<string, any>;
-    previewContent?: string;
-  };
   /** Show branch selector (typically false on desktop with sidebar, true on mobile) */
   showBranchSelector?: boolean;
   /** Context panel expanded state */
@@ -40,8 +33,6 @@ export interface ThreadViewProps {
   onMessageChange: (text: string) => void;
   onSendMessage: (text: string) => void;
   onStopStreaming?: () => void;
-  onApproveToolCall?: () => void;
-  onRejectToolCall?: (reason?: string) => void;
   onWidgetClick?: (type: string) => void;
   onBranchThread?: () => void;
   onAddReference?: () => void;
@@ -58,7 +49,6 @@ const ThreadViewComponent = ({
   messageText,
   isStreaming = false,
   isLoading = false,
-  pendingToolCall,
   showBranchSelector = true,
   isContextExpanded = true,
   onSelectBranch,
@@ -66,8 +56,6 @@ const ThreadViewComponent = ({
   onMessageChange,
   onSendMessage,
   onStopStreaming,
-  onApproveToolCall,
-  onRejectToolCall,
   onWidgetClick,
   onBranchThread,
   onAddReference,
@@ -75,33 +63,10 @@ const ThreadViewComponent = ({
   onRemoveReference,
   className = '',
 }: ThreadViewProps) => {
-  // Show empty state when no thread is selected
-  if (!currentBranch) {
-    return (
-      <div className={`flex flex-col h-full bg-white dark:bg-gray-950 ${className}`} data-testid="thread-view-empty">
-        <div className="flex-1 flex items-center justify-center p-8">
-          <div className="text-center max-w-md">
-            <div className="mb-4">
-              <svg className="w-16 h-16 mx-auto text-gray-300 dark:text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-              </svg>
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-              No thread selected
-            </h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Select a thread from the sidebar or create a new one to start a conversation
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className={`w-full flex flex-col h-full bg-white dark:bg-gray-950 ${className}`} data-testid="thread-view">
-      {/* Header */}
-      {showBranchSelector ? (
+      {/* Header - only show when thread exists */}
+      {currentBranch && showBranchSelector ? (
         <div className="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4">
           <div className="flex items-center gap-2">
             <BranchSelector
@@ -129,7 +94,7 @@ const ThreadViewComponent = ({
             )}
           </div>
         </div>
-      ) : (
+      ) : currentBranch ? (
         <div className="border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 px-6 py-4">
           <div className="flex items-center justify-between gap-4">
             <div className="flex-1 min-w-0">
@@ -162,26 +127,12 @@ const ThreadViewComponent = ({
             )}
           </div>
         </div>
-      )}
+      ) : null}
 
       {/* Message Stream */}
       <div className="w-full flex-1 overflow-hidden">
         <MessageStream messages={messages} isStreaming={isStreaming} isLoading={isLoading} />
       </div>
-
-      {/* Tool Approval (if pending) */}
-      {pendingToolCall && onApproveToolCall && onRejectToolCall && (
-        <div className="px-4 pb-4">
-          <ToolCallApproval
-            toolName={pendingToolCall.toolName}
-            toolInput={pendingToolCall.toolInput}
-            previewContent={pendingToolCall.previewContent}
-            isLoading={isLoading}
-            onApprove={onApproveToolCall}
-            onReject={onRejectToolCall}
-          />
-        </div>
-      )}
 
       {/* Context Panel */}
       <ContextPanel

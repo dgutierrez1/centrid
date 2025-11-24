@@ -5,7 +5,12 @@
 
 import { builder } from '../builder.ts';
 import { agentToolCallRepository } from '../../repositories/agentToolCall.ts';
+import { AgentRequestService } from '../../services/agentRequestService.ts';
+import { AgentExecutionService } from '../../services/agentExecution.ts';
 import type { AgentToolCall } from '../db/types.js';
+import { createLogger } from '../../utils/logger.ts';
+
+const logger = createLogger('ToolCallType');
 
 // ============================================================================
 // Tool Call Type
@@ -141,15 +146,55 @@ builder.mutationField('approveToolCall', (t) =>
         throw new Error('Tool call is not pending');
       }
 
-      // Update status to approved
-      const updated = await agentToolCallRepository.updateStatus(
-        args.input.id,
-        'approved'
+      // Execute the tool synchronously using generic executor
+      logger.info('Executing approved tool', {
+        toolCallId: toolCall.id,
+        toolName: toolCall.toolName,
+        threadId: toolCall.threadId,
+      });
+
+      const toolResult = await AgentExecutionService.executeTool(
+        toolCall.toolName,
+        toolCall.toolInput,
+        toolCall.threadId,
+        context.userId
       );
 
-      // NOTE: Approval triggers agent execution via Supabase Realtime subscription
-      // The /api/agent-requests/:requestId/execute endpoint listens for approved status
-      // and resumes execution automatically
+      logger.info('Tool execution completed', {
+        toolCallId: toolCall.id,
+        success: !toolResult.error,
+      });
+
+      // Update status to approved with execution result
+      const updated = await agentToolCallRepository.updateStatus(
+        args.input.id,
+        'approved',
+        toolResult
+      );
+
+      // Fire-and-forget execution resume (matches createMessageWithExecution pattern)
+      // Frontend subscribes to agent_execution_events for real-time updates
+      if (toolCall.requestId) {
+        AgentRequestService.executeRequest(toolCall.requestId)
+          .then((result) => {
+            logger.info('Agent execution resumed after tool approval', {
+              toolCallId: toolCall.id,
+              requestId: toolCall.requestId,
+              status: result.status,
+            });
+          })
+          .catch((error) => {
+            logger.error('Agent execution failed after tool approval', {
+              toolCallId: toolCall.id,
+              requestId: toolCall.requestId,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          });
+      } else {
+        logger.warn('Tool call approved but no requestId found', {
+          toolCallId: toolCall.id,
+        });
+      }
 
       return updated;
     },

@@ -11,7 +11,7 @@
 
 import { createLogger } from '../utils/logger.ts';
 import { TOOL_REGISTRY } from '../config/tools.ts';
-import type { ContentBlock } from '../types/agent.ts';
+import type { ContentBlock } from '../types/graphql.ts';
 
 // ============================================================================
 // Utility Functions

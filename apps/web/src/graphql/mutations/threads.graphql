@@ -3,12 +3,25 @@
 # Context reference mutations
 
 #import "../fragments/thread.graphql"
+#import "../fragments/message.graphql"
 #import "../fragments/contextReference.graphql"
 
 # Create a new thread (branch)
 mutation CreateThread($input: CreateThreadInput!) {
   createThread(input: $input) {
     ...ThreadFields
+  }
+}
+
+# Create a new thread with initial message (atomic operation)
+mutation CreateThreadWithMessage($input: CreateThreadWithMessageInput!) {
+  createThreadWithMessage(input: $input) {
+    thread {
+      ...ThreadFields
+    }
+    message {
+      ...MessageFields
+    }
   }
 }
 

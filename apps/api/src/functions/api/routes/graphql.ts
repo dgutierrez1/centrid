@@ -10,6 +10,24 @@ import { createLogger, setRequestContext } from "../../../utils/logger.ts";
 
 const logger = createLogger('graphql/server');
 
+// Helper to sanitize variables for logging (mask sensitive fields)
+function sanitizeVariables(variables: Record<string, any>): Record<string, any> {
+  const sensitiveKeys = ['password', 'token', 'secret', 'apiKey', 'accessToken'];
+  const sanitized: Record<string, any> = {};
+
+  for (const [key, value] of Object.entries(variables)) {
+    if (sensitiveKeys.some(sk => key.toLowerCase().includes(sk.toLowerCase()))) {
+      sanitized[key] = '[REDACTED]';
+    } else if (typeof value === 'object' && value !== null) {
+      sanitized[key] = sanitizeVariables(value);
+    } else {
+      sanitized[key] = value;
+    }
+  }
+
+  return sanitized;
+}
+
 // Export Hono-compatible handler
 export const graphqlHandler = async (c: Context) => {
   // Extract userId from Hono context (set by auth middleware)
@@ -66,24 +84,51 @@ export const graphqlHandler = async (c: Context) => {
     plugins: [
       {
         onExecute: () => ({
-          onExecuteDone: ({ args }: any) => {
-            const { operationName } = args;
-            logger.info('GraphQL operation completed', { operationName });
+          onExecuteDone: ({ args, result }: any) => {
+            const { operationName, variableValues } = args;
+
+            // Log successful operations with request details
+            logger.info('GraphQL operation completed', {
+              operationName,
+              variableKeys: variableValues ? Object.keys(variableValues) : [],
+              hasErrors: result.errors && result.errors.length > 0,
+            });
+
+            // Log execution errors with full details
+            if (result.errors && result.errors.length > 0) {
+              logger.error('GraphQL execution errors', {
+                operationName,
+                errors: result.errors.map((e: any) => ({
+                  message: e.message,
+                  path: e.path,
+                  extensions: e.extensions,
+                  // Log original error for debugging
+                  originalError: e.originalError?.message,
+                })),
+                // Log sanitized variables (mask sensitive fields)
+                variables: variableValues ? sanitizeVariables(variableValues) : {},
+              });
+            }
           },
         }),
       },
     ],
     // @ts-expect-error - formatError exists in GraphQL Yoga but types may not be current
     formatError: (error: any, context: any) => {
-      // Log all GraphQL errors with full context
-      logger.error('GraphQL operation failed', {
-        error: {
-          message: error.message,
-          path: error.path,
-          extensions: error.extensions,
-        },
+      // Enhanced error logging - catches ALL error types (parse, validation, execution)
+      logger.error('GraphQL error', {
+        type: error.extensions?.code || 'UNKNOWN',
+        message: error.message,
+        path: error.path,
+        locations: error.locations,
+        extensions: error.extensions,
+        // Log original error details for debugging
+        originalError: error.originalError ? {
+          message: error.originalError.message,
+          name: error.originalError.name,
+          stack: error.originalError.stack?.split('\n').slice(0, 3), // First 3 lines of stack
+        } : undefined,
         operation: context?.operationName,
-        // Don't log full variables (may contain sensitive data), just keys
         variableKeys: context?.variables ? Object.keys(context.variables) : [],
       });
 

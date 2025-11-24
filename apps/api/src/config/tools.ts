@@ -1,7 +1,12 @@
 /**
  * Tool Registry and Configuration
- * Defines all available tools, their schemas, and approval requirements
+ * Type-safe tool definitions with discriminated unions
+ * 100% aligned with Anthropic Claude API specification
  */
+
+// ============================================================================
+// Type Definitions
+// ============================================================================
 
 interface ToolInputSchema {
   type: string;
@@ -9,15 +14,55 @@ interface ToolInputSchema {
   required: string[];
 }
 
-interface ToolConfig {
+/**
+ * Custom tools (client-defined, executed by our code)
+ * Format per Claude API: { name, description, input_schema }
+ */
+interface CustomToolConfig {
+  toolType: 'custom';
   name: string;
   description: string;
   requiresApproval: boolean;
   input_schema: ToolInputSchema;
 }
 
+/**
+ * Native tools (server-side, executed by Anthropic)
+ * Format per Claude API: { type, name, max_uses? }
+ */
+interface NativeToolConfig {
+  toolType: 'native';
+  name: string; // Internal reference name
+  type: string; // Claude tool type (e.g., 'web_search_20250305')
+  requiresApproval: boolean;
+  max_uses?: number;
+}
+
+/**
+ * Discriminated union - ensures type safety
+ */
+type ToolConfig = CustomToolConfig | NativeToolConfig;
+
+// ============================================================================
+// Type Guards
+// ============================================================================
+
+function isNativeToolConfig(config: ToolConfig): config is NativeToolConfig {
+  return config.toolType === 'native';
+}
+
+function isCustomToolConfig(config: ToolConfig): config is CustomToolConfig {
+  return config.toolType === 'custom';
+}
+
+// ============================================================================
+// Tool Registry
+// ============================================================================
+
 export const TOOL_REGISTRY: Record<string, ToolConfig> = {
+  // Custom Tools (executed by our code)
   write_file: {
+    toolType: 'custom',
     name: 'write_file',
     description: 'Write content to a file',
     requiresApproval: true,
@@ -31,6 +76,7 @@ export const TOOL_REGISTRY: Record<string, ToolConfig> = {
     },
   },
   create_branch: {
+    toolType: 'custom',
     name: 'create_branch',
     description: 'Create a new conversation branch',
     requiresApproval: true,
@@ -48,6 +94,7 @@ export const TOOL_REGISTRY: Record<string, ToolConfig> = {
     },
   },
   search_files: {
+    toolType: 'custom',
     name: 'search_files',
     description: 'Search for files',
     requiresApproval: false,
@@ -60,6 +107,7 @@ export const TOOL_REGISTRY: Record<string, ToolConfig> = {
     },
   },
   read_file: {
+    toolType: 'custom',
     name: 'read_file',
     description: 'Read file contents',
     requiresApproval: false,
@@ -72,6 +120,7 @@ export const TOOL_REGISTRY: Record<string, ToolConfig> = {
     },
   },
   list_directory: {
+    toolType: 'custom',
     name: 'list_directory',
     description: 'List files and folders in a directory',
     requiresApproval: false,
@@ -83,25 +132,72 @@ export const TOOL_REGISTRY: Record<string, ToolConfig> = {
       required: ['path'],
     },
   },
+
+  // Native Tools (executed by Anthropic server-side)
+  web_search: {
+    toolType: 'native',
+    name: 'web_search',
+    type: 'web_search_20250305',
+    requiresApproval: false,
+    max_uses: 5,
+  },
 };
 
+// ============================================================================
+// Formatting Functions
+// ============================================================================
+
 /**
- * Get all available tools for Claude
- * Returns tools in Claude API format (without approval metadata)
+ * Format native tool for Claude API
+ * Per Anthropic spec: { type, name, max_uses? }
+ */
+function formatNativeTool(config: NativeToolConfig) {
+  return {
+    type: config.type,
+    name: config.name,
+    ...(config.max_uses && { max_uses: config.max_uses }),
+  };
+}
+
+/**
+ * Format custom tool for Claude API
+ * Per Anthropic spec: { name, description, input_schema }
+ */
+function formatCustomTool(config: CustomToolConfig) {
+  return {
+    name: config.name,
+    description: config.description,
+    input_schema: config.input_schema,
+  };
+}
+
+/**
+ * Get all available tools formatted for Claude API
+ * Returns properly formatted tools without approval metadata
  */
 export function getAvailableTools() {
-  return Object.values(TOOL_REGISTRY).map((tool) => ({
-    name: tool.name,
-    description: tool.description,
-    input_schema: tool.input_schema,
-  }));
+  return Object.values(TOOL_REGISTRY).map((config) => {
+    if (isNativeToolConfig(config)) {
+      return formatNativeTool(config);
+    }
+    return formatCustomTool(config);
+  });
 }
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
 
 /**
  * Check if a tool requires user approval before execution
  */
 export function toolRequiresApproval(toolName: string): boolean {
-  return TOOL_REGISTRY[toolName]?.requiresApproval ?? false;
+  const config = TOOL_REGISTRY[toolName];
+  if (!config) {
+    console.warn(`[Tools] Unknown tool requested: ${toolName}`);
+    return false;
+  }
+  return config.requiresApproval;
 }
 
 /**

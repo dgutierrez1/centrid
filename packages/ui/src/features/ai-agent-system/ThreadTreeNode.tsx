@@ -32,6 +32,8 @@ export interface ThreadTreeNodeProps {
   selectedThreads?: Set<string>;
   /** Click handler (icon variant - navigates to thread) */
   onThreadClick?: (threadId: string) => void;
+  /** Hover handler (icon variant - prefetch thread data) */
+  onThreadHover?: (threadId: string) => void;
   /** Checkbox toggle handler (checkbox variant) */
   onCheckboxToggle?: (threadId: string) => void;
   /** Expand/collapse toggle handler */
@@ -66,6 +68,7 @@ export function ThreadTreeNode({
   expandedThreads,
   selectedThreads = new Set(),
   onThreadClick,
+  onThreadHover,
   onCheckboxToggle,
   onToggleExpanded,
   onCreateBranch,
@@ -157,6 +160,11 @@ export function ThreadTreeNode({
                     onThreadClick?.(thread.id);
                   }
                 }}
+                onMouseEnter={() => {
+                  if (variant === 'icon') {
+                    onThreadHover?.(thread.id);
+                  }
+                }}
                 className={cn('flex-1 min-w-0', variant === 'icon' && 'cursor-pointer')}
               >
                 <div className="font-medium truncate">{thread.title}</div>
@@ -182,7 +190,7 @@ export function ThreadTreeNode({
               {/* 6. Three-dot Menu - Hover-visible (icon variant only) */}
               {variant === 'icon' && (onRename || onDelete) && (
                 <DropdownMenu>
-                  <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                  <DropdownMenuTrigger asChild onClick={(e: React.MouseEvent) => e.stopPropagation()}>
                     <Button
                       size="icon"
                       variant="ghost"
@@ -194,7 +202,7 @@ export function ThreadTreeNode({
                   <DropdownMenuContent align="end">
                     {onRename && (
                       <DropdownMenuItem
-                        onClick={(e) => {
+                        onClick={(e: React.MouseEvent) => {
                           e.stopPropagation();
                           onRename(thread.id, thread.title);
                         }}
@@ -206,7 +214,7 @@ export function ThreadTreeNode({
                     {onDelete && (
                       <DropdownMenuItem
                         className="text-error-600 focus:text-error-600"
-                        onClick={(e) => {
+                        onClick={(e: React.MouseEvent) => {
                           e.stopPropagation();
                           onDelete(thread.id, thread.title);
                         }}
@@ -228,6 +236,7 @@ export function ThreadTreeNode({
                   expandedThreads={expandedThreads}
                   selectedThreads={selectedThreads}
                   onThreadClick={onThreadClick}
+                  onThreadHover={onThreadHover}
                   onCheckboxToggle={onCheckboxToggle}
                   onToggleExpanded={onToggleExpanded}
                   onCreateBranch={onCreateBranch}

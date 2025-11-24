@@ -9,6 +9,9 @@
     "./components": "./src/components/index.ts",
     "./layout": "./src/layout/index.ts",
     "./features": "./src/features/index.ts",
+    "./types": "./src/types/index.ts",
+    "./types/filesystem": "./src/types/filesystem.ts",
+    "./types/agent": "./src/types/agent.ts",
     "./styles": "./styles/globals.css",
     "./colors": "./colors.config.js",
     "./tailwind.preset": "./tailwind.preset.js"

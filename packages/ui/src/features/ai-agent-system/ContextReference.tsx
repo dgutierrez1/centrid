@@ -22,8 +22,8 @@ export interface ContextReferenceProps {
   relationship?: 'sibling' | 'parent' | 'child';
   /** Context priority tier (1=explicit, 2=semantic, 3=branch) */
   priorityTier: number;
-  /** Timestamp */
-  timestamp?: Date;
+  /** Timestamp (ISO 8601 string from GraphQL) */
+  timestamp?: string;
   /** Collapsed/expanded state inherited from parent section */
   isExpanded: boolean;
   /** Click handler */
@@ -179,7 +179,7 @@ export function ContextReference({
               )}
               {timestamp && (
                 <div className="text-xs text-gray-400">
-                  {timestamp.toLocaleString([], {
+                  {new Date(timestamp).toLocaleString([], {
                     month: 'short',
                     day: 'numeric',
                     hour: '2-digit',
@@ -239,7 +239,7 @@ export function ContextReference({
             )}
             {timestamp && (
               <div className="text-[10px] text-gray-400">
-                {timestamp.toLocaleString([], {
+                {new Date(timestamp).toLocaleString([], {
                   month: 'short',
                   day: 'numeric',
                   hour: '2-digit',

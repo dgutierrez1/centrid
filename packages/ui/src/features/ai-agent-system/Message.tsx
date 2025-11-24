@@ -3,12 +3,13 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import { ToolCallWidget } from './ToolCallWidget';
-import type { ContentBlockDTO, PendingToolCall } from '../../types/agent';
+import type { ContentBlock, TextBlock, ToolUseBlock } from '../../types/graphql';
+import type { PendingToolCall } from '../../types/agent';
 
 export interface MessageProps {
   id: string; // Unique message ID for React keys
   role: 'user' | 'assistant';
-  content?: ContentBlockDTO[] | string; // ContentBlockDTO[] for new messages, string for legacy/user messages
+  content?: ContentBlock[] | string; // ContentBlock[] for new messages, string for legacy/user messages
   timestamp: string; // ISO 8601 string from GraphQL
   isStreaming?: boolean;
   isRequestLoading?: boolean;
@@ -36,7 +37,7 @@ const MessageComponent = ({
 
   // Backwards compatibility: wrap string content in text block
   // Memoize to avoid recreating array on every render
-  const contentBlocks: ContentBlockDTO[] = React.useMemo(() => {
+  const contentBlocks: ContentBlock[] = React.useMemo(() => {
     return Array.isArray(displayContent)
       ? displayContent
       : [{ type: 'text', text: displayContent || '' }];
@@ -99,6 +100,10 @@ const MessageComponent = ({
             {/* Render content blocks */}
             {contentBlocks.map((block, index) => {
               if (block.type === 'text') {
+                // Display full text immediately (no streaming animation)
+                const textBlock = block as TextBlock;
+                const textToDisplay = textBlock.text;
+
                 return (
                   <div
                     key={index}
@@ -112,7 +117,7 @@ const MessageComponent = ({
                       remarkPlugins={[remarkGfm]}
                       rehypePlugins={[rehypeHighlight]}
                     >
-                      {block.text}
+                      {textToDisplay}
                     </ReactMarkdown>
                     {/* Streaming cursor - only show on last text block when streaming */}
                     {!isUser && isStreaming && index === contentBlocks.length - 1 && (
@@ -123,20 +128,36 @@ const MessageComponent = ({
               }
 
               if (block.type === 'tool_use') {
+                const toolBlock = block as ToolUseBlock;
+
                 // Check if this tool block is the pending approval
                 const isPendingApproval =
-                  block.status === 'pending' &&
-                  pendingToolCall?.toolCallId === block.id;
+                  toolBlock.status === 'pending' &&
+                  pendingToolCall?.toolCallId === toolBlock.id;
+
+                // Map ToolUseBlock status to ToolCallWidget status
+                const mapStatus = (status?: string): 'pending' | 'executing' | 'completed' | 'error' => {
+                  if (status === 'failed') return 'error';
+                  if (status === 'approved') return 'executing';
+                  if (status === 'rejected') return 'error';
+                  if (status === 'completed') return 'completed';
+                  return 'pending';
+                };
+
+                // Convert string result to Record if needed
+                const resultRecord = toolBlock.result
+                  ? (typeof toolBlock.result === 'string' ? { output: toolBlock.result } : toolBlock.result as Record<string, any>)
+                  : undefined;
 
                 return (
                   <ToolCallWidget
-                    key={block.id}
-                    id={block.id}
-                    name={block.name}
-                    input={block.input}
-                    status={block.status}
-                    result={block.result}
-                    error={block.error}
+                    key={toolBlock.id}
+                    id={toolBlock.id}
+                    name={toolBlock.name}
+                    input={toolBlock.input as Record<string, any>}
+                    status={mapStatus(toolBlock.status)}
+                    result={resultRecord}
+                    error={toolBlock.error}
                     onApprove={isPendingApproval ? onApproveToolCall : undefined}
                     onReject={isPendingApproval ? onRejectToolCall : undefined}
                   />

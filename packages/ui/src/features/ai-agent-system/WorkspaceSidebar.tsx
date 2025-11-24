@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { cn } from '../../lib/utils';
-import { FileTreeNode, type FileTreeNodeData } from '@centrid/ui/features/filesystem-markdown-editor';
+import { FileTreeNode, type FileTreeNodeData } from '../filesystem-markdown-editor';
 import { ThreadTreeNode as SharedThreadTreeNode, type ThreadNode } from './ThreadTreeNode';
 
 export interface Thread {
@@ -23,6 +23,7 @@ export interface File {
   type: 'file' | 'folder';
   parentId?: string | null;
   depth?: number;
+  children?: File[];
 }
 
 export interface WorkspaceSidebarProps {
@@ -30,8 +31,10 @@ export interface WorkspaceSidebarProps {
   onTabChange: (tab: 'files' | 'threads') => void;
   files: File[];
   threads: Thread[];
+  selectedFileId?: string | null;
   onFileClick: (fileId: string) => void;
   onThreadClick: (threadId: string) => void;
+  onThreadHover?: (threadId: string) => void;
   onCreateThread?: () => void;
   onCreateFile?: () => void;
   onCreateFolder?: () => void;
@@ -170,7 +173,7 @@ function FileIcon({ type }: { type: 'file' | 'folder' }) {
 
 // Recursive component to render file tree
 interface LocalFileTreeNodeProps {
-  files: (File & { children: File[] })[];
+  files: File[];
   expandedFiles: Set<string>;
   onFileClick: (fileId: string) => void;
   onToggleExpanded: (fileId: string) => void;
@@ -248,7 +251,7 @@ function LocalFileTreeNode({
             {hasChildren && isExpanded && (
               <div className="mt-0.5">
                 <LocalFileTreeNode
-                  files={file.children}
+                  files={file.children || []}
                   expandedFiles={expandedFiles}
                   onFileClick={onFileClick}
                   onToggleExpanded={onToggleExpanded}
@@ -268,8 +271,10 @@ export function WorkspaceSidebar({
   onTabChange,
   files,
   threads,
+  selectedFileId,
   onFileClick,
   onThreadClick,
+  onThreadHover,
   onCreateThread,
   onCreateFile,
   onCreateFolder,
@@ -293,7 +298,6 @@ export function WorkspaceSidebar({
   onFileToggleExpanded,
 }: WorkspaceSidebarProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedFileId, setSelectedFileId] = useState<string>('');
   const [searchOpen, setSearchOpen] = useState(false);
 
   // Fallback to local state if parent doesn't provide expansion control
@@ -358,7 +362,6 @@ export function WorkspaceSidebar({
   };
 
   const handleFileSelect = (fileId: string) => {
-    setSelectedFileId(fileId);
     onFileClick(fileId);
   };
 
@@ -509,6 +512,7 @@ export function WorkspaceSidebar({
                 variant="icon"
                 expandedThreads={expandedThreads}
                 onThreadClick={onThreadClick}
+                onThreadHover={onThreadHover}
                 onToggleExpanded={toggleThreadExpanded}
                 onCreateBranch={onThreadCreateBranch}
                 onRename={onThreadRename}
@@ -540,13 +544,13 @@ export function WorkspaceSidebar({
                 <FileTreeNode
                   key={node.id}
                   node={node}
-                  selectedFile={selectedFileId}
+                  selectedFile={selectedFileId || ''}
                   onSelect={handleFileSelect}
-                  onRename={(id, name, type) => {
+                  onRename={(id: string, name: string, type: 'file' | 'folder') => {
                     if (type === 'file') onFileRename?.(id, name);
                     if (type === 'folder') onFolderRename?.(id, name);
                   }}
-                  onDelete={(id, name, type) => {
+                  onDelete={(id: string, name: string, type: 'file' | 'folder') => {
                     if (type === 'file') onFileDelete?.(id, name);
                     if (type === 'folder') onFolderDelete?.(id, name);
                   }}

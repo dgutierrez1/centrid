@@ -1,6 +1,8 @@
 import { threadRepository } from '../repositories/thread.ts';
 import { messageRepository } from '../repositories/message.ts';
 import { createLogger } from '../utils/logger.ts';
+import { MessageService } from './messageService.ts';
+import type { Message } from '../db/types.ts';
 
 const logger = createLogger('ThreadService');
 
@@ -240,5 +242,77 @@ export class ThreadService {
     const children = await threadRepository.findChildren(threadId);
 
     return children;
+  }
+
+  /**
+   * Create thread with initial user message and trigger execution
+   *
+   * This method:
+   * 1. Validates parent ownership (if parentThreadId provided)
+   * 2. Creates thread
+   * 3. Creates initial user message with agent_request
+   * 4. Triggers agent execution asynchronously
+   * 5. Returns { thread, message } immediately
+   *
+   * Frontend subscribes to realtime agent_execution_events for progress.
+   *
+   * @param input - Thread creation + initial message
+   * @returns { thread, message } - Both with IDs, execution happens asynchronously
+   */
+  static async createThreadWithMessage(input: {
+    userId: string;
+    title: string;
+    messageContent: string;
+    parentThreadId?: string;
+    messageIdempotencyKey?: string;
+  }): Promise<{ thread: any; message: Message }> {
+    logger.info('Creating thread with initial message', {
+      title: input.title,
+      parentThreadId: input.parentThreadId || null,
+    });
+
+    // Validate parent ownership if provided
+    if (input.parentThreadId) {
+      const parent = await threadRepository.findById(input.parentThreadId);
+      if (!parent) {
+        logger.warn('Parent thread not found', { parentThreadId: input.parentThreadId });
+        throw new Error('Parent thread not found');
+      }
+      if (parent.ownerUserId !== input.userId) {
+        logger.warn('Access denied to parent thread', {
+          parentThreadId: input.parentThreadId,
+          parentOwnerId: parent.ownerUserId,
+          requestUserId: input.userId,
+        });
+        throw new Error('Access denied to parent thread');
+      }
+    }
+
+    // Create thread
+    const thread = await threadRepository.create({
+      ownerUserId: input.userId,
+      branchTitle: input.title,
+      parentThreadId: input.parentThreadId || null,
+      creator: 'user',
+    });
+
+    logger.info('Thread created successfully', { threadId: thread.id });
+
+    // Create initial message with execution
+    const message = await MessageService.createMessageWithExecution({
+      threadId: thread.id,
+      userId: input.userId,
+      role: 'user',
+      content: input.messageContent,
+      idempotencyKey: input.messageIdempotencyKey,
+    });
+
+    logger.info('Thread and message created successfully', {
+      threadId: thread.id,
+      messageId: message.id,
+      requestId: message.requestId,
+    });
+
+    return { thread, message };
   }
 }

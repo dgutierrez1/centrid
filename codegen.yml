@@ -20,9 +20,9 @@ generates:
 
       # Type safety config
       skipTypename: false             # Include __typename in types
-      avoidOptionals: false           # Allow optional fields
-      maybeValue: T | null            # Nullable type handling
-      inputMaybeValue: T | null       # Input nullable handling
+      avoidOptionals: true            # Make fields required (strict types)
+      maybeValue: T                   # No nullable wrapper
+      inputMaybeValue: T              # Inputs also strict
       enumsAsTypes: true              # Enums as union types
       constEnums: true                # Use const enums
       futureProofEnums: true          # Future-proof enum values
@@ -46,6 +46,24 @@ generates:
       useTypeImports: true            # Use import type
 
       # Custom scalars (match frontend)
+      scalars:
+        DateTime: string
+        Upload: File
+        JSON: unknown
+
+  # UI Package types (for pure UI components)
+  packages/ui/src/types/graphql.ts:
+    plugins:
+      - 'typescript'                  # Base TypeScript types only
+    config:
+      # Type safety config
+      skipTypename: true              # No __typename for UI
+      avoidOptionals: true            # Make fields required (strict types)
+      maybeValue: T                   # No nullable wrapper
+      enumsAsTypes: true              # Enums as union types
+      useTypeImports: true            # Use import type
+
+      # Custom scalars (match other packages)
       scalars:
         DateTime: string
         Upload: File

@@ -8,6 +8,7 @@ import { threadRepository } from "../../repositories/thread.ts";
 import { messageRepository } from "../../repositories/message.ts";
 import { contextReferenceRepository } from "../../repositories/contextReference.ts";
 import { MessageService } from "../../services/messageService.ts";
+import { ThreadService } from "../../services/threadService.ts";
 import { ConsolidationService } from "../../services/consolidationService.ts";
 import type { Thread, Message, ContextReference } from "../../db/types.js";
 import DataLoader from "dataloader";
@@ -131,8 +132,29 @@ const MessageType = builder.objectRef<Message>("Message").implement({
       description:
         "Agent request ID (for user messages that trigger agent execution)",
     }),
+    idempotencyKey: t.exposeString("idempotencyKey", {
+      nullable: true,
+      description: "Idempotency key for deduplication (prevents duplicate messages)",
+    }),
   }),
 });
+
+// Return type for createThreadWithMessage mutation
+const ThreadWithMessageType = builder
+  .objectRef<{ thread: Thread; message: Message }>("ThreadWithMessage")
+  .implement({
+    description: "Thread with initial message (atomic creation response)",
+    fields: (t) => ({
+      thread: t.field({
+        type: ThreadType,
+        resolve: (parent) => parent.thread,
+      }),
+      message: t.field({
+        type: MessageType,
+        resolve: (parent) => parent.message,
+      }),
+    }),
+  });
 
 // Input types for mutations
 const CreateThreadInput = builder.inputType("CreateThreadInput", {
@@ -144,6 +166,27 @@ const CreateThreadInput = builder.inputType("CreateThreadInput", {
     }),
     branchTitle: t.string({ required: true }),
     parentThreadId: t.id({ required: false }),
+  }),
+});
+
+const CreateThreadWithMessageInput = builder.inputType("CreateThreadWithMessageInput", {
+  fields: (t) => ({
+    id: t.field({
+      type: "UUID",
+      required: false,
+      description: "Optional client-provided UUID (for optimistic updates)",
+    }),
+    branchTitle: t.string({ required: true }),
+    parentThreadId: t.id({ required: false }),
+    messageContent: t.string({
+      required: true,
+      description: "Initial message content",
+    }),
+    messageIdempotencyKey: t.field({
+      type: "UUID",
+      required: false,
+      description: "Idempotency key for the initial message (prevents duplicates)",
+    }),
   }),
 });
 
@@ -204,6 +247,11 @@ const CreateMessageInput = builder.inputType("CreateMessageInput", {
     tokensUsed: t.int({
       required: false,
       description: "Number of tokens used",
+    }),
+    idempotencyKey: t.field({
+      type: "UUID",
+      required: false,
+      description: "Idempotency key for deduplication (prevents duplicate messages)",
     }),
   }),
 });
@@ -277,6 +325,27 @@ builder.mutationField("createThread", (t) =>
         parentThreadId: args.input.parentThreadId || null,
         branchTitle: args.input.branchTitle,
         creator: "user" as const,
+      });
+    },
+  })
+);
+
+builder.mutationField("createThreadWithMessage", (t) =>
+  t.field({
+    type: ThreadWithMessageType,
+    description: "Create thread with initial message and trigger execution (atomic operation)",
+    args: {
+      input: t.arg({ type: CreateThreadWithMessageInput, required: true }),
+    },
+    resolve: async (parent, args, context) => {
+      // Call ThreadService with atomic creation (thin resolver pattern)
+      // Service layer handles: thread creation + message creation + agent_request + async execution
+      return await ThreadService.createThreadWithMessage({
+        userId: context.userId,
+        title: args.input.branchTitle,
+        messageContent: args.input.messageContent,
+        parentThreadId: args.input.parentThreadId || undefined,
+        messageIdempotencyKey: args.input.messageIdempotencyKey,
       });
     },
   })
@@ -428,93 +497,17 @@ builder.mutationField("createMessage", (t) =>
         throw new Error("Unauthorized");
       }
 
-      // Call MessageService instead of repository (includes agent_request creation)
-      const message = await MessageService.createMessage({
+      // Call MessageService with execution triggering (thin resolver pattern)
+      // Service layer handles: message creation + agent_request + async execution
+      const message = await MessageService.createMessageWithExecution({
         threadId: args.input.threadId,
         userId: context.userId,
         role: args.input.role as "user" | "assistant" | "system",
-        content: args.input.content, // MessageService will wrap string in ContentBlock array
-        contextReferences: [], // Will be added in future
+        content: args.input.content,
+        contextReferences: [],
+        idempotencyKey: args.input.idempotencyKey,
       });
 
-      // ========================================================================
-      // Trigger executeAgentRequest mutation for user messages
-      // ========================================================================
-      if (message.requestId) {
-        const requestId = message.requestId;
-
-        console.log(
-          "[GraphQL createMessage] Triggering executeAgentRequest mutation for:",
-          requestId
-        );
-
-        // Trigger execution via GraphQL mutation (same as REST calls /execute endpoint)
-        try {
-          const supabaseUrl = Deno.env.get("SUPABASE_URL");
-          const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-
-          if (!supabaseUrl || !serviceRoleKey) {
-            console.error("[GraphQL createMessage] Missing Supabase config");
-          } else {
-            const executeUrl = `${supabaseUrl}/functions/v1/api/graphql`;
-
-            console.log(
-              "[GraphQL createMessage] Calling executeAgentRequest mutation:",
-              {
-                requestId,
-                url: executeUrl,
-              }
-            );
-
-            // Short timeout just to initiate the request (not wait for completion)
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s to start execution
-
-            try {
-              const response = await fetch(executeUrl, {
-                method: "POST",
-                headers: {
-                  Authorization: `Bearer ${serviceRoleKey}`,
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                  query: `mutation { executeAgentRequest(requestId: "${requestId}") }`,
-                }),
-                signal: controller.signal,
-              });
-
-              console.log(
-                "[GraphQL createMessage] executeAgentRequest mutation triggered:",
-                {
-                  requestId,
-                  status: response.status,
-                }
-              );
-
-              // Don't wait for body - execution is happening in separate invocation
-              if (!response.ok) {
-                console.error(
-                  "[GraphQL createMessage] executeAgentRequest mutation failed to start:",
-                  {
-                    requestId,
-                    status: response.status,
-                  }
-                );
-              }
-            } finally {
-              clearTimeout(timeoutId);
-            }
-          }
-        } catch (error) {
-          console.error(
-            "[GraphQL createMessage] Failed to trigger executeAgentRequest mutation:",
-            error
-          );
-          // Don't fail the message creation - message was already saved
-        }
-      }
-
-      // Return Message entity (has requestId for user messages)
       return message;
     },
   })

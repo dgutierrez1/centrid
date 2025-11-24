@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { aiAgentState, aiAgentActions } from "../state/aiAgentState";
 import { useGraphQLQuery } from "../graphql/useGraphQLQuery";
 import { GetThreadDocument } from "@/types/graphql";
+import { parseJsonbRow } from "@/lib/realtime/config";
 
 /**
  * Load thread data via GraphQL
@@ -11,6 +12,17 @@ import { GetThreadDocument } from "@/types/graphql";
  * @param threadId - Thread ID to load
  */
 export function useLoadThread(threadId: string | undefined) {
+  // Handle "new" thread route (empty state)
+  useEffect(() => {
+    if (threadId === 'new') {
+      aiAgentActions.setCurrentThread(null);
+      aiAgentActions.setMessages([]);
+      aiAgentActions.setContextReferences([]);
+      aiAgentActions.setIsLoadingThread(false);
+      return;
+    }
+  }, [threadId]);
+
   // Clear state when no thread ID
   useEffect(() => {
     if (!threadId) {
@@ -21,14 +33,19 @@ export function useLoadThread(threadId: string | undefined) {
     }
   }, [threadId]);
 
+  // Check if thread data already exists in state (data-aware loading)
+  const alreadyLoaded =
+    aiAgentState.currentThread?.id === threadId &&
+    aiAgentState.messages.length > 0;
+
   // Load thread using GraphQL
   // Cookies sent automatically - backend validates auth
   // Query returns instantly from SSR-prefetched cache
   const { loading, error } = useGraphQLQuery({
     query: GetThreadDocument,
     variables: threadId ? { id: threadId } : { id: "" }, // Provide empty string if no threadId (query will be disabled anyway)
-    // Enable query only if threadId exists
-    enabled: !!threadId,
+    // Enable query only if threadId exists, is not 'new', and not already loaded
+    enabled: !!threadId && threadId !== 'new' && !alreadyLoaded,
     syncToState: (data) => {
       if (!data.thread) {
         // Thread not found
@@ -63,15 +80,19 @@ export function useLoadThread(threadId: string | undefined) {
         updatedAt: thread.updatedAt,
       };
 
-      const transformedMessages = (thread.messages || []).map((msg: any) => ({
-        id: msg.id,
-        threadId: msg.threadId,
-        role: msg.role,
-        content: msg.content,
-        timestamp: msg.timestamp,
-        toolCalls: msg.toolCalls || [],
-        tokensUsed: msg.tokensUsed || 0,
-      }));
+      const transformedMessages = (thread.messages || []).map((msg: any) => {
+        // Parse JSONB fields (content, toolCalls) using shared helper
+        const parsed = parseJsonbRow('messages', msg);
+        return {
+          id: parsed.id,
+          threadId: parsed.threadId,
+          role: parsed.role,
+          content: parsed.content,        // ✅ JSONB parsed
+          timestamp: parsed.timestamp,    // ✅ Keep as ISO string
+          toolCalls: parsed.toolCalls || [],  // ✅ JSONB parsed
+          tokensUsed: parsed.tokensUsed || 0,
+        };
+      });
 
       const transformedRefs = (thread.contextReferences || []).map(
         (ref: any) => ({
@@ -105,8 +126,7 @@ export function useLoadThread(threadId: string | undefined) {
     }
   }, [error]);
 
-  // Don't sync loading state to Valtio - with SSR prefetching, loading is instant
-  // Components that need loading state can use the return value from this hook
-
-  return { isLoading: loading, error };
+  // Return false for loading if data already exists (data-aware loading)
+  // This prevents skeleton flashing when we already have the data in state
+  return { isLoading: alreadyLoaded ? false : loading, error };
 }

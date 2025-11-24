@@ -16,7 +16,8 @@ export interface ToolDefinition {
   };
 }
 
-export interface ContentBlock {
+/** Simplified ContentBlock for Claude API responses (not the full GraphQL ContentBlock type) */
+export interface ClaudeContentBlock {
   type: 'text' | 'tool_use';
   text?: string;
   id?: string;
@@ -67,11 +68,7 @@ export async function* streamClaudeResponse(
     max_tokens: maxTokens,
     temperature: temperature,
     system: systemPrompt,
-    tools: tools.map(t => ({
-      name: t.name,
-      description: t.description,
-      input_schema: t.input_schema,
-    })),
+    tools: tools, // Pass through directly - already correctly formatted by getAvailableTools()
     messages: messages.map(m => ({
       role: m.role,
       content: typeof m.content === 'string' ? m.content : m.content,
@@ -245,12 +242,9 @@ export function buildMessagesWithToolResults(
 
 /**
  * Format tool definitions for Claude API
- * Converts from internal tool format to Claude tool_use format
+ * Note: Tools are already correctly formatted by getAvailableTools()
+ * This function is now a simple pass-through for backward compatibility
  */
 export function formatToolsForClaude(tools: any[]): ToolDefinition[] {
-  return tools.map(tool => ({
-    name: tool.name,
-    description: tool.description,
-    input_schema: tool.input_schema,
-  }));
+  return tools; // Pass through - already correctly formatted
 }

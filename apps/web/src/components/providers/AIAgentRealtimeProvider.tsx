@@ -1,7 +1,9 @@
+import { useEffect } from 'react';
 import { useRealtimeSubscriptions } from '@/lib/realtime';
 import { aiAgentState, aiAgentActions } from '@/lib/state/aiAgentState';
 import type { UIThread, UIMessage, UIContextReference } from '@/lib/state/aiAgentState';
 import type { Thread as DBThread, Message as DBMessage, ContextReference as DBContextReference } from '@/types/graphql';
+import { supabase } from '@/lib/supabase';
 
 interface AIAgentRealtimeProviderProps {
   userId: string;
@@ -11,6 +13,50 @@ interface AIAgentRealtimeProviderProps {
 export function AIAgentRealtimeProvider({ userId, children }: AIAgentRealtimeProviderProps) {
   // Get current thread for conditional subscriptions
   const currentThread = aiAgentState.currentThread;
+
+  // Message replay: fetch recent messages when thread changes
+  useEffect(() => {
+    if (!currentThread?.id || !userId) return;
+
+    const replayRecentMessages = async () => {
+      // Skip replay if currently streaming (prevents mid-stream content replacement)
+      if (aiAgentState.isStreaming) {
+        return;
+      }
+
+      const sixtySecondsAgo = new Date(Date.now() - 60000).toISOString();
+
+      const { data, error } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('thread_id', currentThread.id)
+        .gte('timestamp', sixtySecondsAgo)
+        .order('timestamp', { ascending: true });
+
+      if (error) {
+        console.error('Failed to replay recent messages:', error);
+        return;
+      }
+
+      // Add any missing messages to state
+      data?.forEach((message: any) => {
+        const exists = aiAgentState.messages.some(m => m.id === message.id);
+        if (!exists && message.id) {
+          aiAgentActions.addMessage({
+            id: message.id,
+            role: (message.role as "user" | "assistant") ?? "assistant",
+            content: message.content,
+            toolCalls: message.toolCalls,
+            timestamp: message.timestamp ?? new Date().toISOString(), // ✅ ISO string
+            tokensUsed: message.tokensUsed ?? undefined,
+            idempotencyKey: message.idempotency_key ?? undefined,
+          });
+        }
+      });
+    };
+
+    replayRecentMessages();
+  }, [currentThread?.id, userId]);
 
   // Use unified realtime subscriptions pattern (automatic camelCase + JSONB parsing)
   useRealtimeSubscriptions([
@@ -35,7 +81,7 @@ export function AIAgentRealtimeProvider({ userId, children }: AIAgentRealtimePro
               parentThreadId: thread.parentThreadId ?? null,
               depth: 0,
               artifactCount: 0,
-              lastActivity: new Date(thread.updatedAt || thread.createdAt || Date.now()),
+              lastActivity: thread.updatedAt || thread.createdAt || new Date().toISOString(), // ✅ ISO string
               createdAt: thread.createdAt ?? new Date().toISOString(),
               updatedAt: thread.updatedAt ?? new Date().toISOString(),
             });
@@ -89,16 +135,24 @@ export function AIAgentRealtimeProvider({ userId, children }: AIAgentRealtimePro
         if (payload.eventType === 'INSERT' && payload.new) {
           // payload.new is automatically camelCase with parsed JSONB fields (content, toolCalls)
           const message = payload.new;
-          // Check if message already exists (prevent duplicates from optimistic updates)
-          const messageExists = aiAgentState.messages.some(m => m.id === message.id);
+
+          // Check if message already exists by ID, idempotencyKey, or requestId
+          const messageExists = aiAgentState.messages.some(m =>
+            m.id === message.id ||
+            (message.idempotencyKey && m.idempotencyKey === message.idempotencyKey) ||
+            // Match by requestId for assistant messages (handles optimistic updates)
+            (message.requestId && (m as any).requestId === message.requestId && m.role === 'assistant')
+          );
+
           if (!messageExists && message.id) {
             aiAgentActions.addMessage({
               id: message.id,
               role: (message.role as "user" | "assistant") ?? "assistant",
               content: message.content, // Already parsed from JSONB by builder
               toolCalls: message.toolCalls, // Already parsed from JSONB by builder
-              timestamp: new Date(message.timestamp ?? Date.now()),
+              timestamp: message.timestamp ?? new Date().toISOString(), // ✅ ISO string
               tokensUsed: message.tokensUsed ?? undefined,
+              idempotencyKey: message.idempotencyKey ?? undefined,
             });
           }
         }

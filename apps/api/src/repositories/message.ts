@@ -1,7 +1,10 @@
 import { eq } from 'drizzle-orm';
 import { getDB } from '../functions/_shared/db.ts';
 import { messages } from '../db/schema.ts';
-import type { ContentBlock } from '../types/agent.ts';
+import type { ContentBlock } from '../types/graphql.ts';
+import { createLogger } from '../utils/logger.ts';
+
+const logger = createLogger('MessageRepository');
 
 export interface CreateMessageInput {
   threadId: string;
@@ -10,15 +13,46 @@ export interface CreateMessageInput {
   content: ContentBlock[];
   toolCalls?: any[];
   tokensUsed?: number;
+  idempotencyKey?: string;
 }
 
 export class MessageRepository {
   /**
-   * Create a new message
+   * Find message by idempotency key
+   */
+  async findByIdempotencyKey(idempotencyKey: string) {
+    const { db, cleanup } = await getDB();
+    try {
+      const [message] = await db
+        .select()
+        .from(messages)
+        .where(eq(messages.idempotencyKey, idempotencyKey))
+        .limit(1);
+      return message || null;
+    } finally {
+      await cleanup();
+    }
+  }
+
+  /**
+   * Create a new message (idempotent)
+   * If idempotencyKey is provided and a message with that key exists, returns existing message
    */
   async create(input: CreateMessageInput) {
     const { db, cleanup } = await getDB();
     try {
+      // Check for existing message with same idempotency key
+      if (input.idempotencyKey) {
+        const existing = await this.findByIdempotencyKey(input.idempotencyKey);
+        if (existing) {
+          logger.info('Message with idempotency key already exists', {
+            idempotencyKey: input.idempotencyKey,
+            messageId: existing.id,
+          });
+          return existing;
+        }
+      }
+
       const [message] = await db
         .insert(messages)
         .values({
@@ -28,6 +62,7 @@ export class MessageRepository {
           content: input.content,
           toolCalls: input.toolCalls || [],
           tokensUsed: input.tokensUsed || 0,
+          idempotencyKey: input.idempotencyKey || null,
           timestamp: new Date().toISOString(),
         })
         .returning();

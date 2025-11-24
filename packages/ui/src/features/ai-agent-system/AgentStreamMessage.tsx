@@ -3,7 +3,7 @@ import { AgentStreamEvent, type AgentEvent } from './AgentStreamEvent';
 
 export interface AgentStreamMessageProps {
   events: AgentEvent[];
-  timestamp: Date;
+  timestamp: string; // ISO 8601 string from GraphQL
   isStreaming?: boolean;
   autoCollapseOldTools?: boolean;
   className?: string;
@@ -218,7 +218,7 @@ export function AgentStreamMessage({
             {timestamp && (
               <div className="flex justify-end mt-2 pt-1 border-t border-gray-100 dark:border-gray-700/50">
                 <span className="text-xs text-gray-500 dark:text-gray-400">
-                  {timestamp?.toLocaleTimeString?.([], { hour: '2-digit', minute: '2-digit' }) || '--:--'}
+                  {new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </span>
               </div>
             )}

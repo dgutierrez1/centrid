@@ -1,5 +1,5 @@
 import { pgTable, uuid, text, integer, timestamp, real, jsonb, index, unique, customType, boolean } from 'drizzle-orm/pg-core';
-import type { ContentBlock } from '../types/agent.ts';
+import type { ContentBlock } from '../types/graphql.ts';
 
 /**
  * Database Schema for Centrid MVP
@@ -246,6 +246,7 @@ export const messages = pgTable('messages', {
   tokensUsed: integer('tokens_used').default(0),
   timestamp: timestamp('timestamp', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   requestId: uuid('request_id'), // FK to agent_requests(id) ON DELETE SET NULL (only set for user messages)
+  idempotencyKey: uuid('idempotency_key').unique(), // For deduplication across optimistic updates and real-time sync
 }, (table) => ({
   threadIdIdx: index('idx_messages_thread_id').on(table.threadId),
   threadTimestampIdx: index('idx_messages_thread_id_timestamp').on(table.threadId, table.timestamp),

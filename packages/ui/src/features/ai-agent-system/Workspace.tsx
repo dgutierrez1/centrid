@@ -12,8 +12,10 @@ export interface WorkspaceProps extends Omit<ThreadViewProps, 'className'> {
   onSidebarTabChange: (tab: 'files' | 'threads') => void;
   files: File[];
   threads: Thread[];
+  selectedFileId?: string | null;
   onFileClick: (fileId: string) => void;
   onThreadClick: (threadId: string) => void;
+  onThreadHover?: (threadId: string) => void;
   onCreateThread?: () => void;
   onCreateFile?: () => void;
   onCreateFolder?: () => void;
@@ -46,7 +48,7 @@ export interface WorkspaceProps extends Omit<ThreadViewProps, 'className'> {
   onGoToSource?: (branchId: string, messageId: string) => void;
   onFileChange?: (content: string) => void;
   saveStatus?: 'idle' | 'saving' | 'saved' | 'error' | 'offline';
-  lastSavedAt?: Date | null;
+  lastSavedAt?: string | null; // ISO 8601 string from GraphQL
   hasUnsavedChanges?: boolean;
   sidebarWidth?: number;
   onSidebarResize?: (width: number) => void;
@@ -70,8 +72,10 @@ export function Workspace({
   onSidebarTabChange,
   files,
   threads,
+  selectedFileId,
   onFileClick,
   onThreadClick,
+  onThreadHover,
   onCreateThread,
   onCreateFile,
   onCreateFolder,
@@ -125,15 +129,12 @@ export function Workspace({
   messageText,
   isStreaming,
   isLoading,
-  pendingToolCall,
   isContextExpanded,
   onSelectBranch,
   onToggleContextPanel,
   onMessageChange,
   onSendMessage,
   onStopStreaming,
-  onApproveToolCall,
-  onRejectToolCall,
   onBranchThread,
   onAddReference,
   onReferenceClick,
@@ -173,6 +174,7 @@ export function Workspace({
                 onTabChange={onSidebarTabChange}
                 files={files}
                 threads={threads}
+                selectedFileId={selectedFileId}
                 onFileClick={(fileId) => {
                   onFileClick(fileId);
                   onToggleSidebar?.();
@@ -181,6 +183,7 @@ export function Workspace({
                   onThreadClick(threadId);
                   onToggleSidebar?.();
                 }}
+                onThreadHover={onThreadHover}
                 onCreateThread={onCreateThread}
                 onCreateFile={onCreateFile}
                 onCreateFolder={onCreateFolder}
@@ -211,7 +214,7 @@ export function Workspace({
           <PanelGroup direction="horizontal">
             {/* Sidebar Panel - Resizable with localStorage */}
             <Panel
-              size={sidebarWidth}
+              defaultSize={sidebarWidth}
               minSize={15}
               maxSize={25}
               onResize={(size) => {
@@ -223,8 +226,10 @@ export function Workspace({
                 onTabChange={onSidebarTabChange}
                 files={files}
                 threads={threads}
+                selectedFileId={selectedFileId}
                 onFileClick={onFileClick}
                 onThreadClick={onThreadClick}
+                onThreadHover={onThreadHover}
                 onCreateThread={onCreateThread}
                 onCreateFile={onCreateFile}
                 onCreateFolder={onCreateFolder}
@@ -252,7 +257,7 @@ export function Workspace({
 
             {/* ThreadView Panel - Flexible (calculated size) */}
             <Panel
-              size={isFileEditorOpen ? (100 - sidebarWidth - fileEditorWidth) : (100 - sidebarWidth)}
+              defaultSize={isFileEditorOpen ? (100 - sidebarWidth - fileEditorWidth) : (100 - sidebarWidth)}
               minSize={30}
             >
               <ThreadView
@@ -263,7 +268,6 @@ export function Workspace({
                 messageText={messageText}
                 isStreaming={isStreaming}
                 isLoading={isLoading}
-                pendingToolCall={pendingToolCall}
                 showBranchSelector={false}
                 isContextExpanded={isContextExpanded}
                 onSelectBranch={onSelectBranch}
@@ -271,8 +275,6 @@ export function Workspace({
                 onMessageChange={onMessageChange}
                 onSendMessage={onSendMessage}
                 onStopStreaming={onStopStreaming}
-                onApproveToolCall={onApproveToolCall}
-                onRejectToolCall={onRejectToolCall}
                 onBranchThread={onBranchThread}
                 onWidgetClick={onWidgetClick}
                 onAddReference={onAddReference}
@@ -286,7 +288,7 @@ export function Workspace({
               <>
                 <PanelResizeHandle className="w-1 bg-gray-200 dark:bg-gray-700 hover:bg-primary-500 transition-colors" />
                 <Panel
-                  size={fileEditorWidth}
+                  defaultSize={fileEditorWidth}
                   minSize={20}
                   maxSize={50}
                   onResize={(size) => {

@@ -44,7 +44,7 @@ export interface DesktopWorkspaceProps {
   editorContent: string;
   onEditorChange?: (content: string) => void;
   saveStatus?: 'saved' | 'saving' | 'error' | 'idle';
-  lastSavedAt?: Date | null;
+  lastSavedAt?: string | null; // ISO 8601 string from GraphQL
   hasUnsavedChanges?: boolean;
   logo?: string;
   appName?: string;

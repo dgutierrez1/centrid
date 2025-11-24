@@ -1,6 +1,6 @@
 import { Tree } from 'react-arborist';
 import type { NodeApi } from 'react-arborist';
-import type { FileSystemNode } from '@centrid/shared/types';
+import type { FileSystemNode } from '../types/filesystem';
 
 export interface FileTreeProps {
   data: readonly FileSystemNode[];

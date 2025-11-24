@@ -1,5 +1,5 @@
-export type Maybe<T> = T | null;
-export type InputMaybe<T> = Maybe<T>;
+export type Maybe<T> = T;
+export type InputMaybe<T> = T;
 export type Exact<T extends { [key: string]: unknown }> = { [K in keyof T]: T[K] };
 export type MakeOptional<T, K extends keyof T> = Omit<T, K> & { [SubKey in K]?: Maybe<T[SubKey]> };
 export type MakeMaybe<T, K extends keyof T> = Omit<T, K> & { [SubKey in K]: Maybe<T[SubKey]> };
@@ -24,7 +24,7 @@ export type AddContextReferenceInput = {
   /** Type: file, folder, thread */
   entityType: Scalars['String']['input'];
   /** Priority: 1 (high) to 3 (low) */
-  priorityTier?: InputMaybe<Scalars['Int']['input']>;
+  priorityTier: InputMaybe<Scalars['Int']['input']>;
   /** Source: user-added, agent-added, inherited */
   source: Scalars['String']['input'];
   /** Thread ID to add reference to */
@@ -33,64 +33,61 @@ export type AddContextReferenceInput = {
 
 /** Real-time execution events for agent requests (text_chunk, tool_call, completion, error) */
 export type AgentExecutionEvent = {
-  __typename?: 'AgentExecutionEvent';
-  createdAt?: Maybe<Scalars['DateTime']['output']>;
+  createdAt: Maybe<Scalars['DateTime']['output']>;
   /** Event payload (JSON object) */
-  data?: Maybe<Scalars['JSON']['output']>;
-  id?: Maybe<Scalars['ID']['output']>;
+  data: Maybe<Scalars['JSON']['output']>;
+  id: Maybe<Scalars['ID']['output']>;
   /** Agent request ID this event belongs to */
-  requestId?: Maybe<Scalars['String']['output']>;
+  requestId: Maybe<Scalars['String']['output']>;
   /** Event type: text_chunk, tool_call, completion, error */
-  type?: Maybe<Scalars['String']['output']>;
+  type: Maybe<Scalars['String']['output']>;
 };
 
 /** AI agent execution request */
 export type AgentRequest = {
-  __typename?: 'AgentRequest';
   /** Agent type (e.g., claude, gpt4) */
-  agentType?: Maybe<Scalars['String']['output']>;
+  agentType: Maybe<Scalars['String']['output']>;
   /** Checkpoint state for tool approval resume (JSON) */
-  checkpoint?: Maybe<Scalars['JSON']['output']>;
+  checkpoint: Maybe<Scalars['JSON']['output']>;
   /** Completion timestamp */
-  completedAt?: Maybe<Scalars['DateTime']['output']>;
+  completedAt: Maybe<Scalars['DateTime']['output']>;
   /** Request content/prompt */
-  content?: Maybe<Scalars['String']['output']>;
+  content: Maybe<Scalars['String']['output']>;
   /** Creation timestamp */
-  createdAt?: Maybe<Scalars['DateTime']['output']>;
+  createdAt: Maybe<Scalars['DateTime']['output']>;
   /** Request ID */
-  id?: Maybe<Scalars['ID']['output']>;
+  id: Maybe<Scalars['ID']['output']>;
   /** Progress (0.0 - 1.0) */
-  progress?: Maybe<Scalars['Float']['output']>;
+  progress: Maybe<Scalars['Float']['output']>;
   /** Response message ID */
-  responseMessageId?: Maybe<Scalars['String']['output']>;
+  responseMessageId: Maybe<Scalars['String']['output']>;
   /** Execution results (JSON) */
-  results?: Maybe<Scalars['JSON']['output']>;
+  results: Maybe<Scalars['JSON']['output']>;
   /** Status: pending, in_progress, completed, failed */
-  status?: Maybe<Scalars['String']['output']>;
+  status: Maybe<Scalars['String']['output']>;
   /** Thread ID */
-  threadId?: Maybe<Scalars['String']['output']>;
+  threadId: Maybe<Scalars['String']['output']>;
   /** Total tokens used */
-  tokenCost?: Maybe<Scalars['Int']['output']>;
+  tokenCost: Maybe<Scalars['Int']['output']>;
   /** Triggering message ID */
-  triggeringMessageId?: Maybe<Scalars['String']['output']>;
+  triggeringMessageId: Maybe<Scalars['String']['output']>;
   /** Last update timestamp */
-  updatedAt?: Maybe<Scalars['DateTime']['output']>;
+  updatedAt: Maybe<Scalars['DateTime']['output']>;
   /** Owner user ID */
-  userId?: Maybe<Scalars['String']['output']>;
+  userId: Maybe<Scalars['String']['output']>;
 };
 
 /** Multi-turn conversation session for agent execution */
 export type AgentSession = {
-  __typename?: 'AgentSession';
   /** Session context state (JSON object) */
-  contextState?: Maybe<Scalars['JSON']['output']>;
-  createdAt?: Maybe<Scalars['DateTime']['output']>;
-  id?: Maybe<Scalars['ID']['output']>;
+  contextState: Maybe<Scalars['JSON']['output']>;
+  createdAt: Maybe<Scalars['DateTime']['output']>;
+  id: Maybe<Scalars['ID']['output']>;
   /** Chain of agent requests in this session (JSON array) */
-  requestChain?: Maybe<Scalars['JSON']['output']>;
-  updatedAt?: Maybe<Scalars['DateTime']['output']>;
+  requestChain: Maybe<Scalars['JSON']['output']>;
+  updatedAt: Maybe<Scalars['DateTime']['output']>;
   /** User ID this session belongs to */
-  userId?: Maybe<Scalars['String']['output']>;
+  userId: Maybe<Scalars['String']['output']>;
 };
 
 /** Input for approving a tool call */
@@ -102,40 +99,38 @@ export type ApproveToolCallInput = {
 /** Autocomplete input parameters for quick fuzzy search */
 export type AutocompleteInput = {
   /** Filter by entity type: files, folders, threads. Default: all */
-  entityType?: InputMaybe<Scalars['String']['input']>;
+  entityType: InputMaybe<Scalars['String']['input']>;
   /** Max results (default: 10) */
-  limit?: InputMaybe<Scalars['Int']['input']>;
+  limit: InputMaybe<Scalars['Int']['input']>;
   /** Autocomplete query (fuzzy matching) */
   query: Scalars['String']['input'];
 };
 
 /** Autocomplete result for fuzzy matching */
 export type AutocompleteItem = {
-  __typename?: 'AutocompleteItem';
-  branchId?: Maybe<Scalars['String']['output']>;
-  branchName?: Maybe<Scalars['String']['output']>;
-  id?: Maybe<Scalars['ID']['output']>;
-  lastModified?: Maybe<Scalars['String']['output']>;
-  name?: Maybe<Scalars['String']['output']>;
-  path?: Maybe<Scalars['String']['output']>;
-  relevanceScore?: Maybe<Scalars['Float']['output']>;
+  branchId: Maybe<Scalars['String']['output']>;
+  branchName: Maybe<Scalars['String']['output']>;
+  id: Maybe<Scalars['ID']['output']>;
+  lastModified: Maybe<Scalars['String']['output']>;
+  name: Maybe<Scalars['String']['output']>;
+  path: Maybe<Scalars['String']['output']>;
+  relevanceScore: Maybe<Scalars['Float']['output']>;
   /** Entity type: file, folder, thread */
-  type?: Maybe<Scalars['String']['output']>;
+  type: Maybe<Scalars['String']['output']>;
 };
 
 /** Concept search result from knowledge graph */
 export type ConceptSearchResult = {
-  __typename?: 'ConceptSearchResult';
   /** Concept name */
-  conceptName?: Maybe<Scalars['String']['output']>;
+  conceptName: Maybe<Scalars['String']['output']>;
   /** Entity type: concept */
-  entityType?: Maybe<Scalars['String']['output']>;
+  entityType: Maybe<Scalars['String']['output']>;
   /** Concept description */
-  excerpt?: Maybe<Scalars['String']['output']>;
+  excerpt: Maybe<Scalars['String']['output']>;
   /** Concept ID */
-  id?: Maybe<Scalars['ID']['output']>;
+  id: Maybe<Scalars['ID']['output']>;
   /** Relevance score (0-1) */
-  relevance?: Maybe<Scalars['Float']['output']>;
+  relevance: Maybe<Scalars['Float']['output']>;
 };
 
 export type ConsolidateBranchesInput = {
@@ -150,13 +145,12 @@ export type ConsolidateBranchesInput = {
 };
 
 export type ConsolidationResult = {
-  __typename?: 'ConsolidationResult';
   /** ID of the file that will be created (permanent ID) */
-  fileId?: Maybe<Scalars['ID']['output']>;
+  fileId: Maybe<Scalars['ID']['output']>;
   /** Agent request ID for subscribing to progress events */
-  requestId?: Maybe<Scalars['ID']['output']>;
+  requestId: Maybe<Scalars['ID']['output']>;
   /** Status: pending, in_progress, completed, failed */
-  status?: Maybe<Scalars['String']['output']>;
+  status: Maybe<Scalars['String']['output']>;
 };
 
 /** Message content block (text, tool use, tool result, or image) */
@@ -164,19 +158,18 @@ export type ContentBlock = ImageBlock | TextBlock | ToolResultBlock | ToolUseBlo
 
 /** Context reference linking threads to files/folders */
 export type ContextReference = {
-  __typename?: 'ContextReference';
-  addedAt?: Maybe<Scalars['DateTime']['output']>;
+  addedAt: Maybe<Scalars['DateTime']['output']>;
   /** Entity path or ID */
-  entityReference?: Maybe<Scalars['String']['output']>;
+  entityReference: Maybe<Scalars['String']['output']>;
   /** Type: file, folder, thread */
-  entityType?: Maybe<Scalars['String']['output']>;
-  id?: Maybe<Scalars['ID']['output']>;
-  ownerUserId?: Maybe<Scalars['String']['output']>;
+  entityType: Maybe<Scalars['String']['output']>;
+  id: Maybe<Scalars['ID']['output']>;
+  ownerUserId: Maybe<Scalars['String']['output']>;
   /** Priority: 1 (high) to 3 (low) */
-  priorityTier?: Maybe<Scalars['Int']['output']>;
+  priorityTier: Maybe<Scalars['Int']['output']>;
   /** Source: user-added, agent-added, inherited */
-  source?: Maybe<Scalars['String']['output']>;
-  threadId?: Maybe<Scalars['String']['output']>;
+  source: Maybe<Scalars['String']['output']>;
+  threadId: Maybe<Scalars['String']['output']>;
 };
 
 /** Input for creating an agent request */
@@ -193,7 +186,7 @@ export type CreateAgentRequestInput = {
 
 export type CreateAgentSessionInput = {
   /** Initial context state (JSON object) */
-  contextState?: InputMaybe<Scalars['JSON']['input']>;
+  contextState: InputMaybe<Scalars['JSON']['input']>;
   /** Initial request chain (JSON array) */
   requestChain: Scalars['JSON']['input'];
 };
@@ -203,38 +196,38 @@ export type CreateFileInput = {
   /** File content */
   content: Scalars['String']['input'];
   /** Folder ID to organize file */
-  folderId?: InputMaybe<Scalars['String']['input']>;
+  folderId: InputMaybe<Scalars['String']['input']>;
   /** Optional client-provided UUID (for optimistic updates) */
-  id?: InputMaybe<Scalars['UUID']['input']>;
+  id: InputMaybe<Scalars['UUID']['input']>;
   /** Filename with extension (e.g., 'document.md') */
   name: Scalars['String']['input'];
   /** Thread ID to link file to (creates context reference) */
-  threadId?: InputMaybe<Scalars['String']['input']>;
+  threadId: InputMaybe<Scalars['String']['input']>;
 };
 
 /** Input for creating a new folder */
 export type CreateFolderInput = {
   /** Optional client-provided UUID (for optimistic updates) */
-  id?: InputMaybe<Scalars['UUID']['input']>;
+  id: InputMaybe<Scalars['UUID']['input']>;
   /** Folder name */
   name: Scalars['String']['input'];
   /** Parent folder ID (null for root) */
-  parentFolderId?: InputMaybe<Scalars['String']['input']>;
+  parentFolderId: InputMaybe<Scalars['String']['input']>;
 };
 
 export type CreateMessageInput = {
   /** Message content (text or JSON string of ContentBlockDTO[]) */
   content: Scalars['String']['input'];
   /** Idempotency key for deduplication (prevents duplicate messages) */
-  idempotencyKey?: InputMaybe<Scalars['UUID']['input']>;
+  idempotencyKey: InputMaybe<Scalars['UUID']['input']>;
   /** Message role: user, assistant, system */
   role: Scalars['String']['input'];
   /** Thread ID to add message to */
   threadId: Scalars['ID']['input'];
   /** Number of tokens used */
-  tokensUsed?: InputMaybe<Scalars['Int']['input']>;
+  tokensUsed: InputMaybe<Scalars['Int']['input']>;
   /** Tool call IDs referenced in this message */
-  toolCalls?: InputMaybe<Array<Scalars['String']['input']>>;
+  toolCalls: InputMaybe<Array<Scalars['String']['input']>>;
 };
 
 /** Input for creating a shadow entity */
@@ -244,211 +237,203 @@ export type CreateShadowEntityInput = {
   /** Source entity type: file, thread, kg_node */
   entityType: Scalars['String']['input'];
   /** AI-generated summary */
-  summary?: InputMaybe<Scalars['String']['input']>;
+  summary: InputMaybe<Scalars['String']['input']>;
 };
 
 export type CreateThreadInput = {
   branchTitle: Scalars['String']['input'];
   /** Optional client-provided UUID (for optimistic updates) */
-  id?: InputMaybe<Scalars['UUID']['input']>;
-  parentThreadId?: InputMaybe<Scalars['ID']['input']>;
+  id: InputMaybe<Scalars['UUID']['input']>;
+  parentThreadId: InputMaybe<Scalars['ID']['input']>;
 };
 
 export type CreateThreadWithMessageInput = {
   branchTitle: Scalars['String']['input'];
   /** Optional client-provided UUID (for optimistic updates) */
-  id?: InputMaybe<Scalars['UUID']['input']>;
+  id: InputMaybe<Scalars['UUID']['input']>;
   /** Initial message content */
   messageContent: Scalars['String']['input'];
   /** Idempotency key for the initial message (prevents duplicates) */
-  messageIdempotencyKey?: InputMaybe<Scalars['UUID']['input']>;
-  parentThreadId?: InputMaybe<Scalars['ID']['input']>;
+  messageIdempotencyKey: InputMaybe<Scalars['UUID']['input']>;
+  parentThreadId: InputMaybe<Scalars['ID']['input']>;
 };
 
 /** Workspace file with content and metadata */
 export type File = {
-  __typename?: 'File';
   /** File content */
-  content?: Maybe<Scalars['String']['output']>;
+  content: Maybe<Scalars['String']['output']>;
   /** Creation timestamp */
-  createdAt?: Maybe<Scalars['DateTime']['output']>;
+  createdAt: Maybe<Scalars['DateTime']['output']>;
   /** Creator: user or agent name */
-  createdBy?: Maybe<Scalars['String']['output']>;
+  createdBy: Maybe<Scalars['String']['output']>;
   /** File size in bytes */
-  fileSize?: Maybe<Scalars['Int']['output']>;
+  fileSize: Maybe<Scalars['Int']['output']>;
   /** Parent folder ID */
-  folderId?: Maybe<Scalars['String']['output']>;
+  folderId: Maybe<Scalars['String']['output']>;
   /** File ID */
-  id?: Maybe<Scalars['ID']['output']>;
+  id: Maybe<Scalars['ID']['output']>;
   /** Indexing status: pending, completed, failed */
-  indexingStatus?: Maybe<Scalars['String']['output']>;
+  indexingStatus: Maybe<Scalars['String']['output']>;
   /** Whether file was AI-generated */
-  isAIGenerated?: Maybe<Scalars['Boolean']['output']>;
+  isAIGenerated: Maybe<Scalars['Boolean']['output']>;
   /** Last edit timestamp */
-  lastEditedAt?: Maybe<Scalars['DateTime']['output']>;
+  lastEditedAt: Maybe<Scalars['DateTime']['output']>;
   /** Last editor */
-  lastEditedBy?: Maybe<Scalars['String']['output']>;
+  lastEditedBy: Maybe<Scalars['String']['output']>;
   /** MIME type */
-  mimeType?: Maybe<Scalars['String']['output']>;
+  mimeType: Maybe<Scalars['String']['output']>;
   /** Filename with extension */
-  name?: Maybe<Scalars['String']['output']>;
+  name: Maybe<Scalars['String']['output']>;
   /** Owner user ID */
-  ownerUserId?: Maybe<Scalars['String']['output']>;
+  ownerUserId: Maybe<Scalars['String']['output']>;
   /** Full path computed from folder hierarchy + name */
-  path?: Maybe<Scalars['String']['output']>;
+  path: Maybe<Scalars['String']['output']>;
   /** Shadow entity ID for search */
-  shadowDomainId?: Maybe<Scalars['String']['output']>;
+  shadowDomainId: Maybe<Scalars['String']['output']>;
   /** Source: ai-generated, user-uploaded */
-  source?: Maybe<Scalars['String']['output']>;
+  source: Maybe<Scalars['String']['output']>;
   /** Supabase Storage path for large files */
-  storagePath?: Maybe<Scalars['String']['output']>;
+  storagePath: Maybe<Scalars['String']['output']>;
   /** Last update timestamp */
-  updatedAt?: Maybe<Scalars['DateTime']['output']>;
+  updatedAt: Maybe<Scalars['DateTime']['output']>;
   /** Version number for optimistic locking */
-  version?: Maybe<Scalars['Int']['output']>;
+  version: Maybe<Scalars['Int']['output']>;
 };
 
 /** File creation and edit history */
 export type FileProvenance = {
-  __typename?: 'FileProvenance';
   /** Thread/message where file was created */
-  createdIn?: Maybe<ProvenanceContext>;
+  createdIn: Maybe<ProvenanceContext>;
   /** Thread/message where file was last modified */
-  lastModifiedIn?: Maybe<ProvenanceContext>;
+  lastModifiedIn: Maybe<ProvenanceContext>;
 };
 
 /** File search result */
 export type FileSearchResult = {
-  __typename?: 'FileSearchResult';
   /** Entity type: file */
-  entityType?: Maybe<Scalars['String']['output']>;
+  entityType: Maybe<Scalars['String']['output']>;
   /** Content excerpt with context */
-  excerpt?: Maybe<Scalars['String']['output']>;
+  excerpt: Maybe<Scalars['String']['output']>;
   /** File ID */
-  id?: Maybe<Scalars['ID']['output']>;
+  id: Maybe<Scalars['ID']['output']>;
   /** File path */
-  path?: Maybe<Scalars['String']['output']>;
+  path: Maybe<Scalars['String']['output']>;
   /** Relevance score (0-1) */
-  relevance?: Maybe<Scalars['Float']['output']>;
+  relevance: Maybe<Scalars['Float']['output']>;
 };
 
 /** Hierarchical folder for organizing files */
 export type Folder = {
-  __typename?: 'Folder';
   /** Creation timestamp */
-  createdAt?: Maybe<Scalars['DateTime']['output']>;
+  createdAt: Maybe<Scalars['DateTime']['output']>;
   /** Folder ID */
-  id?: Maybe<Scalars['ID']['output']>;
+  id: Maybe<Scalars['ID']['output']>;
   /** Folder name */
-  name?: Maybe<Scalars['String']['output']>;
+  name: Maybe<Scalars['String']['output']>;
   /** Parent folder ID (null for root folders) */
-  parentFolderId?: Maybe<Scalars['String']['output']>;
+  parentFolderId: Maybe<Scalars['String']['output']>;
   /** Computed path from hierarchy */
-  path?: Maybe<Scalars['String']['output']>;
+  path: Maybe<Scalars['String']['output']>;
   /** Last update timestamp */
-  updatedAt?: Maybe<Scalars['DateTime']['output']>;
+  updatedAt: Maybe<Scalars['DateTime']['output']>;
   /** Owner user ID */
-  userId?: Maybe<Scalars['String']['output']>;
+  userId: Maybe<Scalars['String']['output']>;
 };
 
 /** Image content block */
 export type ImageBlock = {
-  __typename?: 'ImageBlock';
   /** Image source data */
-  source?: Maybe<ImageSource>;
+  source: Maybe<ImageSource>;
   /** Block type discriminator */
-  type?: Maybe<Scalars['String']['output']>;
+  type: Maybe<Scalars['String']['output']>;
 };
 
 /** Image source data */
 export type ImageSource = {
-  __typename?: 'ImageSource';
   /** Base64-encoded image data */
-  data?: Maybe<Scalars['String']['output']>;
+  data: Maybe<Scalars['String']['output']>;
   /** MIME type (e.g., image/png) */
-  media_type?: Maybe<Scalars['String']['output']>;
+  media_type: Maybe<Scalars['String']['output']>;
   /** Image encoding type */
-  type?: Maybe<Scalars['String']['output']>;
+  type: Maybe<Scalars['String']['output']>;
 };
 
 export type Message = {
-  __typename?: 'Message';
   /** Message content blocks (ContentBlock[] stored as JSONB) */
-  content?: Maybe<Scalars['JSON']['output']>;
-  id?: Maybe<Scalars['ID']['output']>;
+  content: Maybe<Scalars['JSON']['output']>;
+  id: Maybe<Scalars['ID']['output']>;
   /** Idempotency key for deduplication (prevents duplicate messages) */
-  idempotencyKey?: Maybe<Scalars['String']['output']>;
-  ownerUserId?: Maybe<Scalars['String']['output']>;
+  idempotencyKey: Maybe<Scalars['String']['output']>;
+  ownerUserId: Maybe<Scalars['String']['output']>;
   /** Agent request ID (for user messages that trigger agent execution) */
-  requestId?: Maybe<Scalars['String']['output']>;
-  role?: Maybe<Scalars['String']['output']>;
-  threadId?: Maybe<Scalars['String']['output']>;
-  timestamp?: Maybe<Scalars['DateTime']['output']>;
+  requestId: Maybe<Scalars['String']['output']>;
+  role: Maybe<Scalars['String']['output']>;
+  threadId: Maybe<Scalars['String']['output']>;
+  timestamp: Maybe<Scalars['DateTime']['output']>;
   /** Number of tokens used */
-  tokensUsed?: Maybe<Scalars['Int']['output']>;
+  tokensUsed: Maybe<Scalars['Int']['output']>;
   /** Tool call IDs referenced in this message (JSON array) */
-  toolCalls?: Maybe<Scalars['JSON']['output']>;
+  toolCalls: Maybe<Scalars['JSON']['output']>;
 };
 
 export type Mutation = {
-  __typename?: 'Mutation';
   /** Add a context reference to a thread */
-  addContextReference?: Maybe<ContextReference>;
+  addContextReference: Maybe<ContextReference>;
   /** Approve a pending tool call (triggers async execution) */
-  approveToolCall?: Maybe<ToolCall>;
+  approveToolCall: Maybe<ToolCall>;
   /** Consolidate multiple branches into a single file. Returns requestId for subscribing to progress via realtime. */
-  consolidateBranches?: Maybe<ConsolidationResult>;
+  consolidateBranches: Maybe<ConsolidationResult>;
   /** Create a new agent request (triggers async execution) */
-  createAgentRequest?: Maybe<AgentRequest>;
+  createAgentRequest: Maybe<AgentRequest>;
   /** Create a new agent session */
-  createAgentSession?: Maybe<AgentSession>;
+  createAgentSession: Maybe<AgentSession>;
   /** Create a new file */
-  createFile?: Maybe<File>;
+  createFile: Maybe<File>;
   /** Create a new folder */
-  createFolder?: Maybe<Folder>;
+  createFolder: Maybe<Folder>;
   /** Create a new message in a thread */
-  createMessage?: Maybe<Message>;
+  createMessage: Maybe<Message>;
   /** Create a new shadow entity for semantic search */
-  createShadowEntity?: Maybe<ShadowEntity>;
-  createThread?: Maybe<Thread>;
+  createShadowEntity: Maybe<ShadowEntity>;
+  createThread: Maybe<Thread>;
   /** Create thread with initial message and trigger execution (atomic operation) */
-  createThreadWithMessage?: Maybe<ThreadWithMessage>;
+  createThreadWithMessage: Maybe<ThreadWithMessage>;
   /** Delete current user account (irreversible) */
-  deleteAccount?: Maybe<Scalars['Boolean']['output']>;
+  deleteAccount: Maybe<Scalars['Boolean']['output']>;
   /** Delete an agent session */
-  deleteAgentSession?: Maybe<Scalars['Boolean']['output']>;
+  deleteAgentSession: Maybe<Scalars['Boolean']['output']>;
   /** Delete file */
-  deleteFile?: Maybe<Scalars['Boolean']['output']>;
+  deleteFile: Maybe<Scalars['Boolean']['output']>;
   /** Delete folder (must be empty) */
-  deleteFolder?: Maybe<Scalars['Boolean']['output']>;
+  deleteFolder: Maybe<Scalars['Boolean']['output']>;
   /** Delete a message from a thread */
-  deleteMessage?: Maybe<Scalars['Boolean']['output']>;
+  deleteMessage: Maybe<Scalars['Boolean']['output']>;
   /** Delete shadow entity (admin/cleanup only - normally persist for history) */
-  deleteShadowEntity?: Maybe<Scalars['Boolean']['output']>;
-  deleteThread?: Maybe<Scalars['Boolean']['output']>;
+  deleteShadowEntity: Maybe<Scalars['Boolean']['output']>;
+  deleteThread: Maybe<Scalars['Boolean']['output']>;
   /** Execute agent request and stream events to database (shares logic with REST endpoint) */
-  executeAgentRequest?: Maybe<Scalars['Boolean']['output']>;
+  executeAgentRequest: Maybe<Scalars['Boolean']['output']>;
   /** Reject a pending tool call */
-  rejectToolCall?: Maybe<ToolCall>;
+  rejectToolCall: Maybe<ToolCall>;
   /** Remove a context reference from a thread */
-  removeContextReference?: Maybe<Scalars['Boolean']['output']>;
+  removeContextReference: Maybe<Scalars['Boolean']['output']>;
   /** Update an existing agent session */
-  updateAgentSession?: Maybe<AgentSession>;
+  updateAgentSession: Maybe<AgentSession>;
   /** Update priority of a context reference */
-  updateContextReferencePriority?: Maybe<ContextReference>;
+  updateContextReferencePriority: Maybe<ContextReference>;
   /** Update file content with optimistic locking */
-  updateFile?: Maybe<File>;
+  updateFile: Maybe<File>;
   /** Partial file update (rename, move, or edit content) */
-  updateFilePartial?: Maybe<File>;
+  updateFilePartial: Maybe<File>;
   /** Update folder (rename or move) */
-  updateFolder?: Maybe<Folder>;
+  updateFolder: Maybe<Folder>;
   /** Update current user profile */
-  updateProfile?: Maybe<User>;
+  updateProfile: Maybe<User>;
   /** Update shadow entity (summary, embedding, metadata) */
-  updateShadowEntity?: Maybe<ShadowEntity>;
-  updateThread?: Maybe<Thread>;
+  updateShadowEntity: Maybe<ShadowEntity>;
+  updateThread: Maybe<Thread>;
   /** Upload a file via multipart form data */
-  uploadFile?: Maybe<File>;
+  uploadFile: Maybe<File>;
 };
 
 
@@ -601,77 +586,75 @@ export type MutationUpdateThreadArgs = {
 
 export type MutationUploadFileArgs = {
   file: Scalars['Upload']['input'];
-  folderId?: InputMaybe<Scalars['ID']['input']>;
-  threadId?: InputMaybe<Scalars['ID']['input']>;
+  folderId: InputMaybe<Scalars['ID']['input']>;
+  threadId: InputMaybe<Scalars['ID']['input']>;
 };
 
 /** Thread and message context for file operation */
 export type ProvenanceContext = {
-  __typename?: 'ProvenanceContext';
   /** Message ID that triggered operation */
-  messageId?: Maybe<Scalars['String']['output']>;
+  messageId: Maybe<Scalars['String']['output']>;
   /** Thread ID where operation occurred */
-  threadId?: Maybe<Scalars['String']['output']>;
+  threadId: Maybe<Scalars['String']['output']>;
 };
 
 export type Query = {
-  __typename?: 'Query';
   /** Type-only query to expose ContentBlock types for codegen (not meant to be called) */
-  _contentBlockTypes?: Maybe<Array<ContentBlock>>;
+  _contentBlockTypes: Maybe<Array<ContentBlock>>;
   /** Get all execution events for an agent request (for replay on late connection) */
-  agentExecutionEvents?: Maybe<Array<AgentExecutionEvent>>;
+  agentExecutionEvents: Maybe<Array<AgentExecutionEvent>>;
   /** Get execution events since a certain timestamp (for incremental polling) */
-  agentExecutionEventsSince?: Maybe<Array<AgentExecutionEvent>>;
+  agentExecutionEventsSince: Maybe<Array<AgentExecutionEvent>>;
   /** Get agent request by ID */
-  agentRequest?: Maybe<AgentRequest>;
+  agentRequest: Maybe<AgentRequest>;
   /** Get all agent requests for a thread */
-  agentRequestsByThread?: Maybe<Array<AgentRequest>>;
+  agentRequestsByThread: Maybe<Array<AgentRequest>>;
   /** Get a single agent session by ID */
-  agentSession?: Maybe<AgentSession>;
+  agentSession: Maybe<AgentSession>;
   /** Get all agent sessions for current user */
-  agentSessions?: Maybe<Array<AgentSession>>;
+  agentSessions: Maybe<Array<AgentSession>>;
   /** Autocomplete search for quick fuzzy matching of files, folders, and threads */
-  autocomplete?: Maybe<Array<AutocompleteItem>>;
+  autocomplete: Maybe<Array<AutocompleteItem>>;
   /** Get file by ID */
-  file?: Maybe<File>;
+  file: Maybe<File>;
   /** Get file by path */
-  fileByPath?: Maybe<File>;
+  fileByPath: Maybe<File>;
   /** Get file creation and edit history for navigation */
-  fileProvenance?: Maybe<FileProvenance>;
+  fileProvenance: Maybe<FileProvenance>;
   /** Get all files for current user */
-  files?: Maybe<Array<File>>;
+  files: Maybe<Array<File>>;
   /** Get folder by ID */
-  folder?: Maybe<Folder>;
+  folder: Maybe<Folder>;
   /** Get all folders for current user */
-  folders?: Maybe<Array<Folder>>;
+  folders: Maybe<Array<Folder>>;
   /** Get current user profile */
-  me?: Maybe<User>;
+  me: Maybe<User>;
   /** Get messages for a thread */
-  messages?: Maybe<Array<Message>>;
+  messages: Maybe<Array<Message>>;
   /** Get pending tool calls for a thread */
-  pendingToolCalls?: Maybe<Array<ToolCall>>;
+  pendingToolCalls: Maybe<Array<ToolCall>>;
   /** Get root folders (no parent) for current user */
-  rootFolders?: Maybe<Array<Folder>>;
+  rootFolders: Maybe<Array<Folder>>;
   /** Semantic search across files, threads, and concepts */
-  search?: Maybe<Array<SearchResult>>;
+  search: Maybe<Array<SearchResult>>;
   /** Get all shadow entities for the current user */
-  shadowEntities?: Maybe<Array<ShadowEntity>>;
+  shadowEntities: Maybe<Array<ShadowEntity>>;
   /** Get shadow entities for a source entity (file, thread, kg_node) */
-  shadowEntitiesByEntity?: Maybe<Array<ShadowEntity>>;
+  shadowEntitiesByEntity: Maybe<Array<ShadowEntity>>;
   /** Get shadow entities for a file */
-  shadowEntitiesByFile?: Maybe<Array<ShadowEntity>>;
+  shadowEntitiesByFile: Maybe<Array<ShadowEntity>>;
   /** Get shadow entity by ID */
-  shadowEntity?: Maybe<ShadowEntity>;
-  thread?: Maybe<Thread>;
-  threads?: Maybe<Array<Thread>>;
+  shadowEntity: Maybe<ShadowEntity>;
+  thread: Maybe<Thread>;
+  threads: Maybe<Array<Thread>>;
   /** Get tool call by ID */
-  toolCall?: Maybe<ToolCall>;
+  toolCall: Maybe<ToolCall>;
   /** Get all tool calls for an agent request */
-  toolCallsByRequest?: Maybe<Array<ToolCall>>;
+  toolCallsByRequest: Maybe<Array<ToolCall>>;
   /** Get usage events for current user (with optional date range filtering) */
-  usageEvents?: Maybe<Array<UsageEvent>>;
+  usageEvents: Maybe<Array<UsageEvent>>;
   /** Get aggregated usage statistics for current user */
-  usageStats?: Maybe<UsageStats>;
+  usageStats: Maybe<UsageStats>;
 };
 
 
@@ -702,9 +685,9 @@ export type QueryAgentSessionArgs = {
 
 
 export type QueryAgentSessionsArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  userId?: InputMaybe<Scalars['ID']['input']>;
+  limit: InputMaybe<Scalars['Int']['input']>;
+  offset: InputMaybe<Scalars['Int']['input']>;
+  userId: InputMaybe<Scalars['ID']['input']>;
 };
 
 
@@ -734,8 +717,8 @@ export type QueryFolderArgs = {
 
 
 export type QueryMessagesArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
+  limit: InputMaybe<Scalars['Int']['input']>;
+  offset: InputMaybe<Scalars['Int']['input']>;
   threadId: Scalars['ID']['input'];
 };
 
@@ -787,17 +770,17 @@ export type QueryToolCallsByRequestArgs = {
 
 
 export type QueryUsageEventsArgs = {
-  endDate?: InputMaybe<Scalars['DateTime']['input']>;
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  startDate?: InputMaybe<Scalars['DateTime']['input']>;
-  userId?: InputMaybe<Scalars['ID']['input']>;
+  endDate: InputMaybe<Scalars['DateTime']['input']>;
+  limit: InputMaybe<Scalars['Int']['input']>;
+  offset: InputMaybe<Scalars['Int']['input']>;
+  startDate: InputMaybe<Scalars['DateTime']['input']>;
+  userId: InputMaybe<Scalars['ID']['input']>;
 };
 
 
 export type QueryUsageStatsArgs = {
-  startDate?: InputMaybe<Scalars['DateTime']['input']>;
-  userId?: InputMaybe<Scalars['ID']['input']>;
+  startDate: InputMaybe<Scalars['DateTime']['input']>;
+  userId: InputMaybe<Scalars['ID']['input']>;
 };
 
 /** Input for rejecting a tool call */
@@ -805,17 +788,17 @@ export type RejectToolCallInput = {
   /** Tool call ID */
   id: Scalars['ID']['input'];
   /** Rejection reason */
-  reason?: InputMaybe<Scalars['String']['input']>;
+  reason: InputMaybe<Scalars['String']['input']>;
 };
 
 /** Search input parameters */
 export type SearchInput = {
   /** Filter by entity types (file, thread, concept). Default: ["file"] */
-  entityTypes?: InputMaybe<Array<Scalars['String']['input']>>;
+  entityTypes: InputMaybe<Array<Scalars['String']['input']>>;
   /** Filter by file extensions (e.g., ["ts", "md"]) */
-  fileTypes?: InputMaybe<Array<Scalars['String']['input']>>;
+  fileTypes: InputMaybe<Array<Scalars['String']['input']>>;
   /** Max results (default: 10) */
-  limit?: InputMaybe<Scalars['Int']['input']>;
+  limit: InputMaybe<Scalars['Int']['input']>;
   /** Search query */
   query: Scalars['String']['input'];
 };
@@ -825,139 +808,131 @@ export type SearchResult = ConceptSearchResult | FileSearchResult | ThreadSearch
 
 /** Shadow entity for semantic search (embeddings, summaries, metadata) */
 export type ShadowEntity = {
-  __typename?: 'ShadowEntity';
   /** Creation timestamp */
-  createdAt?: Maybe<Scalars['DateTime']['output']>;
+  createdAt: Maybe<Scalars['DateTime']['output']>;
   /** Vector embedding for semantic search (768 dimensions) */
   embedding: Array<Scalars['Float']['output']>;
   /** Source entity ID (file, thread, kg_node) */
-  entityId?: Maybe<Scalars['String']['output']>;
+  entityId: Maybe<Scalars['String']['output']>;
   /** Source entity type: file, thread, kg_node */
-  entityType?: Maybe<Scalars['String']['output']>;
+  entityType: Maybe<Scalars['String']['output']>;
   /** Shadow entity ID */
-  id?: Maybe<Scalars['ID']['output']>;
+  id: Maybe<Scalars['ID']['output']>;
   /** Last update timestamp (embedding, summary, metadata) */
-  lastUpdated?: Maybe<Scalars['DateTime']['output']>;
+  lastUpdated: Maybe<Scalars['DateTime']['output']>;
   /** Owner user ID */
-  ownerUserId?: Maybe<Scalars['String']['output']>;
+  ownerUserId: Maybe<Scalars['String']['output']>;
   /** Entity-specific metadata (file structure, thread metadata, etc.) */
-  structureMetadata?: Maybe<Scalars['JSON']['output']>;
+  structureMetadata: Maybe<Scalars['JSON']['output']>;
   /** AI-generated summary of source entity */
   summary: Scalars['String']['output'];
 };
 
 /** Plain text content block */
 export type TextBlock = {
-  __typename?: 'TextBlock';
   /** Text content */
-  text?: Maybe<Scalars['String']['output']>;
+  text: Maybe<Scalars['String']['output']>;
   /** Block type discriminator */
-  type?: Maybe<Scalars['String']['output']>;
+  type: Maybe<Scalars['String']['output']>;
 };
 
 export type Thread = {
-  __typename?: 'Thread';
-  branchTitle?: Maybe<Scalars['String']['output']>;
-  createdAt?: Maybe<Scalars['DateTime']['output']>;
-  creator?: Maybe<Scalars['String']['output']>;
-  id?: Maybe<Scalars['ID']['output']>;
+  branchTitle: Maybe<Scalars['String']['output']>;
+  createdAt: Maybe<Scalars['DateTime']['output']>;
+  creator: Maybe<Scalars['String']['output']>;
+  id: Maybe<Scalars['ID']['output']>;
   /** Messages in this thread (batched with DataLoader) */
-  messages?: Maybe<Array<Message>>;
-  ownerUserId?: Maybe<Scalars['String']['output']>;
-  parentThreadId?: Maybe<Scalars['String']['output']>;
-  updatedAt?: Maybe<Scalars['DateTime']['output']>;
+  messages: Maybe<Array<Message>>;
+  ownerUserId: Maybe<Scalars['String']['output']>;
+  parentThreadId: Maybe<Scalars['String']['output']>;
+  updatedAt: Maybe<Scalars['DateTime']['output']>;
 };
 
 /** Thread search result */
 export type ThreadSearchResult = {
-  __typename?: 'ThreadSearchResult';
   /** Entity type: thread */
-  entityType?: Maybe<Scalars['String']['output']>;
+  entityType: Maybe<Scalars['String']['output']>;
   /** Content excerpt with context */
-  excerpt?: Maybe<Scalars['String']['output']>;
+  excerpt: Maybe<Scalars['String']['output']>;
   /** Thread ID */
-  id?: Maybe<Scalars['ID']['output']>;
+  id: Maybe<Scalars['ID']['output']>;
   /** Relevance score (0-1) */
-  relevance?: Maybe<Scalars['Float']['output']>;
+  relevance: Maybe<Scalars['Float']['output']>;
   /** Thread title */
-  title?: Maybe<Scalars['String']['output']>;
+  title: Maybe<Scalars['String']['output']>;
 };
 
 /** Thread with initial message (atomic creation response) */
 export type ThreadWithMessage = {
-  __typename?: 'ThreadWithMessage';
-  message?: Maybe<Message>;
-  thread?: Maybe<Thread>;
+  message: Maybe<Message>;
+  thread: Maybe<Thread>;
 };
 
 /** Agent tool call requiring approval */
 export type ToolCall = {
-  __typename?: 'ToolCall';
   /** Status: pending, approved, rejected, timeout */
-  approvalStatus?: Maybe<Scalars['String']['output']>;
+  approvalStatus: Maybe<Scalars['String']['output']>;
   /** Tool call ID (Claude toolu_* ID) */
-  id?: Maybe<Scalars['ID']['output']>;
+  id: Maybe<Scalars['ID']['output']>;
   /** Triggering message ID */
-  messageId?: Maybe<Scalars['String']['output']>;
+  messageId: Maybe<Scalars['String']['output']>;
   /** Owner user ID */
-  ownerUserId?: Maybe<Scalars['String']['output']>;
+  ownerUserId: Maybe<Scalars['String']['output']>;
   /** Rejection reason if rejected */
-  rejectionReason?: Maybe<Scalars['String']['output']>;
+  rejectionReason: Maybe<Scalars['String']['output']>;
   /** Agent request ID */
-  requestId?: Maybe<Scalars['String']['output']>;
+  requestId: Maybe<Scalars['String']['output']>;
   /** Number of revisions */
-  revisionCount?: Maybe<Scalars['Int']['output']>;
+  revisionCount: Maybe<Scalars['Int']['output']>;
   /** Revision history (JSON) */
-  revisionHistory?: Maybe<Scalars['JSON']['output']>;
+  revisionHistory: Maybe<Scalars['JSON']['output']>;
   /** Thread ID */
-  threadId?: Maybe<Scalars['String']['output']>;
+  threadId: Maybe<Scalars['String']['output']>;
   /** Creation timestamp */
-  timestamp?: Maybe<Scalars['DateTime']['output']>;
+  timestamp: Maybe<Scalars['DateTime']['output']>;
   /** Tool input parameters (JSON) */
-  toolInput?: Maybe<Scalars['JSON']['output']>;
+  toolInput: Maybe<Scalars['JSON']['output']>;
   /** Tool name (e.g., write_file, create_branch) */
-  toolName?: Maybe<Scalars['String']['output']>;
+  toolName: Maybe<Scalars['String']['output']>;
   /** Tool execution output (JSON) */
-  toolOutput?: Maybe<Scalars['JSON']['output']>;
+  toolOutput: Maybe<Scalars['JSON']['output']>;
 };
 
 /** Tool execution result block */
 export type ToolResultBlock = {
-  __typename?: 'ToolResultBlock';
   /** Tool result content */
-  content?: Maybe<Scalars['String']['output']>;
+  content: Maybe<Scalars['String']['output']>;
   /** Whether this result represents an error */
-  is_error?: Maybe<Scalars['Boolean']['output']>;
+  is_error: Maybe<Scalars['Boolean']['output']>;
   /** ID of the tool use this result corresponds to */
-  tool_use_id?: Maybe<Scalars['String']['output']>;
+  tool_use_id: Maybe<Scalars['String']['output']>;
   /** Block type discriminator */
-  type?: Maybe<Scalars['String']['output']>;
+  type: Maybe<Scalars['String']['output']>;
 };
 
 /** Tool invocation request block */
 export type ToolUseBlock = {
-  __typename?: 'ToolUseBlock';
   /** Tool execution error message */
-  error?: Maybe<Scalars['String']['output']>;
+  error: Maybe<Scalars['String']['output']>;
   /** Unique tool call ID */
-  id?: Maybe<Scalars['ID']['output']>;
+  id: Maybe<Scalars['ID']['output']>;
   /** Tool input parameters */
-  input?: Maybe<Scalars['JSON']['output']>;
+  input: Maybe<Scalars['JSON']['output']>;
   /** Tool name */
-  name?: Maybe<Scalars['String']['output']>;
+  name: Maybe<Scalars['String']['output']>;
   /** Tool execution result */
-  result?: Maybe<Scalars['String']['output']>;
+  result: Maybe<Scalars['String']['output']>;
   /** Tool execution status */
-  status?: Maybe<Scalars['String']['output']>;
+  status: Maybe<Scalars['String']['output']>;
   /** Block type discriminator */
-  type?: Maybe<Scalars['String']['output']>;
+  type: Maybe<Scalars['String']['output']>;
 };
 
 export type UpdateAgentSessionInput = {
   /** Updated context state (JSON object) */
-  contextState?: InputMaybe<Scalars['JSON']['input']>;
+  contextState: InputMaybe<Scalars['JSON']['input']>;
   /** Updated request chain (JSON array) */
-  requestChain?: InputMaybe<Scalars['JSON']['input']>;
+  requestChain: InputMaybe<Scalars['JSON']['input']>;
 };
 
 /** Input for updating file content */
@@ -965,95 +940,92 @@ export type UpdateFileInput = {
   /** New file content */
   content: Scalars['String']['input'];
   /** Current version for optimistic locking */
-  version?: InputMaybe<Scalars['Int']['input']>;
+  version: InputMaybe<Scalars['Int']['input']>;
 };
 
 /** Input for partial file update (rename, move, or edit) */
 export type UpdateFilePartialInput = {
   /** New content */
-  content?: InputMaybe<Scalars['String']['input']>;
+  content: InputMaybe<Scalars['String']['input']>;
   /** New folder ID (move) */
-  folderId?: InputMaybe<Scalars['String']['input']>;
+  folderId: InputMaybe<Scalars['String']['input']>;
   /** New filename (rename) */
-  name?: InputMaybe<Scalars['String']['input']>;
+  name: InputMaybe<Scalars['String']['input']>;
 };
 
 /** Input for updating folder */
 export type UpdateFolderInput = {
   /** New folder name */
-  name?: InputMaybe<Scalars['String']['input']>;
+  name: InputMaybe<Scalars['String']['input']>;
   /** New parent folder ID (null for root) */
-  parentFolderId?: InputMaybe<Scalars['String']['input']>;
+  parentFolderId: InputMaybe<Scalars['String']['input']>;
 };
 
 /** Input for updating shadow entity (summary, embedding, metadata) */
 export type UpdateShadowEntityInput = {
   /** Updated embedding (768 dimensions) */
-  embedding?: InputMaybe<Array<Scalars['Float']['input']>>;
+  embedding: InputMaybe<Array<Scalars['Float']['input']>>;
   /** Updated summary */
-  summary?: InputMaybe<Scalars['String']['input']>;
+  summary: InputMaybe<Scalars['String']['input']>;
 };
 
 export type UpdateThreadInput = {
   /** Array of branch IDs to hide from context */
-  blacklistedBranches?: InputMaybe<Array<Scalars['String']['input']>>;
-  branchTitle?: InputMaybe<Scalars['String']['input']>;
-  parentThreadId?: InputMaybe<Scalars['ID']['input']>;
+  blacklistedBranches: InputMaybe<Array<Scalars['String']['input']>>;
+  branchTitle: InputMaybe<Scalars['String']['input']>;
+  parentThreadId: InputMaybe<Scalars['ID']['input']>;
 };
 
 /** Input for updating user profile */
 export type UpdateUserInput = {
   /** New first name */
-  firstName?: InputMaybe<Scalars['String']['input']>;
+  firstName: InputMaybe<Scalars['String']['input']>;
   /** New last name */
-  lastName?: InputMaybe<Scalars['String']['input']>;
+  lastName: InputMaybe<Scalars['String']['input']>;
 };
 
 /** Usage event for billing and analytics tracking */
 export type UsageEvent = {
-  __typename?: 'UsageEvent';
   /** Cost in dollars */
-  cost?: Maybe<Scalars['Float']['output']>;
-  createdAt?: Maybe<Scalars['DateTime']['output']>;
+  cost: Maybe<Scalars['Float']['output']>;
+  createdAt: Maybe<Scalars['DateTime']['output']>;
   /** Event type (e.g., agent_request, file_upload) */
-  eventType?: Maybe<Scalars['String']['output']>;
-  id?: Maybe<Scalars['ID']['output']>;
+  eventType: Maybe<Scalars['String']['output']>;
+  id: Maybe<Scalars['ID']['output']>;
   /** Event metadata (JSON object as string) */
-  metadata?: Maybe<Scalars['String']['output']>;
+  metadata: Maybe<Scalars['String']['output']>;
   /** Number of tokens used (for AI operations) */
-  tokensUsed?: Maybe<Scalars['Int']['output']>;
+  tokensUsed: Maybe<Scalars['Int']['output']>;
   /** User ID this event belongs to */
-  userId?: Maybe<Scalars['String']['output']>;
+  userId: Maybe<Scalars['String']['output']>;
 };
 
 /** Aggregated usage statistics */
 export type UsageStats = {
-  __typename?: 'UsageStats';
   /** Total cost in dollars */
-  totalCost?: Maybe<Scalars['Float']['output']>;
+  totalCost: Maybe<Scalars['Float']['output']>;
   /** Total tokens used */
-  totalTokens?: Maybe<Scalars['Int']['output']>;
+  totalTokens: Maybe<Scalars['Int']['output']>;
 };
 
 /** User profile with account information */
 export type User = {
-  __typename?: 'User';
   /** Profile creation timestamp */
-  createdAt?: Maybe<Scalars['DateTime']['output']>;
+  createdAt: Maybe<Scalars['DateTime']['output']>;
   /** User first name */
-  firstName?: Maybe<Scalars['String']['output']>;
+  firstName: Maybe<Scalars['String']['output']>;
   /** Profile ID */
-  id?: Maybe<Scalars['ID']['output']>;
+  id: Maybe<Scalars['ID']['output']>;
   /** User last name */
-  lastName?: Maybe<Scalars['String']['output']>;
+  lastName: Maybe<Scalars['String']['output']>;
   /** Subscription plan (free, pro, enterprise) */
-  planType?: Maybe<Scalars['String']['output']>;
+  planType: Maybe<Scalars['String']['output']>;
   /** Subscription status (active, cancelled, expired) */
-  subscriptionStatus?: Maybe<Scalars['String']['output']>;
+  subscriptionStatus: Maybe<Scalars['String']['output']>;
   /** Last update timestamp */
-  updatedAt?: Maybe<Scalars['DateTime']['output']>;
+  updatedAt: Maybe<Scalars['DateTime']['output']>;
   /** Current usage count */
-  usageCount?: Maybe<Scalars['Int']['output']>;
+  usageCount: Maybe<Scalars['Int']['output']>;
   /** Auth user ID */
-  userId?: Maybe<Scalars['String']['output']>;
+  userId: Maybe<Scalars['String']['output']>;
 };

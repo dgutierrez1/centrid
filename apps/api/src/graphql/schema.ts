@@ -17,6 +17,7 @@ import './types/agentExecutionEvent.ts';
 import './types/agentSession.ts';
 import './types/usageEvent.ts';
 import './types/shadowEntity.ts';
+import './types/contentBlock.ts';
 
 // Build and export schema
 export const schema = builder.toSchema();

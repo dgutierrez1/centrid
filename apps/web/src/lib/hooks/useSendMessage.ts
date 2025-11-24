@@ -1,25 +1,24 @@
-import { useState, useCallback } from "react";
+import { useCallback } from "react";
 import { useSnapshot } from "valtio";
 import toast from "react-hot-toast";
-import { aiAgentState } from "@/lib/state/aiAgentState";
-import { supabase } from "@/lib/supabase/client";
-import { createSubscription } from "@/lib/realtime";
-import { parseJsonbRow } from "@/lib/realtime/config";
+import { aiAgentState, aiAgentActions } from "@/lib/state/aiAgentState";
 import { graphqlClient } from "@/lib/graphql/client";
 import { CreateMessageDocument, GetMessagesDocument } from "@/types/graphql";
-import type { ContentBlock } from "@/types/agent";
+import type { ContentBlock } from "@/types/graphql";
+import { useAgentStreaming } from "./useAgentStreaming";
+import { parseJsonbRow } from "@/lib/realtime/config";
 
 export interface SendMessageOptions {
   onToolCall?: (toolCall: {
     toolCallId: string;
     toolName: string;
     toolInput: any;
+    messageId?: string;
   }) => void;
 }
 
 export function useSendMessage(threadId: string, options?: SendMessageOptions) {
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [sseConnection, setSseConnection] = useState<EventSource | null>(null);
+  const { startStreaming, stopStreaming, isStreaming } = useAgentStreaming();
   const snap = useSnapshot(aiAgentState);
 
   const sendMessage = useCallback(
@@ -30,7 +29,6 @@ export function useSendMessage(threadId: string, options?: SendMessageOptions) {
       }
 
       try {
-        setIsStreaming(true);
         aiAgentState.isStreaming = true;
         aiAgentState.hasStreamStarted = false;
 
@@ -60,6 +58,7 @@ export function useSendMessage(threadId: string, options?: SendMessageOptions) {
         // MVU F1.1: Extract requestId from response for request-based streaming
         const requestId = resource.requestId;
         const messageId = resource.id;
+        const responseThreadId = resource.threadId;
 
         if (!requestId) {
           throw new Error("No requestId in response");
@@ -72,13 +71,28 @@ export function useSendMessage(threadId: string, options?: SendMessageOptions) {
         // Track request ID in state for approval handlers
         aiAgentState.currentRequestId = requestId;
 
+        // FIX: If we're on a new thread (currentThread is null), update it with real thread
+        // This enables the messages real-time subscription in AIAgentRealtimeProvider
+        if (!aiAgentState.currentThread && responseThreadId) {
+          aiAgentActions.setCurrentThread({
+            id: responseThreadId,
+            title: "New Thread", // Will be updated by real-time subscription
+            parentThreadId: null,
+            depth: 0,
+            artifactCount: 0,
+            lastActivity: new Date().toISOString(),
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          });
+        }
+
         // Add user message with real ID from database
         const userMessage = {
           id: resource.id,
           role: "user" as const,
-          content: [{ type: 'text' as const, text }] as ContentBlock[], // Use ContentBlock[] for type consistency
+          content: [{ type: "text" as const, text }] as ContentBlock[], // Use ContentBlock[] for type consistency
           toolCalls: [],
-          timestamp: new Date(resource.timestamp || new Date().toISOString()),
+          timestamp: resource.timestamp || new Date().toISOString(), // ✅ Keep as ISO string
           tokensUsed: 0, // User messages don't have token costs
           idempotencyKey, // Track idempotency key for deduplication
         };
@@ -97,9 +111,9 @@ export function useSendMessage(threadId: string, options?: SendMessageOptions) {
         const optimisticAssistantMessage = {
           id: tempAssistantId,
           role: "assistant" as const,
-          content: [{ type: 'text' as const, text: '' }] as ContentBlock[], // Initialize with empty text block for streaming
+          content: [{ type: "text" as const, text: "" }] as ContentBlock[], // Initialize with empty text block for streaming
           events: [],
-          timestamp: new Date(),
+          timestamp: new Date().toISOString(), // ✅ ISO string
           isStreaming: true,
           isRequestLoading: true,
           tokensUsed: 0,
@@ -116,248 +130,37 @@ export function useSendMessage(threadId: string, options?: SendMessageOptions) {
         }
         const optimisticAssistantIndex = aiAgentState.messages.length - 1;
 
-        // MVU F1.2: Stream by requestId using Supabase Real-time
-        // Subscribe to agent_execution_events for incremental updates
-
-        // Helper function to process events (defined outside try-catch for strict mode compliance)
-        const processEvent = (
-          eventType: string,
-          eventData: any,
-          channel: any
-        ) => {
-          // Mark stream as started on first event
-          if (!aiAgentState.hasStreamStarted) {
-            aiAgentState.hasStreamStarted = true;
-          }
-
-          switch (eventType) {
-            case "context_ready":
-              // Context loaded, ready to process
-              break;
-            case "text_chunk":
-              // Update the optimistic assistant message with streamed content
+        // Start streaming agent response using reusable hook
+        startStreaming(requestId, {
+          optimisticMessageIndex: optimisticAssistantIndex,
+          threadId,
+          onToolCall: options?.onToolCall,
+          onError: (error) => {
+            // Error handling - update optimistic message
+            if (
+              optimisticAssistantIndex >= 0 &&
+              aiAgentState.messages[optimisticAssistantIndex]
+            ) {
+              aiAgentState.messages[optimisticAssistantIndex].isStreaming =
+                false;
+              aiAgentState.messages[optimisticAssistantIndex].isRequestLoading =
+                false;
               if (
-                optimisticAssistantIndex >= 0 &&
-                aiAgentState.messages[optimisticAssistantIndex]
-              ) {
-                const msg = aiAgentState.messages[optimisticAssistantIndex];
-                // Append to last text block in content (Valtio proxy ensures reactivity)
-                if (Array.isArray(msg.content) && msg.content.length > 0) {
-                  const lastIndex = msg.content.length - 1;
-                  if (msg.content[lastIndex].type === 'text') {
-                    msg.content[lastIndex].text += eventData.content;
-                  }
-                }
-              }
-              break;
-            case "tool_call":
-              // Update optimistic message ID to real database ID (for approval banner matching)
-              if (
-                optimisticAssistantIndex >= 0 &&
-                aiAgentState.messages[optimisticAssistantIndex] &&
-                eventData.messageId
-              ) {
-                aiAgentState.messages[optimisticAssistantIndex].id =
-                  eventData.messageId;
-              }
-
-              if (options?.onToolCall) {
-                options.onToolCall({
-                  toolCallId: eventData.toolCallId,
-                  toolName: eventData.toolName,
-                  toolInput: eventData.toolInput,
-                  messageId: eventData.messageId, // Include responseMessageId for matching
-                });
-              }
-              break;
-            case "completion":
-              // Update optimistic assistant message with final state
-              if (
-                optimisticAssistantIndex >= 0 &&
-                aiAgentState.messages[optimisticAssistantIndex]
-              ) {
-                const optimisticMsg =
-                  aiAgentState.messages[optimisticAssistantIndex];
-                // Update with actual message ID from database
-                optimisticMsg.id = eventData.messageId;
-                // Mark as no longer streaming (content already contains final text)
-                optimisticMsg.isStreaming = false;
-                optimisticMsg.isRequestLoading = false;
-                // Set token count
-                optimisticMsg.tokensUsed = eventData.totalTokens || 0;
-              }
-              aiAgentState.isStreaming = false;
-              aiAgentState.hasStreamStarted = false;
-              setIsStreaming(false);
-              setSseConnection(null);
-              // Unsubscribe when complete (only if channel exists - null during replay)
-              if (channel) {
-                supabase.removeChannel(channel);
-              }
-              localStorage.removeItem(`thread-${threadId}-activeRequest`);
-              aiAgentState.currentRequestId = null;
-              return;
-            case "error":
-              throw new Error(eventData.message);
-          }
-        };
-
-        try {
-          // First: Fetch all existing events for replay (late connection support)
-          const { data: existingEvents, error: fetchError } = (await supabase
-            .from("agent_execution_events")
-            .select("*")
-            .eq("request_id", requestId)
-            .order("created_at", { ascending: true })) as any;
-
-          if (existingEvents && existingEvents.length > 0) {
-            // Process existing events (auto-parse JSONB via helper)
-            for (const event of existingEvents as Array<{
-              type: string;
-              data: any;
-              request_id: string;
-            }>) {
-              // Parse JSONB fields using helper (handles both string and object)
-              const parsedEvent = parseJsonbRow('agent_execution_events', event);
-              processEvent(parsedEvent.type, { ...parsedEvent.data, __requestId: parsedEvent.request_id }, null);
-            }
-          }
-
-          // Second: Subscribe to new events in real-time using reusable pattern
-          const subscription = createSubscription('agent_execution_events')
-            .channel(`agent-events-${requestId}`)
-            .filter({ request_id: requestId })
-            .on('INSERT', (payload) => {
-              // JSONB fields are auto-parsed by builder (data is already an object)
-              const eventData = {
-                ...payload.new.data,
-                __requestId: payload.new.requestId, // camelCase from builder
-              };
-              processEvent(payload.new.type, eventData, subscription);
-            })
-            .subscribe();
-
-          // Store subscription reference for cleanup
-          setSseConnection(subscription as any);
-        } catch (error) {
-          // MVU F2.4: Enhanced error handling - check if request actually completed
-          try {
-            const status = await checkRequestStatus(requestId);
-
-            if (status.status === "completed") {
-              // Stream died but request finished
-
-              if (status.responseMessageId) {
-                // Load the response message using GraphQL
-                const result = await graphqlClient.query(GetMessagesDocument, {
-                  threadId,
-                  limit: 100, // Load recent messages to find the response
-                });
-
-                if (result.data?.messages) {
-                  const responseMsg = result.data.messages.find(
-                    (m) => m.id === status.responseMessageId
-                  );
-
-                  if (responseMsg) {
-                    // Update optimistic message with real response
-                    if (
-                      optimisticAssistantIndex >= 0 &&
-                      aiAgentState.messages[optimisticAssistantIndex]
-                    ) {
-                      aiAgentState.messages[optimisticAssistantIndex] = {
-                        ...responseMsg,
-                        timestamp: new Date(responseMsg.timestamp),
-                        isStreaming: false,
-                        isRequestLoading: false,
-                      };
-                    }
-                  }
-                }
-              }
-
-              localStorage.removeItem(`thread-${threadId}-activeRequest`);
-              aiAgentState.currentRequestId = null;
-              aiAgentState.isStreaming = false;
-              aiAgentState.hasStreamStarted = false;
-              setIsStreaming(false);
-              setSseConnection(null);
-              toast.success("Request completed successfully");
-              return;
-            } else if (status.status === "in_progress") {
-              // Still processing - offer reconnect
-
-              if (
-                optimisticAssistantIndex >= 0 &&
-                aiAgentState.messages[optimisticAssistantIndex]
+                !aiAgentState.messages[optimisticAssistantIndex].content ||
+                (Array.isArray(
+                  aiAgentState.messages[optimisticAssistantIndex].content
+                ) &&
+                  aiAgentState.messages[optimisticAssistantIndex].content
+                    .length === 0)
               ) {
                 aiAgentState.messages[optimisticAssistantIndex].content = [
-                  { type: 'text' as const, text: "Connection lost. Attempting to reconnect..." }
+                  { type: "text" as const, text: "⚠️ Error: " + error.message },
                 ] as ContentBlock[];
               }
-
-              aiAgentState.currentRequestId = null;
-              aiAgentState.isStreaming = false;
-              aiAgentState.hasStreamStarted = false;
-              setIsStreaming(false);
-              setSseConnection(null);
-
-              toast.error("Connection lost. Click to reconnect.", {
-                duration: Infinity, // Keep visible until user dismisses
-              });
-              return;
-            } else if (status.status === "failed") {
-              // Actually failed
-
-              if (
-                optimisticAssistantIndex >= 0 &&
-                aiAgentState.messages[optimisticAssistantIndex]
-              ) {
-                aiAgentState.messages[optimisticAssistantIndex].content = [
-                  { type: 'text' as const, text: "⚠️ Error: " + (status.results?.error || "Request failed") }
-                ] as ContentBlock[];
-              }
-
-              localStorage.removeItem(`thread-${threadId}-activeRequest`);
-              aiAgentState.currentRequestId = null;
-              aiAgentState.isStreaming = false;
-              aiAgentState.hasStreamStarted = false;
-              setIsStreaming(false);
-              setSseConnection(null);
-              toast.error(
-                `Request failed: ${status.results?.error || "Unknown error"}`
-              );
-              return;
             }
-          } catch (statusCheckError) {
-            // Network error - fallback to generic error
-          }
-
-          // Default error handling
-          if (
-            optimisticAssistantIndex >= 0 &&
-            aiAgentState.messages[optimisticAssistantIndex]
-          ) {
-            aiAgentState.messages[optimisticAssistantIndex].isStreaming = false;
-            aiAgentState.messages[optimisticAssistantIndex].isRequestLoading =
-              false;
-            if (!aiAgentState.messages[optimisticAssistantIndex].content ||
-                (Array.isArray(aiAgentState.messages[optimisticAssistantIndex].content) &&
-                 aiAgentState.messages[optimisticAssistantIndex].content.length === 0)) {
-              aiAgentState.messages[optimisticAssistantIndex].content = [
-                { type: 'text' as const, text: "⚠️ Error: " + (error instanceof Error ? error.message : "Streaming error") }
-              ] as ContentBlock[];
-            }
-          }
-          aiAgentState.currentRequestId = null;
-          aiAgentState.isStreaming = false;
-          aiAgentState.hasStreamStarted = false;
-          toast.error(
-            error instanceof Error ? error.message : "Streaming error"
-          );
-          setIsStreaming(false);
-          setSseConnection(null);
-        }
+            toast.error(error.message);
+          },
+        });
       } catch (error) {
         toast.error(
           error instanceof Error ? error.message : "Failed to send message"
@@ -375,24 +178,21 @@ export function useSendMessage(threadId: string, options?: SendMessageOptions) {
         aiAgentState.currentRequestId = null;
         aiAgentState.isStreaming = false;
         aiAgentState.hasStreamStarted = false;
-        setIsStreaming(false);
       }
     },
-    [threadId, snap.contextReferences, options, supabase]
+    [threadId, snap.contextReferences, options, startStreaming]
   );
-
-  const stopStream = useCallback(() => {
-    if (sseConnection) {
-      sseConnection.close();
-      setSseConnection(null);
-      setIsStreaming(false);
-      toast.success("Stream stopped");
-    }
-  }, [sseConnection]);
 
   return {
     sendMessage,
     isStreaming,
-    stopStream,
+    stopStream: stopStreaming,
   };
+}
+
+// Helper function for checking request status (not currently used, but kept for future recovery features)
+async function checkRequestStatus(requestId: string) {
+  // This function would query the agent_requests table to check request status
+  // Implementation depends on GraphQL schema
+  return { status: "unknown", responseMessageId: null, results: null };
 }
