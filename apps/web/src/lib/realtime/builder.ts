@@ -5,9 +5,9 @@
  * with automatic snake_case to camelCase transformation.
  */
 
-import { createClient } from '@/lib/supabase';
-import { snakeToCamel } from '@/lib/utils/casing';
-import { getJsonbFields } from './config';
+import { supabase } from "@/lib/supabase/client";
+import { snakeToCamel } from "@/lib/utils/casing";
+import { getJsonbFields } from "./config";
 import type {
   TableName,
   TableRow,
@@ -17,8 +17,8 @@ import type {
   SubscriptionCallback,
   SubscriptionOptions,
   EventHandlerMap,
-} from './types';
-import type { RealtimeChannel } from '@supabase/supabase-js';
+} from "./types";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 
 /**
  * Chainable builder for creating type-safe realtime subscriptions
@@ -111,22 +111,23 @@ export class RealtimeSubscriptionBuilder<T extends TableName> {
    * // Later: supabase.removeChannel(channel);
    */
   subscribe(): RealtimeChannel {
-    const supabase = createClient();
-
     // Generate channel name if not provided
     const channelName =
       this.channelName ||
       `${this.table}-${Object.entries(this.filters)
         .map(([k, v]) => `${k}:${JSON.stringify(v)}`)
-        .join('-')}-${Date.now()}`;
+        .join("-")}-${Date.now()}`;
 
     const channel = supabase.channel(channelName);
 
     // Add postgres_changes listener for each event
-    for (const [event, callbacks] of this.events.entries()) {
+    // Convert Map to Array to ensure ES5 compatibility
+    const eventEntries = Array.from(this.events.entries());
+
+    for (const [event, callbacks] of eventEntries) {
       const config: any = {
         event,
-        schema: 'public',
+        schema: "public",
         table: this.table,
       };
 
@@ -150,15 +151,25 @@ export class RealtimeSubscriptionBuilder<T extends TableName> {
           try {
             cb(transformedPayload);
           } catch (error) {
-            console.error(`[Realtime] Error in callback for ${this.table}.${event}:`, error);
+            console.error(
+              `[Realtime] Error in callback for ${this.table}.${event}:`,
+              error
+            );
           }
         });
       };
 
-      channel.on('postgres_changes', config, combinedCallback);
+      channel.on("postgres_changes", config, combinedCallback);
     }
 
-    return channel.subscribe();
+    return channel.subscribe((status, err) => {
+      if (status === "CHANNEL_ERROR") {
+        console.error(`[Realtime] ${this.table} channel error:`, err);
+      }
+      if (status === "TIMED_OUT") {
+        console.error(`[Realtime] ${this.table} subscription timed out`);
+      }
+    });
   }
 
   /**
@@ -178,8 +189,12 @@ export class RealtimeSubscriptionBuilder<T extends TableName> {
       }
 
       // Handle object with operator
-      if (typeof value === 'object' && !Array.isArray(value) && 'operator' in value) {
-        const { operator = 'eq', value: filterValue } = value as any;
+      if (
+        typeof value === "object" &&
+        !Array.isArray(value) &&
+        "operator" in value
+      ) {
+        const { operator = "eq", value: filterValue } = value as any;
         filterParts.push(`${key}=${operator}.${filterValue}`);
       }
       // Handle direct value (default to eq)
@@ -188,7 +203,7 @@ export class RealtimeSubscriptionBuilder<T extends TableName> {
       }
     }
 
-    return filterParts.join(',');
+    return filterParts.join(",");
   }
 
   /**
@@ -211,11 +226,17 @@ export class RealtimeSubscriptionBuilder<T extends TableName> {
     const jsonbFields = getJsonbFields(this.table);
 
     if (transformed.new) {
-      transformed.new = this.parseJsonbFields(transformed.new, jsonbFields.camel);
+      transformed.new = this.parseJsonbFields(
+        transformed.new,
+        jsonbFields.camel
+      );
     }
 
     if (transformed.old) {
-      transformed.old = this.parseJsonbFields(transformed.old, jsonbFields.camel);
+      transformed.old = this.parseJsonbFields(
+        transformed.old,
+        jsonbFields.camel
+      );
     }
 
     return transformed;
@@ -235,7 +256,7 @@ export class RealtimeSubscriptionBuilder<T extends TableName> {
    * @private
    */
   private parseJsonbFields<R>(row: R, jsonbFields: Set<string>): R {
-    if (!row || typeof row !== 'object') return row;
+    if (!row || typeof row !== "object") return row;
 
     const parsed = { ...row };
 
@@ -243,7 +264,7 @@ export class RealtimeSubscriptionBuilder<T extends TableName> {
       const value = (parsed as any)[field];
 
       // Only parse if field exists and is a string
-      if (value !== undefined && value !== null && typeof value === 'string') {
+      if (value !== undefined && value !== null && typeof value === "string") {
         try {
           (parsed as any)[field] = JSON.parse(value);
         } catch (error) {
@@ -295,7 +316,14 @@ export function createSubscription<T extends TableName>(
 export function subscribeToTable<T extends TableName>(
   options: SubscriptionOptions<T>
 ): RealtimeChannel {
-  const { table, event = '*', filter, callback, channelName, transformKeys = true } = options;
+  const {
+    table,
+    event = "*",
+    filter,
+    callback,
+    channelName,
+    transformKeys = true,
+  } = options;
 
   const builder = createSubscription(table);
 

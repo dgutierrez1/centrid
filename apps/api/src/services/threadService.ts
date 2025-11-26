@@ -265,6 +265,7 @@ export class ThreadService {
     messageContent: string;
     parentThreadId?: string;
     messageIdempotencyKey?: string;
+    requestId?: string; // Optional client-provided UUID for agent request
   }): Promise<{ thread: any; message: Message }> {
     logger.info('Creating thread with initial message', {
       title: input.title,
@@ -305,6 +306,7 @@ export class ThreadService {
       role: 'user',
       content: input.messageContent,
       idempotencyKey: input.messageIdempotencyKey,
+      requestId: input.requestId, // Pass through client-provided UUID
     });
 
     logger.info('Thread and message created successfully', {

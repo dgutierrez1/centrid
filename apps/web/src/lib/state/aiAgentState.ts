@@ -37,6 +37,7 @@ export interface UIThread {
  */
 export interface UIMessage {
   id: string;
+  threadId: string; // Thread this message belongs to (from GraphQL Message type)
   role: "user" | "assistant";
   content?: ContentBlock[]; // ContentBlock[] from GraphQL JSON scalar
   events?: any[]; // Aggregated from agent_execution_events (not in Message table)
@@ -171,6 +172,16 @@ export const aiAgentActions = {
 
   addMessage(message: UIMessage) {
     aiAgentState.messages.push(message);
+  },
+
+  updateMessage(messageId: string, updates: Partial<UIMessage>) {
+    const index = aiAgentState.messages.findIndex((m) => m.id === messageId);
+    if (index >= 0) {
+      aiAgentState.messages[index] = {
+        ...aiAgentState.messages[index],
+        ...updates,
+      };
+    }
   },
 
   setContextReferences(refs: UIContextReference[]) {

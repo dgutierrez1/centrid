@@ -63,6 +63,9 @@ export interface WorkspaceProps extends Omit<ThreadViewProps, 'className'> {
   unreadNotificationsCount?: number;
   userInitial?: string;
 
+  // Custom ThreadView content (optional - overrides default ThreadView rendering)
+  threadViewContent?: React.ReactNode;
+
   className?: string;
 }
 
@@ -140,6 +143,8 @@ export function Workspace({
   onReferenceClick,
   onRemoveReference,
   onWidgetClick,
+
+  threadViewContent,
 
   className,
 }: WorkspaceProps) {
@@ -260,27 +265,29 @@ export function Workspace({
               defaultSize={isFileEditorOpen ? (100 - sidebarWidth - fileEditorWidth) : (100 - sidebarWidth)}
               minSize={30}
             >
-              <ThreadView
-                currentBranch={currentBranch}
-                branches={branches}
-                messages={messages}
-                contextGroups={contextGroups}
-                messageText={messageText}
-                isStreaming={isStreaming}
-                isLoading={isLoading}
-                showBranchSelector={false}
-                isContextExpanded={isContextExpanded}
-                onSelectBranch={onSelectBranch}
-                onToggleContextPanel={onToggleContextPanel}
-                onMessageChange={onMessageChange}
-                onSendMessage={onSendMessage}
-                onStopStreaming={onStopStreaming}
-                onBranchThread={onBranchThread}
-                onWidgetClick={onWidgetClick}
-                onAddReference={onAddReference}
-                onReferenceClick={onReferenceClick}
-                onRemoveReference={onRemoveReference}
-              />
+              {threadViewContent || (
+                <ThreadView
+                  currentBranch={currentBranch}
+                  branches={branches}
+                  messages={messages}
+                  contextGroups={contextGroups}
+                  messageText={messageText}
+                  isStreaming={isStreaming}
+                  isLoading={isLoading}
+                  showBranchSelector={false}
+                  isContextExpanded={isContextExpanded}
+                  onSelectBranch={onSelectBranch}
+                  onToggleContextPanel={onToggleContextPanel}
+                  onMessageChange={onMessageChange}
+                  onSendMessage={onSendMessage}
+                  onStopStreaming={onStopStreaming}
+                  onBranchThread={onBranchThread}
+                  onWidgetClick={onWidgetClick}
+                  onAddReference={onAddReference}
+                  onReferenceClick={onReferenceClick}
+                  onRemoveReference={onRemoveReference}
+                />
+              )}
             </Panel>
 
             {/* FileEditorPanel - Resizable */}

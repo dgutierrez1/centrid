@@ -14,7 +14,7 @@ import { parseJsonbRow } from "@/lib/realtime/config";
 export function useLoadThread(threadId: string | undefined) {
   // Handle "new" thread route (empty state)
   useEffect(() => {
-    if (threadId === 'new') {
+    if (threadId === "new") {
       aiAgentActions.setCurrentThread(null);
       aiAgentActions.setMessages([]);
       aiAgentActions.setContextReferences([]);
@@ -23,29 +23,15 @@ export function useLoadThread(threadId: string | undefined) {
     }
   }, [threadId]);
 
-  // Clear state when no thread ID
-  useEffect(() => {
-    if (!threadId) {
-      aiAgentActions.setCurrentThread(null);
-      aiAgentActions.setMessages([]);
-      aiAgentActions.setContextReferences([]);
-      aiAgentActions.setIsLoadingThread(false);
-    }
-  }, [threadId]);
-
-  // Check if thread data already exists in state (data-aware loading)
-  const alreadyLoaded =
-    aiAgentState.currentThread?.id === threadId &&
-    aiAgentState.messages.length > 0;
-
-  // Load thread using GraphQL
-  // Cookies sent automatically - backend validates auth
-  // Query returns instantly from SSR-prefetched cache
+  // Load thread using GraphQL with urql cache-and-network
+  // - Returns cached data INSTANTLY if available (no loading state)
+  // - Fetches fresh data in background
+  // - urql handles request deduplication automatically
   const { loading, error } = useGraphQLQuery({
     query: GetThreadDocument,
-    variables: threadId ? { id: threadId } : { id: "" }, // Provide empty string if no threadId (query will be disabled anyway)
-    // Enable query only if threadId exists, is not 'new', and not already loaded
-    enabled: !!threadId && threadId !== 'new' && !alreadyLoaded,
+    variables: threadId ? { id: threadId } : { id: "" },
+    // Enable query for any valid threadId - trust urql's cache
+    enabled: !!threadId && threadId !== "new",
     syncToState: (data) => {
       if (!data.thread) {
         // Thread not found
@@ -56,18 +42,14 @@ export function useLoadThread(threadId: string | undefined) {
         return;
       }
 
-      const thread = data.thread;
-
-      // Skip sync if this exact thread is already loaded (SSR or previous load)
-      if (
-        aiAgentState.currentThread?.id === thread.id &&
-        aiAgentState.messages.length > 0
-      ) {
-        // Clear loading state even when skipping sync
+      // Skip sync if streaming is active - preserves optimistic state being updated in real-time
+      // The streaming completion (message_complete event) will provide the final accurate state
+      if (aiAgentState.isStreaming) {
         aiAgentActions.setIsLoadingThread(false);
         return;
       }
 
+      const thread = data.thread;
       // Transform and update state
       const transformedThread = {
         id: thread.id,
@@ -82,14 +64,14 @@ export function useLoadThread(threadId: string | undefined) {
 
       const transformedMessages = (thread.messages || []).map((msg: any) => {
         // Parse JSONB fields (content, toolCalls) using shared helper
-        const parsed = parseJsonbRow('messages', msg);
+        const parsed = parseJsonbRow("messages", msg);
         return {
           id: parsed.id,
           threadId: parsed.threadId,
           role: parsed.role,
-          content: parsed.content,        // ✅ JSONB parsed
-          timestamp: parsed.timestamp,    // ✅ Keep as ISO string
-          toolCalls: parsed.toolCalls || [],  // ✅ JSONB parsed
+          content: parsed.content, // ✅ JSONB parsed
+          timestamp: parsed.timestamp, // ✅ Keep as ISO string
+          toolCalls: parsed.toolCalls || [], // ✅ JSONB parsed
           tokensUsed: parsed.tokensUsed || 0,
         };
       });
@@ -126,7 +108,7 @@ export function useLoadThread(threadId: string | undefined) {
     }
   }, [error]);
 
-  // Return false for loading if data already exists (data-aware loading)
-  // This prevents skeleton flashing when we already have the data in state
-  return { isLoading: alreadyLoaded ? false : loading, error };
+  // Return loading state from urql
+  // urql's cache-and-network returns loading=false when returning cached data
+  return { isLoading: loading, error };
 }

@@ -1,8 +1,8 @@
-import { useState, useCallback } from 'react';
-import { aiAgentState } from '@/lib/state/aiAgentState';
-import { supabase } from '@/lib/supabase/client';
-import { createSubscription } from '@/lib/realtime';
-import { parseJsonbRow } from '@/lib/realtime/config';
+import { useState, useCallback } from "react";
+import { aiAgentState } from "@/lib/state/aiAgentState";
+import { createSubscription } from "@/lib/realtime/builder";
+import { supabase } from "@/lib/supabase/client";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 
 export interface AgentStreamingOptions {
   optimisticMessageIndex: number;
@@ -19,6 +19,18 @@ export interface AgentStreamingOptions {
 
 /**
  * Reusable hook for streaming agent responses via agent_execution_events
+ *
+ * EVENT-DRIVEN ARCHITECTURE:
+ * This hook subscribes to agent_execution_events table for real-time streaming updates.
+ * It does NOT subscribe to message UPDATE events - messages table is only for final state.
+ *
+ * Event Processing:
+ * - content_block_delta: Updates optimistic message with accumulated text (prevents gaps)
+ * - tool_call: Adds tool_use block and triggers approval UI
+ * - tool_result_complete: Adds tool_result block after auto-execution
+ * - message_complete: Replaces entire message with final database state
+ * - completion: Cleanup and unsubscribe
+ * - error: Error handling
  *
  * Handles:
  * - Replaying existing events (late connection support)
@@ -37,24 +49,34 @@ export interface AgentStreamingOptions {
  * });
  */
 export function useAgentStreaming() {
-  const [subscription, setSubscription] = useState<any | null>(null);
+  const [subscription, setSubscription] = useState<RealtimeChannel | null>(
+    null
+  );
+  const [activeRequestId, setActiveRequestId] = useState<string | null>(null);
 
   const startStreaming = useCallback(
-    async (requestId: string, options: AgentStreamingOptions) => {
-      const { optimisticMessageIndex, threadId, onToolCall, onComplete, onError } = options;
+    async (
+      requestId: string,
+      userId: string,
+      options: AgentStreamingOptions
+    ) => {
+      // Prevent duplicate subscriptions
+      if (activeRequestId === requestId) {
+        return;
+      }
+
+      setActiveRequestId(requestId);
+
+      const {
+        optimisticMessageIndex,
+        threadId,
+        onToolCall,
+        onComplete,
+        onError,
+      } = options;
 
       aiAgentState.isStreaming = true;
       aiAgentState.hasStreamStarted = false;
-
-      // Store for recovery if needed
-      if (threadId) {
-        localStorage.setItem(`thread-${threadId}-activeRequest`, requestId);
-        localStorage.setItem(`request-${requestId}-messageId`,
-          aiAgentState.messages[optimisticMessageIndex]?.id || ''
-        );
-      }
-
-      // Track request ID in state for approval handlers
       aiAgentState.currentRequestId = requestId;
 
       // Helper function to process events
@@ -69,26 +91,42 @@ export function useAgentStreaming() {
         }
 
         switch (eventType) {
-          case 'context_ready':
+          case "context_ready":
             // Context loaded, ready to process
             break;
-          case 'text_chunk':
+          case "text_chunk":
+          case "content_block_delta":
             // Update the optimistic assistant message with streamed content
+            // NEW: Use accumulatedText for full text replacement (prevents gaps from dropped events)
             if (
               optimisticMessageIndex >= 0 &&
               aiAgentState.messages[optimisticMessageIndex]
             ) {
               const msg = aiAgentState.messages[optimisticMessageIndex];
-              // Append to last text block in content (Valtio proxy ensures reactivity)
-              if (Array.isArray(msg.content) && msg.content.length > 0) {
-                const lastIndex = msg.content.length - 1;
-                if (msg.content[lastIndex].type === 'text') {
-                  msg.content[lastIndex].text += eventData.content;
+              const fullText =
+                eventData.accumulatedText ||
+                eventData.content ||
+                eventData.delta;
+
+              // Replace or append to last text block in content (Valtio proxy ensures reactivity)
+              if (Array.isArray(msg.content)) {
+                if (
+                  msg.content.length > 0 &&
+                  msg.content[msg.content.length - 1].type === "text"
+                ) {
+                  // Update existing text block with full accumulated text
+                  msg.content[msg.content.length - 1].text = fullText;
+                } else {
+                  // Create new text block
+                  msg.content.push({
+                    type: "text",
+                    text: fullText,
+                  });
                 }
               }
             }
             break;
-          case 'tool_call':
+          case "tool_call":
             // FIX: Update optimistic message with real database ID + add tool_use content block
             if (
               optimisticMessageIndex >= 0 &&
@@ -106,23 +144,25 @@ export function useAgentStreaming() {
               if (Array.isArray(msg.content)) {
                 // Check if tool_use block already exists (avoid duplicates)
                 const hasToolBlock = msg.content.some(
-                  (block) => block.type === 'tool_use' && block.id === eventData.toolCallId
+                  (block) =>
+                    block.type === "tool_use" &&
+                    block.id === eventData.toolCallId
                 );
 
                 if (!hasToolBlock) {
                   msg.content.push({
-                    type: 'tool_use',
+                    type: "tool_use",
                     id: eventData.toolCallId,
                     name: eventData.toolName,
                     input: eventData.toolInput,
-                    status: 'pending',
+                    status: "pending",
                   });
                 }
               }
 
               // Mark as no longer streaming (message is now persisted)
               msg.isStreaming = false;
-              if ('isRequestLoading' in msg) {
+              if ("isRequestLoading" in msg) {
                 msg.isRequestLoading = false;
               }
             }
@@ -136,43 +176,86 @@ export function useAgentStreaming() {
               });
             }
             break;
-          case 'completion':
-            // Update optimistic assistant message with final state
+          case "tool_result_complete":
+            // Auto-executed tool completed - add tool_result block to message
             if (
               optimisticMessageIndex >= 0 &&
               aiAgentState.messages[optimisticMessageIndex]
             ) {
-              const optimisticMsg =
-                aiAgentState.messages[optimisticMessageIndex];
-              // Update with actual message ID from database (only if provided)
+              const msg = aiAgentState.messages[optimisticMessageIndex];
+
+              // Update message ID if provided
               if (eventData.messageId) {
-                optimisticMsg.id = eventData.messageId;
+                msg.id = eventData.messageId;
               }
-              // Mark as no longer streaming
-              optimisticMsg.isStreaming = false;
-              if ('isRequestLoading' in optimisticMsg) {
-                optimisticMsg.isRequestLoading = false;
+
+              // Add tool_result content block
+              if (Array.isArray(msg.content)) {
+                // Check if tool_result already exists (avoid duplicates)
+                const hasToolResult = msg.content.some(
+                  (block) =>
+                    block.type === "tool_result" &&
+                    block.tool_use_id === eventData.toolCallId
+                );
+
+                if (!hasToolResult) {
+                  msg.content.push({
+                    type: "tool_result",
+                    tool_use_id: eventData.toolCallId,
+                    content:
+                      typeof eventData.result === "string"
+                        ? eventData.result
+                        : JSON.stringify(eventData.result),
+                  });
+                }
               }
-              // Set token count
-              optimisticMsg.tokensUsed = eventData.totalTokens || 0;
             }
+            break;
+          case "message_complete":
+            // Final message state - replace with complete content from database
+            if (
+              optimisticMessageIndex >= 0 &&
+              aiAgentState.messages[optimisticMessageIndex]
+            ) {
+              const msg = aiAgentState.messages[optimisticMessageIndex];
+              msg.id = eventData.messageId;
+              msg.content = eventData.content || [];
+              msg.tokensUsed = eventData.tokensUsed || 0;
+              msg.isStreaming = false;
+              if ("isRequestLoading" in msg) {
+                msg.isRequestLoading = false;
+              }
+            }
+
+            // Cleanup
             aiAgentState.isStreaming = false;
             aiAgentState.hasStreamStarted = false;
             setSubscription(null);
-            // Unsubscribe when complete (only if channel exists - null during replay)
+            setActiveRequestId(null);
+            aiAgentState.currentRequestId = null;
+
             if (channel) {
               supabase.removeChannel(channel);
             }
-            if (threadId) {
-              localStorage.removeItem(`thread-${threadId}-activeRequest`);
-            }
-            aiAgentState.currentRequestId = null;
-
             if (onComplete) {
               onComplete();
             }
             return;
-          case 'error':
+
+          case "completion":
+            // Update token count only - message_complete handles cleanup
+            if (
+              optimisticMessageIndex >= 0 &&
+              aiAgentState.messages[optimisticMessageIndex]
+            ) {
+              const msg = aiAgentState.messages[optimisticMessageIndex];
+              if (eventData.messageId) {
+                msg.id = eventData.messageId;
+              }
+              msg.tokensUsed = eventData.totalTokens || 0;
+            }
+            break;
+          case "error":
             const error = new Error(eventData.message);
             if (onError) {
               onError(error);
@@ -183,48 +266,31 @@ export function useAgentStreaming() {
       };
 
       try {
-        // First: Fetch all existing events for replay (late connection support)
-        const { data: existingEvents } = (await supabase
-          .from('agent_execution_events')
-          .select('*')
-          .eq('request_id', requestId)
-          .order('created_at', { ascending: true })) as any;
+        // Subscribe to realtime events using the reusable builder
+        // Builder handles: channel creation, filter formatting, JSONB parsing, key transformation
+        const channel = createSubscription("agent_execution_events")
+          .filter({ request_id: requestId } as any) // Filter uses snake_case (database column name)
+          .channel(`agent-events-${requestId}-${Date.now()}`)
+          .on("INSERT", (payload) => {
+            const event = payload.new;
+            if (!event) return;
 
-        if (existingEvents && existingEvents.length > 0) {
-          // Process existing events (auto-parse JSONB via helper)
-          for (const event of existingEvents as Array<{
-            type: string;
-            data: any;
-            request_id: string;
-          }>) {
-            // Parse JSONB fields using helper (handles both string and object)
-            const parsedEvent = parseJsonbRow('agent_execution_events', event);
-            processEvent(parsedEvent.type, { ...parsedEvent.data, __requestId: parsedEvent.request_id }, null);
-          }
-        }
-
-        // Second: Subscribe to new events in real-time using reusable pattern
-        const sub = createSubscription('agent_execution_events')
-          .channel(`agent-events-${requestId}`)
-          .filter({ request_id: requestId })
-          .on('INSERT', (payload) => {
-            // JSONB fields are auto-parsed by builder (data is already an object)
-            const eventData = {
-              ...payload.new.data,
-              __requestId: payload.new.requestId, // camelCase from builder
-            };
-            processEvent(payload.new.type, eventData, sub);
+            // Builder already parsed JSONB 'data' field and transformed keys to camelCase
+            processEvent(event.type, event.data, channel);
           })
           .subscribe();
 
-        // Store subscription reference for cleanup
-        setSubscription(sub);
+        setSubscription(channel);
       } catch (error) {
+        console.error("[AgentStreaming] Error in startStreaming:", error);
+        setActiveRequestId(null); // Clear active request tracking
         aiAgentState.currentRequestId = null;
         aiAgentState.isStreaming = false;
         aiAgentState.hasStreamStarted = false;
         if (onError) {
-          onError(error instanceof Error ? error : new Error('Streaming error'));
+          onError(
+            error instanceof Error ? error : new Error("Streaming error")
+          );
         } else {
           throw error;
         }

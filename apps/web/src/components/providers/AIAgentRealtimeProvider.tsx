@@ -125,9 +125,12 @@ export function AIAgentRealtimeProvider({ userId, children }: AIAgentRealtimePro
     },
 
     // Subscribe to messages for current thread only
+    // NOTE: Only listen for INSERT events. Updates during streaming come from agent_execution_events.
+    // This ensures clean event-driven architecture where agent_execution_events is the primary
+    // streaming channel and messages table is the final persistent state.
     {
       table: 'messages',
-      event: 'INSERT', // Only listen for inserts (new messages)
+      event: 'INSERT',
       filter: userId && currentThread
         ? { owner_user_id: userId, thread_id: currentThread.id }
         : undefined,

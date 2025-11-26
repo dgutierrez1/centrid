@@ -4,10 +4,11 @@ description: Load context for AI Agent System
 
 # Feature: AI Agent System
 
-Load optimized context for the **AI Agent System** feature.
+Load optimized **implementation-first** context for the **AI Agent System** feature.
 
 **Context source:** `specs/004-ai-agent-system/context.md`
-**Token savings:** ~95% (3KB context vs 200KB full docs)
+**Token savings:** ~97% (code-first context with file:line refs)
+**Approach:** Actual code implementation prioritized over spec documentation
 
 ## Context
 
@@ -18,6 +19,11 @@ cat /Users/daniel/Projects/misc/centrid/specs/004-ai-agent-system/context.md
 ## Next Steps
 
 After loading context, you can:
+
+- **Navigate to actual code** using file:line references in the context:
+  - Context includes `fileName.ts:lineNumber` for all key functions
+  - Jump directly to hooks, services, repositories, and UI components
+  - Data flows show exact code paths with line numbers
 
 - **Read detailed docs** if you need specific information:
   - [spec.md](/Users/daniel/Projects/misc/centrid/specs/004-ai-agent-system/spec.md) - Full requirements and user stories
@@ -32,5 +38,6 @@ After loading context, you can:
   - `/speckit.debug` - Debug unexpected failures
   - `/speckit.refactor` - Refactor with natural language instructions
 
-- **Regenerate context** if source docs changed:
+- **Regenerate context** if source docs OR code changed:
   - `/speckit.context ai-agent` - Update context.md with latest changes
+  - Dual hash tracking: Detects changes to both spec docs AND actual code

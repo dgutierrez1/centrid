@@ -5,6 +5,9 @@
  */
 
 import { Readable } from 'node:stream';
+import { createLogger } from '../utils/logger.ts';
+
+const logger = createLogger('ClaudeClient');
 
 export interface ToolDefinition {
   name: string;
@@ -69,13 +72,17 @@ export async function* streamClaudeResponse(
     temperature: temperature,
     system: systemPrompt,
     tools: tools, // Pass through directly - already correctly formatted by getAvailableTools()
+    tool_choice: {
+      type: 'auto',
+      disable_parallel_tool_use: true, // Enforce sequential tool execution (one tool at a time)
+    },
     messages: messages.map(m => ({
       role: m.role,
       content: typeof m.content === 'string' ? m.content : m.content,
     })),
   };
 
-  console.log('[ClaudeClient] Calling Claude API:', {
+  logger.info('Calling Claude API', {
     model: requestBody.model,
     maxTokens,
     temperature,
@@ -95,20 +102,19 @@ export async function* streamClaudeResponse(
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error('[ClaudeClient] API error - Response not OK:', {
+    logger.error('Claude API error', {
       status: response.status,
       statusText: response.statusText,
       errorTextLength: errorText.length,
       errorTextFirst500: errorText.substring(0, 500),
       model: requestBody.model,
-      apiUrl: 'https://api.anthropic.com/v1/messages',
     });
     throw new Error(`Claude API error: ${response.status} ${response.statusText} - ${errorText.substring(0, 200)}`);
   }
 
   const data = await response.json();
 
-  console.log('[ClaudeClient] Received response:', {
+  logger.info('Received response', {
     stopReason: data.stop_reason,
     contentBlocksCount: data.content.length,
     usage: data.usage,
@@ -118,36 +124,21 @@ export async function* streamClaudeResponse(
   let accumulatedText = '';
   const toolCalls: Array<{ id: string; name: string; input: Record<string, any> }> = [];
 
-  console.log('[ClaudeClient] Processing response content blocks:', {
-    contentBlocksCount: data.content.length,
-    stopReason: data.stop_reason,
-  });
-
   if (data.content.length === 0) {
-    console.warn('[ClaudeClient] WARNING: Claude returned empty content array!');
-    console.log('[ClaudeClient] Full response:', JSON.stringify(data));
+    logger.warn('Claude returned empty content array', { response: data });
   }
 
   for (const block of data.content) {
     if (block.type === 'text') {
       // Yield text in chunks for streaming effect
       const text = block.text;
-      console.log('[ClaudeClient] Yielding text block:', {
-        textLength: text?.length || 0,
-      });
       if (text) {
         accumulatedText += text;
 
         // Yield text in ~100 character chunks for realistic streaming
         let offset = 0;
-        let chunkCount = 0;
         while (offset < text.length) {
           const chunk = text.substring(offset, offset + 100);
-          chunkCount++;
-          console.log('[ClaudeClient] Yielding text_chunk:', {
-            chunkNumber: chunkCount,
-            chunkLength: chunk.length,
-          });
           yield {
             type: 'text_chunk',
             content: chunk,
@@ -157,7 +148,7 @@ export async function* streamClaudeResponse(
       }
     } else if (block.type === 'tool_use') {
       // Yield tool call
-      console.log('[ClaudeClient] Parsed tool call:', {
+      logger.info('Tool call detected', {
         toolId: block.id,
         toolName: block.name,
       });
@@ -178,7 +169,7 @@ export async function* streamClaudeResponse(
   }
 
   // Yield completion with usage
-  console.log('[ClaudeClient] Yielding completion event:', {
+  logger.info('Execution complete', {
     accumulatedTextLength: accumulatedText.length,
     toolCallsCount: toolCalls.length,
     inputTokens: data.usage.input_tokens,
@@ -215,12 +206,33 @@ export function buildMessagesWithToolResults(
   assistantContent: any[],
   toolResults: Array<{ toolCallId: string; result: any }>
 ): any[] {
-  // Add assistant message with all content blocks
   const newMessages = [...messages];
+
+  // Combine consecutive text blocks into single blocks for cleaner Claude API format
+  // This prevents confusion from many tiny text chunks
+  const consolidatedContent: any[] = [];
+  let currentText = '';
+
+  for (const block of assistantContent) {
+    if (block.type === 'text') {
+      currentText += block.text;
+    } else {
+      // Flush accumulated text before non-text block
+      if (currentText) {
+        consolidatedContent.push({ type: 'text', text: currentText });
+        currentText = '';
+      }
+      consolidatedContent.push(block);
+    }
+  }
+  // Flush any remaining text
+  if (currentText) {
+    consolidatedContent.push({ type: 'text', text: currentText });
+  }
 
   newMessages.push({
     role: 'assistant',
-    content: assistantContent,
+    content: consolidatedContent,
   });
 
   // Add tool results from each tool call

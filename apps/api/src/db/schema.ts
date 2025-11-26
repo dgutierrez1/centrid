@@ -171,6 +171,7 @@ export const agentRequests = pgTable('agent_requests', {
 export const agentExecutionEvents = pgTable('agent_execution_events', {
   id: uuid('id').primaryKey().defaultRandom(),
   requestId: uuid('request_id').notNull(), // FK to agent_requests(id) ON DELETE CASCADE
+  userId: uuid('user_id').notNull(), // FK to auth.users(id) - denormalized for realtime RLS compatibility
   type: text('type').notNull(), // 'text_chunk', 'tool_call', 'completion', 'error'
   data: jsonb('data').notNull(), // Event payload
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
@@ -178,6 +179,7 @@ export const agentExecutionEvents = pgTable('agent_execution_events', {
   requestIdIdx: index('agent_execution_events_request_id_idx').on(table.requestId),
   requestIdCreatedAtIdx: index('agent_execution_events_request_id_created_at_idx').on(table.requestId, table.createdAt),
   typeIdx: index('agent_execution_events_type_idx').on(table.type),
+  userIdIdx: index('agent_execution_events_user_id_idx').on(table.userId),
 }));
 
 // ============================================================================
@@ -557,16 +559,21 @@ export const rlsPolicies = {
     -- Enable RLS on agent_execution_events
     ALTER TABLE agent_execution_events ENABLE ROW LEVEL SECURITY;
 
-    -- Users can view events from their own agent requests (via FK to agent_requests)
+    -- Drop existing policy to allow updates (PostgreSQL doesn't support CREATE OR REPLACE POLICY)
+    DROP POLICY IF EXISTS "Users can view own agent execution events" ON agent_execution_events;
+
+    -- Users can view their own events (simple policy for realtime compatibility)
+    -- Note: user_id is denormalized from agent_requests to avoid JOIN in RLS
+    -- Supabase Realtime requires simple policies without subqueries/joins
+    --
+    -- CRITICAL: Use FOR SELECT (not FOR ALL) for Realtime broadcasts
+    -- - Realtime evaluates SELECT policies to determine broadcast recipients
+    -- - This works even when service role creates records (bypasses RLS for INSERT)
+    -- - Subscribers receive events IF their auth.uid() matches the row's user_id
+    -- - No INSERT/UPDATE/DELETE policies needed (events are server-generated immutable records)
     CREATE POLICY "Users can view own agent execution events"
       ON agent_execution_events FOR SELECT
-      USING (EXISTS (
-        SELECT 1 FROM agent_requests
-        WHERE agent_requests.id = agent_execution_events.request_id
-        AND agent_requests.user_id = auth.uid()
-      ));
-
-    -- No INSERT/UPDATE/DELETE - events are server-generated immutable records
+      USING (auth.uid() = user_id);
   `,
 
   shadowEntities: `
@@ -591,6 +598,121 @@ export const rlsPolicies = {
     -- Users can delete own shadow entities
     CREATE POLICY "Users can delete own shadow entities"
       ON shadow_entities FOR DELETE
+      USING (auth.uid() = owner_user_id);
+  `,
+
+  threads: `
+    -- Enable RLS on threads
+    ALTER TABLE threads ENABLE ROW LEVEL SECURITY;
+
+    -- Users can view own threads
+    CREATE POLICY "Users can view own threads"
+      ON threads FOR SELECT
+      USING (auth.uid() = owner_user_id);
+
+    -- Users can insert own threads
+    CREATE POLICY "Users can insert own threads"
+      ON threads FOR INSERT
+      WITH CHECK (auth.uid() = owner_user_id);
+
+    -- Users can update own threads
+    CREATE POLICY "Users can update own threads"
+      ON threads FOR UPDATE
+      USING (auth.uid() = owner_user_id);
+
+    -- Users can delete own threads
+    CREATE POLICY "Users can delete own threads"
+      ON threads FOR DELETE
+      USING (auth.uid() = owner_user_id);
+  `,
+
+  messages: `
+    -- Enable RLS on messages
+    ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
+
+    -- Users can view own messages
+    CREATE POLICY "Users can view own messages"
+      ON messages FOR SELECT
+      USING (auth.uid() = owner_user_id);
+
+    -- Users can insert own messages
+    CREATE POLICY "Users can insert own messages"
+      ON messages FOR INSERT
+      WITH CHECK (auth.uid() = owner_user_id);
+
+    -- Users can update own messages
+    CREATE POLICY "Users can update own messages"
+      ON messages FOR UPDATE
+      USING (auth.uid() = owner_user_id);
+
+    -- Users can delete own messages
+    CREATE POLICY "Users can delete own messages"
+      ON messages FOR DELETE
+      USING (auth.uid() = owner_user_id);
+  `,
+
+  contextReferences: `
+    -- Enable RLS on context_references
+    ALTER TABLE context_references ENABLE ROW LEVEL SECURITY;
+
+    -- Users can view own context references
+    CREATE POLICY "Users can view own context references"
+      ON context_references FOR SELECT
+      USING (auth.uid() = owner_user_id);
+
+    -- Users can insert own context references
+    CREATE POLICY "Users can insert own context references"
+      ON context_references FOR INSERT
+      WITH CHECK (auth.uid() = owner_user_id);
+
+    -- Users can delete own context references
+    CREATE POLICY "Users can delete own context references"
+      ON context_references FOR DELETE
+      USING (auth.uid() = owner_user_id);
+  `,
+
+  files: `
+    -- Enable RLS on files
+    ALTER TABLE files ENABLE ROW LEVEL SECURITY;
+
+    -- Users can view own files
+    CREATE POLICY "Users can view own files"
+      ON files FOR SELECT
+      USING (auth.uid() = owner_user_id);
+
+    -- Users can insert own files
+    CREATE POLICY "Users can insert own files"
+      ON files FOR INSERT
+      WITH CHECK (auth.uid() = owner_user_id);
+
+    -- Users can update own files
+    CREATE POLICY "Users can update own files"
+      ON files FOR UPDATE
+      USING (auth.uid() = owner_user_id);
+
+    -- Users can delete own files
+    CREATE POLICY "Users can delete own files"
+      ON files FOR DELETE
+      USING (auth.uid() = owner_user_id);
+  `,
+
+  agentToolCalls: `
+    -- Enable RLS on agent_tool_calls
+    ALTER TABLE agent_tool_calls ENABLE ROW LEVEL SECURITY;
+
+    -- Users can view own tool calls
+    CREATE POLICY "Users can view own tool calls"
+      ON agent_tool_calls FOR SELECT
+      USING (auth.uid() = owner_user_id);
+
+    -- Users can insert own tool calls
+    CREATE POLICY "Users can insert own tool calls"
+      ON agent_tool_calls FOR INSERT
+      WITH CHECK (auth.uid() = owner_user_id);
+
+    -- Users can update own tool calls
+    CREATE POLICY "Users can update own tool calls"
+      ON agent_tool_calls FOR UPDATE
       USING (auth.uid() = owner_user_id);
   `,
 };

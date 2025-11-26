@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import { ToolCallWidget } from './ToolCallWidget';
-import type { ContentBlock, TextBlock, ToolUseBlock } from '../../types/graphql';
+import type { ContentBlock, TextBlock, ToolUseBlock, ToolResultBlock } from '../../types/graphql';
 import type { PendingToolCall } from '../../types/agent';
 
 export interface MessageProps {
@@ -130,24 +130,22 @@ const MessageComponent = ({
               if (block.type === 'tool_use') {
                 const toolBlock = block as ToolUseBlock;
 
-                // Check if this tool block is the pending approval
+                // NEW: Check if this tool_use has a corresponding tool_result block
+                // If tool_result exists, the tool has been executed and we don't show the widget
+                const toolResult = contentBlocks.find(
+                  (b) => b.type === 'tool_result' &&
+                         (b as ToolResultBlock).tool_use_id === toolBlock.id
+                ) as ToolResultBlock | undefined;
+
+                // Hide widget if tool has been executed (has tool_result)
+                if (toolResult) {
+                  return null; // Don't render widget for completed tools
+                }
+
+                // Tool is pending if no tool_result exists AND matches pending tool call
                 const isPendingApproval =
-                  toolBlock.status === 'pending' &&
+                  !toolResult &&
                   pendingToolCall?.toolCallId === toolBlock.id;
-
-                // Map ToolUseBlock status to ToolCallWidget status
-                const mapStatus = (status?: string): 'pending' | 'executing' | 'completed' | 'error' => {
-                  if (status === 'failed') return 'error';
-                  if (status === 'approved') return 'executing';
-                  if (status === 'rejected') return 'error';
-                  if (status === 'completed') return 'completed';
-                  return 'pending';
-                };
-
-                // Convert string result to Record if needed
-                const resultRecord = toolBlock.result
-                  ? (typeof toolBlock.result === 'string' ? { output: toolBlock.result } : toolBlock.result as Record<string, any>)
-                  : undefined;
 
                 return (
                   <ToolCallWidget
@@ -155,12 +153,30 @@ const MessageComponent = ({
                     id={toolBlock.id}
                     name={toolBlock.name}
                     input={toolBlock.input as Record<string, any>}
-                    status={mapStatus(toolBlock.status)}
-                    result={resultRecord}
-                    error={toolBlock.error}
+                    status="pending"
                     onApprove={isPendingApproval ? onApproveToolCall : undefined}
                     onReject={isPendingApproval ? onRejectToolCall : undefined}
                   />
+                );
+              }
+
+              if (block.type === 'tool_result') {
+                const toolResultBlock = block as ToolResultBlock;
+
+                return (
+                  <div
+                    key={`result-${toolResultBlock.tool_use_id}`}
+                    className="my-2 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700"
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                        {toolResultBlock.is_error ? '❌ Tool execution failed' : '✅ Tool executed successfully'}
+                      </span>
+                    </div>
+                    <div className="text-sm text-gray-700 dark:text-gray-300 font-mono whitespace-pre-wrap">
+                      {toolResultBlock.content}
+                    </div>
+                  </div>
                 );
               }
 

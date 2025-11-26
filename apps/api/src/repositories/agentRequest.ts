@@ -8,6 +8,7 @@ export interface CreateAgentRequestInput {
   triggeringMessageId: string;
   agentType: string;
   content: string;
+  requestId?: string; // Optional client-provided UUID for optimistic updates
 }
 
 export interface UpdateAgentRequestInput {
@@ -30,6 +31,7 @@ export class AgentRequestRepository {
       const [request] = await db
         .insert(agentRequests)
         .values({
+          id: input.requestId, // Use client-provided UUID if available, else defaultRandom()
           userId: input.userId,
           threadId: input.threadId,
           triggeringMessageId: input.triggeringMessageId,

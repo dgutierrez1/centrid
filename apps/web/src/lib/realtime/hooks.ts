@@ -5,11 +5,11 @@
  * with automatic cleanup on unmount.
  */
 
-import { useEffect, useRef } from 'react';
-import type { RealtimeChannel } from '@supabase/supabase-js';
-import { subscribeToTable } from './builder';
-import type { TableName, UseSubscriptionOptions } from './types';
-import { createClient } from '@/lib/supabase';
+import { useEffect, useRef } from "react";
+import type { RealtimeChannel } from "@supabase/supabase-js";
+import { subscribeToTable } from "./builder";
+import type { TableName, UseSubscriptionOptions } from "./types";
+import { supabase } from "@/lib/supabase/client";
 
 /**
  * React hook for managing a single realtime subscription
@@ -44,7 +44,6 @@ export function useRealtimeSubscription<T extends TableName>(
     }
 
     // Create subscription
-    const supabase = createClient();
     channelRef.current = subscribeToTable(subscriptionOptions);
 
     // Cleanup on unmount or dependency change
@@ -88,7 +87,6 @@ export function useRealtimeSubscriptions(
   const channelsRef = useRef<RealtimeChannel[]>([]);
 
   useEffect(() => {
-    const supabase = createClient();
     const channels: RealtimeChannel[] = [];
 
     // Create subscriptions for enabled items
@@ -110,5 +108,9 @@ export function useRealtimeSubscriptions(
       });
       channelsRef.current = [];
     };
-  }, [JSON.stringify(subscriptions.map((s) => ({ filter: s.filter, enabled: s.enabled })))]);
+  }, [
+    JSON.stringify(
+      subscriptions.map((s) => ({ filter: s.filter, enabled: s.enabled }))
+    ),
+  ]);
 }

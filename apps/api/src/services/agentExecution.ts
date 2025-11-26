@@ -1,11 +1,17 @@
-import { ToolCallService } from './toolCall.ts';
-import { contextAssemblyService } from './contextAssembly.ts';
-import { streamClaudeResponse, buildMessagesWithToolResults, formatToolsForClaude } from './claudeClient.ts';
-import { agentToolCallRepository } from '../repositories/agentToolCall.ts';
-import { messageRepository } from '../repositories/message.ts';
-import { agentRequestRepository } from '../repositories/agentRequest.ts';
-import { getAvailableTools, toolRequiresApproval } from '../config/tools.ts';
-import type { ContentBlock } from '../types/agent.ts';
+import { ToolCallService } from "./toolCall.ts";
+import { contextAssemblyService } from "./contextAssembly.ts";
+import { messageRepository } from "../repositories/message.ts";
+import { agentRequestRepository } from "../repositories/agentRequest.ts";
+import { agentToolCallRepository } from "../repositories/agentToolCall.ts";
+import { getAvailableTools } from "../config/tools.ts";
+import type { ContentBlock } from "../types/graphql.ts";
+import { MessageOrchestrator } from "./messageOrchestrator.ts";
+import { ConversationLoader } from "./conversationLoader.ts";
+import { ToolExecutionHandler } from "./toolExecutionHandler.ts";
+import { ExecutionLoop } from "./executionLoop.ts";
+import { createLogger } from "../utils/logger.ts";
+
+const logger = createLogger("AgentExecution");
 
 export interface PrimeContext {
   totalTokens: number;
@@ -19,6 +25,33 @@ export interface PrimeContext {
  * Agent Execution Service
  * Handles AI agent execution with SSE streaming and tool calls
  * ✅ STATELESS - All methods are static utility functions
+ *
+ * EVENT-DRIVEN STREAMING ARCHITECTURE:
+ * This service yields events during execution that are persisted to agent_execution_events
+ * table and consumed by frontend for real-time updates.
+ *
+ * Event Flow:
+ * 1. Backend: executeWithStreaming() yields events (content_block_delta, tool_call, etc.)
+ * 2. Backend: AgentRequestService.executeRequest() persists events to agent_execution_events table
+ * 3. Backend: Supabase Realtime broadcasts events to subscribed clients
+ * 4. Frontend: useAgentStreaming() receives events and updates Valtio state
+ * 5. Frontend: Message component reactively renders based on state changes
+ *
+ * Events emitted:
+ * - content_block_delta: Progressive text updates with full accumulated text
+ * - tool_call: Tool requires user approval (execution pauses)
+ * - tool_result_complete: Auto-executed tool finished successfully
+ * - message_complete: Final message state with all content blocks
+ * - completion: Execution finished (legacy, for backward compatibility)
+ * - error: Execution failed
+ *
+ * Message Persistence Strategy:
+ * - Messages table updated at MILESTONES (not every chunk):
+ *   1. When iteration completes without tools
+ *   2. When tool requires approval (with text + tool_use block)
+ *   3. When tool execution completes (add tool_result block)
+ * - This keeps database writes low while agent_execution_events provides real-time feedback
+ * - On page refresh, frontend loads final state from messages table
  */
 export class AgentExecutionService {
   /**
@@ -31,66 +64,49 @@ export class AgentExecutionService {
     userId: string,
     options: { isResume?: boolean } = {}
   ): AsyncGenerator<any> {
-    console.log('[AgentExecution] executeStreamByRequest started:', {
-      requestId,
-      userId,
-    });
+    logger.info("executeStreamByRequest started", { requestId, userId });
 
     // Fetch request
-    console.log('[AgentExecution] Fetching request from DB:', requestId);
     const request = await agentRequestRepository.findById(requestId);
 
-    console.log('[AgentExecution] Request fetched:', {
-      requestId,
-      found: !!request,
-      status: request?.status,
-      triggeringMessageId: request?.triggeringMessageId,
-      requestUserId: request?.userId,
-    });
-
     if (!request || request.userId !== userId) {
-      const error = `Request not found or access denied. Found: ${!!request}, UserMatch: ${request?.userId === userId}`;
-      console.error('[AgentExecution] ' + error);
-      throw new Error(error);
+      logger.error("Request not found or access denied", {
+        requestId,
+        found: !!request,
+      });
+      throw new Error("Request not found or access denied");
     }
 
     // Fetch triggering message
-    console.log('[AgentExecution] Fetching triggering message:', request.triggeringMessageId);
     const message = await messageRepository.findById(
       request.triggeringMessageId
     );
 
-    console.log('[AgentExecution] Message fetched:', {
-      triggeringMessageId: request.triggeringMessageId,
-      found: !!message,
-      messageId: message?.id,
-    });
-
     if (!message) {
-      const error = `Triggering message not found: ${request.triggeringMessageId}`;
-      console.error('[AgentExecution] ' + error);
-      throw new Error(error);
+      logger.error("Triggering message not found", {
+        triggeringMessageId: request.triggeringMessageId,
+      });
+      throw new Error(
+        `Triggering message not found: ${request.triggeringMessageId}`
+      );
     }
 
     // Update request status
-    console.log('[AgentExecution] Updating status to in_progress');
     await agentRequestRepository.update(requestId, {
-      status: 'in_progress',
+      status: "in_progress",
       progress: 0.1,
     });
-    console.log('[AgentExecution] Status updated to in_progress');
 
-    // ✅ BUILD PRIME CONTEXT - Integrated with ContextAssemblyService
-    console.log('[AgentExecution] Building prime context for thread:', request.threadId);
+    // Build prime context
     const primeContext = await contextAssemblyService.buildPrimeContext(
       request.threadId,
       message.content,
       userId
     );
-    console.log('[AgentExecution] Prime context built:', {
+
+    logger.info("Prime context built", {
       totalTokens: primeContext.totalTokens,
       explicitFilesCount: primeContext.explicitFiles.length,
-      threadContextCount: primeContext.threadContext.length,
     });
 
     // Delegate to execution with request tracking
@@ -117,7 +133,7 @@ export class AgentExecutionService {
     // Fetch message
     const message = await messageRepository.findById(messageId);
     if (!message || message.threadId !== threadId) {
-      throw new Error('Message not found');
+      throw new Error("Message not found");
     }
 
     // ✅ BUILD PRIME CONTEXT - Using ContextAssemblyService
@@ -138,9 +154,9 @@ export class AgentExecutionService {
   }
 
   /**
-   * Updated: Execute with request tracking + checkpoint/resume
+   * REFACTORED: Clean execution flow using service classes
    * This is an async generator that yields events for the SSE stream
-   * NEW: Supports resuming from checkpoint for tool approval workflow
+   * Supports resuming after tool approval workflow
    */
   static async *executeWithStreaming(
     threadId: string,
@@ -148,439 +164,383 @@ export class AgentExecutionService {
     userMessage: string,
     primeContext: PrimeContext,
     userId: string,
-    requestId?: string, // NEW: Optional requestId for tracking
-    options: { isResume?: boolean } = {} // NEW: Resume from checkpoint
+    requestId?: string,
+    options: { isResume?: boolean } = {}
   ): AsyncGenerator<any> {
-    console.log('[AgentExecution] Starting agent execution with streaming:', {
+    if (!requestId) {
+      throw new Error("requestId is required for execution");
+    }
+
+    logger.info("Starting agent execution", {
       threadId,
-      messageId,
-      userId,
       requestId,
       isResume: options.isResume,
-      userMessageLength: userMessage.length,
     });
 
-    const systemPrompt = this.buildSystemPrompt(primeContext);
-    const tools = this.getAvailableTools();
+    // Initialize services
+    const messageOrchestrator = new MessageOrchestrator();
+    const conversationLoader = new ConversationLoader();
+    const toolHandler = new ToolExecutionHandler();
+    const loop = new ExecutionLoop();
 
-    console.log('[AgentExecution] Setup complete:', {
-      systemPromptLength: systemPrompt.length,
-      toolsCount: tools.length,
-      isResume: options.isResume,
-    });
-
-    // NEW: Load checkpoint if resuming
-    let messages: any[] = [];
-    let accumulatedContent = '';
-    let iterationCount = 0;
-    let totalTokens = 0;
-    const toolCallsList: any[] = [];
-    let continueLoop = true;
-    const maxIterations = 5;
-    let revisionCount = 0;
-    const maxRevisions = 3;
-
-    if (options.isResume && requestId) {
-      // Load from checkpoint
-      console.log('[AgentExecution] Loading checkpoint for resume:', { requestId });
-      const request = await agentRequestRepository.findById(requestId);
-      if (request?.checkpoint) {
-        const checkpoint = request.checkpoint as any;
-        messages = checkpoint.conversationHistory || [];
-        iterationCount = checkpoint.iterationCount || 0;
-        accumulatedContent = checkpoint.accumulatedContent || '';
-
-        console.log('[AgentExecution] Checkpoint loaded:', {
-          messagesCount: messages.length,
-          iterationCount,
-          contentLength: accumulatedContent.length,
-        });
-
-        // NEW: Load tool result and add to messages
-        // The tool was executed in /approve-tool, now we add the result so Claude can continue
-        console.log('[AgentExecution] Loading approved tool result:', {
+    try {
+      // 1. Get or create response message (idempotent)
+      const responseMessage =
+        await messageOrchestrator.getOrCreateResponseMessage(
           requestId,
-          checkpointToolCallId: checkpoint.lastToolCall?.id,
-        });
-
-        const latestToolCall = await agentToolCallRepository.findLatestByRequestId(requestId);
-        if (latestToolCall?.approvalStatus === 'approved' && latestToolCall?.toolOutput) {
-          console.log('[AgentExecution] Adding tool result to messages:', {
-            toolCallId: latestToolCall.id,
-            toolName: latestToolCall.toolName,
-          });
-
-          // Build tool result structure and add to messages
-          messages = buildMessagesWithToolResults(
-            messages,
-            [
-              {
-                type: 'tool_use',
-                id: latestToolCall.id,
-                name: latestToolCall.toolName,
-                input: latestToolCall.toolInput,
-              },
-            ],
-            [
-              {
-                toolCallId: latestToolCall.id,
-                result: latestToolCall.toolOutput,
-              },
-            ]
-          );
-
-          console.log('[AgentExecution] Tool result added, messages count:', messages.length);
-        } else {
-          console.warn('[AgentExecution] Expected approved tool call with result not found');
-        }
-      } else {
-        console.warn('[AgentExecution] Checkpoint requested but not found, starting fresh');
-        messages = [
-          {
-            role: 'user' as const,
-            content: userMessage,
-          },
-        ];
-      }
-    } else {
-      // Fresh start: Build messages array for multi-turn conversation
-      messages = [
-        {
-          role: 'user' as const,
-          content: userMessage,
-        },
-      ];
-    }
-    while (continueLoop && iterationCount < maxIterations) {
-      iterationCount++;
-      console.log('[AgentExecution] Starting iteration', {
-        iterationCount,
-        revisionCount,
-        totalTokens,
-        messagesCount: messages.length,
-      });
-
-      // ✅ REAL CLAUDE API INTEGRATION
-      try {
-        // Update progress - context assembly done
-        if (requestId) {
-          await agentRequestRepository.update(requestId, {
-            progress: 0.2,
-          });
-        }
-
-        // Stream response from Claude API with tools
-        const claudeTools = this.getAvailableTools();
-        const toolsFormatted = formatToolsForClaude(claudeTools);
-
-        let iterationContent: ContentBlock[] = [];
-        const iterationToolCalls: Array<{ toolId: string; name: string; input: any }> = [];
-
-        console.log('[AgentExecution] Calling Claude API with', toolsFormatted.length, 'tools');
-
-        // Call Claude API with streaming
-        const generator = streamClaudeResponse(
-          systemPrompt,
-          messages,
-          toolsFormatted,
-          {
-            maxTokens: 2000, // Claude Haiku supports up to 2048 output tokens
-            temperature: 0.7,
-          }
+          threadId,
+          userId
         );
 
-        let claudeUsage = { inputTokens: 0, outputTokens: 0 };
-        let stopReason = 'end_turn';
+      logger.info("Response message ready", {
+        messageId: responseMessage.id,
+        isNew: responseMessage.isNew,
+      });
 
-        console.log('[AgentExecution] Starting to collect events from Claude generator');
+      // 2. Load conversation state (handles resume automatically)
+      const conversationState = await conversationLoader.loadConversation(
+        threadId,
+        requestId
+      );
 
-        // Collect all events from Claude
-        let eventCountFromClaude = 0;
-        try {
-          for await (const event of generator) {
-            eventCountFromClaude++;
-            console.log('[AgentExecution] Received event from Claude:', {
-              type: event.type,
-              eventNumber: eventCountFromClaude,
-              contentLength: event.content?.length || 0,
-              hasContent: !!event.content || !!event.text,
-            });
+      logger.info("Conversation loaded", {
+        messagesCount: conversationState.messages.length,
+        isResume: conversationState.isResume,
+      });
 
-            if (event.type === 'text_chunk') {
-              // Accumulate and yield text
-              accumulatedContent += event.content;
-              iterationContent.push({
-                type: 'text',
-                text: event.content,
-              });
-              console.log('[AgentExecution] Yielding text_chunk:', {
-                contentLength: event.content.length,
-                accumulatedLength: accumulatedContent.length,
-              });
-              yield event; // Yield to SSE stream
-            } else if (event.type === 'tool_call') {
-              // Track tool call for processing
-              iterationToolCalls.push({
-                toolId: event.toolCallId,
-                name: event.toolName,
-                input: event.toolInput,
-              });
-              iterationContent.push({
-                type: 'tool_use',
-                id: event.toolCallId,
-                name: event.toolName,
-                input: event.toolInput,
-              });
-            } else if (event.type === 'completion') {
-              // Extract usage
-              claudeUsage = event.usage || { inputTokens: 0, outputTokens: 0 };
-              stopReason = event.stopReason;
-              totalTokens += claudeUsage.outputTokens;
-            }
-          }
-        } catch (generatorError) {
-          console.error('[AgentExecution] Error iterating Claude generator:', {
-            error: generatorError instanceof Error ? generatorError.message : String(generatorError),
-            eventCountBeforeError: eventCountFromClaude,
-            stack: generatorError instanceof Error ? generatorError.stack : undefined,
+      // 3. Create execution state
+      const state = loop.createInitialState(
+        conversationState.messages,
+        conversationState.accumulatedText,
+        conversationState.toolCallsList
+      );
+
+      // 4. Build system prompt and get tools
+      const systemPrompt = this.buildSystemPrompt(primeContext);
+      const tools = this.getAvailableTools();
+
+      // Update progress
+      await agentRequestRepository.update(requestId, { progress: 0.2 });
+
+      // 5. Run execution loop with max iteration safety limit
+      const MAX_ITERATIONS = 10; // Support complex multi-step tasks
+
+      while (loop.shouldContinue(state)) {
+        // Check iteration limit first (safety net)
+        if (state.iteration > MAX_ITERATIONS) {
+          logger.warn("Max iterations reached", {
+            iteration: state.iteration,
+            requestId,
+            toolsExecuted: state.toolCallsList.length,
           });
-          throw generatorError;
-        }
 
-        if (eventCountFromClaude === 0) {
-          console.error('[AgentExecution] Claude generator yielded 0 events!', {
-            iterationCount,
-            systemPromptLength: systemPrompt.length,
-            messagesCount: messages.length,
-          });
-        }
+          yield {
+            type: "warning",
+            message: `Reached maximum of ${MAX_ITERATIONS} steps. Task may be incomplete.`,
+          };
 
-        console.log('[AgentExecution] Claude iteration complete:', {
-          textLength: accumulatedContent.length,
-          toolCallsCount: iterationToolCalls.length,
-          stopReason,
-          tokensUsed: claudeUsage.outputTokens,
-        });
+          // Finalize and complete
+          await messageOrchestrator.finalizeMessage(
+            responseMessage.id,
+            state.toolCallsList,
+            state.totalTokens
+          );
 
-        // Update progress - reasoning done
-        if (requestId) {
           await agentRequestRepository.update(requestId, {
-            progress: 0.4,
+            status: "completed",
+            progress: 1.0,
+            completedAt: new Date(),
+            results: {
+              maxIterationsReached: true,
+              toolsExecuted: state.toolCallsList.length,
+            },
           });
-        }
 
-        // No tool calls - Claude finished
-        if (iterationToolCalls.length === 0) {
-          console.log('[AgentExecution] No tool calls, conversation complete');
-          continueLoop = false;
-          yield { type: 'completion', usage: claudeUsage };
+          // Fetch final message state
+          const finalMessage = await messageRepository.findById(
+            responseMessage.id
+          );
+
+          // Yield message_complete event with final state
+          yield {
+            type: "message_complete",
+            messageId: responseMessage.id,
+            content: finalMessage?.content || [],
+            toolCalls: state.toolCallsList,
+            tokensUsed: state.totalTokens,
+          };
+
+          loop.complete(state);
           break;
         }
 
-        // Process first tool call only (system prompt ensures max 1 per response)
-        const toolCall = iterationToolCalls[0];
-
-        // Check if tool requires approval
-        const requiresApproval = toolRequiresApproval(toolCall.name);
-
-        console.log('[AgentExecution] Tool call detected:', {
-          toolName: toolCall.name,
-          requiresApproval,
-          iterationCount,
+        logger.info("Starting iteration", {
+          iteration: state.iteration,
+          totalTokens: state.totalTokens,
         });
 
-        if (!requiresApproval) {
-          // AUTO-EXECUTE: Read-only tools execute immediately without approval
-          console.log('[AgentExecution] Auto-executing read-only tool:', {
-            toolName: toolCall.name,
-            iterationCount,
-          });
+        // Run single iteration (yields text_chunk events)
+        const result = yield* loop.runIteration(state, {
+          systemPrompt,
+          tools,
+          maxTokens: 2000,
+          temperature: 0.7,
+        });
 
-          try {
-            const toolResult = await this.executeTool(
-              toolCall.name,
-              toolCall.input,
-              threadId,
-              userId
-            );
+        // Enhanced logging for multi-step debugging
+        logger.info("Iteration completed", {
+          iteration: state.iteration,
+          totalTokens: state.totalTokens,
+          toolsExecutedSoFar: state.toolCallsList.length,
+          toolCallsInThisIteration: result.toolCalls.length,
+          lastToolName: result.toolCalls[0]?.name,
+        });
 
-            console.log('[AgentExecution] Tool executed successfully:', {
-              toolName: toolCall.name,
-              resultLength: JSON.stringify(toolResult).length,
-            });
+        // Update progress with iteration tracking
+        await agentRequestRepository.update(requestId, {
+          progress: Math.min(0.4 + state.iteration * 0.1, 0.9),
+        });
 
-            // Add tool result to messages
-            messages.push({
-              role: 'user',
-              content: [
-                {
-                  type: 'tool_result',
-                  tool_use_id: toolCall.name + '_auto_' + Date.now(),
-                  content: JSON.stringify(toolResult),
-                },
-              ],
-            });
+        // Handle completion (no tool calls)
+        if (result.toolCalls.length === 0) {
+          logger.info("No tool calls, completing execution");
 
-            // Continue loop - Claude will process the result
-            console.log('[AgentExecution] Continuing execution with tool result');
-            continueLoop = true;
-            // Continue to next while iteration
-          } catch (toolError) {
-            console.error('[AgentExecution] Error executing tool:', {
-              toolName: toolCall.name,
-              error: toolError instanceof Error ? toolError.message : String(toolError),
-            });
-
-            yield {
-              type: 'error',
-              message: `Failed to execute tool ${toolCall.name}: ${
-                toolError instanceof Error ? toolError.message : String(toolError)
-              }`,
-            };
-
-            continueLoop = false;
-            break;
+          // Finalize message with accumulated content
+          if (state.accumulatedText) {
+            await messageOrchestrator.appendContent(responseMessage.id, [
+              { type: "text", text: state.accumulatedText },
+            ]);
+            // FIX: Reset accumulated text after appending to prevent duplication
+            state.accumulatedText = "";
           }
-        } else {
-          // APPROVAL REQUIRED: Save checkpoint and wait for user
-          // Create tool call record in database
-          const toolCallId = await this.createToolCall(
-            threadId,
-            messageId,
-            { name: toolCall.name, input: toolCall.input },
-            userId,
-            requestId
+
+          await messageOrchestrator.finalizeMessage(
+            responseMessage.id,
+            state.toolCallsList,
+            state.totalTokens
           );
 
-          // Save checkpoint for resume
-          if (requestId) {
-            const checkpoint = {
-              conversationHistory: messages,
-              lastToolCall: {
-                id: toolCallId,
-                name: toolCall.name,
-                input: toolCall.input,
-              },
-              iterationCount,
-              accumulatedContent,
-              status: 'awaiting_approval',
-            };
+          // Update request status
+          await agentRequestRepository.update(requestId, {
+            status: "completed",
+            progress: 1.0,
+            responseMessageId: responseMessage.id,
+            tokenCost: state.totalTokens,
+            results: {
+              filesCreated: state.toolCallsList
+                .filter((t) => t.toolName === "write_file" && t.approved)
+                .map((t) => t.toolInput.path),
+              branchesCreated: state.toolCallsList.filter(
+                (t) => t.toolName === "create_branch" && t.approved
+              ).length,
+              toolsExecuted: state.toolCallsList.length,
+              toolsApproved: state.toolCallsList.filter((t) => t.approved)
+                .length,
+            },
+            completedAt: new Date(),
+          });
 
-            console.log('[AgentExecution] Saving checkpoint for approval-required tool:', {
-              requestId,
-              toolCallId,
-              toolName: toolCall.name,
-              iterationCount,
-            });
+          // Link tool calls to message
+          await toolHandler.linkToolCallsToMessage(
+            requestId,
+            responseMessage.id
+          );
 
-            await agentRequestRepository.update(requestId, {
-              checkpoint,
+          // Fetch final message state with all content blocks
+          const finalMessage = await messageRepository.findById(
+            responseMessage.id
+          );
+
+          // Yield completion event
+          yield {
+            type: "completion",
+            usage: result.usage,
+            messageId: responseMessage.id,
+            totalTokens: state.totalTokens,
+          };
+
+          // Yield message_complete event with full final message state
+          yield {
+            type: "message_complete",
+            messageId: responseMessage.id,
+            content: finalMessage?.content || [],
+            toolCalls: state.toolCallsList,
+            tokensUsed: state.totalTokens,
+          };
+
+          loop.complete(state);
+          break;
+        }
+
+        // Handle tool call
+        const toolCall = result.toolCalls[0];
+        const toolExecutionResult = await toolHandler.handleToolCall(toolCall, {
+          threadId,
+          messageId,
+          userId,
+          requestId,
+        });
+
+        if (toolExecutionResult.needsApproval) {
+          // Tool needs approval - save message and pause
+          logger.info("Tool requires approval, pausing execution", {
+            toolCallId: toolExecutionResult.toolCallId,
+            toolName: toolCall.name,
+          });
+
+          // Append content to message (text + tool_use block)
+          const contentToAppend: ContentBlock[] = [];
+
+          if (state.accumulatedText) {
+            contentToAppend.push({
+              type: "text",
+              text: state.accumulatedText,
             });
           }
 
-          // Yield tool call for user approval
+          contentToAppend.push({
+            type: "tool_use",
+            id: toolExecutionResult.toolCallId!,
+            name: toolCall.name,
+            input: toolCall.input,
+          });
+
+          await messageOrchestrator.appendContent(
+            responseMessage.id,
+            contentToAppend
+          );
+
+          // FIX: Reset accumulated text after appending to prevent duplication on resume
+          state.accumulatedText = "";
+
+          // Track tool call
+          loop.trackToolCall(
+            state,
+            toolExecutionResult.toolCallId!,
+            toolCall.name,
+            toolCall.input,
+            false
+          );
+
+          // Finalize message with pending tool
+          await messageOrchestrator.finalizeMessage(
+            responseMessage.id,
+            state.toolCallsList,
+            state.totalTokens
+          );
+
+          // Link tool calls to message
+          await toolHandler.linkToolCallsToMessage(
+            requestId,
+            responseMessage.id
+          );
+
+          // Yield tool_call event
           yield {
-            type: 'tool_call',
-            toolCallId,
+            type: "tool_call",
+            toolCallId: toolExecutionResult.toolCallId,
             toolName: toolCall.name,
             toolInput: toolCall.input,
             approval_required: true,
-            revision_count: revisionCount,
+            messageId: responseMessage.id,
           };
 
-          console.log('[AgentExecution] Approval-required tool call emitted, waiting for user:', {
-            toolCallId,
+          // Pause and wait for approval
+          loop.complete(state);
+          break;
+        } else {
+          // Tool auto-executed - add result and continue
+          logger.info("Tool auto-executed, continuing", {
+            toolCallId: toolExecutionResult.toolCallId,
             toolName: toolCall.name,
-            requestId,
+            accumulatedTextBefore: state.accumulatedText.substring(0, 50),
           });
 
-          // Return immediately - /approve-tool endpoint will call /execute (resume)
-          continueLoop = false;
-          break;
+          // Persist text + tool_use block to database before continuing
+          const contentToAppend: ContentBlock[] = [];
+          if (state.accumulatedText) {
+            contentToAppend.push({
+              type: "text",
+              text: state.accumulatedText,
+            });
+          }
+          contentToAppend.push({
+            type: "tool_use",
+            id: toolExecutionResult.toolCallId!,
+            name: toolCall.name,
+            input: toolCall.input,
+          });
+          await messageOrchestrator.appendContent(
+            responseMessage.id,
+            contentToAppend
+          );
+
+          // Reset accumulated text to prevent duplication in next iteration
+          state.accumulatedText = "";
+
+          // Track tool call
+          loop.trackToolCall(
+            state,
+            toolExecutionResult.toolCallId!,
+            toolCall.name,
+            toolCall.input,
+            true
+          );
+
+          // Add tool result to conversation
+          loop.addToolResults(state, result.contentBlocks, [
+            {
+              toolCallId: toolCall.toolId,
+              result: toolExecutionResult.result,
+            },
+          ]);
+
+          // Persist tool_result block to database
+          await messageOrchestrator.appendContent(responseMessage.id, [
+            {
+              type: "tool_result",
+              tool_use_id: toolCall.toolId,
+              content:
+                typeof toolExecutionResult.result === "string"
+                  ? toolExecutionResult.result
+                  : JSON.stringify(toolExecutionResult.result),
+            },
+          ]);
+
+          // Yield tool_result_complete event for real-time UI updates
+          yield {
+            type: "tool_result_complete",
+            toolCallId: toolCall.toolId,
+            toolName: toolCall.name,
+            result: toolExecutionResult.result,
+            messageId: responseMessage.id,
+          };
+
+          // Continue loop
         }
-
-        // Continue loop to get Claude's next response with tool results
-      } catch (error) {
-        console.error('[AgentExecution] Error during Claude API call:', error);
-        yield {
-          type: 'error',
-          message: error instanceof Error ? error.message : 'Unknown error',
-        };
-        continueLoop = false;
-        break;
       }
+    } catch (error) {
+      logger.error("Execution failed", {
+        error: error instanceof Error ? error.message : String(error),
+        threadId,
+        requestId,
+      });
+
+      // Mark request as failed
+      await agentRequestRepository.update(requestId, {
+        status: "failed",
+        progress: 1.0,
+        completedAt: new Date(),
+        results: {
+          error: error instanceof Error ? error.message : String(error),
+        },
+      });
+
+      yield {
+        type: "error",
+        message: error instanceof Error ? error.message : "Unknown error",
+      };
     }
-
-    // NEW: Save assistant message at stream end (Phase 3 - MVU B3.2)
-    if (requestId) {
-      try {
-        // Build content as ContentBlock array
-        const content: ContentBlock[] = [
-          {
-            type: 'text',
-            text: accumulatedContent || 'Request processing completed.',
-          },
-        ];
-
-        // Create assistant message with content blocks
-        const assistantMessage = await messageRepository.create({
-          threadId: threadId,
-          ownerUserId: userId,
-          role: 'assistant',
-          content: content,
-          toolCalls: toolCallsList,
-          tokensUsed: totalTokens,
-        });
-
-        console.log(
-          '[AgentExecution] Created assistant message:',
-          assistantMessage.id
-        );
-
-        // Update request with response message and final status
-        await agentRequestRepository.update(requestId, {
-          status: 'completed',
-          progress: 1.0,
-          responseMessageId: assistantMessage.id,
-          tokenCost: totalTokens,
-          results: {
-            filesCreated: toolCallsList
-              .filter((t) => t.toolName === 'write_file' && t.approved)
-              .map((t) => t.toolInput.path),
-            branchesCreated: toolCallsList.filter(
-              (t) => t.toolName === 'create_branch' && t.approved
-            ).length,
-            toolsExecuted: toolCallsList.length,
-            toolsApproved: toolCallsList.filter((t) => t.approved).length,
-          },
-          completedAt: new Date().toISOString(),
-        });
-
-        // NEW: Update all tool calls to link to message (Phase 3 - MVU B3.3)
-        await agentToolCallRepository.updateMessageIdForRequest(
-          requestId,
-          assistantMessage.id
-        );
-
-        console.log('[AgentExecution] Updated request and tool calls:', {
-          requestId,
-          messageId: assistantMessage.id,
-        });
-      } catch (error) {
-        console.error('[AgentExecution] Failed to save assistant message:', error);
-
-        // Mark request as failed
-        await agentRequestRepository.update(requestId, {
-          status: 'failed',
-          progress: 1.0,
-          completedAt: new Date().toISOString(),
-          results: {
-            error: error instanceof Error ? error.message : String(error),
-          },
-        });
-      }
-    }
-
   }
 
   /**
@@ -589,61 +549,6 @@ export class AgentExecutionService {
   private static getAvailableTools() {
     // Use centralized tool config instead of hardcoded definitions
     return getAvailableTools();
-  }
-
-  /**
-   * Create tool call record in database
-   * ✅ Links to requestId (not messageId yet - set later)
-   */
-  private static async createToolCall(
-    threadId: string,
-    messageId: string,
-    toolCall: { name: string; input: Record<string, any> },
-    userId: string,
-    requestId?: string // NEW: Optional requestId for tracking
-  ): Promise<string> {
-    const record = await agentToolCallRepository.create({
-      messageId,
-      threadId,
-      ownerUserId: userId,
-      toolName: toolCall.name,
-      toolInput: toolCall.input,
-      requestId: requestId || null, // NEW: Link to request
-    });
-
-    console.log('[AgentExecution] Created tool call:', {
-      toolCallId: record.id,
-      requestId: requestId,
-      toolName: toolCall.name,
-    });
-
-    return record.id;
-  }
-
-  /**
-   * Pause and wait for tool call approval
-   * Uses ToolCallService.waitForApproval (stateless)
-   */
-  private static async pauseForApproval(
-    toolCallId: string,
-    userId: string,
-    timeout: number = 600000
-  ): Promise<{ approved: boolean; reason?: string }> {
-    // Call static method directly
-    const approval = await ToolCallService.waitForApproval(
-      toolCallId,
-      timeout
-    );
-
-    // Fetch rejection reason if rejected
-    if (!approval.approved && !approval.reason) {
-      const toolCall = await agentToolCallRepository.findById(toolCallId);
-      if (toolCall?.rejectionReason) {
-        approval.reason = toolCall.rejectionReason;
-      }
-    }
-
-    return approval;
   }
 
   /**
@@ -659,7 +564,7 @@ export class AgentExecutionService {
     userId: string
   ): Promise<any> {
     switch (toolName) {
-      case 'write_file':
+      case "write_file":
         return await ToolCallService.executeWriteFile(
           toolInput.path,
           toolInput.content,
@@ -668,7 +573,7 @@ export class AgentExecutionService {
           true
         );
 
-      case 'create_branch':
+      case "create_branch":
         return await ToolCallService.executeCreateBranch(
           toolInput.title,
           toolInput.contextFiles || [],
@@ -677,19 +582,16 @@ export class AgentExecutionService {
           true
         );
 
-      case 'search_files':
+      case "search_files":
         return await ToolCallService.executeSearchFiles(
           toolInput.query,
           userId
         );
 
-      case 'read_file':
-        return await ToolCallService.executeReadFile(
-          toolInput.path,
-          userId
-        );
+      case "read_file":
+        return await ToolCallService.executeReadFile(toolInput.path, userId);
 
-      case 'list_directory':
+      case "list_directory":
         return await ToolCallService.executeListDirectory(
           toolInput.path,
           userId
@@ -713,13 +615,16 @@ export class AgentExecutionService {
     // Verify tool call exists and user owns it
     const toolCall = await agentToolCallRepository.findById(toolCallId);
     if (!toolCall || toolCall.ownerUserId !== userId) {
-      throw new Error('Tool call not found or access denied');
+      throw new Error("Tool call not found or access denied");
     }
 
     if (approved) {
-      await agentToolCallRepository.updateStatus(toolCallId, 'approved');
+      await agentToolCallRepository.updateStatus(toolCallId, "approved");
     } else {
-      await agentToolCallRepository.rejectWithRevisionTracking(toolCallId, reason);
+      await agentToolCallRepository.rejectWithRevisionTracking(
+        toolCallId,
+        reason
+      );
     }
   }
 
@@ -728,30 +633,49 @@ export class AgentExecutionService {
    * NEW: Added tool guidance for sequential approval workflow
    */
   private static buildSystemPrompt(primeContext: PrimeContext): string {
-    let prompt = 'You are an AI assistant helping with a conversation thread.\n\n';
+    let prompt =
+      "You are an AI assistant for Centrid, helping users manage their documents and knowledge.\n\n";
 
-    // NEW: Add tool guidance for sequential approvals
-    prompt += '### Tool Usage Guidelines:\n';
-    prompt += 'When you need to use tools:\n';
-    prompt += '- Suggest ONE tool at a time\n';
-    prompt += '- Wait for the result before suggesting the next tool\n';
-    prompt += '- Use the result to inform your next decision\n';
-    prompt += 'This ensures each action is reviewed and approved individually.\n\n';
+    // Multi-step tool execution policy with reflection pattern
+    prompt += "### Tool Execution Policy\n";
+    prompt += "When handling user requests:\n";
+    prompt +=
+      "1. Analyze what the user is asking for (may require multiple steps)\n";
+    prompt += "2. Execute tools one at a time to fulfill the request\n";
+    prompt +=
+      '3. After each tool succeeds, evaluate: "Is the original request now complete?"\n';
+    prompt +=
+      "4. If complete: Provide a summary of what was accomplished and stop\n";
+    prompt += "5. If not complete: Continue with the next necessary tool\n";
+    prompt +=
+      "6. Do not suggest improvements or additional features unless explicitly requested\n\n";
+
+    prompt += "### Examples of Multi-Step Requests\n";
+    prompt +=
+      'Request: "Create folder reports and a file summary.txt inside it"\n';
+    prompt += "→ Step 1: Create folder\n";
+    prompt += "→ Step 2: Create file inside folder\n";
+    prompt += "→ Step 3: Confirm both complete, provide summary\n\n";
+
+    prompt += 'Request: "Create file with today\'s news"\n';
+    prompt += "→ Step 1: Create file\n";
+    prompt +=
+      "→ Step 2: Confirm complete, provide summary (do not create additional versions)\n\n";
 
     if (primeContext.explicitFiles?.length > 0) {
-      prompt += '### Explicit Context:\n';
-      primeContext.explicitFiles.forEach(f => {
+      prompt += "### Explicit Context:\n";
+      primeContext.explicitFiles.forEach((f) => {
         prompt += `- ${f.title || f.path}\n`;
       });
-      prompt += '\n';
+      prompt += "\n";
     }
 
     if (primeContext.threadContext?.length > 0) {
-      prompt += '### Thread History:\n';
-      primeContext.threadContext.forEach(t => {
+      prompt += "### Thread History:\n";
+      primeContext.threadContext.forEach((t) => {
         prompt += `- ${t.title || t.id}\n`;
       });
-      prompt += '\n';
+      prompt += "\n";
     }
 
     return prompt;

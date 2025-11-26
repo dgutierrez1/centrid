@@ -22,6 +22,7 @@ export interface CreateMessageInput {
   role: 'user' | 'assistant';
   contextReferences?: any[]; // Service-layer metadata (not in GraphQL)
   idempotencyKey?: string; // For deduplication (prevents duplicate messages)
+  requestId?: string; // Optional client-provided UUID for agent request (enables optimistic updates)
 }
 
 /**
@@ -71,6 +72,7 @@ export class MessageService {
         triggeringMessageId: message.id,
         agentType: 'assistant', // Default type
         content: input.content,
+        requestId: input.requestId, // Use client-provided UUID if available
       });
       logger.info('Created agent_request', { requestId: agentRequest.id });
 
@@ -132,6 +134,7 @@ export class MessageService {
         triggeringMessageId: message.id,
         agentType: 'assistant',
         content: input.content,
+        requestId: input.requestId, // Use client-provided UUID if available
       });
       logger.info('Created agent_request', { requestId: agentRequest.id });
 

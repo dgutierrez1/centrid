@@ -1,5 +1,6 @@
 import { fileRepository } from '../repositories/file.ts';
 import { threadRepository } from '../repositories/thread.ts';
+import { parseFilePath } from '../utils/pathComputation.ts';
 
 /**
  * Provenance Tracking Service
@@ -22,9 +23,12 @@ export class ProvenanceTrackingService {
       // Get thread info for provenance
       const thread = await threadRepository.findById(threadId);
 
+      // Extract filename from path (repository expects name field, not path)
+      const { fileName } = parseFilePath(path);
+
       // Create file with provenance
       const file = await fileRepository.create({
-        path,
+        name: fileName,
         content,
         ownerUserId: userId,
         provenance: {

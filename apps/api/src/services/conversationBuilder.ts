@@ -9,9 +9,9 @@
  * - Skips pending and native tools per Claude API spec
  */
 
-import { createLogger } from '../utils/logger.ts';
-import { TOOL_REGISTRY } from '../config/tools.ts';
-import type { ContentBlock } from '../types/graphql.ts';
+import { createLogger } from "../utils/logger.ts";
+import { TOOL_REGISTRY } from "../config/tools.ts";
+import type { ContentBlock } from "../types/graphql.ts";
 
 // ============================================================================
 // Utility Functions
@@ -30,17 +30,19 @@ function isNativeTool(toolName: string): boolean {
  * Sanitize content for Claude API
  * Strips internal fields from tool_use blocks, passes text blocks unchanged
  */
-function sanitizeContentForClaude(content: ContentBlock[] | string): ContentBlock[] | string {
-  if (typeof content === 'string') {
+function sanitizeContentForClaude(
+  content: ContentBlock[] | string
+): ContentBlock[] | string {
+  if (typeof content === "string") {
     return content;
   }
 
   if (Array.isArray(content)) {
-    return content.map(block => {
-      if (block.type === 'tool_use') {
+    return content.map((block) => {
+      if (block.type === "tool_use") {
         // Return ONLY Claude-compatible fields
         return {
-          type: 'tool_use',
+          type: "tool_use",
           id: block.id,
           name: block.name,
           input: block.input,
@@ -58,13 +60,13 @@ function sanitizeContentForClaude(content: ContentBlock[] | string): ContentBloc
 // ============================================================================
 
 interface ContentSegment {
-  type: 'text' | 'tool';
+  type: "text" | "tool";
   blocks: any[];
   toolId?: string;
 }
 
 interface ToolResultBlock {
-  type: 'tool_result';
+  type: "tool_result";
   tool_use_id: string;
   content: string;
   is_error?: boolean;
@@ -90,10 +92,7 @@ export class ClaudeConversationBuilder {
   private messages: any[] = [];
   private logger: any;
 
-  constructor(
-    private toolCalls: any[],
-    loggerName = 'ConversationBuilder'
-  ) {
+  constructor(private toolCalls: any[], loggerName = "ConversationBuilder") {
     this.logger = createLogger(loggerName);
   }
 
@@ -107,7 +106,7 @@ export class ClaudeConversationBuilder {
    */
   addUserMessage(content: any): this {
     this.messages.push({
-      role: 'user',
+      role: "user",
       content,
     });
     return this;
@@ -131,7 +130,7 @@ export class ClaudeConversationBuilder {
       ? dbMessage.content
       : [dbMessage.content];
 
-    this.logger.info('🔍 Processing assistant message', {
+    this.logger.info("🔍 Processing assistant message", {
       messageId: dbMessage.id,
       contentBlocks: content.length,
     });
@@ -139,10 +138,10 @@ export class ClaudeConversationBuilder {
     // Split content into segments at tool_use boundaries
     const segments = this.splitContent(content);
 
-    this.logger.info('📊 Split into segments', {
+    this.logger.info("📊 Split into segments", {
       messageId: dbMessage.id,
       segmentCount: segments.length,
-      segmentTypes: segments.map(s => s.type),
+      segmentTypes: segments.map((s) => s.type),
     });
 
     // Process each segment
@@ -188,11 +187,11 @@ export class ClaudeConversationBuilder {
     let currentTextBlocks: any[] = [];
 
     for (const block of content) {
-      if (block.type === 'tool_use') {
+      if (block.type === "tool_use") {
         // Push accumulated text blocks (if any)
         if (currentTextBlocks.length > 0) {
           segments.push({
-            type: 'text',
+            type: "text",
             blocks: currentTextBlocks,
           });
           currentTextBlocks = [];
@@ -200,7 +199,7 @@ export class ClaudeConversationBuilder {
 
         // Push tool block
         segments.push({
-          type: 'tool',
+          type: "tool",
           blocks: [block],
           toolId: block.id,
         });
@@ -213,7 +212,7 @@ export class ClaudeConversationBuilder {
     // Push remaining text blocks
     if (currentTextBlocks.length > 0) {
       segments.push({
-        type: 'text',
+        type: "text",
         blocks: currentTextBlocks,
       });
     }
@@ -225,7 +224,7 @@ export class ClaudeConversationBuilder {
    * Process a single segment (delegate to text or tool handler)
    */
   private processSegment(segment: ContentSegment, messageId: string): void {
-    if (segment.type === 'text') {
+    if (segment.type === "text") {
       this.addTextSegment(segment);
     } else {
       this.addToolSegment(segment, messageId);
@@ -236,12 +235,12 @@ export class ClaudeConversationBuilder {
    * Add a text segment as an assistant message
    */
   private addTextSegment(segment: ContentSegment): void {
-    this.logger.info('📤 Pushing text segment', {
+    this.logger.info("📤 Pushing text segment", {
       blockCount: segment.blocks.length,
     });
 
     this.messages.push({
-      role: 'assistant',
+      role: "assistant",
       content: sanitizeContentForClaude(segment.blocks),
     });
   }
@@ -257,16 +256,16 @@ export class ClaudeConversationBuilder {
    * 5. If pending/native: Skip tool_result (execution not complete or handled by Anthropic)
    */
   private addToolSegment(segment: ContentSegment, messageId: string): void {
-    this.logger.info('🔧 Processing tool segment', {
+    this.logger.info("🔧 Processing tool segment", {
       messageId,
       toolId: segment.toolId,
     });
 
     // 1. Find corresponding tool_call record FIRST (validate before modifying state)
-    const toolCall = this.toolCalls.find(tc => tc.id === segment.toolId);
+    const toolCall = this.toolCalls.find((tc) => tc.id === segment.toolId);
 
     if (!toolCall) {
-      this.logger.warn('⚠️ No tool_call record found, skipping segment', {
+      this.logger.warn("⚠️ No tool_call record found, skipping segment", {
         toolUseId: segment.toolId,
         messageId,
       });
@@ -274,16 +273,16 @@ export class ClaudeConversationBuilder {
     }
 
     // 2. Push assistant message with tool_use (safe now that we have tool_call)
-    this.logger.info('🔧 Pushing tool_use block', {
+    this.logger.info("🔧 Pushing tool_use block", {
       messageId,
       toolId: segment.toolId,
     });
     this.messages.push({
-      role: 'assistant',
+      role: "assistant",
       content: sanitizeContentForClaude(segment.blocks),
     });
 
-    this.logger.info('🔍 Found tool_call record', {
+    this.logger.info("🔍 Found tool_call record", {
       toolId: toolCall.id,
       approvalStatus: toolCall.approvalStatus,
       hasOutput: toolCall.toolOutput !== null,
@@ -292,22 +291,22 @@ export class ClaudeConversationBuilder {
 
     // 4. Add tool_result if ready
     if (this.shouldAddToolResult(toolCall)) {
-      const isRejected = toolCall.approvalStatus === 'rejected';
+      const isRejected = toolCall.approvalStatus === "rejected";
 
-      this.logger.info('✅ Adding tool_result', {
+      this.logger.info("✅ Adding tool_result", {
         toolId: toolCall.id,
         approvalStatus: toolCall.approvalStatus,
         isError: isRejected,
       });
 
       this.messages.push({
-        role: 'user',
+        role: "user",
         content: [this.createToolResultBlock(toolCall)],
       });
     } else {
-      this.logger.info('⏸️ Skipping tool_result', {
+      this.logger.info("⏸️ Skipping tool_result", {
         toolId: toolCall.id,
-        reason: toolCall.approvalStatus === 'pending' ? 'pending' : 'native',
+        reason: toolCall.approvalStatus === "pending" ? "pending" : "native",
       });
     }
   }
@@ -327,15 +326,20 @@ export class ClaudeConversationBuilder {
   private shouldAddToolResult(toolCall: any): boolean {
     // For approved tools: check toolOutput
     // For rejected tools: check rejectionReason
-    const hasResult = toolCall.approvalStatus === 'approved'
-      ? toolCall.toolOutput !== null
-      : toolCall.rejectionReason !== null || toolCall.rejectionReason !== undefined;
+    const hasResult =
+      toolCall.approvalStatus === "approved"
+        ? toolCall.toolOutput !== null
+        : toolCall.rejectionReason !== null ||
+          toolCall.rejectionReason !== undefined;
 
-    return (
-      (toolCall.approvalStatus === 'approved' || toolCall.approvalStatus === 'rejected') &&
+    const isNative = isNativeTool(toolCall.toolName);
+    const shouldAdd =
+      (toolCall.approvalStatus === "approved" ||
+        toolCall.approvalStatus === "rejected") &&
       hasResult &&
-      !isNativeTool(toolCall.toolName)
-    );
+      !isNative;
+
+    return shouldAdd;
   }
 
   /**
@@ -350,16 +354,18 @@ export class ClaudeConversationBuilder {
    * - is_error: true (tells Claude execution failed)
    */
   private createToolResultBlock(toolCall: any): ToolResultBlock {
-    const isRejected = toolCall.approvalStatus === 'rejected';
+    const isRejected = toolCall.approvalStatus === "rejected";
 
     return {
-      type: 'tool_result',
+      type: "tool_result",
       tool_use_id: toolCall.id,
       content: isRejected
-        ? `User declined to execute this tool. Reason: ${toolCall.rejectionReason || 'No reason provided'}`
-        : typeof toolCall.toolOutput === 'string'
-          ? toolCall.toolOutput
-          : JSON.stringify(toolCall.toolOutput),
+        ? `User declined to execute this tool. Reason: ${
+            toolCall.rejectionReason || "No reason provided"
+          }`
+        : typeof toolCall.toolOutput === "string"
+        ? toolCall.toolOutput
+        : JSON.stringify(toolCall.toolOutput),
       is_error: isRejected ? true : undefined,
     };
   }

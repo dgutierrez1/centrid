@@ -7,6 +7,7 @@ import type { File } from '@centrid/ui/features/ai-agent-system/WorkspaceSidebar
 import { CreateBranchModalContainer } from '@/components/ai-agent/CreateBranchModalContainer';
 import { ConsolidateModalContainer } from '@/components/ai-agent-system/ConsolidateModalContainer';
 import { ContextPanelContainer } from '@/components/ai-agent/ContextPanelContainer';
+import { ThreadViewContainer } from '@/components/ai-agent/ThreadViewContainer';
 import { CreateDocumentModal } from '@/components/filesystem/CreateDocumentModal';
 import { CreateFolderModal } from '@/components/filesystem/CreateFolderModal';
 import { RenameModal } from '@/components/filesystem/RenameModal';
@@ -22,6 +23,7 @@ import { useLoadThread } from '@/lib/hooks/useLoadThread';
 import { useLoadThreads } from '@/lib/hooks/useLoadThreads';
 import { useSendMessage } from '@/lib/hooks/useSendMessage';
 import { useAgentStreaming } from '@/lib/hooks/useAgentStreaming';
+import { useResumeActiveRequest } from '@/lib/hooks/useResumeActiveRequest';
 import { useLoadFile } from '@/lib/hooks/useLoadFile';
 import { useUpdateFile } from '@/lib/hooks/useUpdateFile';
 import { useAddToExplicit } from '@/lib/hooks/useAddToExplicit';
@@ -139,67 +141,9 @@ const WorkspaceContentInner = () => {
   const { startStreaming, isStreaming: isAgentStreaming } = useAgentStreaming();
 
 
-  // MVU F2.2: Recovery - Check for active requests on thread mount
-  useEffect(() => {
-    if (!threadId) return;
-
-    const checkForActiveRequest = async () => {
-      const activeRequestId = localStorage.getItem(`thread-${threadId}-activeRequest`);
-
-      if (!activeRequestId) return;
-
-      // Skip recovery if currently streaming (not an interrupted request)
-      if (aiAgentState.isStreaming) return;
-
-      try {
-        // Use GraphQL to check request status
-        const result = await graphqlClient.query(GetAgentRequestDocument, { id: activeRequestId });
-
-        if (result.error) {
-          console.error('[Recovery] Failed to check request status:', result.error);
-          return;
-        }
-
-        const request = result.data?.agentRequest;
-        if (!request) {
-          localStorage.removeItem(`thread-${threadId}-activeRequest`);
-          return;
-        }
-
-        if (request.status === 'completed') {
-
-          // Reload thread using GraphQL
-          const threadResult = await graphqlClient.query(GetThreadDocument, { id: threadId });
-
-          if (threadResult.data?.thread) {
-            // Update state with new messages (parse JSONB fields)
-            if (threadResult.data.thread.messages) {
-              aiAgentState.messages = threadResult.data.thread.messages.map((m: any) => {
-                const parsed = parseJsonbRow('messages', m);
-                return {
-                  ...parsed,
-                  timestamp: parsed.timestamp, // ✅ Keep as ISO string
-                };
-              });
-            }
-          }
-
-          localStorage.removeItem(`thread-${threadId}-activeRequest`);
-          toast.success('Previous request completed!');
-        } else if (request.status === 'in_progress') {
-          toast('Previous request is still processing. You can reconnect to the stream.', { duration: 5000 });
-        } else if (request.status === 'failed') {
-          localStorage.removeItem(`thread-${threadId}-activeRequest`);
-          toast.error('Previous request failed');
-        }
-      } catch (error) {
-        console.error('[Recovery] Failed to check request status:', error);
-        // Don't clear - might be network issue
-      }
-    };
-
-    checkForActiveRequest();
-  }, [threadId]);
+  // Database-driven recovery: Resume active requests on page load
+  // Automatically resumes subscriptions for pending/in_progress requests
+  useResumeActiveRequest(threadId || '', setPendingToolCall);
 
   // MVU F2.3: Load pending tools on thread mount (cold path - recovery only)
   // Uses useGraphQLQuery for proper cache integration (SSR prefetched data)
@@ -536,13 +480,11 @@ const WorkspaceContentInner = () => {
 
   // Thread handlers
   const handleThreadClick = useCallback((threadId: string) => {
-    // Only navigate if we're not already on this thread
+    // Navigate - let useLoadThread handle data loading via urql cache
     if (router.query.threadId !== threadId) {
-      // Only set loading state if thread data is not likely cached
-      // Thread is likely cached if we just hovered over it or it's in the branch tree
-      // The useLoadThread hook will handle loading state via useGraphQLQuery's smart detection
       router.push(`/workspace/${threadId}`);
     }
+
     if (isSidebarOpen) {
       setIsSidebarOpen(false);
     }
@@ -604,20 +546,109 @@ const WorkspaceContentInner = () => {
           ? content.trim().substring(0, 50) + '...'
           : content.trim().split(/[.!?]/)[0] || 'New Thread';
 
-        // Generate idempotency key for message deduplication
+        // Generate IDs upfront for optimistic updates
         const messageIdempotencyKey = crypto.randomUUID();
+        const requestId = crypto.randomUUID();
+        const tempThreadId = 'temp-' + crypto.randomUUID(); // Temporary thread ID
+        const tempUserMessageId = 'temp-user-' + crypto.randomUUID();
+        const tempAssistantMessageId = 'temp-assistant-' + crypto.randomUUID();
 
-        // Atomic: create thread + message + trigger execution in single mutation
+        console.log('[WorkspaceContainer] 🎬 Setting up optimistic state BEFORE mutation', {
+          requestId,
+          tempThreadId,
+          timestamp: new Date().toISOString(),
+        });
+
+        // Set global streaming state (matches useSendMessage behavior)
+        aiAgentState.isStreaming = true;
+        aiAgentState.hasStreamStarted = false;
+        aiAgentState.currentRequestId = requestId;
+
+        // Add optimistic messages to state FIRST (so subscription can update them)
+        aiAgentState.messages = [
+          {
+            id: tempUserMessageId,
+            threadId: tempThreadId,
+            role: 'user' as const,
+            content: [{ type: 'text' as const, text: content }] as ContentBlock[],
+            toolCalls: [],
+            timestamp: new Date().toISOString(),
+            tokensUsed: 0,
+            idempotencyKey: messageIdempotencyKey,
+          },
+          {
+            id: tempAssistantMessageId,
+            threadId: tempThreadId,
+            role: 'assistant' as const,
+            content: [{ type: 'text' as const, text: '' }] as ContentBlock[], // Empty, will be streamed
+            toolCalls: [],
+            timestamp: new Date().toISOString(),
+            isStreaming: true,
+            tokensUsed: 0,
+            requestId, // Track which request this responds to
+          } as any,
+        ];
+
+        // Set temporary thread in state (will update with real ID after mutation)
+        aiAgentActions.setCurrentThread({
+          id: tempThreadId,
+          title: autoTitle,
+          parentThreadId: null,
+          depth: 0,
+          artifactCount: 0,
+          lastActivity: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+
+        // Start streaming BEFORE mutation (eliminates race condition)
+        console.log('[WorkspaceContainer] 🚀 Starting subscription BEFORE mutation', {
+          requestId,
+          tempThreadId,
+          timestamp: new Date().toISOString(),
+        });
+
+        try {
+          startStreaming(requestId, user.id, {
+            optimisticMessageIndex: 1, // Assistant message at index 1
+            threadId: tempThreadId, // Use temp ID, will update after mutation
+            onToolCall: (toolCall) => setPendingToolCall(toolCall),
+            onError: (error) => {
+              toast.error(error.message);
+              // Mark assistant message as failed
+              if (aiAgentState.messages[1]) {
+                aiAgentState.messages[1].isStreaming = false;
+                aiAgentState.messages[1].content = [
+                  { type: 'text' as const, text: '⚠️ Error: ' + error.message }
+                ] as ContentBlock[];
+              }
+            },
+          });
+          console.log('[WorkspaceContainer] ✅ Subscription started successfully');
+        } catch (error) {
+          console.error('[WorkspaceContainer] ❌ Error starting subscription:', error);
+          toast.error('Failed to start streaming: ' + (error instanceof Error ? error.message : String(error)));
+        }
+
+        // NOW send mutation (subscription is already listening)
+        console.log('[WorkspaceContainer] 📤 Sending mutation (subscription ready)', {
+          requestId,
+          timestamp: new Date().toISOString(),
+        });
+
         const result = await createThreadWithMessage({
           input: {
             branchTitle: autoTitle,
             messageContent: content,
             messageIdempotencyKey,
+            requestId, // Pass frontend-generated requestId
           },
         });
 
         if (result.error) {
           aiAgentState.isStreaming = false;
+          aiAgentState.hasStreamStarted = false;
+          aiAgentState.currentRequestId = null;
           throw new Error(result.error.message);
         }
 
@@ -628,19 +659,30 @@ const WorkspaceContentInner = () => {
           throw new Error('No thread ID or message returned');
         }
 
+        console.log('[WorkspaceContainer] ✅ Mutation successful, updating IDs', {
+          tempThreadId,
+          newThreadId,
+          tempUserMessageId,
+          realMessageId: messageData.id,
+          timestamp: new Date().toISOString(),
+        });
+
         // Parse message response with parseJsonbRow (handles content JSONB)
         const parsedMessage = parseJsonbRow('messages', messageData);
-        const requestId = parsedMessage.requestId;
 
-        if (!requestId) {
-          throw new Error('No requestId in message response');
+        // Verify backend returned our requestId (sanity check)
+        if (parsedMessage.requestId !== requestId) {
+          console.warn('Backend returned different requestId:', {
+            sent: requestId,
+            received: parsedMessage.requestId,
+          });
         }
 
-        // Add BOTH messages to state (user message from mutation + optimistic assistant)
+        // Update messages with real IDs from backend (keep optimistic assistant message)
         aiAgentState.messages = [
           {
-            id: parsedMessage.id,
-            threadId: newThreadId,
+            id: parsedMessage.id, // Real ID from backend
+            threadId: newThreadId, // Real thread ID
             role: 'user' as const,
             content: parsedMessage.content,      // ✅ JSONB parsed
             toolCalls: parsedMessage.toolCalls || [],
@@ -649,45 +691,22 @@ const WorkspaceContentInner = () => {
             idempotencyKey: messageIdempotencyKey,
           },
           {
-            id: crypto.randomUUID(),
-            threadId: newThreadId,
-            role: 'assistant' as const,
-            content: [{ type: 'text' as const, text: '' }] as ContentBlock[], // Empty, will be streamed
-            toolCalls: [],
-            timestamp: new Date().toISOString(), // ✅ ISO string
-            isStreaming: true,
-            tokensUsed: 0,
-            requestId, // Track which request this responds to
-          } as any,
+            ...aiAgentState.messages[1], // Keep existing assistant message (may already have streamed content!)
+            id: aiAgentState.messages[1].id, // Keep temp ID (will be replaced when response message is created)
+            threadId: newThreadId, // Update with real thread ID
+          },
         ];
 
-        // Set currentThread BEFORE navigation (enables skip condition in useLoadThread)
+        // Update currentThread with real ID
         aiAgentActions.setCurrentThread({
           id: newThreadId,
           title: autoTitle,
           parentThreadId: null,
           depth: 0,
           artifactCount: 0,
-          lastActivity: new Date().toISOString(), // ✅ ISO string
+          lastActivity: new Date().toISOString(),
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
-        });
-
-        // Start streaming agent response (reusable hook)
-        startStreaming(requestId, {
-          optimisticMessageIndex: 1, // Assistant message at index 1
-          threadId: newThreadId,
-          onToolCall: (toolCall) => setPendingToolCall(toolCall),
-          onError: (error) => {
-            toast.error(error.message);
-            // Mark assistant message as failed
-            if (aiAgentState.messages[1]) {
-              aiAgentState.messages[1].isStreaming = false;
-              aiAgentState.messages[1].content = [
-                { type: 'text' as const, text: '⚠️ Error: ' + error.message }
-              ] as ContentBlock[];
-            }
-          },
         });
 
         // Navigate immediately (useLoadThread will SKIP because currentThread matches + messages exist)
@@ -698,6 +717,8 @@ const WorkspaceContentInner = () => {
         console.error('Failed to create thread with message:', error);
         toast.error('Failed to create thread');
         aiAgentState.isStreaming = false;
+        aiAgentState.hasStreamStarted = false;
+        aiAgentState.currentRequestId = null;
       }
       return;
     }
@@ -746,19 +767,6 @@ const WorkspaceContentInner = () => {
     }
   }, [pendingToolCall, reject]);
 
-  // ThreadView expects different signatures - wrap them appropriately
-  const handleApproveToolCallForThreadView = useCallback(() => {
-    if (pendingToolCall) {
-      handleApproveToolCall(pendingToolCall.toolCallId);
-    }
-  }, [pendingToolCall, handleApproveToolCall]);
-
-  const handleRejectToolCallForThreadView = useCallback((reason?: string) => {
-    if (pendingToolCall) {
-      handleRejectToolCall(pendingToolCall.toolCallId, reason);
-    }
-  }, [pendingToolCall, handleRejectToolCall]);
-
   // Context handlers
   const handleAddToExplicit = useCallback(async (contextRefId: string) => {
     try {
@@ -795,56 +803,6 @@ const WorkspaceContentInner = () => {
 
   const handleNotificationsClick = useCallback(() => {
   }, []);
-
-  // Transform context references to context groups format expected by Workspace
-  const contextGroups = [
-    {
-      id: 'explicit',
-      type: 'explicit' as const,
-      title: 'Explicit Context',
-      items: snap.contextReferences
-        .filter(ref => ref.priorityTier === 1)
-        .map(ref => ({
-          id: ref.id,
-          referenceType: ref.entityType as 'file' | 'folder' | 'thread',
-          name: ref.entityReference,
-          priorityTier: ref.priorityTier,
-          relevance: 1.0,
-          source: ref.source,
-        })),
-    },
-    {
-      id: 'semantic',
-      type: 'semantic' as const,
-      title: 'Semantic Matches',
-      items: snap.contextReferences
-        .filter(ref => ref.priorityTier === 2)
-        .map(ref => ({
-          id: ref.id,
-          referenceType: ref.entityType as 'file' | 'folder' | 'thread',
-          name: ref.entityReference,
-          priorityTier: ref.priorityTier,
-          relevance: 0.85,
-          source: ref.source,
-        })),
-    },
-  ];
-
-  // Transform messages to attach pending tool call to last assistant message
-  const messages = useMemo(() => {
-    return snap.messages.map((m, idx) => {
-      const isLastAssistantMessage = m.role === 'assistant' && idx === snap.messages.length - 1;
-      if (isLastAssistantMessage && pendingToolCall) {
-        return {
-          ...m,
-          pendingToolCall,
-          onApproveToolCall: () => handleApproveToolCall(pendingToolCall.toolCallId),
-          onRejectToolCall: (reason?: string) => handleRejectToolCall(pendingToolCall.toolCallId, reason),
-        };
-      }
-      return m;
-    });
-  }, [snap.messages, pendingToolCall, handleApproveToolCall, handleRejectToolCall]);
 
   return (
     <>
@@ -897,23 +855,27 @@ const WorkspaceContentInner = () => {
         unreadNotificationsCount={0}
         userInitial="U"
 
-        // ThreadView props
-        currentBranch={snap.currentThread}
-        branches={threadsWithActive}
-        messages={messages}
-        contextGroups={contextGroups}
-        messageText={messageText}
-        isStreaming={isSendMessageStreaming || snap.isStreaming}
-        isLoading={isLoadingThread}
-        isContextExpanded={isContextExpanded}
-        onSelectBranch={handleSelectBranch}
-        onToggleContextPanel={handleToggleContextPanel}
-        onMessageChange={handleMessageChange}
-        onSendMessage={handleSendMessage}
-        onStopStreaming={handleStopStreaming}
-        onAddReference={handleAddReference}
-        onRemoveReference={handleRemove}
-        onBranchThread={handleBranchThread}
+        // Custom ThreadView content (state-aware container)
+        threadViewContent={
+          <ThreadViewContainer
+            threadId={threadId}
+            messageText={messageText}
+            isStreaming={isSendMessageStreaming || snap.isStreaming}
+            isLoading={isLoadingThread}
+            isContextExpanded={isContextExpanded}
+            pendingToolCall={pendingToolCall}
+            onSelectBranch={handleSelectBranch}
+            onToggleContextPanel={handleToggleContextPanel}
+            onMessageChange={handleMessageChange}
+            onSendMessage={handleSendMessage}
+            onStopStreaming={handleStopStreaming}
+            onBranchThread={handleBranchThread}
+            onAddReference={handleAddReference}
+            onRemove={handleRemove}
+            handleApproveToolCall={handleApproveToolCall}
+            handleRejectToolCall={handleRejectToolCall}
+          />
+        }
       />
 
       {/* Create Branch Modal */}

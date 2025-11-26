@@ -187,6 +187,11 @@ const CreateThreadWithMessageInput = builder.inputType("CreateThreadWithMessageI
       required: false,
       description: "Idempotency key for the initial message (prevents duplicates)",
     }),
+    requestId: t.field({
+      type: "UUID",
+      required: false,
+      description: "Optional client-provided requestId for agent request (enables optimistic updates)",
+    }),
   }),
 });
 
@@ -252,6 +257,11 @@ const CreateMessageInput = builder.inputType("CreateMessageInput", {
       type: "UUID",
       required: false,
       description: "Idempotency key for deduplication (prevents duplicate messages)",
+    }),
+    requestId: t.field({
+      type: "UUID",
+      required: false,
+      description: "Optional client-provided requestId for agent request (enables optimistic updates)",
     }),
   }),
 });
@@ -346,6 +356,7 @@ builder.mutationField("createThreadWithMessage", (t) =>
         messageContent: args.input.messageContent,
         parentThreadId: args.input.parentThreadId || undefined,
         messageIdempotencyKey: args.input.messageIdempotencyKey,
+        requestId: args.input.requestId, // Pass through client-provided UUID
       });
     },
   })
@@ -506,6 +517,7 @@ builder.mutationField("createMessage", (t) =>
         content: args.input.content,
         contextReferences: [],
         idempotencyKey: args.input.idempotencyKey,
+        requestId: args.input.requestId, // Pass through client-provided UUID
       });
 
       return message;

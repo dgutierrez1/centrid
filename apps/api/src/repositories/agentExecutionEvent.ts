@@ -4,6 +4,7 @@ import { agentExecutionEvents } from '../db/schema.ts';
 
 export interface CreateAgentExecutionEventInput {
   requestId: string;
+  userId: string;
   type: string;
   data: any;
 }
@@ -19,6 +20,7 @@ export class AgentExecutionEventRepository {
         .insert(agentExecutionEvents)
         .values({
           requestId: input.requestId,
+          userId: input.userId,
           type: input.type,
           data: input.data,
         })

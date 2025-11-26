@@ -76,6 +76,12 @@ async function applyRLSPolicies(sql: postgres.Sql) {
     { sql: rlsPolicies.agentRequests, name: "agent_requests" },
     { sql: rlsPolicies.agentSessions, name: "agent_sessions" },
     { sql: rlsPolicies.usageEvents, name: "usage_events" },
+    { sql: rlsPolicies.agentExecutionEvents, name: "agent_execution_events" },
+    { sql: rlsPolicies.threads, name: "threads" },
+    { sql: rlsPolicies.messages, name: "messages" },
+    { sql: rlsPolicies.contextReferences, name: "context_references" },
+    { sql: rlsPolicies.files, name: "files" },
+    { sql: rlsPolicies.agentToolCalls, name: "agent_tool_calls" },
   ];
 
   for (const policy of policies) {

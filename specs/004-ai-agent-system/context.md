@@ -2,12 +2,13 @@
 feature: "004-ai-agent-system"
 number: "004"
 short_name: "ai-agent"
-generated: "2025-11-22T00:00:00Z"
-version: "1.1.0"
+generated: "2025-11-24T00:00:00Z"
+version: "1.2.0"
 status: "in-progress"
 source_docs: ["spec.md", "arch.md", "plan.md", "ux.md", "design.md", "data-model.md", "research.md", "tasks.md"]
-source_hash: "d19d85d58c350b1878a07938c672c16bb7886de918d4359b8f5021678ef693dd"
-token_estimate: 2000
+source_hash: "775857d0590ae13767fd12f23bbc1a0e4d126bb2ad43e194ee919989777b615b"
+code_discovery_hash: "b8f8661cc7f59b29b4c803f44cfa2d6e06672e50c215130296a4504a08312fbe"
+token_estimate: 2800
 ---
 
 # AI Agent System (004)
@@ -150,6 +151,58 @@ token_estimate: 2000
 4. Conflict resolution (last-edit wins, show diff)
 5. Generate doc with citations ("From branch [X]: [content]")
 
+## Integration with Filesystem Feature (003)
+
+**Component Reuse:**
+- AI Agent System imports `FileTreeNode` from filesystem feature (003-filesystem-markdown-editor)
+  - Used in `WorkspaceSidebar.tsx` to display files in unified workspace
+  - Full filesystem tree navigation within AI agent interface
+
+**State Coordination:**
+- `WorkspaceContainer.tsx` manages both `aiAgentState` and `filesystemState` (Valtio)
+- Unified three-panel workspace:
+  - Left sidebar: Files tab (FileTreeNode) + Threads tab (ThreadList)
+  - Center: Thread interface with AI agent conversations
+  - Right: File editor panel (slides in when file selected)
+
+**Shared Workspace Architecture:**
+- Desktop layout integrates both features seamlessly
+- Files tab shows complete filesystem hierarchy using FileTreeNode
+- Clicking file in tree → opens FileEditorPanel in right panel
+- File provenance: Files created by AI show "Created in thread X" badge
+
+**File Provenance Tracking:**
+- AI agents create files via tool calls → stored with `createdInThreadId` field
+- Files table foreign key: `createdInThreadId` references `threads.id`
+- Provenance displayed in:
+  - FileTreeNode (badge indicator)
+  - FileEditorPanel header ("Created in thread X" link)
+  - Context panel (shows which files came from which threads)
+
+**Data Flow: AI Creates File**
+```
+1. AI tool call: create_file(path, content, context_summary)
+2. → useCreateAgentFile.createFile(path, content, threadId)  [useCreateAgentFile.ts]
+3.   └─> filesystemService.createFile({..., createdInThreadId})  [filesystemService.ts]
+4.      └─> db.insert(files).values({createdInThreadId, contextSummary, ...})  [PostgreSQL]
+5. Real-time subscription updates filesystemState  [useFilesystemRealtime.ts]
+6. FileTreeNode tree updates → shows new file with provenance badge
+7. User clicks file → FileEditorPanel shows "Created in thread X" header
+8. Click header → navigates back to source thread at creation message
+```
+
+**Context @-Mentions:**
+- Users can @-mention files in thread input
+- Autocomplete searches filesystem for file names
+- Selected files added to explicit context for AI agent
+- AI receives file content as part of thread context
+
+**State Management Integration:**
+- `aiAgentState` tracks: threads, messages, selected thread, context references
+- `filesystemState` tracks: files, folders, selected file, expanded folders
+- `fileMetadataState` tracks: open files, unsaved changes, provenance links
+- All three states synchronized via Supabase Realtime subscriptions
+
 ## File Locations
 
 **UI Components**:
@@ -181,4 +234,4 @@ token_estimate: 2000
 
 ---
 
-*Context v1.1.0 | Source docs modified 2025-11-22 | Run `/feature.ai-agent` to reload*
+*Context v1.2.0 | Code discovered: 2025-11-24 | Source hash: 775857d0... | Code hash: b8f8661c... | Run `/feature.ai-agent` to reload*

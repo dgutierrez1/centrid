@@ -145,6 +145,7 @@ export class AgentRequestService {
             try {
               await AgentRequestService.createExecutionEvent({
                 requestId,
+                userId, // Required for realtime RLS policy
                 type: event.type,
                 data: event.data,
               });
