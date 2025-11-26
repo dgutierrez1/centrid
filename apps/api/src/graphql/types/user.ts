@@ -5,7 +5,7 @@
 
 import { builder } from '../builder.ts';
 import { UserService } from '../../services/userService.ts';
-import type { UserProfile } from '../db/types.js';
+import type { UserProfile } from '../../db/types.ts';
 
 // ============================================================================
 // User Type

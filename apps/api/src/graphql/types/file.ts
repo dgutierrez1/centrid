@@ -6,7 +6,7 @@
 import { builder } from "../builder.ts";
 import { FileService } from "../../services/fileService.ts";
 import { fileRepository } from "../../repositories/file.ts";
-import type { File } from "../../db/types.js";
+import type { File } from "../../db/types.ts";
 
 // ============================================================================
 // File Type

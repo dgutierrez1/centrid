@@ -58,7 +58,7 @@ export const authMiddleware = async (c: Context, next: Next) => {
 
   // Allow CORS preflight OPTIONS requests without auth
   if (c.req.method === "OPTIONS") {
-    return c.text("", 204);
+    return new Response(null, { status: 204 });
   }
 
   // Extract token from Authorization header
@@ -104,7 +104,7 @@ export const authMiddleware = async (c: Context, next: Next) => {
     const {
       data: { user },
       error,
-    } = result;
+    } = result as { data: { user: any }; error: any };
 
     if (error || !user) {
       console.warn(

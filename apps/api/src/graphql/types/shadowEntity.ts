@@ -5,7 +5,7 @@
 
 import { builder } from '../builder.ts';
 import { shadowEntityRepository } from '../../repositories/shadowEntity.ts';
-import type { ShadowEntity } from '../db/types.js';
+import type { ShadowEntity } from '../../db/types.ts';
 
 // ============================================================================
 // Shadow Entity Type

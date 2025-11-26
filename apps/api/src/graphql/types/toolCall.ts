@@ -7,7 +7,7 @@ import { builder } from '../builder.ts';
 import { agentToolCallRepository } from '../../repositories/agentToolCall.ts';
 import { AgentRequestService } from '../../services/agentRequestService.ts';
 import { AgentExecutionService } from '../../services/agentExecution.ts';
-import type { AgentToolCall } from '../db/types.js';
+import type { AgentToolCall } from '../../db/types.ts';
 import { createLogger } from '../../utils/logger.ts';
 
 const logger = createLogger('ToolCallType');

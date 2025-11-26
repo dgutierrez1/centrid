@@ -10,7 +10,7 @@ import { AgentExecutionService } from '../../services/agentExecution.ts';
 import { AgentRequestService } from '../../services/agentRequestService.ts';
 import { agentExecutionEventBus } from '../../services/agentExecutionEventBus.ts';
 import { createLogger } from '../../utils/logger.ts';
-import type { AgentRequest, AgentExecutionEvent } from '../db/types.js';
+import type { AgentRequest, AgentExecutionEvent } from '../../db/types.ts';
 
 const logger = createLogger('graphql/agentRequest');
 

@@ -10,7 +10,7 @@ import { contextReferenceRepository } from "../../repositories/contextReference.
 import { MessageService } from "../../services/messageService.ts";
 import { ThreadService } from "../../services/threadService.ts";
 import { ConsolidationService } from "../../services/consolidationService.ts";
-import type { Thread, Message, ContextReference } from "../../db/types.js";
+import type { Thread, Message, ContextReference } from "../../db/types.ts";
 import DataLoader from "dataloader";
 
 // ============================================================================

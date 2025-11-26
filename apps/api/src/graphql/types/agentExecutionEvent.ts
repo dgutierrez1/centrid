@@ -5,7 +5,7 @@
 
 import { builder } from '../builder.ts';
 import { agentExecutionEventRepository } from '../../repositories/agentExecutionEvent.ts';
-import type { AgentExecutionEvent } from '../db/types.js';
+import type { AgentExecutionEvent } from '../../db/types.ts';
 
 // ============================================================================
 // AgentExecutionEvent Type

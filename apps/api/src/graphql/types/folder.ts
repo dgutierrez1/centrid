@@ -6,7 +6,7 @@
 import { builder } from '../builder.ts';
 import { FolderService } from '../../services/folderService.ts';
 import { folderRepository } from '../../repositories/folder.ts';
-import type { Folder } from '../db/types.js';
+import type { Folder } from '../../db/types.ts';
 import DataLoader from 'dataloader';
 
 // ============================================================================
