@@ -22,7 +22,6 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-      '@centrid/shared': path.resolve(__dirname, '../../packages/shared/src'),
     },
   },
 });

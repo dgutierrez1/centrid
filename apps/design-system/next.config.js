@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 module.exports = {
   reactStrictMode: true,
-  transpilePackages: ['@centrid/ui', '@centrid/shared'],
+  transpilePackages: ['@centrid/ui'],
   // Use parent directory's Tailwind and components
   webpack: (config) => {
     config.resolve.alias = {

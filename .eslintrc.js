@@ -62,8 +62,7 @@ module.exports = {
               {
                 group: ['**/src/_shared/**', '../_shared/**', './_shared/**'],
                 message:
-                  '❌ DO NOT import from _shared. Use @centrid/shared instead.\n' +
-                  'Edge Functions must use: import { X } from "@centrid/shared/..."',
+                  '❌ DO NOT import from _shared. Move shared code to appropriate locations.',
               },
             ],
           },
