@@ -4,13 +4,12 @@ import type { ContentBlock } from '../types/graphql.ts';
 /**
  * Database Schema for Centrid MVP
  *
- * 7 core tables:
+ * Core tables:
  * - user_profiles: Extended user data beyond auth.users
  * - folders: Hierarchical folder structure for documents
  * - documents: File metadata with full-text search
  * - document_chunks: RAG text segments
  * - agent_requests: AI agent execution tracking
- * - agent_sessions: Multi-turn conversation management
  * - usage_events: Usage tracking for billing
  */
 
@@ -183,23 +182,7 @@ export const agentExecutionEvents = pgTable('agent_execution_events', {
 }));
 
 // ============================================================================
-// 6. AGENT_SESSIONS TABLE
-// ============================================================================
-
-export const agentSessions = pgTable('agent_sessions', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id').notNull(), // FK to auth.users(id) ON DELETE CASCADE - see cascadeDeleteSQL below
-  requestChain: jsonb('request_chain').notNull().default([]),
-  contextState: jsonb('context_state'),
-  createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-}, (table) => ({
-  userIdIdx: index('agent_sessions_user_id_idx').on(table.userId),
-  updatedAtIdx: index('agent_sessions_updated_at_idx').on(table.updatedAt),
-}));
-
-// ============================================================================
-// 7. USAGE_EVENTS TABLE
+// 6. USAGE_EVENTS TABLE
 // ============================================================================
 
 export const usageEvents = pgTable('usage_events', {
@@ -329,6 +312,7 @@ export const files = pgTable('files', {
   createdBy: text('created_by'), // 'user' or agent name
   lastEditedBy: text('last_edited_by'),
   lastEditedAt: timestamp('last_edited_at', { withTimezone: true, mode: 'string' }),
+  createdInThreadId: uuid('created_in_thread_id'), // Thread where file was created (provenance)
   // Optimistic locking
   version: integer('version').default(0), // Version number for optimistic locking
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
@@ -510,31 +494,6 @@ export const rlsPolicies = {
     -- Users can delete own requests
     CREATE POLICY "Users can delete own agent requests"
       ON agent_requests FOR DELETE
-      USING (auth.uid() = user_id);
-  `,
-
-  agentSessions: `
-    -- Enable RLS on agent_sessions
-    ALTER TABLE agent_sessions ENABLE ROW LEVEL SECURITY;
-
-    -- Users can view own sessions
-    CREATE POLICY "Users can view own agent sessions"
-      ON agent_sessions FOR SELECT
-      USING (auth.uid() = user_id);
-
-    -- Users can insert own sessions
-    CREATE POLICY "Users can insert own agent sessions"
-      ON agent_sessions FOR INSERT
-      WITH CHECK (auth.uid() = user_id);
-
-    -- Users can update own sessions
-    CREATE POLICY "Users can update own agent sessions"
-      ON agent_sessions FOR UPDATE
-      USING (auth.uid() = user_id);
-
-    -- Users can delete own sessions
-    CREATE POLICY "Users can delete own agent sessions"
-      ON agent_sessions FOR DELETE
       USING (auth.uid() = user_id);
   `,
 
@@ -757,11 +716,6 @@ export const triggers = {
       BEFORE UPDATE ON agent_requests
       FOR EACH ROW
       EXECUTE FUNCTION update_updated_at_column();
-
-    CREATE TRIGGER update_agent_sessions_updated_at
-      BEFORE UPDATE ON agent_sessions
-      FOR EACH ROW
-      EXECUTE FUNCTION update_updated_at_column();
   `,
 
   // Auto-create user profile on auth.users insert
@@ -914,13 +868,6 @@ ALTER TABLE messages
   ADD CONSTRAINT messages_request_id_fkey
   FOREIGN KEY (request_id) REFERENCES agent_requests(id) ON DELETE SET NULL;
 
--- Agent Sessions
-ALTER TABLE agent_sessions
-  DROP CONSTRAINT IF EXISTS agent_sessions_user_id_fkey;
-ALTER TABLE agent_sessions
-  ADD CONSTRAINT agent_sessions_user_id_fkey
-  FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
-
 -- Usage Events
 ALTER TABLE usage_events
   DROP CONSTRAINT IF EXISTS usage_events_user_id_fkey;
@@ -977,7 +924,6 @@ export const realtimePublicationSQL = `
 ALTER PUBLICATION supabase_realtime SET TABLE
   agent_requests,
   agent_execution_events,
-  agent_sessions,
   documents,
   document_chunks,
   folders,
@@ -994,7 +940,6 @@ ALTER PUBLICATION supabase_realtime SET TABLE
 -- Why needed: Subscription filters need user_id and other columns for authorization
 ALTER TABLE agent_requests REPLICA IDENTITY FULL;
 ALTER TABLE agent_execution_events REPLICA IDENTITY FULL;
-ALTER TABLE agent_sessions REPLICA IDENTITY FULL;
 ALTER TABLE documents REPLICA IDENTITY FULL;
 ALTER TABLE document_chunks REPLICA IDENTITY FULL;
 ALTER TABLE folders REPLICA IDENTITY FULL;

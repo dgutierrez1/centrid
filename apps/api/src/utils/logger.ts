@@ -163,8 +163,10 @@ class Logger {
       return result;
     } catch (error) {
       const duration = performance.now() - startTime;
-      this.error(`${operation} failed`, {
-        ...error,
+      this.log('error', `${operation} failed`, {
+        error: error instanceof Error
+          ? { name: error.name, message: error.message, stack: error.stack }
+          : error,
         ...data,
         duration: Math.round(duration),
       });

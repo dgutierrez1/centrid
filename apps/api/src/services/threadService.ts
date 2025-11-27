@@ -42,8 +42,8 @@ export interface ThreadWithMessages {
   ownerUserId: string;
   parentThreadId: string | null;
   creator: 'user' | 'agent' | 'system';
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: string;
+  updatedAt: string;
   messages: any[];
   messageCount: number;
   threadSummary?: string | null;

@@ -14,7 +14,6 @@ import './types/search.ts';
 import './types/agentRequest.ts';
 import './types/thread.ts';
 import './types/agentExecutionEvent.ts';
-import './types/agentSession.ts';
 import './types/usageEvent.ts';
 import './types/shadowEntity.ts';
 import './types/contentBlock.ts';

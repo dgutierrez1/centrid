@@ -82,20 +82,6 @@ export type AgentRequest = {
   userId: Maybe<Scalars['String']['output']>;
 };
 
-/** Multi-turn conversation session for agent execution */
-export type AgentSession = {
-  __typename?: 'AgentSession';
-  /** Session context state (JSON object) */
-  contextState: Maybe<Scalars['JSON']['output']>;
-  createdAt: Maybe<Scalars['DateTime']['output']>;
-  id: Maybe<Scalars['ID']['output']>;
-  /** Chain of agent requests in this session (JSON array) */
-  requestChain: Maybe<Scalars['JSON']['output']>;
-  updatedAt: Maybe<Scalars['DateTime']['output']>;
-  /** User ID this session belongs to */
-  userId: Maybe<Scalars['String']['output']>;
-};
-
 /** Input for approving a tool call */
 export type ApproveToolCallInput = {
   /** Tool call ID */
@@ -194,13 +180,6 @@ export type CreateAgentRequestInput = {
   triggeringMessageId: Scalars['ID']['input'];
 };
 
-export type CreateAgentSessionInput = {
-  /** Initial context state (JSON object) */
-  contextState: InputMaybe<Scalars['JSON']['input']>;
-  /** Initial request chain (JSON array) */
-  requestChain: Scalars['JSON']['input'];
-};
-
 /** Input for creating a new file */
 export type CreateFileInput = {
   /** File content */
@@ -230,6 +209,8 @@ export type CreateMessageInput = {
   content: Scalars['String']['input'];
   /** Idempotency key for deduplication (prevents duplicate messages) */
   idempotencyKey: InputMaybe<Scalars['UUID']['input']>;
+  /** Optional client-provided requestId for agent request (enables optimistic updates) */
+  requestId: InputMaybe<Scalars['UUID']['input']>;
   /** Message role: user, assistant, system */
   role: Scalars['String']['input'];
   /** Thread ID to add message to */
@@ -266,6 +247,8 @@ export type CreateThreadWithMessageInput = {
   /** Idempotency key for the initial message (prevents duplicates) */
   messageIdempotencyKey: InputMaybe<Scalars['UUID']['input']>;
   parentThreadId: InputMaybe<Scalars['ID']['input']>;
+  /** Optional client-provided requestId for agent request (enables optimistic updates) */
+  requestId: InputMaybe<Scalars['UUID']['input']>;
 };
 
 /** Workspace file with content and metadata */
@@ -277,6 +260,8 @@ export type File = {
   createdAt: Maybe<Scalars['DateTime']['output']>;
   /** Creator: user or agent name */
   createdBy: Maybe<Scalars['String']['output']>;
+  /** Thread ID where file was created (for provenance navigation) */
+  createdInThreadId: Maybe<Scalars['String']['output']>;
   /** File size in bytes */
   fileSize: Maybe<Scalars['Int']['output']>;
   /** Parent folder ID */
@@ -309,15 +294,6 @@ export type File = {
   updatedAt: Maybe<Scalars['DateTime']['output']>;
   /** Version number for optimistic locking */
   version: Maybe<Scalars['Int']['output']>;
-};
-
-/** File creation and edit history */
-export type FileProvenance = {
-  __typename?: 'FileProvenance';
-  /** Thread/message where file was created */
-  createdIn: Maybe<ProvenanceContext>;
-  /** Thread/message where file was last modified */
-  lastModifiedIn: Maybe<ProvenanceContext>;
 };
 
 /** File search result */
@@ -403,8 +379,6 @@ export type Mutation = {
   consolidateBranches: Maybe<ConsolidationResult>;
   /** Create a new agent request (triggers async execution) */
   createAgentRequest: Maybe<AgentRequest>;
-  /** Create a new agent session */
-  createAgentSession: Maybe<AgentSession>;
   /** Create a new file */
   createFile: Maybe<File>;
   /** Create a new folder */
@@ -418,8 +392,6 @@ export type Mutation = {
   createThreadWithMessage: Maybe<ThreadWithMessage>;
   /** Delete current user account (irreversible) */
   deleteAccount: Maybe<Scalars['Boolean']['output']>;
-  /** Delete an agent session */
-  deleteAgentSession: Maybe<Scalars['Boolean']['output']>;
   /** Delete file */
   deleteFile: Maybe<Scalars['Boolean']['output']>;
   /** Delete folder (must be empty) */
@@ -435,8 +407,6 @@ export type Mutation = {
   rejectToolCall: Maybe<ToolCall>;
   /** Remove a context reference from a thread */
   removeContextReference: Maybe<Scalars['Boolean']['output']>;
-  /** Update an existing agent session */
-  updateAgentSession: Maybe<AgentSession>;
   /** Update priority of a context reference */
   updateContextReferencePriority: Maybe<ContextReference>;
   /** Update file content with optimistic locking */
@@ -475,11 +445,6 @@ export type MutationCreateAgentRequestArgs = {
 };
 
 
-export type MutationCreateAgentSessionArgs = {
-  input: CreateAgentSessionInput;
-};
-
-
 export type MutationCreateFileArgs = {
   input: CreateFileInput;
 };
@@ -507,11 +472,6 @@ export type MutationCreateThreadArgs = {
 
 export type MutationCreateThreadWithMessageArgs = {
   input: CreateThreadWithMessageInput;
-};
-
-
-export type MutationDeleteAgentSessionArgs = {
-  id: Scalars['ID']['input'];
 };
 
 
@@ -552,12 +512,6 @@ export type MutationRejectToolCallArgs = {
 
 export type MutationRemoveContextReferenceArgs = {
   id: Scalars['ID']['input'];
-};
-
-
-export type MutationUpdateAgentSessionArgs = {
-  id: Scalars['ID']['input'];
-  input: UpdateAgentSessionInput;
 };
 
 
@@ -608,15 +562,6 @@ export type MutationUploadFileArgs = {
   threadId: InputMaybe<Scalars['ID']['input']>;
 };
 
-/** Thread and message context for file operation */
-export type ProvenanceContext = {
-  __typename?: 'ProvenanceContext';
-  /** Message ID that triggered operation */
-  messageId: Maybe<Scalars['String']['output']>;
-  /** Thread ID where operation occurred */
-  threadId: Maybe<Scalars['String']['output']>;
-};
-
 export type Query = {
   __typename?: 'Query';
   /** Type-only query to expose ContentBlock types for codegen (not meant to be called) */
@@ -629,18 +574,12 @@ export type Query = {
   agentRequest: Maybe<AgentRequest>;
   /** Get all agent requests for a thread */
   agentRequestsByThread: Maybe<Array<AgentRequest>>;
-  /** Get a single agent session by ID */
-  agentSession: Maybe<AgentSession>;
-  /** Get all agent sessions for current user */
-  agentSessions: Maybe<Array<AgentSession>>;
   /** Autocomplete search for quick fuzzy matching of files, folders, and threads */
   autocomplete: Maybe<Array<AutocompleteItem>>;
   /** Get file by ID */
   file: Maybe<File>;
   /** Get file by path */
   fileByPath: Maybe<File>;
-  /** Get file creation and edit history for navigation */
-  fileProvenance: Maybe<FileProvenance>;
   /** Get all files for current user */
   files: Maybe<Array<File>>;
   /** Get folder by ID */
@@ -699,18 +638,6 @@ export type QueryAgentRequestsByThreadArgs = {
 };
 
 
-export type QueryAgentSessionArgs = {
-  id: Scalars['ID']['input'];
-};
-
-
-export type QueryAgentSessionsArgs = {
-  limit: InputMaybe<Scalars['Int']['input']>;
-  offset: InputMaybe<Scalars['Int']['input']>;
-  userId: InputMaybe<Scalars['ID']['input']>;
-};
-
-
 export type QueryAutocompleteArgs = {
   input: AutocompleteInput;
 };
@@ -723,11 +650,6 @@ export type QueryFileArgs = {
 
 export type QueryFileByPathArgs = {
   path: Scalars['String']['input'];
-};
-
-
-export type QueryFileProvenanceArgs = {
-  id: Scalars['ID']['input'];
 };
 
 
@@ -956,13 +878,6 @@ export type ToolUseBlock = {
   type: Maybe<Scalars['String']['output']>;
 };
 
-export type UpdateAgentSessionInput = {
-  /** Updated context state (JSON object) */
-  contextState: InputMaybe<Scalars['JSON']['input']>;
-  /** Updated request chain (JSON array) */
-  requestChain: InputMaybe<Scalars['JSON']['input']>;
-};
-
 /** Input for updating file content */
 export type UpdateFileInput = {
   /** New file content */
@@ -1067,7 +982,7 @@ export type AgentRequestWithEventsFragment = { __typename?: 'AgentRequest', id: 
 
 export type ContextReferenceFieldsFragment = { __typename?: 'ContextReference', id: string, threadId: string, ownerUserId: string, entityType: string, entityReference: string, source: string, priorityTier: number, addedAt: string };
 
-export type FileFieldsFragment = { __typename?: 'File', id: string, ownerUserId: string, path: string, name: string, content: string, folderId: string, shadowDomainId: string, storagePath: string, fileSize: number, mimeType: string, indexingStatus: string, source: string, isAIGenerated: boolean, createdBy: string, lastEditedBy: string, lastEditedAt: string, version: number, createdAt: string, updatedAt: string };
+export type FileFieldsFragment = { __typename?: 'File', id: string, ownerUserId: string, path: string, name: string, content: string, folderId: string, shadowDomainId: string, storagePath: string, fileSize: number, mimeType: string, indexingStatus: string, source: string, isAIGenerated: boolean, createdBy: string, lastEditedBy: string, lastEditedAt: string, createdInThreadId: string, version: number, createdAt: string, updatedAt: string };
 
 export type FolderFieldsFragment = { __typename?: 'Folder', id: string, userId: string, name: string, parentFolderId: string, path: string, createdAt: string, updatedAt: string };
 
@@ -1098,7 +1013,7 @@ export type CreateFileMutationVariables = Exact<{
 }>;
 
 
-export type CreateFileMutation = { __typename?: 'Mutation', createFile: { __typename?: 'File', id: string, ownerUserId: string, path: string, name: string, content: string, folderId: string, shadowDomainId: string, storagePath: string, fileSize: number, mimeType: string, indexingStatus: string, source: string, isAIGenerated: boolean, createdBy: string, lastEditedBy: string, lastEditedAt: string, version: number, createdAt: string, updatedAt: string } };
+export type CreateFileMutation = { __typename?: 'Mutation', createFile: { __typename?: 'File', id: string, ownerUserId: string, path: string, name: string, content: string, folderId: string, shadowDomainId: string, storagePath: string, fileSize: number, mimeType: string, indexingStatus: string, source: string, isAIGenerated: boolean, createdBy: string, lastEditedBy: string, lastEditedAt: string, createdInThreadId: string, version: number, createdAt: string, updatedAt: string } };
 
 export type UploadFileMutationVariables = Exact<{
   file: Scalars['Upload']['input'];
@@ -1107,7 +1022,7 @@ export type UploadFileMutationVariables = Exact<{
 }>;
 
 
-export type UploadFileMutation = { __typename?: 'Mutation', uploadFile: { __typename?: 'File', id: string, ownerUserId: string, path: string, name: string, content: string, folderId: string, shadowDomainId: string, storagePath: string, fileSize: number, mimeType: string, indexingStatus: string, source: string, isAIGenerated: boolean, createdBy: string, lastEditedBy: string, lastEditedAt: string, version: number, createdAt: string, updatedAt: string } };
+export type UploadFileMutation = { __typename?: 'Mutation', uploadFile: { __typename?: 'File', id: string, ownerUserId: string, path: string, name: string, content: string, folderId: string, shadowDomainId: string, storagePath: string, fileSize: number, mimeType: string, indexingStatus: string, source: string, isAIGenerated: boolean, createdBy: string, lastEditedBy: string, lastEditedAt: string, createdInThreadId: string, version: number, createdAt: string, updatedAt: string } };
 
 export type UpdateFileMutationVariables = Exact<{
   id: Scalars['ID']['input'];
@@ -1116,7 +1031,7 @@ export type UpdateFileMutationVariables = Exact<{
 }>;
 
 
-export type UpdateFileMutation = { __typename?: 'Mutation', updateFile: { __typename?: 'File', id: string, ownerUserId: string, path: string, name: string, content: string, folderId: string, shadowDomainId: string, storagePath: string, fileSize: number, mimeType: string, indexingStatus: string, source: string, isAIGenerated: boolean, createdBy: string, lastEditedBy: string, lastEditedAt: string, version: number, createdAt: string, updatedAt: string } };
+export type UpdateFileMutation = { __typename?: 'Mutation', updateFile: { __typename?: 'File', id: string, ownerUserId: string, path: string, name: string, content: string, folderId: string, shadowDomainId: string, storagePath: string, fileSize: number, mimeType: string, indexingStatus: string, source: string, isAIGenerated: boolean, createdBy: string, lastEditedBy: string, lastEditedAt: string, createdInThreadId: string, version: number, createdAt: string, updatedAt: string } };
 
 export type UpdateFilePartialMutationVariables = Exact<{
   id: Scalars['ID']['input'];
@@ -1126,7 +1041,7 @@ export type UpdateFilePartialMutationVariables = Exact<{
 }>;
 
 
-export type UpdateFilePartialMutation = { __typename?: 'Mutation', updateFilePartial: { __typename?: 'File', id: string, ownerUserId: string, path: string, name: string, content: string, folderId: string, shadowDomainId: string, storagePath: string, fileSize: number, mimeType: string, indexingStatus: string, source: string, isAIGenerated: boolean, createdBy: string, lastEditedBy: string, lastEditedAt: string, version: number, createdAt: string, updatedAt: string } };
+export type UpdateFilePartialMutation = { __typename?: 'Mutation', updateFilePartial: { __typename?: 'File', id: string, ownerUserId: string, path: string, name: string, content: string, folderId: string, shadowDomainId: string, storagePath: string, fileSize: number, mimeType: string, indexingStatus: string, source: string, isAIGenerated: boolean, createdBy: string, lastEditedBy: string, lastEditedAt: string, createdInThreadId: string, version: number, createdAt: string, updatedAt: string } };
 
 export type DeleteFileMutationVariables = Exact<{
   id: Scalars['ID']['input'];
@@ -1288,47 +1203,24 @@ export type GetAgentExecutionEventsQueryVariables = Exact<{
 
 export type GetAgentExecutionEventsQuery = { __typename?: 'Query', agentExecutionEvents: Array<{ __typename?: 'AgentExecutionEvent', id: string, requestId: string, type: string, data: unknown, createdAt: string }> };
 
-export type GetAgentSessionQueryVariables = Exact<{
-  id: Scalars['ID']['input'];
-}>;
-
-
-export type GetAgentSessionQuery = { __typename?: 'Query', agentSession: { __typename?: 'AgentSession', id: string, userId: string, requestChain: unknown, contextState: unknown, createdAt: string, updatedAt: string } };
-
-export type ListAgentSessionsQueryVariables = Exact<{
-  userId: InputMaybe<Scalars['ID']['input']>;
-  limit: InputMaybe<Scalars['Int']['input']>;
-  offset: InputMaybe<Scalars['Int']['input']>;
-}>;
-
-
-export type ListAgentSessionsQuery = { __typename?: 'Query', agentSessions: Array<{ __typename?: 'AgentSession', id: string, userId: string, requestChain: unknown, contextState: unknown, createdAt: string, updatedAt: string }> };
-
 export type GetFileQueryVariables = Exact<{
   id: Scalars['ID']['input'];
 }>;
 
 
-export type GetFileQuery = { __typename?: 'Query', file: { __typename?: 'File', id: string, ownerUserId: string, path: string, name: string, content: string, folderId: string, shadowDomainId: string, storagePath: string, fileSize: number, mimeType: string, indexingStatus: string, source: string, isAIGenerated: boolean, createdBy: string, lastEditedBy: string, lastEditedAt: string, version: number, createdAt: string, updatedAt: string } };
+export type GetFileQuery = { __typename?: 'Query', file: { __typename?: 'File', id: string, ownerUserId: string, path: string, name: string, content: string, folderId: string, shadowDomainId: string, storagePath: string, fileSize: number, mimeType: string, indexingStatus: string, source: string, isAIGenerated: boolean, createdBy: string, lastEditedBy: string, lastEditedAt: string, createdInThreadId: string, version: number, createdAt: string, updatedAt: string } };
 
 export type ListAllFilesQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type ListAllFilesQuery = { __typename?: 'Query', files: Array<{ __typename?: 'File', id: string, ownerUserId: string, path: string, name: string, content: string, folderId: string, shadowDomainId: string, storagePath: string, fileSize: number, mimeType: string, indexingStatus: string, source: string, isAIGenerated: boolean, createdBy: string, lastEditedBy: string, lastEditedAt: string, version: number, createdAt: string, updatedAt: string }> };
+export type ListAllFilesQuery = { __typename?: 'Query', files: Array<{ __typename?: 'File', id: string, ownerUserId: string, path: string, name: string, content: string, folderId: string, shadowDomainId: string, storagePath: string, fileSize: number, mimeType: string, indexingStatus: string, source: string, isAIGenerated: boolean, createdBy: string, lastEditedBy: string, lastEditedAt: string, createdInThreadId: string, version: number, createdAt: string, updatedAt: string }> };
 
 export type GetFileByPathQueryVariables = Exact<{
   path: Scalars['String']['input'];
 }>;
 
 
-export type GetFileByPathQuery = { __typename?: 'Query', fileByPath: { __typename?: 'File', id: string, ownerUserId: string, path: string, name: string, content: string, folderId: string, shadowDomainId: string, storagePath: string, fileSize: number, mimeType: string, indexingStatus: string, source: string, isAIGenerated: boolean, createdBy: string, lastEditedBy: string, lastEditedAt: string, version: number, createdAt: string, updatedAt: string } };
-
-export type GetFileProvenanceQueryVariables = Exact<{
-  id: Scalars['ID']['input'];
-}>;
-
-
-export type GetFileProvenanceQuery = { __typename?: 'Query', fileProvenance: { __typename?: 'FileProvenance', createdIn: { __typename?: 'ProvenanceContext', threadId: string, messageId: string }, lastModifiedIn: { __typename?: 'ProvenanceContext', threadId: string, messageId: string } } };
+export type GetFileByPathQuery = { __typename?: 'Query', fileByPath: { __typename?: 'File', id: string, ownerUserId: string, path: string, name: string, content: string, folderId: string, shadowDomainId: string, storagePath: string, fileSize: number, mimeType: string, indexingStatus: string, source: string, isAIGenerated: boolean, createdBy: string, lastEditedBy: string, lastEditedAt: string, createdInThreadId: string, version: number, createdAt: string, updatedAt: string } };
 
 export type GetFolderQueryVariables = Exact<{
   id: Scalars['ID']['input'];
@@ -1497,6 +1389,7 @@ export const FileFieldsFragmentDoc = gql`
   createdBy
   lastEditedBy
   lastEditedAt
+  createdInThreadId
   version
   createdAt
   updatedAt
@@ -1873,38 +1766,6 @@ export const GetAgentExecutionEventsDocument = gql`
 export function useGetAgentExecutionEventsQuery(options: Omit<Urql.UseQueryArgs<GetAgentExecutionEventsQueryVariables>, 'query'>) {
   return Urql.useQuery<GetAgentExecutionEventsQuery, GetAgentExecutionEventsQueryVariables>({ query: GetAgentExecutionEventsDocument, ...options });
 };
-export const GetAgentSessionDocument = gql`
-    query GetAgentSession($id: ID!) {
-  agentSession(id: $id) {
-    id
-    userId
-    requestChain
-    contextState
-    createdAt
-    updatedAt
-  }
-}
-    `;
-
-export function useGetAgentSessionQuery(options: Omit<Urql.UseQueryArgs<GetAgentSessionQueryVariables>, 'query'>) {
-  return Urql.useQuery<GetAgentSessionQuery, GetAgentSessionQueryVariables>({ query: GetAgentSessionDocument, ...options });
-};
-export const ListAgentSessionsDocument = gql`
-    query ListAgentSessions($userId: ID, $limit: Int, $offset: Int) {
-  agentSessions(userId: $userId, limit: $limit, offset: $offset) {
-    id
-    userId
-    requestChain
-    contextState
-    createdAt
-    updatedAt
-  }
-}
-    `;
-
-export function useListAgentSessionsQuery(options?: Omit<Urql.UseQueryArgs<ListAgentSessionsQueryVariables>, 'query'>) {
-  return Urql.useQuery<ListAgentSessionsQuery, ListAgentSessionsQueryVariables>({ query: ListAgentSessionsDocument, ...options });
-};
 export const GetFileDocument = gql`
     query GetFile($id: ID!) {
   file(id: $id) {
@@ -1937,24 +1798,6 @@ export const GetFileByPathDocument = gql`
 
 export function useGetFileByPathQuery(options: Omit<Urql.UseQueryArgs<GetFileByPathQueryVariables>, 'query'>) {
   return Urql.useQuery<GetFileByPathQuery, GetFileByPathQueryVariables>({ query: GetFileByPathDocument, ...options });
-};
-export const GetFileProvenanceDocument = gql`
-    query GetFileProvenance($id: ID!) {
-  fileProvenance(id: $id) {
-    createdIn {
-      threadId
-      messageId
-    }
-    lastModifiedIn {
-      threadId
-      messageId
-    }
-  }
-}
-    `;
-
-export function useGetFileProvenanceQuery(options: Omit<Urql.UseQueryArgs<GetFileProvenanceQueryVariables>, 'query'>) {
-  return Urql.useQuery<GetFileProvenanceQuery, GetFileProvenanceQueryVariables>({ query: GetFileProvenanceDocument, ...options });
 };
 export const GetFolderDocument = gql`
     query GetFolder($id: ID!) {

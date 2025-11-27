@@ -56,6 +56,7 @@ export class FileRepository {
         lastEditedBy: input.provenance ? 'agent' : 'user',
         isAIGenerated: input.provenance ? true : false,
         createdBy: input.provenance ? 'agent' : 'user',
+        createdInThreadId: input.provenance?.createdInThreadId || null,
       };
 
       // Include client-provided ID if present

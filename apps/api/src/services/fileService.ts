@@ -184,40 +184,4 @@ export class FileService {
 
     return file;
   }
-
-  /**
-   * Get file provenance (creation and edit history)
-   * Returns thread/message context for navigating back to source
-   */
-  static async getFileProvenance(fileId: string, userId: string): Promise<{
-    createdIn: { threadId: string; messageId: string | null } | null;
-    lastModifiedIn: { threadId: string; messageId: string | null } | null;
-  }> {
-    const file = await fileRepository.findById(fileId);
-
-    if (!file) {
-      throw new Error('File not found');
-    }
-
-    if (file.ownerUserId !== userId) {
-      throw new Error('Access denied');
-    }
-
-    // Extract provenance from file metadata
-    // TODO: Add messageId tracking when we have that data in the database
-    const createdIn = file.createdInThreadId
-      ? {
-          threadId: file.createdInThreadId,
-          messageId: null, // Will be populated when we add messageId to database
-        }
-      : null;
-
-    // TODO: Add lastModifiedIn tracking when we implement edit history
-    const lastModifiedIn = null;
-
-    return {
-      createdIn,
-      lastModifiedIn,
-    };
-  }
 }

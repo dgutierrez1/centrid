@@ -169,7 +169,8 @@ export const ContentBlock = builder.unionType('ContentBlock', {
   resolveType: (value) => {
     // Type discrimination based on the 'type' field
     if ('type' in value && typeof value.type === 'string') {
-      switch (value.type) {
+      const blockType = value.type;
+      switch (blockType) {
         case 'text':
           return TextBlock;
         case 'tool_use':
@@ -179,7 +180,7 @@ export const ContentBlock = builder.unionType('ContentBlock', {
         case 'image':
           return ImageBlock;
         default:
-          throw new Error(`Unknown ContentBlock type: ${value.type}`);
+          throw new Error(`Unknown ContentBlock type: ${blockType}`);
       }
     }
     throw new Error('ContentBlock must have a type field');

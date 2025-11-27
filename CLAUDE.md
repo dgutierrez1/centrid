@@ -29,7 +29,7 @@ Claude can read pattern files on-demand for full details or use pattern loading 
 
 <!-- AUTO-GENERATED: DO NOT EDIT -->
 <!-- Source: .specify/docs/ -->
-<!-- Last synced: 2025-11-12T17:45:00.000Z -->
+<!-- Last synced: 2025-11-26T19:28:03.849Z -->
 <!-- To update: Edit doc files, then run: npm run sync-docs -->
 
 | Pattern | What | Summary | File |
@@ -51,8 +51,10 @@ Claude can read pattern files on-demand for full details or use pattern loading 
 | Remote Database Debugging Scripts | Command-line tools that query remote Supabase databases and logs using SQL-like JSON queries and flexible filtering | Standalone TypeScript scripts for querying remote database and API logs during development | [View](.specify/docs/backend-remote-debugging-tools.md) |
 | Remote-First Development Pattern | Remote Supabase instance as the primary development target with seamless type generation and edge function deployment for testing. | Remote Supabase as default for type generation, edge function testing, and zero-config workflows | [View](.specify/docs/backend-remote-first-development.md) |
 | Row-Level Security (RLS) Policies | All database tables use PostgreSQL Row-Level Security (RLS) to enforce user isolation at the database level. | Postgres RLS enforces user isolation at database level | [View](.specify/docs/data-rls-policies.md) |
+| Service-Oriented Execution Pattern | Decompose complex execution workflows into orchestrated service classes, each handling a single concern (message lifecycle, conversation loading, tool execution, iteration logic). | Break complex execution logic into focused service classes with single responsibilities | [View](.specify/docs/backend-service-orchestration.md) |
 | State Management with Valtio | Real-time subscriptions already keep data fresh. | Valtio proxy-based state with optimistic updates and real-time sync | [View](.specify/docs/frontend-state-management.md) |
-| Type Generation Pattern | Backend uses Drizzle-inferred types from `db/types.ts`, frontend uses GraphQL Codegen types from `@/types/graphql` | Drizzle-inferred types for backend, GraphQL Codegen types for frontend—never redeclare | [View](.specify/docs/data-type-generation.md) |
+| Timestamp Standardization Pattern | Standardized timestamp handling using ISO 8601 strings across database, GraphQL, and frontend layers | ISO 8601 string timestamps across all layers (database, GraphQL, frontend) to eliminate type mismatches and conversion overhead | [View](.specify/docs/data-timestamp-standardization.md) |
+| Type Generation Pattern | Backend uses Drizzle-inferred types from `db/types.ts` for database entities and GraphQL Codegen types from `types/graphql.ts` for Input types. Frontend uses GraphQL Codegen types from `@/types/graphql`. UI package uses GraphQL Codegen types from `packages/ui/src/types/graphql.ts`. | Drizzle-inferred types for backend, GraphQL Codegen types for frontend—never redeclare | [View](.specify/docs/data-type-generation.md) |
 | Validation Workflow Pattern | Three-layer validation architecture using Zod for frontend forms, GraphQL schema for API contracts, and database constraints for final enforcement. | Three-layer validation with GraphQL as source of truth, no duplicate Zod schemas | [View](.specify/docs/data-validation-workflow.md) |
 
 <!-- END AUTO-GENERATED -->

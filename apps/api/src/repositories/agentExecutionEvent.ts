@@ -1,4 +1,4 @@
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, and, gt } from 'drizzle-orm';
 import { getDB } from '../functions/_shared/db.ts';
 import { agentExecutionEvents } from '../db/schema.ts';
 
@@ -51,15 +51,17 @@ export class AgentExecutionEventRepository {
   /**
    * Get events since a certain timestamp (for incremental polling if needed)
    */
-  static async findByRequestIdSinceTimestamp(requestId: string, timestamp: Date) {
+  static async findByRequestIdSinceTimestamp(requestId: string, timestamp: string) {
     const { db, cleanup } = await getDB();
     try {
       const events = await db
         .select()
         .from(agentExecutionEvents)
         .where(
-          eq(agentExecutionEvents.requestId, requestId) &&
-          agentExecutionEvents.createdAt > timestamp
+          and(
+            eq(agentExecutionEvents.requestId, requestId),
+            gt(agentExecutionEvents.createdAt, timestamp)
+          )
         )
         .orderBy(agentExecutionEvents.createdAt);
       return events;

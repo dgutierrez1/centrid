@@ -80,43 +80,9 @@ const FileType = builder.objectRef<File>("File").implement({
       description: "Last update timestamp",
       resolve: (file) => file.updatedAt, // Already ISO string from database
     }),
-  }),
-});
-
-// ============================================================================
-// File Provenance Type
-// ============================================================================
-
-/**
- * Provenance context for file creation or modification
- */
-const ProvenanceContextType = builder.objectType("ProvenanceContext", {
-  description: "Thread and message context for file operation",
-  fields: (t) => ({
-    threadId: t.string({ description: "Thread ID where operation occurred" }),
-    messageId: t.string({
+    createdInThreadId: t.exposeString("createdInThreadId", {
       nullable: true,
-      description: "Message ID that triggered operation",
-    }),
-  }),
-});
-
-/**
- * File provenance information
- * Tracks creation and editing history for navigating back to source
- */
-const FileProvenanceType = builder.objectType("FileProvenance", {
-  description: "File creation and edit history",
-  fields: (t) => ({
-    createdIn: t.field({
-      type: ProvenanceContextType,
-      nullable: true,
-      description: "Thread/message where file was created",
-    }),
-    lastModifiedIn: t.field({
-      type: ProvenanceContextType,
-      nullable: true,
-      description: "Thread/message where file was last modified",
+      description: "Thread ID where file was created (for provenance navigation)",
     }),
   }),
 });
@@ -221,25 +187,6 @@ builder.queryField("fileByPath", (t) =>
     },
     resolve: async (parent, args, context) => {
       return await fileRepository.findByPath(args.path, context.userId);
-    },
-  })
-);
-
-builder.queryField("fileProvenance", (t) =>
-  t.field({
-    type: FileProvenanceType,
-    nullable: true,
-    description: "Get file creation and edit history for navigation",
-    args: {
-      id: t.arg.id({ required: true }),
-    },
-    resolve: async (parent, args, context) => {
-      try {
-        return await FileService.getFileProvenance(args.id, context.userId);
-      } catch (error) {
-        console.error("Failed to get file provenance:", error);
-        return null;
-      }
     },
   })
 );

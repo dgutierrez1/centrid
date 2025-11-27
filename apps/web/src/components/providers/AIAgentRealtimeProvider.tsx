@@ -3,7 +3,7 @@ import { useRealtimeSubscriptions } from '@/lib/realtime';
 import { aiAgentState, aiAgentActions } from '@/lib/state/aiAgentState';
 import type { UIThread, UIMessage, UIContextReference } from '@/lib/state/aiAgentState';
 import type { Thread as DBThread, Message as DBMessage, ContextReference as DBContextReference } from '@/types/graphql';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase/client';
 
 interface AIAgentRealtimeProviderProps {
   userId: string;

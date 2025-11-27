@@ -6,6 +6,7 @@
 import { getDB } from '../functions/_shared/db.ts';
 import { folders } from '../db/schema.ts';
 import { eq, asc, and, isNull } from 'drizzle-orm';
+import type { InsertFolder } from '../db/types.ts';
 
 export const folderRepository = {
   /**
@@ -84,7 +85,7 @@ export const folderRepository = {
   /**
    * Update folder (rename or move)
    */
-  async update(folderId: string, updates: { name?: string; parentFolderId?: string | null; path?: string }) {
+  async update(folderId: string, updates: Partial<InsertFolder>) {
     const { db, cleanup } = await getDB();
     try {
       const setClause: any = { updatedAt: new Date().toISOString() };

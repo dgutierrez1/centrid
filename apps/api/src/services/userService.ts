@@ -159,6 +159,6 @@ export class UserService {
 
     logger.info('User account deleted', { userId });
 
-    return { success: true, userId };
+    return { success: true, message: 'User deleted successfully' };
   }
 }

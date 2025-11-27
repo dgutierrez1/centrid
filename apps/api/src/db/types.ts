@@ -53,12 +53,6 @@ export type DocumentChunkEntity = InferSelectModel<typeof schema.documentChunks>
 export type AgentRequestEntity = InferSelectModel<typeof schema.agentRequests>;
 
 /**
- * Agent Session Entity
- * Multi-turn conversation management
- */
-export type AgentSessionEntity = InferSelectModel<typeof schema.agentSessions>;
-
-/**
  * Usage Event Entity
  * Usage tracking for billing
  */
@@ -141,12 +135,6 @@ export type InsertDocumentChunk = InferInsertModel<typeof schema.documentChunks>
 export type InsertAgentRequest = InferInsertModel<typeof schema.agentRequests>;
 
 /**
- * Insert Agent Session
- * Data for creating new agent sessions
- */
-export type InsertAgentSession = InferInsertModel<typeof schema.agentSessions>;
-
-/**
  * Insert Usage Event
  * Data for creating new usage events
  */
@@ -204,7 +192,6 @@ export type Folder = FolderEntity;
 export type Document = DocumentEntity;
 export type DocumentChunk = DocumentChunkEntity;
 export type AgentRequest = AgentRequestEntity;
-export type AgentSession = AgentSessionEntity;
 export type UsageEvent = UsageEventEntity;
 export type Thread = ThreadEntity;
 export type Message = MessageEntity;

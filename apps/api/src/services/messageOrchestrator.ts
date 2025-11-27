@@ -165,13 +165,14 @@ export class MessageOrchestrator {
     if (
       currentContent.length > 0 &&
       lastBlock &&
-      lastBlock.type === 'text'
+      lastBlock.type === 'text' &&
+      'text' in lastBlock
     ) {
       // Append to existing text block
       updatedContent = [
         ...currentContent.slice(0, -1),
         {
-          type: 'text',
+          type: 'text' as const,
           text: lastBlock.text + text,
         },
       ];

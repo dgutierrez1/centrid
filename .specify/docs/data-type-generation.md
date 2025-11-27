@@ -10,7 +10,7 @@ related: [data-graphql-schema-design, backend-graphql-architecture]
 
 # Type Generation Pattern
 
-**What**: Backend uses Drizzle-inferred types from `db/types.ts` for database entities and GraphQL Codegen types from `types/graphql.ts` for Input types. Frontend uses GraphQL Codegen types from `@/types/graphql`.
+**What**: Backend uses Drizzle-inferred types from `db/types.ts` for database entities and GraphQL Codegen types from `types/graphql.ts` for Input types. Frontend uses GraphQL Codegen types from `@/types/graphql`. UI package uses GraphQL Codegen types from `packages/ui/src/types/graphql.ts`.
 
 **Why**: Single source of truth prevents type redeclaration, field mismatches, and manual type maintenance
 
@@ -75,8 +75,9 @@ apps/api/src/db/types.ts (Backend entity types - AUTO-GENERATED)
 GraphQL Schema (built programmatically via Pothos)
   ↓ Published at /api/graphql endpoint
   ↓ GraphQL Codegen introspects published schema
-  ├─→ apps/web/src/types/graphql.ts (Frontend types)
-  └─→ apps/api/src/types/graphql.ts (Backend Input types)
+  ├─→ apps/web/src/types/graphql.ts (Frontend types + urql hooks)
+  ├─→ apps/api/src/types/graphql.ts (Backend Input types)
+  └─→ packages/ui/src/types/graphql.ts (UI package types, no __typename)
 ```
 
 **Rules**:
@@ -96,6 +97,11 @@ Frontend:
 - ❌ DON'T: Shadow GraphQL types (use `UIThread` instead of `Thread` in state files)
 - ❌ DON'T: Manually redefine types that exist in generated GraphQL types
 
+UI Package:
+- ✅ DO: Import from local `types/graphql.ts` for component props
+- ✅ DO: Note that UI types have `skipTypename: true` (cleaner for component props)
+- ❌ DON'T: Import from `apps/web` or `apps/api` type files (breaks package isolation)
+
 Workflow:
 - ✅ DO: Run `npm run db:push` after schema changes (syncs database + auto-updates Drizzle types)
 - ✅ DO: Run `npm run codegen` after GraphQL schema changes (regenerates frontend + backend GraphQL types)
@@ -104,8 +110,9 @@ Workflow:
 **Used in**:
 - `apps/api/src/db/types.ts` - Backend database entity types (auto-generated from Drizzle)
 - `apps/api/src/types/graphql.ts` - Backend GraphQL Input types (auto-generated from schema)
-- `apps/web/src/types/graphql.ts` - Frontend GraphQL types (auto-generated from schema)
-- `codegen.yml` - GraphQL Codegen configuration (generates both frontend + backend types)
+- `apps/web/src/types/graphql.ts` - Frontend GraphQL types + urql hooks (auto-generated from schema)
+- `packages/ui/src/types/graphql.ts` - UI package GraphQL types (auto-generated, no __typename)
+- `codegen.yml` - GraphQL Codegen configuration (generates 3 type files: frontend, backend, UI package)
 - `apps/api/src/services/*.ts` - Services import from `../db/types.js` and `../types/graphql.js`
 - `apps/web/src/lib/state/aiAgentState.ts` - UI state types (UIThread, UIMessage, UIContextReference)
 

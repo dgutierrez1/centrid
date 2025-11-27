@@ -4,7 +4,6 @@ import { useLoadFile } from '@/lib/hooks/useLoadFile'
 import { useUpdateFile } from '@/lib/hooks/useUpdateFile'
 import { useDeleteFile } from '@/lib/hooks/useDeleteFile'
 import { useNavigateToSource } from '@/lib/hooks/useNavigateToSource'
-import { useGetFileProvenanceQuery } from '@/types/graphql'
 import type { FileData, Provenance } from '@centrid/ui/features/ai-agent-system'
 
 interface FileEditorPanelContainerProps {
@@ -25,14 +24,6 @@ export function FileEditorPanelContainer({
   const { deleteFile, isDeleting } = useDeleteFile()
   const { navigateToSource } = useNavigateToSource()
   const [localContent, setLocalContent] = useState('')
-
-  // Load full provenance data using GraphQL (T086)
-  const [provenanceResult] = useGetFileProvenanceQuery({
-    variables: { id: fileId || '' },
-    pause: !fileId || !isOpen, // Only run when fileId exists and panel is open
-  })
-
-  const fullProvenance = provenanceResult.data?.fileProvenance
 
   // Sync local content with loaded file
   useEffect(() => {
@@ -57,13 +48,10 @@ export function FileEditorPanelContainer({
   }
 
   const handleGoToSource = () => {
-    if (!fullProvenance?.createdIn?.threadId) return
+    if (!file?.createdInThreadId) return
 
-    // Navigate with highlight to creation message (T086)
-    navigateToSource(
-      fullProvenance.createdIn.threadId,
-      fullProvenance.createdIn.messageId // Will highlight and scroll to this message
-    )
+    // Navigate to the thread where the file was created
+    navigateToSource(file.createdInThreadId)
   }
 
   const handleDelete = async () => {
@@ -97,7 +85,7 @@ export function FileEditorPanelContainer({
       isOpen={isOpen}
       isLoading={isLoading}
       onClose={onClose}
-      onGoToSource={fullProvenance ? handleGoToSource : undefined}
+      onGoToSource={file?.createdInThreadId ? handleGoToSource : undefined}
       onFileChange={handleContentChange}
       onDelete={handleDelete}
       isDeleting={isDeleting}

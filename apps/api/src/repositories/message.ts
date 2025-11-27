@@ -1,20 +1,10 @@
 import { eq } from 'drizzle-orm';
 import { getDB } from '../functions/_shared/db.ts';
 import { messages } from '../db/schema.ts';
-import type { ContentBlock } from '../types/graphql.ts';
+import type { InsertMessage } from '../db/types.ts';
 import { createLogger } from '../utils/logger.ts';
 
 const logger = createLogger('MessageRepository');
-
-export interface CreateMessageInput {
-  threadId: string;
-  ownerUserId: string;
-  role: 'user' | 'assistant';
-  content: ContentBlock[];
-  toolCalls?: any[];
-  tokensUsed?: number;
-  idempotencyKey?: string;
-}
 
 export class MessageRepository {
   /**
@@ -38,7 +28,7 @@ export class MessageRepository {
    * Create a new message (idempotent)
    * If idempotencyKey is provided and a message with that key exists, returns existing message
    */
-  async create(input: CreateMessageInput) {
+  async create(input: InsertMessage) {
     const { db, cleanup } = await getDB();
     try {
       // Check for existing message with same idempotency key
@@ -110,7 +100,7 @@ export class MessageRepository {
   /**
    * Update message
    */
-  async update(messageId: string, updates: Partial<CreateMessageInput>) {
+  async update(messageId: string, updates: Partial<InsertMessage>) {
     const { db, cleanup } = await getDB();
     try {
       const [message] = await db

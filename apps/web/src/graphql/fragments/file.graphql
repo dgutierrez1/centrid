@@ -18,6 +18,7 @@ fragment FileFields on File {
   createdBy
   lastEditedBy
   lastEditedAt
+  createdInThreadId
   version
   createdAt
   updatedAt

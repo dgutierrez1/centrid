@@ -57,10 +57,9 @@ export async function assertThrows(fn: Function, errorMessage?: string) {
     await fn();
     throw new Error('Expected function to throw');
   } catch (error) {
-    if (errorMessage && error.message !== errorMessage) {
-      throw new Error(
-        `Expected error "${errorMessage}", got "${error.message}"`
-      );
+    const message = error instanceof Error ? error.message : String(error);
+    if (errorMessage && message !== errorMessage) {
+      throw new Error(`Expected error "${errorMessage}", got "${message}"`);
     }
   }
 }

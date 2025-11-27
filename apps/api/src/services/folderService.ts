@@ -5,7 +5,7 @@
  */
 
 import { folderRepository } from '../repositories/folder.ts';
-import type { CreateFolderInput, UpdateFolderInput } from '../types/graphql.js';
+import type { InsertFolder } from '../db/types.ts';
 
 export class FolderService {
   /**
@@ -65,7 +65,7 @@ export class FolderService {
   static async updateFolder(
     folderId: string,
     userId: string,
-    updates: UpdateFolderInput
+    updates: Partial<InsertFolder>
   ) {
     // Verify ownership
     const folder = await folderRepository.findById(folderId, userId);

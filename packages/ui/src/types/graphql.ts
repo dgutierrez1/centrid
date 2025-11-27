@@ -77,19 +77,6 @@ export type AgentRequest = {
   userId: Maybe<Scalars['String']['output']>;
 };
 
-/** Multi-turn conversation session for agent execution */
-export type AgentSession = {
-  /** Session context state (JSON object) */
-  contextState: Maybe<Scalars['JSON']['output']>;
-  createdAt: Maybe<Scalars['DateTime']['output']>;
-  id: Maybe<Scalars['ID']['output']>;
-  /** Chain of agent requests in this session (JSON array) */
-  requestChain: Maybe<Scalars['JSON']['output']>;
-  updatedAt: Maybe<Scalars['DateTime']['output']>;
-  /** User ID this session belongs to */
-  userId: Maybe<Scalars['String']['output']>;
-};
-
 /** Input for approving a tool call */
 export type ApproveToolCallInput = {
   /** Tool call ID */
@@ -184,13 +171,6 @@ export type CreateAgentRequestInput = {
   triggeringMessageId: Scalars['ID']['input'];
 };
 
-export type CreateAgentSessionInput = {
-  /** Initial context state (JSON object) */
-  contextState: InputMaybe<Scalars['JSON']['input']>;
-  /** Initial request chain (JSON array) */
-  requestChain: Scalars['JSON']['input'];
-};
-
 /** Input for creating a new file */
 export type CreateFileInput = {
   /** File content */
@@ -220,6 +200,8 @@ export type CreateMessageInput = {
   content: Scalars['String']['input'];
   /** Idempotency key for deduplication (prevents duplicate messages) */
   idempotencyKey: InputMaybe<Scalars['UUID']['input']>;
+  /** Optional client-provided requestId for agent request (enables optimistic updates) */
+  requestId: InputMaybe<Scalars['UUID']['input']>;
   /** Message role: user, assistant, system */
   role: Scalars['String']['input'];
   /** Thread ID to add message to */
@@ -256,6 +238,8 @@ export type CreateThreadWithMessageInput = {
   /** Idempotency key for the initial message (prevents duplicates) */
   messageIdempotencyKey: InputMaybe<Scalars['UUID']['input']>;
   parentThreadId: InputMaybe<Scalars['ID']['input']>;
+  /** Optional client-provided requestId for agent request (enables optimistic updates) */
+  requestId: InputMaybe<Scalars['UUID']['input']>;
 };
 
 /** Workspace file with content and metadata */
@@ -266,6 +250,8 @@ export type File = {
   createdAt: Maybe<Scalars['DateTime']['output']>;
   /** Creator: user or agent name */
   createdBy: Maybe<Scalars['String']['output']>;
+  /** Thread ID where file was created (for provenance navigation) */
+  createdInThreadId: Maybe<Scalars['String']['output']>;
   /** File size in bytes */
   fileSize: Maybe<Scalars['Int']['output']>;
   /** Parent folder ID */
@@ -298,14 +284,6 @@ export type File = {
   updatedAt: Maybe<Scalars['DateTime']['output']>;
   /** Version number for optimistic locking */
   version: Maybe<Scalars['Int']['output']>;
-};
-
-/** File creation and edit history */
-export type FileProvenance = {
-  /** Thread/message where file was created */
-  createdIn: Maybe<ProvenanceContext>;
-  /** Thread/message where file was last modified */
-  lastModifiedIn: Maybe<ProvenanceContext>;
 };
 
 /** File search result */
@@ -385,8 +363,6 @@ export type Mutation = {
   consolidateBranches: Maybe<ConsolidationResult>;
   /** Create a new agent request (triggers async execution) */
   createAgentRequest: Maybe<AgentRequest>;
-  /** Create a new agent session */
-  createAgentSession: Maybe<AgentSession>;
   /** Create a new file */
   createFile: Maybe<File>;
   /** Create a new folder */
@@ -400,8 +376,6 @@ export type Mutation = {
   createThreadWithMessage: Maybe<ThreadWithMessage>;
   /** Delete current user account (irreversible) */
   deleteAccount: Maybe<Scalars['Boolean']['output']>;
-  /** Delete an agent session */
-  deleteAgentSession: Maybe<Scalars['Boolean']['output']>;
   /** Delete file */
   deleteFile: Maybe<Scalars['Boolean']['output']>;
   /** Delete folder (must be empty) */
@@ -417,8 +391,6 @@ export type Mutation = {
   rejectToolCall: Maybe<ToolCall>;
   /** Remove a context reference from a thread */
   removeContextReference: Maybe<Scalars['Boolean']['output']>;
-  /** Update an existing agent session */
-  updateAgentSession: Maybe<AgentSession>;
   /** Update priority of a context reference */
   updateContextReferencePriority: Maybe<ContextReference>;
   /** Update file content with optimistic locking */
@@ -457,11 +429,6 @@ export type MutationCreateAgentRequestArgs = {
 };
 
 
-export type MutationCreateAgentSessionArgs = {
-  input: CreateAgentSessionInput;
-};
-
-
 export type MutationCreateFileArgs = {
   input: CreateFileInput;
 };
@@ -489,11 +456,6 @@ export type MutationCreateThreadArgs = {
 
 export type MutationCreateThreadWithMessageArgs = {
   input: CreateThreadWithMessageInput;
-};
-
-
-export type MutationDeleteAgentSessionArgs = {
-  id: Scalars['ID']['input'];
 };
 
 
@@ -534,12 +496,6 @@ export type MutationRejectToolCallArgs = {
 
 export type MutationRemoveContextReferenceArgs = {
   id: Scalars['ID']['input'];
-};
-
-
-export type MutationUpdateAgentSessionArgs = {
-  id: Scalars['ID']['input'];
-  input: UpdateAgentSessionInput;
 };
 
 
@@ -590,14 +546,6 @@ export type MutationUploadFileArgs = {
   threadId: InputMaybe<Scalars['ID']['input']>;
 };
 
-/** Thread and message context for file operation */
-export type ProvenanceContext = {
-  /** Message ID that triggered operation */
-  messageId: Maybe<Scalars['String']['output']>;
-  /** Thread ID where operation occurred */
-  threadId: Maybe<Scalars['String']['output']>;
-};
-
 export type Query = {
   /** Type-only query to expose ContentBlock types for codegen (not meant to be called) */
   _contentBlockTypes: Maybe<Array<ContentBlock>>;
@@ -609,18 +557,12 @@ export type Query = {
   agentRequest: Maybe<AgentRequest>;
   /** Get all agent requests for a thread */
   agentRequestsByThread: Maybe<Array<AgentRequest>>;
-  /** Get a single agent session by ID */
-  agentSession: Maybe<AgentSession>;
-  /** Get all agent sessions for current user */
-  agentSessions: Maybe<Array<AgentSession>>;
   /** Autocomplete search for quick fuzzy matching of files, folders, and threads */
   autocomplete: Maybe<Array<AutocompleteItem>>;
   /** Get file by ID */
   file: Maybe<File>;
   /** Get file by path */
   fileByPath: Maybe<File>;
-  /** Get file creation and edit history for navigation */
-  fileProvenance: Maybe<FileProvenance>;
   /** Get all files for current user */
   files: Maybe<Array<File>>;
   /** Get folder by ID */
@@ -679,18 +621,6 @@ export type QueryAgentRequestsByThreadArgs = {
 };
 
 
-export type QueryAgentSessionArgs = {
-  id: Scalars['ID']['input'];
-};
-
-
-export type QueryAgentSessionsArgs = {
-  limit: InputMaybe<Scalars['Int']['input']>;
-  offset: InputMaybe<Scalars['Int']['input']>;
-  userId: InputMaybe<Scalars['ID']['input']>;
-};
-
-
 export type QueryAutocompleteArgs = {
   input: AutocompleteInput;
 };
@@ -703,11 +633,6 @@ export type QueryFileArgs = {
 
 export type QueryFileByPathArgs = {
   path: Scalars['String']['input'];
-};
-
-
-export type QueryFileProvenanceArgs = {
-  id: Scalars['ID']['input'];
 };
 
 
@@ -926,13 +851,6 @@ export type ToolUseBlock = {
   status: Maybe<Scalars['String']['output']>;
   /** Block type discriminator */
   type: Maybe<Scalars['String']['output']>;
-};
-
-export type UpdateAgentSessionInput = {
-  /** Updated context state (JSON object) */
-  contextState: InputMaybe<Scalars['JSON']['input']>;
-  /** Updated request chain (JSON array) */
-  requestChain: InputMaybe<Scalars['JSON']['input']>;
 };
 
 /** Input for updating file content */

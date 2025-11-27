@@ -74,7 +74,6 @@ async function applyRLSPolicies(sql: postgres.Sql) {
     { sql: rlsPolicies.documents, name: "documents" },
     { sql: rlsPolicies.documentChunks, name: "document_chunks" },
     { sql: rlsPolicies.agentRequests, name: "agent_requests" },
-    { sql: rlsPolicies.agentSessions, name: "agent_sessions" },
     { sql: rlsPolicies.usageEvents, name: "usage_events" },
     { sql: rlsPolicies.agentExecutionEvents, name: "agent_execution_events" },
     { sql: rlsPolicies.threads, name: "threads" },

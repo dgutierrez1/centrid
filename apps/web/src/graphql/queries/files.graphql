@@ -23,17 +23,3 @@ query GetFileByPath($path: String!) {
     ...FileFields
   }
 }
-
-# Get file provenance (creation and edit history)
-query GetFileProvenance($id: ID!) {
-  fileProvenance(id: $id) {
-    createdIn {
-      threadId
-      messageId
-    }
-    lastModifiedIn {
-      threadId
-      messageId
-    }
-  }
-}

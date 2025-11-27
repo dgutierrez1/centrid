@@ -34,7 +34,7 @@ export const builder = new SchemaBuilder<{
     UUID: { Input: string; Output: string };
     DateTime: { Input: string; Output: string | null };
     Upload: { Input: Promise<FileUpload>; Output: never };
-    JSON: { Input: any; Output: any };
+    JSON: { Input: unknown; Output: unknown };
   };
 }>({
   plugins: [ValidationPlugin, DataloaderPlugin],
@@ -62,31 +62,18 @@ builder.scalarType("UUID", {
 
 // Define DateTime scalar (ISO 8601 string pass-through)
 // Note: Postgres driver configured with transform to return ISO strings
-// See: apps/api/src/functions/_shared/db.ts (DB_CONFIG.transform)
+// See: apps/api/src/functions/_shared/db.ts (DB_CONFIG.types)
 builder.scalarType("DateTime", {
   serialize: (value: string | null) => {
-    // Handle nullable timestamp fields
     if (value === null || value === undefined) {
       return null;
     }
-    // Database should return ISO strings via postgres driver transform
     if (typeof value === "string") {
       return value;
     }
-    // If we get a Date object, it means driver transform failed (regression)
-    if (value instanceof Date) {
-      console.error(
-        "[DateTime] REGRESSION: Received Date object instead of string. " +
-        "Check postgres driver transform configuration in db.ts"
-      );
-      return value.toISOString(); // Fallback conversion
-    }
-    // Should never reach here
-    console.error("[DateTime] Unexpected value type:", typeof value, "value:", value);
     throw new Error("DateTime must be an ISO string from database");
   },
   parseValue: (value) => {
-    // GraphQL input expects ISO strings, pass through directly
     if (typeof value === "string") {
       return value;
     }
