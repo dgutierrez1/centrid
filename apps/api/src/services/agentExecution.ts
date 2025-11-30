@@ -13,6 +13,17 @@ import { createLogger } from "../utils/logger.ts";
 
 const logger = createLogger("AgentExecution");
 
+/**
+ * Extract text from ContentBlock[] (handles both string and ContentBlock[] content)
+ */
+function extractTextFromContent(content: ContentBlock[] | string): string {
+  if (typeof content === 'string') return content;
+  return content
+    .filter(block => block.type === 'text')
+    .map(block => ('text' in block ? block.text : '') ?? '')
+    .join('\n');
+}
+
 export interface PrimeContext {
   totalTokens: number;
   explicitFiles: any[];
@@ -97,10 +108,13 @@ export class AgentExecutionService {
       progress: 0.1,
     });
 
+    // Extract text from ContentBlock[] for context building
+    const messageText = extractTextFromContent(message.content);
+
     // Build prime context
     const primeContext = await contextAssemblyService.buildPrimeContext(
       request.threadId,
-      message.content,
+      messageText,
       userId
     );
 
@@ -113,7 +127,7 @@ export class AgentExecutionService {
     yield* this.executeWithStreaming(
       request.threadId,
       message.id,
-      message.content,
+      messageText,
       primeContext,
       userId,
       requestId, // NEW: Pass requestId for tracking
@@ -136,10 +150,13 @@ export class AgentExecutionService {
       throw new Error("Message not found");
     }
 
+    // Extract text from ContentBlock[] for context building
+    const messageText = extractTextFromContent(message.content);
+
     // ✅ BUILD PRIME CONTEXT - Using ContextAssemblyService
     const primeContext = await contextAssemblyService.buildPrimeContext(
       threadId,
-      message.content,
+      messageText,
       userId
     );
 
@@ -147,7 +164,7 @@ export class AgentExecutionService {
     yield* this.executeWithStreaming(
       threadId,
       messageId,
-      message.content,
+      messageText,
       primeContext,
       userId
     );
@@ -249,7 +266,7 @@ export class AgentExecutionService {
           await agentRequestRepository.update(requestId, {
             status: "completed",
             progress: 1.0,
-            completedAt: new Date(),
+            completedAt: new Date().toISOString(),
             results: {
               maxIterationsReached: true,
               toolsExecuted: state.toolCallsList.length,
@@ -337,14 +354,8 @@ export class AgentExecutionService {
               toolsApproved: state.toolCallsList.filter((t) => t.approved)
                 .length,
             },
-            completedAt: new Date(),
+            completedAt: new Date().toISOString(),
           });
-
-          // Link tool calls to message
-          await toolHandler.linkToolCallsToMessage(
-            requestId,
-            responseMessage.id
-          );
 
           // Fetch final message state with all content blocks
           const finalMessage = await messageRepository.findById(
@@ -376,7 +387,8 @@ export class AgentExecutionService {
         const toolCall = result.toolCalls[0];
         const toolExecutionResult = await toolHandler.handleToolCall(toolCall, {
           threadId,
-          messageId,
+          triggeringMessageId: messageId,        // User's message (function param)
+          responseMessageId: responseMessage.id,  // Assistant's message
           userId,
           requestId,
         });
@@ -429,12 +441,6 @@ export class AgentExecutionService {
             state.totalTokens
           );
 
-          // Link tool calls to message
-          await toolHandler.linkToolCallsToMessage(
-            requestId,
-            responseMessage.id
-          );
-
           // Yield tool_call event
           yield {
             type: "tool_call",
@@ -442,7 +448,7 @@ export class AgentExecutionService {
             toolName: toolCall.name,
             toolInput: toolCall.input,
             approval_required: true,
-            messageId: responseMessage.id,
+            responseMessageId: responseMessage.id,
           };
 
           // Pause and wait for approval
@@ -530,7 +536,7 @@ export class AgentExecutionService {
       await agentRequestRepository.update(requestId, {
         status: "failed",
         progress: 1.0,
-        completedAt: new Date(),
+        completedAt: new Date().toISOString(),
         results: {
           error: error instanceof Error ? error.message : String(error),
         },

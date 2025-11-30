@@ -19,11 +19,13 @@ export const AgentExecutionEventType = builder.objectRef<AgentExecutionEvent>('A
     type: t.exposeString('type', { description: 'Event type: text_chunk, tool_call, completion, error' }),
     data: t.field({
       type: 'JSON',
+      nullable: false,
       description: 'Event payload (JSON object)',
       resolve: (event) => event.data,
     }),
     createdAt: t.field({
       type: 'DateTime',
+      nullable: false,
       resolve: (event) => event.createdAt, // Already ISO string from database
     }),
   }),

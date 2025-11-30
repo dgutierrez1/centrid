@@ -160,7 +160,7 @@ export function useConsolidateBranches(): UseConsolidateBranchesResult {
         // Use builder pattern for type-safe subscription with automatic JSONB parsing
         const subscription = createSubscription('agent_execution_events')
           .channel(`consolidation-${requestId}`)
-          .filter({ request_id: requestId })
+          .filter({ requestId })
           .on('INSERT', (payload) => {
             // payload.new is automatically camelCase with parsed JSONB from builder
             processEvent(payload.new.type, payload.new.data, subscription);

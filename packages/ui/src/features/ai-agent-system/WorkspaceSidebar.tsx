@@ -7,7 +7,7 @@ export interface Thread {
   id: string;
   title: string;
   artifactCount: number;
-  lastActivity: Date;
+  lastActivity: string;
   isActive?: boolean;
   parentThreadId?: string | null;
   depth?: number;

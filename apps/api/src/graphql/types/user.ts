@@ -23,11 +23,13 @@ const UserType = builder.objectRef<UserProfile>('User').implement({
     subscriptionStatus: t.exposeString('subscriptionStatus', { description: 'Subscription status (active, cancelled, expired)' }),
     createdAt: t.field({
       type: 'DateTime',
+      nullable: false,
       description: 'Profile creation timestamp',
       resolve: (user) => user.createdAt,
     }),
     updatedAt: t.field({
       type: 'DateTime',
+      nullable: false,
       description: 'Last update timestamp',
       resolve: (user) => user.updatedAt,
     }),

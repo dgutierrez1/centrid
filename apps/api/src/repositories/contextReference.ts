@@ -1,21 +1,13 @@
 import { eq } from 'drizzle-orm';
 import { getDB } from '../functions/_shared/db.ts';
 import { contextReferences } from '../db/schema.ts';
-
-export interface CreateContextReferenceInput {
-  threadId: string;
-  ownerUserId: string;
-  entityType: 'file' | 'folder' | 'thread';
-  entityReference: string;
-  source: 'inherited' | 'manual' | '@-mentioned' | 'agent-added';
-  priorityTier: 1 | 2 | 3;
-}
+import type { InsertContextReference } from '../db/types.ts';
 
 export class ContextReferenceRepository {
   /**
    * Create a new context reference
    */
-  async create(input: CreateContextReferenceInput) {
+  async create(input: Omit<InsertContextReference, 'id' | 'addedAt'>) {
     const { db, cleanup } = await getDB();
     try {
       const [reference] = await db
@@ -26,6 +18,22 @@ export class ContextReferenceRepository {
         })
         .returning();
       return reference;
+    } finally {
+      await cleanup();
+    }
+  }
+
+  /**
+   * Find a context reference by ID
+   */
+  async findById(id: string) {
+    const { db, cleanup } = await getDB();
+    try {
+      const [reference] = await db
+        .select()
+        .from(contextReferences)
+        .where(eq(contextReferences.id, id));
+      return reference ?? null;
     } finally {
       await cleanup();
     }
@@ -62,7 +70,7 @@ export class ContextReferenceRepository {
   /**
    * Bulk create context references
    */
-  async bulkCreate(references: CreateContextReferenceInput[]) {
+  async bulkCreate(references: Omit<InsertContextReference, 'id' | 'addedAt'>[]) {
     if (references.length === 0) return [];
     const { db, cleanup } = await getDB();
     try {

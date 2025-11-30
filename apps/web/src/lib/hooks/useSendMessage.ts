@@ -13,7 +13,7 @@ export interface SendMessageOptions {
     toolCallId: string;
     toolName: string;
     toolInput: any;
-    messageId?: string;
+    responseMessageId?: string;
   }) => void;
 }
 

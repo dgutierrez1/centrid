@@ -36,8 +36,13 @@ export const builder = new SchemaBuilder<{
     Upload: { Input: Promise<FileUpload>; Output: never };
     JSON: { Input: unknown; Output: unknown };
   };
+  // Make non-null the default for output fields
+  // See: https://pothos-graphql.dev/docs/guide/changing-default-nullability
+  DefaultFieldNullability: false;
 }>({
   plugins: [ValidationPlugin, DataloaderPlugin],
+  // Make non-null the default at runtime
+  defaultFieldNullability: false,
 });
 
 // Define UUID scalar (with format validation)

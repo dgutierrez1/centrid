@@ -13,8 +13,7 @@ import { createContext, useContext, useEffect, useState, ReactNode, useCallback,
 import { toast } from 'react-hot-toast';
 import { createClient } from '@/lib/supabase/client';
 import { filesystemState, buildFileSystemTree, addFolder, updateFolder, removeFolder, addFile, updateFile, removeFile } from '@/lib/state/filesystem';
-import { syncRealtimeUpdate } from '@/lib/state/fileMetadata';
-import { aiAgentState } from '@/lib/state/aiAgentState';
+import { syncRealtimeUpdate, markSaveStarted, markSaveSuccess, markSaveError, markSaveConflict } from '@/lib/state/fileMetadata';
 import { editorState, clearEditor } from '@/lib/state/editor';
 import { useFilesystemData } from '@/lib/hooks/useFilesystemData';
 import { useRealtimeSubscriptions } from '@/lib/realtime';
@@ -119,12 +118,12 @@ export function FileSystemProvider({ children }: FileSystemProviderProps) {
         });
 
         // Mark success in metadata (does NOT update version - reads from File)
-        markSaveSuccess(fileId, content);
+        markSaveSuccess(content);
       } catch (error: any) {
         // Check if it's a version conflict
         if (error.message?.includes('version conflict') || error.message?.includes('modified by another')) {
           console.error(`[SaveQueue] Version conflict: ${fileId}`);
-          markSaveConflict(fileId);
+          markSaveConflict();
           continue; // Skip to next task
         }
         console.error(`[SaveQueue] Save error for ${fileId}:`, error);
@@ -140,7 +139,7 @@ export function FileSystemProvider({ children }: FileSystemProviderProps) {
           id: `save-error-${fileId}`, // Prevent duplicate toasts for same file
         });
 
-        markSaveError(fileId, errorMessage);
+        markSaveError(errorMessage);
       }
 
       // Remove processed task from queue
@@ -153,7 +152,7 @@ export function FileSystemProvider({ children }: FileSystemProviderProps) {
   // Enqueue file save
   const enqueueFileSave = useCallback((fileId: string, content: string, version: number) => {
     // Mark save started immediately
-    markSaveStarted(fileId);
+    markSaveStarted();
 
     // Add to queue
     saveQueueRef.current.push({ fileId, content, version });
@@ -222,9 +221,9 @@ export function FileSystemProvider({ children }: FileSystemProviderProps) {
           }
 
           // Sync metadata if this is the currently opened file
-          const isCurrentFile = aiAgentState.currentFile?.id === payload.new.id;
+          const isCurrentFile = filesystemState.selectedFile?.id === payload.new.id;
           if (isCurrentFile && payload.new.content !== undefined) {
-            const currentEditorContent = aiAgentState.currentFile?.content || '';
+            const currentEditorContent = filesystemState.selectedFile?.content || '';
             const result = syncRealtimeUpdate(payload.new.content, currentEditorContent);
 
             if (result.hasConflict) {

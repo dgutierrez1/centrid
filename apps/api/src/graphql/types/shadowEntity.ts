@@ -20,11 +20,11 @@ const ShadowEntityType = builder.objectRef<ShadowEntity>('ShadowEntity').impleme
     entityType: t.exposeString('entityType', { description: 'Source entity type: file, thread, kg_node' }),
     embedding: t.field({
       type: ['Float'],
-      nullable: false,
-      description: 'Vector embedding for semantic search (768 dimensions)',
+      nullable: true,
+      description: 'Vector embedding for semantic search (768 dimensions) - set by background job',
       resolve: (entity) => entity.embedding,
     }),
-    summary: t.exposeString('summary', { nullable: false, description: 'AI-generated summary of source entity' }),
+    summary: t.exposeString('summary', { nullable: true, description: 'AI-generated summary of source entity - set by background job' }),
     structureMetadata: t.field({
       type: 'JSON',
       nullable: true,
@@ -33,11 +33,13 @@ const ShadowEntityType = builder.objectRef<ShadowEntity>('ShadowEntity').impleme
     }),
     lastUpdated: t.field({
       type: 'DateTime',
+      nullable: false,
       description: 'Last update timestamp (embedding, summary, metadata)',
       resolve: (entity) => entity.lastUpdated,
     }),
     createdAt: t.field({
       type: 'DateTime',
+      nullable: false,
       description: 'Creation timestamp',
       resolve: (entity) => entity.createdAt,
     }),
@@ -182,20 +184,25 @@ builder.mutationField('updateShadowEntity', (t) =>
       input: t.arg({ type: UpdateShadowEntityInput, required: true }),
     },
     resolve: async (parent, args, context) => {
-      const { summary, embedding } = args.input;
-
       // Validate embedding dimensions (must be 768 for OpenAI embeddings)
-      if (embedding && embedding.length !== 768) {
-        throw new Error(`Invalid embedding dimensions: ${embedding.length}. Must be 768.`);
+      if ('embedding' in args.input && args.input.embedding && args.input.embedding.length !== 768) {
+        throw new Error(`Invalid embedding dimensions: ${args.input.embedding.length}. Must be 768.`);
+      }
+
+      // Build updates only for provided fields (preserves null vs omitted distinction)
+      const updates: Partial<{ summary: string | null; embedding: number[] | null }> = {};
+
+      if ('summary' in args.input) {
+        updates.summary = args.input.summary;
+      }
+      if ('embedding' in args.input) {
+        updates.embedding = args.input.embedding;
       }
 
       return await shadowEntityRepository.update(
         args.id,
         context.userId,
-        {
-          summary,
-          embedding,
-        }
+        updates
       );
     },
   })

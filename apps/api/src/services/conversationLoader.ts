@@ -1,10 +1,10 @@
-import { messageRepository } from '../repositories/message.ts';
-import { agentToolCallRepository } from '../repositories/agentToolCall.ts';
-import { agentRequestRepository } from '../repositories/agentRequest.ts';
-import { ClaudeConversationBuilder } from './conversationBuilder.ts';
-import { createLogger } from '../utils/logger.ts';
+import { messageRepository } from "../repositories/message.ts";
+import { agentToolCallRepository } from "../repositories/agentToolCall.ts";
+import { agentRequestRepository } from "../repositories/agentRequest.ts";
+import { ClaudeConversationBuilder } from "./conversationBuilder.ts";
+import { createLogger } from "../utils/logger.ts";
 
-const logger = createLogger('ConversationLoader');
+const logger = createLogger("ConversationLoader");
 
 export interface ConversationState {
   messages: any[]; // Claude-formatted messages
@@ -43,12 +43,12 @@ export class ConversationLoader {
     threadId: string,
     requestId: string
   ): Promise<ConversationState> {
-    logger.info('Loading conversation', { threadId, requestId });
+    logger.info("Loading conversation", { threadId, requestId });
 
     const request = await agentRequestRepository.findById(requestId);
     const isResume = !!(request && request.responseMessageId);
 
-    logger.info('Conversation mode detected', {
+    logger.info("Conversation mode detected", {
       requestId,
       isResume,
       responseMessageId: request?.responseMessageId,
@@ -66,15 +66,15 @@ export class ConversationLoader {
       threadId
     );
 
-    logger.info('Database query results', {
+    logger.info("Database query results", {
       messagesCount: threadMessages.length,
       toolCallsCount: threadToolCalls.length,
     });
 
     // DEBUG: Log tool call states for conversation building
     if (threadToolCalls.length > 0) {
-      logger.info('🔧 Tool calls loaded for conversation', {
-        toolCalls: threadToolCalls.map(tc => ({
+      logger.info("🔧 Tool calls loaded for conversation", {
+        toolCalls: threadToolCalls.map((tc) => ({
           id: tc.id,
           toolName: tc.toolName,
           approvalStatus: tc.approvalStatus,
@@ -85,7 +85,7 @@ export class ConversationLoader {
     }
 
     // Extract accumulated text and tool calls from response message (if exists)
-    let accumulatedText = '';
+    let accumulatedText = "";
     const toolCallsList: Array<{
       id: string;
       toolName: string;
@@ -107,7 +107,7 @@ export class ConversationLoader {
           toolCallsList.push(...responseMessage.toolCalls);
         }
 
-        logger.info('Loaded state from response message', {
+        logger.info("Loaded state from response message", {
           responseMessageId: request.responseMessageId,
           toolCallsCount: toolCallsList.length,
         });
@@ -117,7 +117,7 @@ export class ConversationLoader {
     // Build Claude-compliant conversation
     const builder = new ClaudeConversationBuilder(
       threadToolCalls,
-      'ConversationLoader'
+      "ConversationLoader"
     );
 
     // Include ALL messages (including response message on resume)
@@ -125,16 +125,17 @@ export class ConversationLoader {
     // for approved/rejected tools based on threadToolCalls
     const messagesToBuild = threadMessages;
 
-    logger.info('Building conversation', {
+    logger.info("Building conversation", {
       messagesCount: messagesToBuild.length,
       isResume,
-      responseMessageIncluded: isResume && request.responseMessageId
-        ? threadMessages.some(m => m.id === request.responseMessageId)
-        : false,
+      responseMessageIncluded:
+        isResume && request.responseMessageId
+          ? threadMessages.some((m) => m.id === request.responseMessageId)
+          : false,
     });
 
     for (const msg of messagesToBuild) {
-      if (msg.role === 'user') {
+      if (msg.role === "user") {
         builder.addUserMessage(msg.content);
       } else {
         builder.addAssistantMessage(msg);
@@ -143,7 +144,7 @@ export class ConversationLoader {
 
     const messages = builder.build();
 
-    logger.info('Conversation built', {
+    logger.info("Conversation built", {
       claudeMessagesCount: messages.length,
       isResume,
     });

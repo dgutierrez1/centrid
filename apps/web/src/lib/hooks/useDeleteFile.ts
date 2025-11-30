@@ -1,7 +1,6 @@
 import { filesystemState, clearFileSelection } from '@/lib/state/filesystem';
 import { useGraphQLMutation } from '@/lib/graphql/useGraphQLMutation';
-import { DeleteFileDocument } from '@/types/graphql';
-import type { File } from '@/types/graphql';
+import { DeleteFileDocument, type DeleteFileMutation, type DeleteFileMutationVariables, type File } from '@/types/graphql';
 
 /**
  * useDeleteFile - Custom hook for deleting files
@@ -15,7 +14,7 @@ import type { File } from '@/types/graphql';
  */
 
 export function useDeleteFile() {
-  const { mutate, isLoading } = useGraphQLMutation({
+  const { mutate, isLoading } = useGraphQLMutation<DeleteFileMutationVariables, DeleteFileMutation, { originalSelectedFile: File | null }>({
     mutation: DeleteFileDocument,
     optimisticUpdate: (permanentId, input) => {
       // Store original state for rollback
@@ -46,7 +45,8 @@ export function useDeleteFile() {
    * Delete a file with optimistic update
    */
   const deleteFile = async (fileId: string) => {
-    const result = await mutate({ id: fileId });
+    const { promise } = mutate({ id: fileId });
+    const result = await promise;
     return result.success
       ? { success: true }
       : { success: false, error: result.error };

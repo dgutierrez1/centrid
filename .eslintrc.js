@@ -76,11 +76,11 @@ module.exports = {
         'no-console': 'warn', // Warn instead of error for frontend
       },
     },
-    // Test files - relax some rules
+    // Test files - relax some rules (but keep type safety strict)
     {
       files: ['**/*.test.ts', '**/*.spec.ts', '**/test/**/*.ts'],
       rules: {
-        '@typescript-eslint/no-explicit-any': 'warn',
+        '@typescript-eslint/no-explicit-any': 'error', // Keep strict - no any even in tests
         'no-console': 'off',
       },
     },

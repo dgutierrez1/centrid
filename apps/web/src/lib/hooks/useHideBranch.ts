@@ -1,10 +1,10 @@
 import { aiAgentState } from '@/lib/state/aiAgentState';
 import { useGraphQLMutation } from '@/lib/graphql/useGraphQLMutation';
-import { UpdateThreadDocument } from '@/types/graphql';
+import { UpdateThreadDocument, type UpdateThreadMutation, type UpdateThreadMutationVariables } from '@/types/graphql';
 import toast from 'react-hot-toast';
 
 export function useHideBranch() {
-  const { mutate, isLoading } = useGraphQLMutation({
+  const { mutate, isLoading } = useGraphQLMutation<UpdateThreadMutationVariables, UpdateThreadMutation>({
     mutation: UpdateThreadDocument,
     optimisticUpdate: (permanentId, input) => {
       // Store previous state for rollback (using any to bypass type checking for blacklistedBranches)

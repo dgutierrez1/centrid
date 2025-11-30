@@ -53,11 +53,13 @@ FolderType.implement({
     path: t.exposeString('path', { description: 'Computed path from hierarchy' }),
     createdAt: t.field({
       type: 'DateTime',
+      nullable: false,
       description: 'Creation timestamp',
       resolve: (folder) => folder.createdAt, // Already ISO string from database
     }),
     updatedAt: t.field({
       type: 'DateTime',
+      nullable: false,
       description: 'Last update timestamp',
       resolve: (folder) => folder.updatedAt, // Already ISO string from database
     }),

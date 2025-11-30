@@ -85,15 +85,18 @@ export function parseJsonbRow<T extends Record<string, any>>(
   const parsed = { ...row };
 
   // Try both snake_case and camelCase field names (handles both query styles)
-  const allFieldNames = new Set([...jsonbFields.snake, ...jsonbFields.camel]);
+  const allFieldNames = new Set([
+    ...Array.from(jsonbFields.snake),
+    ...Array.from(jsonbFields.camel),
+  ]);
 
-  for (const field of allFieldNames) {
+  for (const field of Array.from(allFieldNames)) {
     const value = parsed[field];
 
     // Only parse if field exists and is a string
     if (value !== undefined && value !== null && typeof value === 'string') {
       try {
-        parsed[field] = JSON.parse(value);
+        (parsed as Record<string, unknown>)[field] = JSON.parse(value);
       } catch (error) {
         console.error(
           `[Realtime] Failed to parse JSONB field ${tableName}.${field}:`,

@@ -21,7 +21,7 @@ export function useNavigateToSource() {
   const handleMessageHighlight = (messageId: string) => {
     // Wait for messages to be loaded in state
     const checkMessages = setInterval(() => {
-      const message = aiAgentState.messages.find((m) => m.message_id === messageId);
+      const message = aiAgentState.messages.find((m) => m.id === messageId);
 
       if (message) {
         clearInterval(checkMessages);

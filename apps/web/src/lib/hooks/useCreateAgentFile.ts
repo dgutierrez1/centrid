@@ -1,8 +1,8 @@
 import { aiAgentState } from '@/lib/state/aiAgentState';
 import { filesystemState, selectFile, clearFileSelection, addFile } from '@/lib/state/filesystem';
 import { useGraphQLMutation } from '@/lib/graphql/useGraphQLMutation';
-import { CreateFileDocument } from '@/types/graphql';
-import type { Provenance } from '@centrid/ui/features/ai-agent-system';
+import { CreateFileDocument, type CreateFileMutation, type CreateFileMutationVariables } from '@/types/graphql';
+import { useFileSystem } from '@/lib/contexts/filesystem.context';
 import type { File } from '@/types/graphql';
 
 /**
@@ -17,7 +17,9 @@ import type { File } from '@/types/graphql';
  */
 
 export function useCreateAgentFile() {
-  const { mutate, isLoading } = useGraphQLMutation({
+  const { user } = useFileSystem();
+
+  const { mutate, isLoading } = useGraphQLMutation<CreateFileMutationVariables, CreateFileMutation, { permanentId: string; originalSelectedFile: File | null; name: string }>({
     mutation: CreateFileDocument,
     optimisticUpdate: (permanentId, input) => {
       // Store original state for rollback
@@ -29,11 +31,14 @@ export function useCreateAgentFile() {
         name: input?.name || 'Untitled',
         content: input?.content || '',
         folderId: input?.folderId || null,
+        ownerUserId: user?.id || '',
         version: 0, // New file starts at version 0
         fileSize: 0,
         mimeType: 'text/markdown',
         path: input?.name || 'Untitled',
         indexingStatus: 'pending',
+        isAIGenerated: true,
+        source: 'ai-generated',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -65,20 +70,19 @@ export function useCreateAgentFile() {
    */
   const createFile = async (
     path: string,
-    content: string,
-    provenance?: Provenance
+    content: string
   ) => {
     // Extract name from path (agent still provides path)
     const name = path.split('/').pop() || path;
 
-    const result = await mutate({
+    const { promise } = mutate({
       name,
       content,
       threadId: aiAgentState.currentThread?.id,
       folderId: null, // Agent files not associated with folders yet
-      provenance, // Pass through for context
     });
 
+    const result = await promise;
     return result.success
       ? { success: true, data: result.data?.createFile }
       : { success: false, error: result.error };

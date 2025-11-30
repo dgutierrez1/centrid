@@ -20,13 +20,15 @@ const ToolCallType = builder.objectRef<AgentToolCall>('ToolCall').implement({
   description: 'Agent tool call requiring approval',
   fields: (t) => ({
     id: t.exposeID('id', { description: 'Tool call ID (Claude toolu_* ID)' }),
-    messageId: t.exposeString('messageId', { description: 'Triggering message ID' }),
+    triggeringMessageId: t.exposeString('triggeringMessageId', { description: 'User message that triggered this request' }),
+    responseMessageId: t.exposeString('responseMessageId', { description: 'Assistant message where tool_use block appears' }),
     threadId: t.exposeString('threadId', { description: 'Thread ID' }),
     ownerUserId: t.exposeString('ownerUserId', { description: 'Owner user ID' }),
     requestId: t.exposeString('requestId', { nullable: true, description: 'Agent request ID' }),
     toolName: t.exposeString('toolName', { description: 'Tool name (e.g., write_file, create_branch)' }),
     toolInput: t.field({
       type: 'JSON',
+      nullable: false,
       description: 'Tool input parameters (JSON)',
       resolve: (toolCall) => toolCall.toolInput,
     }),
@@ -38,15 +40,16 @@ const ToolCallType = builder.objectRef<AgentToolCall>('ToolCall').implement({
       resolve: (toolCall) => toolCall.toolOutput,
     }),
     rejectionReason: t.exposeString('rejectionReason', { nullable: true, description: 'Rejection reason if rejected' }),
-    revisionCount: t.exposeInt('revisionCount', { nullable: true, description: 'Number of revisions' }),
+    revisionCount: t.exposeInt('revisionCount', { nullable: false, description: 'Number of revisions' }),
     revisionHistory: t.field({
       type: 'JSON',
-      nullable: true,
+      nullable: false,
       description: 'Revision history (JSON)',
       resolve: (toolCall) => toolCall.revisionHistory,
     }),
     timestamp: t.field({
       type: 'DateTime',
+      nullable: false,
       description: 'Creation timestamp',
       resolve: (toolCall) => toolCall.timestamp,
     }),
@@ -155,7 +158,7 @@ builder.mutationField('approveToolCall', (t) =>
 
       const toolResult = await AgentExecutionService.executeTool(
         toolCall.toolName,
-        toolCall.toolInput,
+        toolCall.toolInput as Record<string, any>,
         toolCall.threadId,
         context.userId
       );
@@ -224,7 +227,7 @@ builder.mutationField('rejectToolCall', (t) =>
       }
 
       // Reject with revision tracking
-      const updated = await agentToolCallRepository.rejectWithRevisionTracking(
+      const { toolCall: updated } = await agentToolCallRepository.rejectWithRevisionTracking(
         args.input.id,
         args.input.reason || 'User rejected'
       );

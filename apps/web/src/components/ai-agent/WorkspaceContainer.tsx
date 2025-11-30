@@ -35,7 +35,14 @@ import { useAuthContext } from '@/components/providers/AuthProvider';
 import { usePendingToolCall } from '@/lib/hooks/usePendingToolCall';
 import { graphqlClient } from '@/lib/graphql/client';
 import { useGraphQLQuery } from '@/lib/graphql/useGraphQLQuery';
-import { GetThreadDocument, ListPendingToolCallsDocument, GetAgentRequestDocument, useCreateThreadWithMessageMutation } from '@/types/graphql';
+import {
+  GetThreadDocument,
+  ListPendingToolCallsDocument,
+  GetAgentRequestDocument,
+  useCreateThreadWithMessageMutation,
+  type ListPendingToolCallsQuery,
+  type ListPendingToolCallsQueryVariables,
+} from '@/types/graphql';
 import { createSubscription } from '@/lib/realtime';
 import { parseJsonbRow } from '@/lib/realtime/config';
 import { toast } from 'react-hot-toast';
@@ -108,7 +115,7 @@ const WorkspaceContentInner = () => {
     toolCallId: string;
     toolName: string;
     toolInput: any;
-    messageId?: string;
+    responseMessageId?: string;
   } | null>(null);
   const [threadCreationIntent, setThreadCreationIntent] = useState<{
     parentThreadId: string | null;
@@ -147,7 +154,7 @@ const WorkspaceContentInner = () => {
 
   // MVU F2.3: Load pending tools on thread mount (cold path - recovery only)
   // Uses useGraphQLQuery for proper cache integration (SSR prefetched data)
-  useGraphQLQuery({
+  useGraphQLQuery<ListPendingToolCallsQuery, ListPendingToolCallsQueryVariables>({
     query: ListPendingToolCallsDocument,
     variables: threadId ? { threadId } : { threadId: '' }, // Provide empty string if no threadId (query will be disabled anyway)
     enabled: !!threadId && !pendingToolCall, // Skip if threadId missing or already have pending tool from stream
@@ -165,7 +172,7 @@ const WorkspaceContentInner = () => {
           toolInput: typeof firstTool.toolInput === 'string'
             ? JSON.parse(firstTool.toolInput)
             : firstTool.toolInput,
-          messageId: firstTool.messageId,
+          responseMessageId: firstTool.responseMessageId,
         });
       }
     },
@@ -178,7 +185,7 @@ const WorkspaceContentInner = () => {
     // Use builder pattern for type-safe subscription with automatic camelCase transformation
     const subscription = createSubscription('agent_tool_calls')
       .channel(`tool-approvals-${threadId}`)
-      .filter({ thread_id: threadId })
+      .filter({ threadId })
       .on('UPDATE', (payload) => {
         // payload.new is automatically camelCase from builder
         const updated = payload.new;
@@ -193,7 +200,7 @@ const WorkspaceContentInner = () => {
             toolCallId: updated.id,
             toolName: updated.toolName,
             toolInput: updated.toolInput, // Already parsed from JSONB by builder
-            messageId: updated.responseMessageId,
+            responseMessageId: updated.responseMessageId,
           });
         }
       })
@@ -370,7 +377,7 @@ const WorkspaceContentInner = () => {
     if (threadId && snap.branchTree?.threads?.length > 0) {
       const path = findPathToNode(
         threadId,
-        snap.branchTree.threads,
+        [...snap.branchTree.threads],
         (t) => t.parentThreadId || null,
         (t) => t.id
       );
@@ -537,6 +544,7 @@ const WorkspaceContentInner = () => {
       console.error('No thread ID available');
       return;
     }
+    if (!user) return;
 
     // Handle "new" thread state - atomic thread + message creation
     if (threadId === 'new') {

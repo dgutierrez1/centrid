@@ -13,8 +13,8 @@ import { createLogger } from '../utils/logger.ts';
 import type {
   AgentRequest,
   AgentToolCall,
-  UpdateAgentRequestInput,
-  InsertAgentExecutionEvent
+  InsertAgentExecutionEvent,
+  InsertAgentRequest,
 } from '../db/types.js';
 
 const logger = createLogger('AgentRequestService');
@@ -32,7 +32,7 @@ export class AgentRequestService {
    */
   static async update(
     requestId: string,
-    updates: UpdateAgentRequestInput
+    updates: Partial<Pick<InsertAgentRequest, 'status' | 'progress' | 'responseMessageId' | 'results' | 'checkpoint' | 'tokenCost' | 'completedAt'>>
   ): Promise<AgentRequest> {
     return agentRequestRepository.update(requestId, updates);
   }

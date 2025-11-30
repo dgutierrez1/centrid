@@ -5,6 +5,9 @@
  */
 
 import { fileRepository } from '../repositories/file.ts';
+import { getDB } from '../functions/_shared/db.ts';
+import { files, threads } from '../db/schema.ts';
+import { and, eq, ilike } from 'drizzle-orm';
 
 export class SearchService {
   /**
@@ -72,6 +75,106 @@ export class SearchService {
       .sort((a, b) => b.relevance - a.relevance); // Sort by relevance
     
     return results;
+  }
+
+  /**
+   * Autocomplete search for quick fuzzy matching
+   */
+  static async autocomplete(
+    userId: string,
+    query: string,
+    options: {
+      entityType?: "files" | "folders" | "threads" | "all";
+      limit?: number;
+    } = {}
+  ): Promise<{
+    id: string;
+    name?: string;
+    title?: string;
+    path?: string;
+    type: "file" | "folder" | "thread";
+    branchName?: string;
+    branchId?: string;
+    relevanceScore?: number;
+    lastModified?: string;
+  }[]> {
+    const { entityType = "all", limit = 10 } = options;
+    const results: {
+      id: string;
+      name?: string;
+      title?: string;
+      path?: string;
+      type: "file" | "folder" | "thread";
+      branchName?: string;
+      branchId?: string;
+      relevanceScore?: number;
+      lastModified?: string;
+    }[] = [];
+
+    const { db, cleanup } = await getDB();
+    try {
+      // Search files if entityType includes files
+      if (entityType === "all" || entityType === "files") {
+        const fileResults = await db
+          .select({
+            id: files.id,
+            name: files.name,
+            path: files.path,
+            updatedAt: files.updatedAt,
+          })
+          .from(files)
+          .where(
+            and(
+              eq(files.ownerUserId, userId),
+              ilike(files.name, `%${query}%`)
+            )
+          )
+          .limit(limit);
+
+        results.push(
+          ...fileResults.map((f) => ({
+            id: f.id,
+            name: f.name,
+            path: f.path || f.id,
+            type: "file" as const,
+            lastModified: f.updatedAt,
+          }))
+        );
+      }
+
+      // Search threads if entityType includes threads
+      if (entityType === "all" || entityType === "threads") {
+        const threadResults = await db
+          .select({
+            id: threads.id,
+            branchTitle: threads.branchTitle,
+            updatedAt: threads.updatedAt,
+          })
+          .from(threads)
+          .where(
+            and(
+              eq(threads.ownerUserId, userId),
+              ilike(threads.branchTitle, `%${query}%`)
+            )
+          )
+          .limit(limit);
+
+        results.push(
+          ...threadResults.map((t: { id: string; branchTitle: string | null; updatedAt: string }) => ({
+            id: t.id,
+            name: t.branchTitle || "Untitled",
+            title: t.branchTitle ?? undefined, // Convert null to undefined
+            path: t.id,
+            type: "thread" as const,
+            lastModified: t.updatedAt,
+          }))
+        );
+      }
+
+      return results.slice(0, limit);
+    } finally {
+      await cleanup();
+    }
   }
 }
 

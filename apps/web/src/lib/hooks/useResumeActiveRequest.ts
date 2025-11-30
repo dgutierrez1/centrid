@@ -1,10 +1,14 @@
-import { useEffect, useRef } from 'react';
-import { useSnapshot } from 'valtio';
-import { useAgentStreaming } from './useAgentStreaming';
-import { aiAgentState } from '@/lib/state/aiAgentState';
-import { useGraphQLQuery } from '@/lib/graphql/useGraphQLQuery';
-import { ListAgentRequestsByThreadDocument } from '@/types/graphql';
-import toast from 'react-hot-toast';
+import { useEffect, useRef } from "react";
+import { useSnapshot } from "valtio";
+import { useAgentStreaming } from "./useAgentStreaming";
+import { aiAgentState } from "@/lib/state/aiAgentState";
+import { useGraphQLQuery } from "@/lib/graphql/useGraphQLQuery";
+import {
+  ListAgentRequestsByThreadDocument,
+  type ListAgentRequestsByThreadQuery,
+  type ListAgentRequestsByThreadQueryVariables,
+} from "@/types/graphql";
+import toast from "react-hot-toast";
 
 /**
  * Resume active agent requests after page load/navigation
@@ -26,10 +30,13 @@ export function useResumeActiveRequest(
   const hasResumed = useRef(false); // Prevent double-resume
 
   // Query active requests for this thread
-  const { data, loading } = useGraphQLQuery({
+  const { data, loading } = useGraphQLQuery<
+    ListAgentRequestsByThreadQuery,
+    ListAgentRequestsByThreadQueryVariables
+  >({
     query: ListAgentRequestsByThreadDocument,
     variables: { threadId },
-    enabled: !!threadId && threadId !== 'new',
+    enabled: !!threadId && threadId !== "new",
     syncToState: () => {
       // No automatic state sync - we handle request resumption manually in useEffect below
     },
@@ -43,21 +50,22 @@ export function useResumeActiveRequest(
 
     // Find active requests (pending or in_progress)
     const activeRequests = data.agentRequestsByThread.filter(
-      (req) => req.status === 'pending' || req.status === 'in_progress'
+      (req) => req.status === "pending" || req.status === "in_progress"
     );
 
     if (activeRequests.length === 0) {
-      console.log('[Recovery] No active requests found for thread:', threadId);
+      console.log("[Recovery] No active requests found for thread:", threadId);
       return;
     }
 
     // Get most recent active request (sorted by createdAt desc)
     const sortedRequests = [...activeRequests].sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
     const activeRequest = sortedRequests[0];
 
-    console.log('[Recovery] 🔄 Resuming active request', {
+    console.log("[Recovery] 🔄 Resuming active request", {
       requestId: activeRequest.id,
       status: activeRequest.status,
       progress: activeRequest.progress,
@@ -71,11 +79,14 @@ export function useResumeActiveRequest(
     // Find the assistant message index for this request
     // Look for message with matching requestId
     const assistantMessageIndex = snap.messages.findIndex(
-      (m) => m.role === 'assistant' && m.requestId === activeRequest.id
+      (m) => m.role === "assistant" && m.requestId === activeRequest.id
     );
 
     if (assistantMessageIndex === -1) {
-      console.warn('[Recovery] No assistant message found for request:', activeRequest.id);
+      console.warn(
+        "[Recovery] No assistant message found for request:",
+        activeRequest.id
+      );
       // Don't resume subscription if we can't find the message to update
       return;
     }
@@ -86,28 +97,35 @@ export function useResumeActiveRequest(
         optimisticMessageIndex: assistantMessageIndex,
         threadId,
         onToolCall: (toolCall) => {
-          console.log('[Recovery] Tool call received:', toolCall);
+          console.log("[Recovery] Tool call received:", toolCall);
           setPendingToolCall(toolCall);
         },
         onError: (error) => {
-          console.error('[Recovery] Streaming error:', error);
+          console.error("[Recovery] Streaming error:", error);
           toast.error(`Streaming error: ${error.message}`);
           // Mark message as failed
           if (aiAgentState.messages[assistantMessageIndex]) {
             aiAgentState.messages[assistantMessageIndex].isStreaming = false;
             aiAgentState.messages[assistantMessageIndex].content = [
-              { type: 'text' as const, text: '⚠️ Error: ' + error.message }
+              { type: "text" as const, text: "⚠️ Error: " + error.message },
             ];
           }
         },
       });
 
-      console.log('[Recovery] ✅ Subscription resumed successfully');
+      console.log("[Recovery] ✅ Subscription resumed successfully");
     } catch (error) {
-      console.error('[Recovery] Failed to resume subscription:', error);
-      toast.error('Failed to resume streaming');
+      console.error("[Recovery] Failed to resume subscription:", error);
+      toast.error("Failed to resume streaming");
     }
-  }, [data, loading, threadId, startStreaming, setPendingToolCall, snap.messages]);
+  }, [
+    data,
+    loading,
+    threadId,
+    startStreaming,
+    setPendingToolCall,
+    snap.messages,
+  ]);
 
   // Reset hasResumed when threadId changes
   useEffect(() => {

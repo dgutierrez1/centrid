@@ -3,19 +3,22 @@
  * Data access layer for shadow_entities table (semantic search)
  */
 
-import { eq, and } from 'drizzle-orm';
-import { shadowEntities } from '../db/schema.ts';
-import { getDB } from '../functions/_shared/db.ts';
-import { createLogger } from '../utils/logger.ts';
-import type { ShadowEntity } from '../db/types.js';
+import { eq, and } from "drizzle-orm";
+import { shadowEntities } from "../db/schema.ts";
+import { getDB } from "../functions/_shared/db.ts";
+import { createLogger } from "../utils/logger.ts";
+import type { ShadowEntity, InsertShadowEntity } from "../db/types.js";
 
-const logger = createLogger('repositories/shadowEntity');
+const logger = createLogger("repositories/shadowEntity");
 
 export const shadowEntityRepository = {
   /**
    * Find shadow entity by ID
    */
-  async findById(shadowId: string, userId: string): Promise<ShadowEntity | null> {
+  async findById(
+    shadowId: string,
+    userId: string
+  ): Promise<ShadowEntity | null> {
     const { db, cleanup } = await getDB();
     try {
       const [entity] = await db
@@ -23,7 +26,7 @@ export const shadowEntityRepository = {
         .from(shadowEntities)
         .where(
           and(
-            eq(shadowEntities.shadowId, shadowId),
+            eq(shadowEntities.id, shadowId),
             eq(shadowEntities.ownerUserId, userId)
           )
         );
@@ -38,7 +41,7 @@ export const shadowEntityRepository = {
    */
   async findByEntity(
     entityId: string,
-    entityType: 'file' | 'thread' | 'kg_node',
+    entityType: "file" | "thread" | "kg_node",
     userId: string
   ): Promise<ShadowEntity[]> {
     const { db, cleanup } = await getDB();
@@ -63,20 +66,21 @@ export const shadowEntityRepository = {
    * Find shadow entities by file ID
    */
   async findByFileId(fileId: string, userId: string): Promise<ShadowEntity[]> {
-    return this.findByEntity(fileId, 'file', userId);
+    return this.findByEntity(fileId, "file", userId);
   },
 
   /**
    * Find all shadow entities for a user
+   * Accepts null for limit to support GraphQL optional args
    */
-  async findByUserId(userId: string, limit = 100): Promise<ShadowEntity[]> {
+  async findByUserId(userId: string, limit?: number | null): Promise<ShadowEntity[]> {
     const { db, cleanup } = await getDB();
     try {
       const entities = await db
         .select()
         .from(shadowEntities)
         .where(eq(shadowEntities.ownerUserId, userId))
-        .limit(limit);
+        .limit(limit ?? 100);
       return entities;
     } finally {
       await cleanup();
@@ -86,15 +90,7 @@ export const shadowEntityRepository = {
   /**
    * Create shadow entity
    */
-  async create(
-    data: {
-      ownerUserId: string;
-      entityId: string;
-      entityType: 'file' | 'thread' | 'kg_node';
-      summary?: string;
-      structureMetadata?: Record<string, unknown>;
-    }
-  ): Promise<ShadowEntity> {
+  async create(data: Omit<InsertShadowEntity, 'id' | 'embedding' | 'lastUpdated' | 'createdAt'>): Promise<ShadowEntity> {
     const { db, cleanup } = await getDB();
     try {
       const [entity] = await db
@@ -109,8 +105,8 @@ export const shadowEntityRepository = {
         })
         .returning();
 
-      logger.info('Shadow entity created', {
-        shadowId: entity.shadowId,
+      logger.info("Shadow entity created", {
+        shadowId: entity.id,
         entityId: data.entityId,
         entityType: data.entityType,
       });
@@ -127,11 +123,7 @@ export const shadowEntityRepository = {
   async update(
     shadowId: string,
     userId: string,
-    data: {
-      summary?: string;
-      embedding?: number[];
-      structureMetadata?: Record<string, unknown>;
-    }
+    data: Partial<Pick<InsertShadowEntity, 'summary' | 'embedding' | 'structureMetadata'>>
   ): Promise<ShadowEntity | null> {
     const { db, cleanup } = await getDB();
     try {
@@ -145,15 +137,15 @@ export const shadowEntityRepository = {
         })
         .where(
           and(
-            eq(shadowEntities.shadowId, shadowId),
+            eq(shadowEntities.id, shadowId),
             eq(shadowEntities.ownerUserId, userId)
           )
         )
         .returning();
 
       if (entity) {
-        logger.info('Shadow entity updated', {
-          shadowId: entity.shadowId,
+        logger.info("Shadow entity updated", {
+          shadowId: entity.id,
           hasEmbedding: !!data.embedding,
         });
       }
@@ -176,12 +168,12 @@ export const shadowEntityRepository = {
         .delete(shadowEntities)
         .where(
           and(
-            eq(shadowEntities.shadowId, shadowId),
+            eq(shadowEntities.id, shadowId),
             eq(shadowEntities.ownerUserId, userId)
           )
         );
 
-      logger.info('Shadow entity deleted', { shadowId, success: !!result });
+      logger.info("Shadow entity deleted", { shadowId, success: !!result });
       return !!result;
     } finally {
       await cleanup();
@@ -193,13 +185,13 @@ export const shadowEntityRepository = {
    */
   async exists(
     entityId: string,
-    entityType: 'file' | 'thread' | 'kg_node',
+    entityType: "file" | "thread" | "kg_node",
     userId: string
   ): Promise<boolean> {
     const { db, cleanup } = await getDB();
     try {
       const [entity] = await db
-        .select({ shadowId: shadowEntities.shadowId })
+        .select({ id: shadowEntities.id })
         .from(shadowEntities)
         .where(
           and(

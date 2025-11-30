@@ -1,6 +1,18 @@
 import { contextReferenceRepository } from '../repositories/contextReference.ts';
 import { threadRepository } from '../repositories/thread.ts';
 import { messageRepository } from '../repositories/message.ts';
+import type { ContentBlock } from '../types/graphql.js';
+
+/**
+ * Extract text from ContentBlock[] (handles both string and ContentBlock[] content)
+ */
+function extractTextFromContent(content: ContentBlock[] | string): string {
+  if (typeof content === 'string') return content;
+  return content
+    .filter(block => block.type === 'text')
+    .map(block => ('text' in block ? block.text : '') ?? '')
+    .join('\n');
+}
 
 export interface PrimeContext {
   totalTokens: number;
@@ -59,7 +71,7 @@ export class ContextAssemblyService {
 
       const threadContext = recentMessages.map(m => ({
         id: m.id,
-        title: m.content.substring(0, 50) + '...',
+        title: extractTextFromContent(m.content).substring(0, 50) + '...',
         role: m.role,
       }));
 

@@ -1,23 +1,13 @@
 import { eq } from 'drizzle-orm';
 import { getDB } from '../functions/_shared/db.ts';
 import { userProfiles } from '../db/schema.ts';
-
-export interface CreateUserProfileInput {
-  userId: string;
-  firstName: string;
-  lastName: string;
-}
-
-export interface UpdateUserProfileInput {
-  firstName?: string;
-  lastName?: string;
-}
+import type { InsertUserProfile } from '../db/types.ts';
 
 export class UserProfileRepository {
   /**
    * Create a new user profile
    */
-  async create(input: CreateUserProfileInput) {
+  async create(input: Pick<InsertUserProfile, 'userId' | 'firstName' | 'lastName'>) {
     const { db, cleanup } = await getDB();
     try {
       const [profile] = await db
@@ -54,7 +44,7 @@ export class UserProfileRepository {
   /**
    * Update user profile
    */
-  async update(userId: string, input: UpdateUserProfileInput) {
+  async update(userId: string, input: Partial<Pick<InsertUserProfile, 'firstName' | 'lastName'>>) {
     const { db, cleanup } = await getDB();
     try {
       const [updated] = await db

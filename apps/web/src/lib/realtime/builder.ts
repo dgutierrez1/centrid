@@ -17,6 +17,7 @@ import type {
   SubscriptionCallback,
   SubscriptionOptions,
   EventHandlerMap,
+  PayloadForEvent,
 } from "./types";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
@@ -59,17 +60,20 @@ export class RealtimeSubscriptionBuilder<T extends TableName> {
    * Add an event listener
    *
    * @param event - Event type to listen for
-   * @param callback - Callback function with typed payload
+   * @param callback - Callback function with typed payload (narrowed by event type)
    * @returns this for chaining
    *
    * @example
    * builder.on('INSERT', (payload) => {
-   *   console.log('New row:', payload.new);
+   *   console.log('New row:', payload.new);  // payload.new is non-null for INSERT
    * })
    */
-  on(event: RealtimeEvent, callback: SubscriptionCallback<T>): this {
+  on<E extends RealtimeEvent>(
+    event: E,
+    callback: (payload: PayloadForEvent<T, E>) => void | Promise<void>
+  ): this {
     const callbacks = this.events.get(event) || [];
-    callbacks.push(callback);
+    callbacks.push(callback as SubscriptionCallback<T>);
     this.events.set(event, callbacks);
     return this;
   }

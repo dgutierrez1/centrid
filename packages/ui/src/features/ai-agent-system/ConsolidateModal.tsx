@@ -12,7 +12,7 @@ export interface Branch {
   parentThreadId: string | null;
   depth: number;
   artifactCount: number;
-  lastActivity: Date;
+  lastActivity: string;
   summary?: string;
 }
 
@@ -119,7 +119,7 @@ export function ConsolidateModal({
       parentThreadId: null,
       depth: 0,
       artifactCount: 0,
-      lastActivity: new Date(),
+      lastActivity: new Date().toISOString(),
     };
 
     return [rootBranch, ...childBranches];

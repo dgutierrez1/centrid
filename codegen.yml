@@ -12,7 +12,7 @@ generates:
     plugins:
       - 'typescript'                  # Base TypeScript types
       - 'typescript-operations'       # Query/Mutation types
-      - 'typescript-urql'             # urql hooks (useQuery, useMutation)
+      - 'typescript-urql'             # urql hooks (useQuery, useMutation) - includes document generation
     config:
       # urql-specific config
       withHooks: true                 # Generate useQuery/useMutation hooks
@@ -20,20 +20,20 @@ generates:
 
       # Type safety config
       skipTypename: false             # Include __typename in types
-      avoidOptionals: true            # Make fields required (strict types)
-      maybeValue: T                   # No nullable wrapper
-      inputMaybeValue: T              # Inputs also strict
       enumsAsTypes: true              # Enums as union types
       constEnums: true                # Use const enums
       futureProofEnums: true          # Future-proof enum values
       immutableTypes: false           # Allow mutations
       useTypeImports: true            # Use import type
+      # NOTE: Removed avoidOptionals, maybeValue, inputMaybeValue
+      # to preserve three-state semantic (undefined/null/value)
 
       # Custom scalars
       scalars:
         DateTime: string              # DateTime → string
         Upload: File                  # Upload → File
         JSON: unknown                 # JSON → unknown (safer than any, requires explicit type assertions)
+        UUID: string                  # UUID → string (prevents any default)
 
   # Backend API types (for service layer and testing)
   apps/api/src/types/graphql.ts:
@@ -50,6 +50,7 @@ generates:
         DateTime: string
         Upload: File
         JSON: unknown
+        UUID: string
 
   # UI Package types (for pure UI components)
   packages/ui/src/types/graphql.ts:
@@ -58,13 +59,13 @@ generates:
     config:
       # Type safety config
       skipTypename: true              # No __typename for UI
-      avoidOptionals: true            # Make fields required (strict types)
-      maybeValue: T                   # No nullable wrapper
       enumsAsTypes: true              # Enums as union types
       useTypeImports: true            # Use import type
+      # NOTE: Removed avoidOptionals, maybeValue to match other targets
 
       # Custom scalars (match other packages)
       scalars:
         DateTime: string
         Upload: File
         JSON: unknown
+        UUID: string

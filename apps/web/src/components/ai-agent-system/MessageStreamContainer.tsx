@@ -35,8 +35,8 @@ export function MessageStreamContainer() {
       messages.push({
         id: msg.id, // Add ID field for React keys
         role: msg.role,
-        content: msg.content, // Always use content (no streamingBuffer)
-        events: msg.events as any[] | undefined,
+        content: msg.content ? [...msg.content] : undefined, // Spread to mutable copy
+        events: msg.events,
         timestamp: msg.timestamp,
         isStreaming: msg.isStreaming,
         isRequestLoading: msg.isRequestLoading,
@@ -61,7 +61,7 @@ export function MessageStreamContainer() {
       id: 'streaming-indicator', // Add ID for React keys
       role: 'assistant',
       content: [{ type: 'text', text: '' }], // Empty text block for loading state
-      timestamp: new Date(),
+      timestamp: new Date().toISOString(),
       isStreaming: true,
       isRequestLoading,
     })

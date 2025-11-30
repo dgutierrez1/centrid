@@ -13,7 +13,7 @@ export interface Branch {
   parentThreadId: string | null;
   depth: number;
   artifactCount: number;
-  lastActivity: Date;
+  lastActivity: string;
   summary?: string;
 }
 
@@ -256,7 +256,7 @@ export function BranchSelector({
                   <span>{branch.artifactCount} artifacts</span>
                   <span>?</span>
                   <span>
-                    {branch.lastActivity.toLocaleString([], {
+                    {new Date(branch.lastActivity).toLocaleString([], {
                       month: 'short',
                       day: 'numeric',
                       hour: '2-digit',

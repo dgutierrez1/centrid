@@ -1,28 +1,28 @@
 import { useRouter } from 'next/router';
-import { aiAgentActions } from '../state/aiAgentState';
+import { aiAgentActions, type UIThread } from '../state/aiAgentState';
 import { useGraphQLMutation } from '../graphql/useGraphQLMutation';
-import { CreateThreadDocument } from '@/types/graphql';
+import { CreateThreadDocument, type CreateThreadMutation, type CreateThreadMutationVariables } from '@/types/graphql';
 
 export function useCreateBranch() {
   const router = useRouter();
 
-  const { mutate, isLoading } = useGraphQLMutation({
+  const { mutate, isLoading } = useGraphQLMutation<CreateThreadMutationVariables, CreateThreadMutation, { permanentId: string }>({
     mutation: CreateThreadDocument,
     optimisticUpdate: (permanentId, input) => {
       // Set creating state
       aiAgentActions.setIsCreatingBranch(true);
 
       // Create optimistic thread with permanent UUID
-      const now = new Date();
-      const thread = {
+      const now = new Date().toISOString();
+      const thread: UIThread = {
         id: permanentId, // Server will use same ID
         title: input?.input?.branchTitle || 'Untitled',
-        parentThreadId: input?.input?.parentThreadId || undefined,
+        parentThreadId: input?.input?.parentThreadId ?? null,
         depth: 0,
         artifactCount: 0,
         lastActivity: now,
-        createdAt: now.toISOString(),
-        updatedAt: now.toISOString(),
+        createdAt: now,
+        updatedAt: now,
       };
 
       aiAgentActions.addThreadToBranchTree(thread);

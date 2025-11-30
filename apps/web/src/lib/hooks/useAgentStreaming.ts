@@ -11,7 +11,7 @@ export interface AgentStreamingOptions {
     toolCallId: string;
     toolName: string;
     toolInput: any;
-    messageId?: string;
+    responseMessageId?: string;
   }) => void;
   onComplete?: () => void;
   onError?: (error: Error) => void;
@@ -172,7 +172,7 @@ export function useAgentStreaming() {
                 toolCallId: eventData.toolCallId,
                 toolName: eventData.toolName,
                 toolInput: eventData.toolInput,
-                messageId: eventData.messageId,
+                responseMessageId: eventData.responseMessageId,
               });
             }
             break;

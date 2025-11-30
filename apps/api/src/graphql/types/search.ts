@@ -136,8 +136,6 @@ const SearchResultType = builder.unionType("SearchResult", {
         return ThreadSearchResultType;
       case "concept":
         return ConceptSearchResultType;
-      default:
-        throw new Error(`Unknown entity type: ${result.entityType}`);
     }
   },
 });

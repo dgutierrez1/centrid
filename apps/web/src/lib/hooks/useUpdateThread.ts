@@ -1,9 +1,9 @@
-import { aiAgentActions, aiAgentState } from '../state/aiAgentState';
+import { aiAgentActions, aiAgentState, type UIThread } from '../state/aiAgentState';
 import { useGraphQLMutation } from '../graphql/useGraphQLMutation';
-import { UpdateThreadDocument } from '@/types/graphql';
+import { UpdateThreadDocument, type UpdateThreadMutation, type UpdateThreadMutationVariables } from '@/types/graphql';
 
 export function useUpdateThread() {
-  const { mutate, isLoading } = useGraphQLMutation({
+  const { mutate, isLoading } = useGraphQLMutation<UpdateThreadMutationVariables, UpdateThreadMutation, { oldThread: UIThread | null }>({
     mutation: UpdateThreadDocument,
     optimisticUpdate: (permanentId, input) => {
       const oldThread = aiAgentState.currentThread;

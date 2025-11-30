@@ -169,10 +169,9 @@ export class ThreadService {
       throw new Error('Access denied');
     }
 
-    // Update thread
+    // Update thread (note: summary is not stored in threads table)
     const updated = await threadRepository.update(threadId, {
       branchTitle: updates.title,
-      threadSummary: updates.summary,
     });
 
     logger.info('Thread updated successfully', { threadId });
@@ -263,9 +262,9 @@ export class ThreadService {
     userId: string;
     title: string;
     messageContent: string;
-    parentThreadId?: string;
-    messageIdempotencyKey?: string;
-    requestId?: string; // Optional client-provided UUID for agent request
+    parentThreadId?: string | null;
+    messageIdempotencyKey?: string | null;
+    requestId?: string | null;
   }): Promise<{ thread: any; message: Message }> {
     logger.info('Creating thread with initial message', {
       title: input.title,

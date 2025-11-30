@@ -1,12 +1,12 @@
 import { useRouter } from 'next/router';
-import { aiAgentActions, aiAgentState } from '../state/aiAgentState';
+import { aiAgentActions, aiAgentState, type UIThread } from '../state/aiAgentState';
 import { useGraphQLMutation } from '../graphql/useGraphQLMutation';
-import { DeleteThreadDocument } from '@/types/graphql';
+import { DeleteThreadDocument, type DeleteThreadMutation, type DeleteThreadMutationVariables } from '@/types/graphql';
 
 export function useDeleteThread() {
   const router = useRouter();
 
-  const { mutate, isLoading } = useGraphQLMutation({
+  const { mutate, isLoading } = useGraphQLMutation<DeleteThreadMutationVariables, DeleteThreadMutation, { thread: UIThread | undefined; parentId: string | null | undefined }>({
     mutation: DeleteThreadDocument,
     optimisticUpdate: (permanentId, input) => {
       // Store thread for rollback

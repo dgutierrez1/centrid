@@ -37,6 +37,7 @@ const UsageEventType = builder.objectRef<UsageEvent>('UsageEvent').implement({
     }),
     createdAt: t.field({
       type: 'DateTime',
+      nullable: false,
       resolve: (event) => event.createdAt,
     }),
   }),
@@ -46,7 +47,13 @@ const UsageEventType = builder.objectRef<UsageEvent>('UsageEvent').implement({
 // Aggregate Types (for analytics)
 // ============================================================================
 
-const UsageStatsType = builder.objectType('UsageStats', {
+// Shape for UsageStats (for objectRef)
+interface UsageStats {
+  totalTokens: number;
+  totalCost: number;
+}
+
+const UsageStatsType = builder.objectRef<UsageStats>('UsageStats').implement({
   description: 'Aggregated usage statistics',
   fields: (t) => ({
     totalTokens: t.exposeInt('totalTokens', { description: 'Total tokens used' }),
@@ -73,8 +80,8 @@ builder.queryField('usageEvents', (t) =>
       const userId = args.userId || context.userId;
 
       return await usageEventRepository.findByUserId(userId, {
-        startDate: args.startDate, // Already ISO string from DateTime scalar
-        endDate: args.endDate, // Already ISO string from DateTime scalar
+        startDate: args.startDate,
+        endDate: args.endDate,
         limit: args.limit,
         offset: args.offset,
       });
@@ -92,7 +99,7 @@ builder.queryField('usageStats', (t) =>
     },
     resolve: async (parent, args, context) => {
       const userId = args.userId || context.userId;
-      const startDate = args.startDate; // Already ISO string from DateTime scalar
+      const startDate = args.startDate ?? undefined; // Convert null to undefined
 
       const [totalTokens, totalCost] = await Promise.all([
         usageEventRepository.getTotalTokensByUserId(userId, startDate),

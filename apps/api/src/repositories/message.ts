@@ -81,8 +81,9 @@ export class MessageRepository {
 
   /**
    * Find all messages for a thread
+   * Accepts null for limit/offset to support GraphQL optional args
    */
-  async findByThreadId(threadId: string, limit: number = 50, offset: number = 0) {
+  async findByThreadId(threadId: string, limit?: number | null, offset?: number | null) {
     const { db, cleanup } = await getDB();
     try {
       return await db
@@ -90,8 +91,8 @@ export class MessageRepository {
         .from(messages)
         .where(eq(messages.threadId, threadId))
         .orderBy(messages.timestamp)
-        .limit(limit)
-        .offset(offset);
+        .limit(limit ?? 50)
+        .offset(offset ?? 0);
     } finally {
       await cleanup();
     }

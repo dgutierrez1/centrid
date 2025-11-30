@@ -2,27 +2,15 @@ import { eq, and, isNull } from 'drizzle-orm';
 import { getDB } from '../functions/_shared/db.ts';
 import { threads } from '../db/schema.ts';
 import { createLogger } from '../utils/logger.ts';
+import type { InsertThread } from '../db/types.ts';
 
 const logger = createLogger('repositories/thread');
-
-export interface CreateThreadInput {
-  id?: string;
-  ownerUserId: string;
-  parentThreadId?: string | null;
-  branchTitle: string;
-  creator: 'user' | 'agent' | 'system';
-}
-
-export interface UpdateThreadInput {
-  branchTitle?: string;
-  threadSummary?: string;
-}
 
 export class ThreadRepository {
   /**
    * Create a new thread
    */
-  async create(input: CreateThreadInput) {
+  async create(input: Pick<InsertThread, 'ownerUserId' | 'creator'> & { id?: string; parentThreadId?: string | null; branchTitle?: string }) {
     const { db, cleanup } = await getDB();
     try {
       const values: any = {
@@ -130,7 +118,7 @@ export class ThreadRepository {
   /**
    * Update thread
    */
-  async update(threadId: string, updates: UpdateThreadInput) {
+  async update(threadId: string, updates: Partial<Pick<InsertThread, 'branchTitle'>>) {
     const { db, cleanup } = await getDB();
     try {
       const [thread] = await db

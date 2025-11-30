@@ -1,20 +1,20 @@
 import { useRouter } from 'next/router';
 import { useGraphQLMutation } from '@/lib/graphql/useGraphQLMutation';
-import { UpdateThreadDocument, DeleteThreadDocument } from '@/types/graphql';
-import { aiAgentActions, aiAgentState } from '@/lib/state/aiAgentState';
+import { UpdateThreadDocument, DeleteThreadDocument, type UpdateThreadMutation, type UpdateThreadMutationVariables, type DeleteThreadMutation, type DeleteThreadMutationVariables } from '@/types/graphql';
+import { aiAgentActions, aiAgentState, type UIThread } from '@/lib/state/aiAgentState';
 
 export function useThreadOperations() {
   const router = useRouter();
 
   // Rename operation
-  const { mutate: renameThreadMutation, isLoading: isRenaming } = useGraphQLMutation({
+  const { mutate: renameThreadMutation, isLoading: isRenaming } = useGraphQLMutation<UpdateThreadMutationVariables, UpdateThreadMutation, { threadId: string; previousTitle: string | undefined }>({
     mutation: UpdateThreadDocument,
     optimisticUpdate: (permanentId, input) => {
       // Store previous title for rollback
       const thread = aiAgentState.branchTree.threads.find(t => t.id === input?.id);
       const previousTitle = thread?.title;
       const threadId = input?.id || '';
-      const newTitle = input?.branchTitle || '';
+      const newTitle = input?.input?.branchTitle || '';
 
       // Optimistic update (manually update thread in tree)
       const updatedThreads = aiAgentState.branchTree.threads.map(t =>
@@ -41,7 +41,7 @@ export function useThreadOperations() {
   });
 
   // Delete operation
-  const { mutate: deleteThreadMutation, isLoading: isDeleting } = useGraphQLMutation({
+  const { mutate: deleteThreadMutation, isLoading: isDeleting } = useGraphQLMutation<DeleteThreadMutationVariables, DeleteThreadMutation, { thread: UIThread | undefined }>({
     mutation: DeleteThreadDocument,
     optimisticUpdate: (permanentId, input) => {
       // Store thread for rollback
@@ -68,19 +68,21 @@ export function useThreadOperations() {
   });
 
   const renameThread = async (id: string, newTitle: string) => {
-    const result = await renameThreadMutation({
+    const { promise } = renameThreadMutation({
       id,
-      branchTitle: newTitle,
+      input: { branchTitle: newTitle },
     });
 
+    const result = await promise;
     if (!result.success) {
       throw new Error(result.error);
     }
   };
 
   const deleteThread = async (id: string, currentThreadId?: string) => {
-    const result = await deleteThreadMutation({ id });
+    const { promise } = deleteThreadMutation({ id });
 
+    const result = await promise;
     if (!result.success) {
       throw new Error(result.error);
     }

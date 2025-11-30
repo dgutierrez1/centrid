@@ -227,8 +227,8 @@ export const messages = pgTable('messages', {
   ownerUserId: uuid('owner_user_id').notNull(), // FK to auth.users(id) ON DELETE CASCADE
   role: text('role').notNull(), // 'user' or 'assistant'
   content: contentBlockArray('content').notNull(), // ContentBlock[] with type safety
-  toolCalls: jsonb('tool_calls').default([]),
-  tokensUsed: integer('tokens_used').default(0),
+  toolCalls: jsonb('tool_calls').default([]).notNull(),
+  tokensUsed: integer('tokens_used').default(0).notNull(),
   timestamp: timestamp('timestamp', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   requestId: uuid('request_id'), // FK to agent_requests(id) ON DELETE SET NULL (only set for user messages)
   idempotencyKey: uuid('idempotency_key').unique(), // For deduplication across optimistic updates and real-time sync
@@ -246,23 +246,25 @@ export const messages = pgTable('messages', {
 
 export const agentToolCalls = pgTable('agent_tool_calls', {
   id: uuid('id').primaryKey().defaultRandom(),
-  messageId: uuid('message_id').notNull(), // FK to messages(id) ON DELETE CASCADE
+  triggeringMessageId: uuid('triggering_message_id').notNull(), // FK to messages(id) - User message that triggered this request
+  responseMessageId: uuid('response_message_id').notNull(), // FK to messages(id) - Assistant message where tool_use block appears
   threadId: uuid('thread_id').notNull(), // FK to threads(id) ON DELETE CASCADE
   ownerUserId: uuid('owner_user_id').notNull(), // FK to auth.users(id) ON DELETE CASCADE
-  requestId: uuid('request_id'), // NEW: FK to agent_requests(id) ON DELETE CASCADE (optional, set later)
+  requestId: uuid('request_id'), // FK to agent_requests(id) ON DELETE CASCADE (optional, set later)
   toolName: text('tool_name').notNull(), // 'write_file', 'create_branch', etc
   toolInput: jsonb('tool_input').notNull(),
-  approvalStatus: text('approval_status').default('pending'), // 'pending', 'approved', 'rejected'
+  approvalStatus: text('approval_status').default('pending').notNull(), // 'pending', 'approved', 'rejected'
   toolOutput: jsonb('tool_output'), // Result of tool execution
   rejectionReason: text('rejection_reason'), // Why tool was rejected
-  revisionCount: integer('revision_count').default(0), // Number of rejection + retry cycles
-  revisionHistory: jsonb('revision_history').default([]), // NEW: Track revision attempts
+  revisionCount: integer('revision_count').default(0).notNull(), // Number of rejection + retry cycles
+  revisionHistory: jsonb('revision_history').default([]).notNull(), // Track revision attempts
   timestamp: timestamp('timestamp', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => ({
   idIdx: index('idx_agent_tool_calls_id').on(table.id),
   threadIdIdx: index('idx_agent_tool_calls_thread_id').on(table.threadId),
-  messageIdIdx: index('idx_agent_tool_calls_message_id').on(table.messageId),
-  requestIdIdx: index('idx_agent_tool_calls_request_id').on(table.requestId), // NEW
+  triggeringMessageIdIdx: index('idx_agent_tool_calls_triggering_message_id').on(table.triggeringMessageId),
+  responseMessageIdIdx: index('idx_agent_tool_calls_response_message_id').on(table.responseMessageId),
+  requestIdIdx: index('idx_agent_tool_calls_request_id').on(table.requestId),
   approvalStatusIdx: index('idx_agent_tool_calls_approval_status').on(table.approvalStatus),
   ownerUserIdIdx: index('idx_agent_tool_calls_owner_user_id').on(table.ownerUserId),
   createdAtIdx: index('idx_agent_tool_calls_created_at').on(table.timestamp),
@@ -279,7 +281,7 @@ export const contextReferences = pgTable('context_references', {
   entityType: text('entity_type').notNull(), // 'file', 'document', 'thread', etc
   entityReference: text('entity_reference').notNull(), // path or ID of referenced entity
   source: text('source').notNull(), // 'user-added', 'agent-added', 'inherited', etc
-  priorityTier: integer('priority_tier').default(1), // Higher = more important for context
+  priorityTier: integer('priority_tier').default(1).notNull(), // Higher = more important for context
   addedAt: timestamp('added_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => ({
   threadIdIdx: index('idx_context_references_thread_id').on(table.threadId),
@@ -305,16 +307,16 @@ export const files = pgTable('files', {
   storagePath: text('storage_path'), // Supabase Storage path for large files
   fileSize: integer('file_size'), // File size in bytes
   mimeType: text('mime_type'), // MIME type
-  indexingStatus: text('indexing_status').default('pending'), // 'pending', 'completed', 'failed'
+  indexingStatus: text('indexing_status').default('pending').notNull(), // 'pending', 'completed', 'failed'
   // Provenance tracking
-  source: text('source').default('user-uploaded'), // 'ai-generated', 'user-uploaded'
-  isAIGenerated: boolean('is_ai_generated').default(false), // Track AI-generated files
+  source: text('source').default('user-uploaded').notNull(), // 'ai-generated', 'user-uploaded'
+  isAIGenerated: boolean('is_ai_generated').default(false).notNull(), // Track AI-generated files
   createdBy: text('created_by'), // 'user' or agent name
   lastEditedBy: text('last_edited_by'),
   lastEditedAt: timestamp('last_edited_at', { withTimezone: true, mode: 'string' }),
   createdInThreadId: uuid('created_in_thread_id'), // Thread where file was created (provenance)
   // Optimistic locking
-  version: integer('version').default(0), // Version number for optimistic locking
+  version: integer('version').default(0).notNull(), // Version number for optimistic locking
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => ({
@@ -342,9 +344,9 @@ export const shadowEntities = pgTable('shadow_entities', {
   entityId: uuid('entity_id').notNull(), // file_id, thread_id, or kg_node_id
   entityType: text('entity_type').notNull(), // 'file' | 'thread' | 'kg_node'
 
-  // Semantic search
-  embedding: vector('embedding').notNull(), // 768-dim vector for semantic search
-  summary: text('summary').notNull(), // 2-3 sentence AI-generated summary
+  // Semantic search (nullable - set by background job)
+  embedding: vector('embedding'), // 768-dim vector for semantic search
+  summary: text('summary'), // 2-3 sentence AI-generated summary
 
   // Entity-specific metadata (JSONB for flexibility)
   structureMetadata: jsonb('structure_metadata'),

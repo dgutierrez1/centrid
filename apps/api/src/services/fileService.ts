@@ -113,6 +113,11 @@ export class FileService {
   /**
    * Partial file update (rename, move, or edit content)
    * Validates ownership
+   *
+   * Three-state semantic handling:
+   * - undefined: don't change the field
+   * - null: clear the field (only valid for nullable DB columns like folderId)
+   * - value: set to this value
    */
   static async updateFilePartial(
     fileId: string,
@@ -130,8 +135,27 @@ export class FileService {
       throw new Error('Access denied');
     }
 
+    // Convert GraphQL input (with nulls) to repository input (undefined only)
+    // folderId is nullable in DB, so pass null through
+    // name and content are NOT NULL in DB, convert null → skip
+    const repoUpdates: {
+      content?: string;
+      name?: string;
+      folderId?: string | null;
+    } = {};
+
+    if (updates.folderId !== undefined) {
+      repoUpdates.folderId = updates.folderId; // null passes through (move to root)
+    }
+    if (updates.name !== undefined && updates.name !== null) {
+      repoUpdates.name = updates.name;
+    }
+    if (updates.content !== undefined && updates.content !== null) {
+      repoUpdates.content = updates.content;
+    }
+
     // Update file (repository will recompute path if name or folderId changes)
-    const updated = await fileRepository.update(fileId, updates, userId);
+    const updated = await fileRepository.update(fileId, repoUpdates, userId);
 
     // TODO: Trigger shadow domain sync if content changed
     // Re-index for semantic search

@@ -9,8 +9,20 @@ import { fileRepository } from "../repositories/file.ts";
 import { threadRepository } from "../repositories/thread.ts";
 import { messageRepository } from "../repositories/message.ts";
 import { createLogger } from "../utils/logger.ts";
+import type { ContentBlock } from "../types/graphql.js";
 
 const logger = createLogger("ConsolidationService");
+
+/**
+ * Extract text from ContentBlock[] (handles both string and ContentBlock[] content)
+ */
+function extractTextFromContent(content: ContentBlock[] | string): string {
+  if (typeof content === 'string') return content;
+  return content
+    .filter(block => block.type === 'text')
+    .map(block => ('text' in block ? block.text : '') ?? '')
+    .join('\n');
+}
 
 export interface ConsolidateBranchesInput {
   threadId: string;
@@ -87,7 +99,7 @@ export class ConsolidationService {
       // ========================================================================
       // Step 1: Validate thread ownership
       // ========================================================================
-      await this.writeEvent(requestId, "consolidation_progress", {
+      await this.writeEvent(requestId, userId, "consolidation_progress", {
         stage: "Validating thread ownership",
         progress: 0.2,
       });
@@ -104,7 +116,7 @@ export class ConsolidationService {
       // ========================================================================
       // Step 2: Fetch child branches
       // ========================================================================
-      await this.writeEvent(requestId, "consolidation_progress", {
+      await this.writeEvent(requestId, userId, "consolidation_progress", {
         stage: "Fetching child branches",
         progress: 0.3,
       });
@@ -124,7 +136,7 @@ export class ConsolidationService {
       // ========================================================================
       // Step 3: Collect messages from all branches
       // ========================================================================
-      await this.writeEvent(requestId, "consolidation_progress", {
+      await this.writeEvent(requestId, userId, "consolidation_progress", {
         stage: "Collecting messages from branches",
         progress: 0.4,
       });
@@ -145,7 +157,7 @@ export class ConsolidationService {
       // ========================================================================
       // Step 4: Generate consolidated content
       // ========================================================================
-      await this.writeEvent(requestId, "consolidation_progress", {
+      await this.writeEvent(requestId, userId, "consolidation_progress", {
         stage: "Generating consolidated content",
         progress: 0.6,
       });
@@ -167,7 +179,7 @@ export class ConsolidationService {
         );
 
         for (const message of assistantMessages) {
-          consolidatedContent += message.content + "\n\n";
+          consolidatedContent += extractTextFromContent(message.content) + "\n\n";
         }
 
         consolidatedContent += "---\n\n";
@@ -176,7 +188,7 @@ export class ConsolidationService {
       // ========================================================================
       // Step 5: Create file
       // ========================================================================
-      await this.writeEvent(requestId, "consolidation_progress", {
+      await this.writeEvent(requestId, userId, "consolidation_progress", {
         stage: "Creating file",
         progress: 0.8,
       });
@@ -186,9 +198,11 @@ export class ConsolidationService {
         "/"
       );
 
+      // Note: Repository computes path from folderId + name
+      // For consolidation, we use the fileName directly (no folder)
       await fileRepository.create({
         id: fileId, // Use permanent ID
-        path: filePath,
+        name: input.fileName, // filename (not path)
         content: consolidatedContent,
         ownerUserId: userId,
         provenance: {
@@ -202,7 +216,7 @@ export class ConsolidationService {
       // ========================================================================
       // Step 6: Send content event with provenance
       // ========================================================================
-      await this.writeEvent(requestId, "consolidation_content", {
+      await this.writeEvent(requestId, userId, "consolidation_content", {
         content: consolidatedContent,
         provenance,
       });
@@ -210,7 +224,7 @@ export class ConsolidationService {
       // ========================================================================
       // Step 7: Mark complete
       // ========================================================================
-      await this.writeEvent(requestId, "consolidation_complete", {
+      await this.writeEvent(requestId, userId, "consolidation_complete", {
         fileId,
         status: "completed",
       });
@@ -233,7 +247,7 @@ export class ConsolidationService {
       });
 
       // Write error event
-      await this.writeEvent(requestId, "consolidation_error", {
+      await this.writeEvent(requestId, userId, "consolidation_error", {
         message:
           error instanceof Error ? error.message : "Consolidation failed",
         details: error instanceof Error ? error.stack : undefined,
@@ -258,12 +272,14 @@ export class ConsolidationService {
    */
   private static async writeEvent(
     requestId: string,
+    userId: string,
     type: string,
     data: any
   ): Promise<void> {
     try {
       await agentExecutionEventRepository.create({
         requestId,
+        userId,
         type,
         data,
       });

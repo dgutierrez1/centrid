@@ -1,27 +1,20 @@
 import { eq, and } from 'drizzle-orm';
 import { getDB } from '../functions/_shared/db.ts';
 import { agentToolCalls } from '../db/schema.ts';
-
-export interface CreateToolCallInput {
-  messageId: string;
-  threadId: string;
-  ownerUserId: string;
-  toolName: string;
-  toolInput: Record<string, any>;
-  requestId?: string | null;
-}
+import type { InsertAgentToolCall } from '../db/types.ts';
 
 export class AgentToolCallRepository {
   /**
    * Create a new tool call
    */
-  async create(input: CreateToolCallInput) {
+  async create(input: Pick<InsertAgentToolCall, 'triggeringMessageId' | 'responseMessageId' | 'threadId' | 'ownerUserId' | 'toolName' | 'toolInput'> & { requestId?: string | null }) {
     const { db, cleanup } = await getDB();
     try {
       const [toolCall] = await db
         .insert(agentToolCalls)
         .values({
-          messageId: input.messageId,
+          triggeringMessageId: input.triggeringMessageId,
+          responseMessageId: input.responseMessageId,
           threadId: input.threadId,
           ownerUserId: input.ownerUserId,
           toolName: input.toolName,
@@ -124,6 +117,22 @@ export class AgentToolCallRepository {
   }
 
   /**
+   * Find all tool calls by request ID
+   */
+  async findByRequestId(requestId: string) {
+    const { db, cleanup } = await getDB();
+    try {
+      return await db
+        .select()
+        .from(agentToolCalls)
+        .where(eq(agentToolCalls.requestId, requestId))
+        .orderBy(agentToolCalls.timestamp);
+    } finally {
+      await cleanup();
+    }
+  }
+
+  /**
    * Find pending tool calls by request ID
    */
   async findPendingByRequestId(requestId: string) {
@@ -166,15 +175,15 @@ export class AgentToolCallRepository {
   }
 
   /**
-   * Find all tool calls for a message
+   * Find all tool calls for a response message
    */
-  async findByMessageId(messageId: string) {
+  async findByResponseMessageId(responseMessageId: string) {
     const { db, cleanup } = await getDB();
     try {
       return await db
         .select()
         .from(agentToolCalls)
-        .where(eq(agentToolCalls.messageId, messageId))
+        .where(eq(agentToolCalls.responseMessageId, responseMessageId))
         .orderBy(agentToolCalls.timestamp);
     } finally {
       await cleanup();
@@ -198,24 +207,7 @@ export class AgentToolCallRepository {
   }
 
   /**
-   * Update message_id for all tool calls in a request
-   */
-  async updateMessageIdForRequest(requestId: string, messageId: string) {
-    const { db, cleanup } = await getDB();
-    try {
-      await db
-        .update(agentToolCalls)
-        .set({ messageId: messageId })
-        .where(eq(agentToolCalls.requestId, requestId));
-
-      console.log('[AgentToolCall] Updated message_id for request:', requestId);
-    } finally {
-      await cleanup();
-    }
-  }
-
-  /**
-   * NEW: Find latest tool call by request (for resume logic)
+   * Find latest tool call by request (for resume logic)
    * Returns the most recent tool call for a request, used when resuming after approval
    */
   async findLatestByRequestId(requestId: string) {

@@ -43,7 +43,7 @@ const FileType = builder.objectRef<File>("File").implement({
       description: "MIME type",
     }),
     indexingStatus: t.exposeString("indexingStatus", {
-      nullable: true,
+      nullable: false,
       description: "Indexing status: pending, completed, failed",
     }),
     source: t.exposeString("source", {
@@ -67,16 +67,18 @@ const FileType = builder.objectRef<File>("File").implement({
       resolve: (file) => file.lastEditedAt, // Already ISO string from database or null
     }),
     version: t.exposeInt("version", {
-      nullable: true,
+      nullable: false,
       description: "Version number for optimistic locking",
     }),
     createdAt: t.field({
       type: "DateTime",
+      nullable: false,
       description: "Creation timestamp",
       resolve: (file) => file.createdAt, // Already ISO string from database
     }),
     updatedAt: t.field({
       type: "DateTime",
+      nullable: false,
       description: "Last update timestamp",
       resolve: (file) => file.updatedAt, // Already ISO string from database
     }),
@@ -186,7 +188,7 @@ builder.queryField("fileByPath", (t) =>
       path: t.arg.string({ required: true }),
     },
     resolve: async (parent, args, context) => {
-      return await fileRepository.findByPath(args.path, context.userId);
+      return await fileRepository.findByPath(args.path);
     },
   })
 );
@@ -299,10 +301,10 @@ builder.mutationField("uploadFile", (t) =>
 
       // Create a readable stream and read the file content
       const stream = upload.createReadStream();
-      const chunks: Buffer[] = [];
+      const chunks: Uint8Array[] = [];
 
       for await (const chunk of stream) {
-        chunks.push(chunk);
+        chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
       }
 
       // Convert to string (assumes text-based files)

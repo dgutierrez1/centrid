@@ -4,10 +4,10 @@
  * Replaces simulated agent execution with real Claude responses
  */
 
-import { Readable } from 'node:stream';
-import { createLogger } from '../utils/logger.ts';
+import { Readable } from "node:stream";
+import { createLogger } from "../utils/logger.ts";
 
-const logger = createLogger('ClaudeClient');
+const logger = createLogger("ClaudeClient");
 
 export interface ToolDefinition {
   name: string;
@@ -21,7 +21,7 @@ export interface ToolDefinition {
 
 /** Simplified ContentBlock for Claude API responses (not the full GraphQL ContentBlock type) */
 export interface ClaudeContentBlock {
-  type: 'text' | 'tool_use';
+  type: "text" | "tool_use";
   text?: string;
   id?: string;
   name?: string;
@@ -35,7 +35,7 @@ export interface ParsedResponse {
     name: string;
     input: Record<string, any>;
   }>;
-  stopReason: 'end_turn' | 'tool_use' | 'max_tokens' | string;
+  stopReason: "end_turn" | "tool_use" | "max_tokens" | string;
   usage: {
     inputTokens: number;
     outputTokens: number;
@@ -55,13 +55,13 @@ export async function* streamClaudeResponse(
     temperature?: number;
   }
 ): AsyncGenerator<any> {
-  const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
+  const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
   if (!apiKey) {
-    throw new Error('ANTHROPIC_API_KEY not set');
+    throw new Error("ANTHROPIC_API_KEY not set");
   }
 
   // Use Claude Haiku 4.5 - fastest lower-tier model, currently available
-  const model = 'claude-haiku-4-5-20251001';
+  const model = "claude-haiku-4-5-20251001";
 
   const maxTokens = options?.maxTokens ?? 4096;
   const temperature = options?.temperature ?? 0.7;
@@ -73,16 +73,16 @@ export async function* streamClaudeResponse(
     system: systemPrompt,
     tools: tools, // Pass through directly - already correctly formatted by getAvailableTools()
     tool_choice: {
-      type: 'auto',
+      type: "auto",
       disable_parallel_tool_use: true, // Enforce sequential tool execution (one tool at a time)
     },
-    messages: messages.map(m => ({
+    messages: messages.map((m) => ({
       role: m.role,
-      content: typeof m.content === 'string' ? m.content : m.content,
+      content: typeof m.content === "string" ? m.content : m.content,
     })),
   };
 
-  logger.info('Calling Claude API', {
+  logger.info("Calling Claude API", {
     model: requestBody.model,
     maxTokens,
     temperature,
@@ -90,46 +90,54 @@ export async function* streamClaudeResponse(
     toolsCount: tools.length,
   });
 
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify(requestBody),
   });
 
   if (!response.ok) {
     const errorText = await response.text();
-    logger.error('Claude API error', {
+    logger.error("Claude API error", {
       status: response.status,
       statusText: response.statusText,
       errorTextLength: errorText.length,
       errorTextFirst500: errorText.substring(0, 500),
       model: requestBody.model,
     });
-    throw new Error(`Claude API error: ${response.status} ${response.statusText} - ${errorText.substring(0, 200)}`);
+    throw new Error(
+      `Claude API error: ${response.status} ${
+        response.statusText
+      } - ${errorText.substring(0, 200)}`
+    );
   }
 
   const data = await response.json();
 
-  logger.info('Received response', {
+  logger.info("Received response", {
     stopReason: data.stop_reason,
     contentBlocksCount: data.content.length,
     usage: data.usage,
   });
 
   // Yield each content block as it comes
-  let accumulatedText = '';
-  const toolCalls: Array<{ id: string; name: string; input: Record<string, any> }> = [];
+  let accumulatedText = "";
+  const toolCalls: Array<{
+    id: string;
+    name: string;
+    input: Record<string, any>;
+  }> = [];
 
   if (data.content.length === 0) {
-    logger.warn('Claude returned empty content array', { response: data });
+    logger.warn("Claude returned empty content array", { response: data });
   }
 
   for (const block of data.content) {
-    if (block.type === 'text') {
+    if (block.type === "text") {
       // Yield text in chunks for streaming effect
       const text = block.text;
       if (text) {
@@ -140,15 +148,15 @@ export async function* streamClaudeResponse(
         while (offset < text.length) {
           const chunk = text.substring(offset, offset + 100);
           yield {
-            type: 'text_chunk',
+            type: "text_chunk",
             content: chunk,
           };
           offset += 100;
         }
       }
-    } else if (block.type === 'tool_use') {
+    } else if (block.type === "tool_use") {
       // Yield tool call
-      logger.info('Tool call detected', {
+      logger.info("Tool call detected", {
         toolId: block.id,
         toolName: block.name,
       });
@@ -160,7 +168,7 @@ export async function* streamClaudeResponse(
       });
 
       yield {
-        type: 'tool_call',
+        type: "tool_call",
         toolCallId: block.id,
         toolName: block.name,
         toolInput: block.input || {},
@@ -169,7 +177,7 @@ export async function* streamClaudeResponse(
   }
 
   // Yield completion with usage
-  logger.info('Execution complete', {
+  logger.info("Execution complete", {
     accumulatedTextLength: accumulatedText.length,
     toolCallsCount: toolCalls.length,
     inputTokens: data.usage.input_tokens,
@@ -178,7 +186,7 @@ export async function* streamClaudeResponse(
   });
 
   yield {
-    type: 'completion',
+    type: "completion",
     usage: {
       inputTokens: data.usage.input_tokens,
       outputTokens: data.usage.output_tokens,
@@ -211,40 +219,39 @@ export function buildMessagesWithToolResults(
   // Combine consecutive text blocks into single blocks for cleaner Claude API format
   // This prevents confusion from many tiny text chunks
   const consolidatedContent: any[] = [];
-  let currentText = '';
+  let currentText = "";
 
   for (const block of assistantContent) {
-    if (block.type === 'text') {
+    if (block.type === "text") {
       currentText += block.text;
     } else {
       // Flush accumulated text before non-text block
       if (currentText) {
-        consolidatedContent.push({ type: 'text', text: currentText });
-        currentText = '';
+        consolidatedContent.push({ type: "text", text: currentText });
+        currentText = "";
       }
       consolidatedContent.push(block);
     }
   }
   // Flush any remaining text
   if (currentText) {
-    consolidatedContent.push({ type: 'text', text: currentText });
+    consolidatedContent.push({ type: "text", text: currentText });
   }
 
   newMessages.push({
-    role: 'assistant',
+    role: "assistant",
     content: consolidatedContent,
   });
 
   // Add tool results from each tool call
   if (toolResults.length > 0) {
     newMessages.push({
-      role: 'user',
-      content: toolResults.map(tr => ({
-        type: 'tool_result',
+      role: "user",
+      content: toolResults.map((tr) => ({
+        type: "tool_result",
         tool_use_id: tr.toolCallId,
-        content: typeof tr.result === 'string'
-          ? tr.result
-          : JSON.stringify(tr.result),
+        content:
+          typeof tr.result === "string" ? tr.result : JSON.stringify(tr.result),
       })),
     });
   }

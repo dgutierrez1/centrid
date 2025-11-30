@@ -1,10 +1,10 @@
 import { useCallback } from 'react'
 import { filesystemState, updateFile as updateFileInState } from '@/lib/state/filesystem'
 import { useGraphQLMutation } from '@/lib/graphql/useGraphQLMutation'
-import { UpdateFileDocument } from '@/types/graphql'
+import { UpdateFileDocument, type UpdateFileMutation, type UpdateFileMutationVariables } from '@/types/graphql'
 
 export function useUpdateFile() {
-  const { mutate, isLoading } = useGraphQLMutation({
+  const { mutate, isLoading } = useGraphQLMutation<UpdateFileMutationVariables, UpdateFileMutation, { previousContent: string | undefined; fileId: string | undefined }>({
     mutation: UpdateFileDocument,
     optimisticUpdate: (permanentId, input) => {
       // Store previous content for rollback

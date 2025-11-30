@@ -2,7 +2,15 @@ import { eq } from 'drizzle-orm';
 import { getDB } from '../functions/_shared/db.ts';
 import { files, folders } from '../db/schema.ts';
 import { computeFilePath } from '../utils/pathComputation.ts';
+import type { InsertFile, File } from '../db/types.ts';
 
+/**
+ * Custom input types for file operations.
+ * These remain custom (not using InsertFile directly) because they:
+ * 1. Include business logic transformations (path computation)
+ * 2. Have domain-specific nested objects (provenance, editMetadata)
+ * 3. Handle AI-generated file context not directly in schema fields
+ */
 export interface CreateFileInput {
   id?: string; // Optional client-provided UUID
   name: string; // Filename with extension (source of truth)

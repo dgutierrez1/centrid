@@ -100,7 +100,11 @@ export function ConsolidateModalContainer({
       onApproveConsolidation={handleApproveConsolidation}
       onRejectConsolidation={handleRejectConsolidation}
       onClose={onClose}
-      consolidationProgress={progress ? progress.progress : undefined}
+      consolidationProgress={progress ? {
+        step: progress.stage,
+        current: Math.round(progress.progress * 100),
+        total: 100,
+      } : null}
       consolidatedContent={result?.content || undefined}
       sourceProvenanceMap={result?.provenance || undefined}
     />

@@ -130,6 +130,11 @@ const MessageComponent = ({
               if (block.type === 'tool_use') {
                 const toolBlock = block as ToolUseBlock;
 
+                // Skip if required fields are missing (null handling)
+                if (!toolBlock.id || !toolBlock.name) {
+                  return null;
+                }
+
                 // NEW: Check if this tool_use has a corresponding tool_result block
                 // If tool_result exists, the tool has been executed and we don't show the widget
                 const toolResult = contentBlocks.find(

@@ -3,7 +3,8 @@
 
 fragment ToolCallFields on ToolCall {
   id
-  messageId
+  triggeringMessageId
+  responseMessageId
   threadId
   ownerUserId
   toolName

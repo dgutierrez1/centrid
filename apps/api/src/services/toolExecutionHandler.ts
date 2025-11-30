@@ -14,7 +14,8 @@ export interface ToolExecutionResult {
 
 export interface ToolCallContext {
   threadId: string;
-  messageId: string;
+  triggeringMessageId: string;
+  responseMessageId: string;
   userId: string;
   requestId: string;
 }
@@ -81,7 +82,8 @@ export class ToolExecutionHandler {
 
     // Create tool_call record in database
     const record = await agentToolCallRepository.create({
-      messageId: context.messageId,
+      triggeringMessageId: context.triggeringMessageId,
+      responseMessageId: context.responseMessageId,
       threadId: context.threadId,
       ownerUserId: context.userId,
       toolName: toolCall.name,
@@ -115,7 +117,8 @@ export class ToolExecutionHandler {
     try {
       // Create tool_call record (same pattern as approval flow for consistency)
       const toolCallRecord = await agentToolCallRepository.create({
-        messageId: context.messageId,
+        triggeringMessageId: context.triggeringMessageId,
+        responseMessageId: context.responseMessageId,
         threadId: context.threadId,
         ownerUserId: context.userId,
         toolName: toolCall.name,
@@ -214,24 +217,6 @@ export class ToolExecutionHandler {
     }
   }
 
-  /**
-   * Update tool call with message ID
-   *
-   * Called after message is created to link tool calls to message.
-   */
-  async linkToolCallsToMessage(
-    requestId: string,
-    messageId: string
-  ): Promise<void> {
-    logger.info('Linking tool calls to message', { requestId, messageId });
-
-    await agentToolCallRepository.updateMessageIdForRequest(
-      requestId,
-      messageId
-    );
-
-    logger.info('Tool calls linked', { requestId, messageId });
-  }
 }
 
 export const toolExecutionHandler = new ToolExecutionHandler();

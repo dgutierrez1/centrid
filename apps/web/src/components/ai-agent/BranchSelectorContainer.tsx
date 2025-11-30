@@ -21,7 +21,7 @@ export function BranchSelectorContainer() {
     parentThreadId: thread.parentThreadId || null,
     depth: calculateDepth(thread.id),
     artifactCount: 0, // TODO: Calculate from messages/files
-    lastActivity: new Date(thread.updatedAt),
+    lastActivity: thread.updatedAt,
     summary: thread.summary,
   }));
 

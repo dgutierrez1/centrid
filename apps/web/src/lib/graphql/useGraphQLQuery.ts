@@ -9,7 +9,7 @@
  *
  * Usage:
  * ```typescript
- * const { loading, error } = useGraphQLQuery({
+ * const { loading, error } = useGraphQLQuery<ListFoldersQuery, ListFoldersQueryVariables>({
  *   query: ListFoldersDocument,
  *   variables: { userId },
  *   syncToState: (data) => {
@@ -20,14 +20,16 @@
  */
 
 import { useEffect, useRef } from "react";
-import { useQuery, type TypedDocumentNode, type AnyVariables } from "urql";
+import { useQuery, type AnyVariables } from "urql";
+import type { DocumentNode } from "graphql";
 
+/** Query options with explicit type parameters */
 export interface UseGraphQLQueryOptions<
-  TData = any,
+  TData,
   TVariables extends AnyVariables = AnyVariables
 > {
   /** GraphQL query document */
-  query: TypedDocumentNode<TData, TVariables> | string;
+  query: DocumentNode;
 
   /** Query variables */
   variables?: TVariables;
@@ -46,7 +48,7 @@ export interface UseGraphQLQueryOptions<
     | "cache-and-network";
 }
 
-export interface UseGraphQLQueryResult<TData = any> {
+export interface UseGraphQLQueryResult<TData> {
   /** Query is fetching data */
   loading: boolean;
 
@@ -62,9 +64,13 @@ export interface UseGraphQLQueryResult<TData = any> {
 
 /**
  * Reusable GraphQL query hook with Valtio state sync
+ *
+ * Requires explicit type parameters for type safety:
+ * - TData: The query result type (e.g., GetFileQuery)
+ * - TVariables: The query variables type (e.g., GetFileQueryVariables)
  */
 export function useGraphQLQuery<
-  TData = any,
+  TData,
   TVariables extends AnyVariables = AnyVariables
 >(
   options: UseGraphQLQueryOptions<TData, TVariables>
@@ -82,20 +88,18 @@ export function useGraphQLQuery<
   const lastSyncedDataRef = useRef<TData | undefined>();
 
   // Execute urql query
-  // Only include variables if they're defined AND not an empty object
-  // to avoid GraphQL UNDEFINED_VALUE errors
-  const queryOptions: any = {
+  // Build query args - urql handles undefined variables correctly
+  const [result, refetch] = useQuery<TData, TVariables>({
     query,
     pause: !enabled,
     requestPolicy,
-  };
-
-  // Only pass variables if they exist and have properties
-  if (variables !== undefined && Object.keys(variables || {}).length > 0) {
-    queryOptions.variables = variables;
-  }
-
-  const [result, refetch] = useQuery<TData, TVariables>(queryOptions);
+    // Only pass variables if they exist and have properties
+    // to avoid GraphQL UNDEFINED_VALUE errors
+    variables:
+      variables !== undefined && Object.keys(variables || {}).length > 0
+        ? variables
+        : (undefined as TVariables),
+  });
 
   // Sync result to Valtio state when data changes
   // Only sync if data is different from last sync to prevent duplicate renders

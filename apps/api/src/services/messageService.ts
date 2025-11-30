@@ -21,8 +21,8 @@ export interface CreateMessageInput {
   content: string;
   role: 'user' | 'assistant';
   contextReferences?: any[]; // Service-layer metadata (not in GraphQL)
-  idempotencyKey?: string; // For deduplication (prevents duplicate messages)
-  requestId?: string; // Optional client-provided UUID for agent request (enables optimistic updates)
+  idempotencyKey?: string | null; // For deduplication (prevents duplicate messages)
+  requestId?: string | null; // Optional client-provided UUID for agent request (enables optimistic updates)
 }
 
 /**

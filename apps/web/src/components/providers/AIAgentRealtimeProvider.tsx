@@ -44,6 +44,7 @@ export function AIAgentRealtimeProvider({ userId, children }: AIAgentRealtimePro
         if (!exists && message.id) {
           aiAgentActions.addMessage({
             id: message.id,
+            threadId: message.thread_id ?? currentThread.id,
             role: (message.role as "user" | "assistant") ?? "assistant",
             content: message.content,
             toolCalls: message.toolCalls,
@@ -97,9 +98,9 @@ export function AIAgentRealtimeProvider({ userId, children }: AIAgentRealtimePro
               parentThreadId: thread.parentThreadId ?? null,
               depth: 0,
               artifactCount: 0,
-              lastActivity: new Date(thread.updatedAt || thread.createdAt || Date.now()),
-              createdAt: thread.createdAt ?? new Date().toISOString(),
-              updatedAt: thread.updatedAt ?? new Date().toISOString(),
+              lastActivity: new Date(thread.updatedAt || thread.createdAt || Date.now()).toISOString(),
+              createdAt: new Date(thread.createdAt || Date.now()).toISOString(),
+              updatedAt: new Date(thread.updatedAt || Date.now()).toISOString(),
             });
           }
           // Update in branch tree
@@ -112,9 +113,9 @@ export function AIAgentRealtimeProvider({ userId, children }: AIAgentRealtimePro
               parentThreadId: thread.parentThreadId ?? null,
               depth: 0,
               artifactCount: 0,
-              lastActivity: new Date(thread.updatedAt || thread.createdAt || Date.now()),
-              createdAt: thread.createdAt ?? new Date().toISOString(),
-              updatedAt: thread.updatedAt ?? new Date().toISOString(),
+              lastActivity: new Date(thread.updatedAt || thread.createdAt || Date.now()).toISOString(),
+              createdAt: new Date(thread.createdAt || Date.now()).toISOString(),
+              updatedAt: new Date(thread.updatedAt || Date.now()).toISOString(),
             });
           }
         } else if (payload.eventType === 'DELETE' && payload.old?.id) {
@@ -150,6 +151,7 @@ export function AIAgentRealtimeProvider({ userId, children }: AIAgentRealtimePro
           if (!messageExists && message.id) {
             aiAgentActions.addMessage({
               id: message.id,
+              threadId: message.threadId ?? currentThread?.id ?? '',
               role: (message.role as "user" | "assistant") ?? "assistant",
               content: message.content, // Already parsed from JSONB by builder
               toolCalls: message.toolCalls, // Already parsed from JSONB by builder
@@ -184,7 +186,7 @@ export function AIAgentRealtimeProvider({ userId, children }: AIAgentRealtimePro
                 entityReference: ref.entityReference ?? '',
                 source: (ref.source as "inherited" | "manual" | "@-mentioned" | "agent-added") ?? "manual",
                 priorityTier: (ref.priorityTier as 1 | 2 | 3) ?? 2,
-                addedTimestamp: new Date(ref.addedAt ?? Date.now()),
+                addedTimestamp: new Date(ref.addedAt || Date.now()).toISOString(),
               },
             ]);
           }

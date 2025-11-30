@@ -17,7 +17,6 @@ import type {
   ToolCall,
   ContextReference,
   AgentRequest,
-  AgentSession,
   AgentExecutionEvent,
   ShadowEntity,
 } from '@/types/graphql';
@@ -42,7 +41,6 @@ export interface TableTypeMap {
   agent_tool_calls: ToolCall;
   context_references: ContextReference;
   agent_requests: AgentRequest;
-  agent_sessions: AgentSession;
   agent_execution_events: AgentExecutionEvent;
   shadow_entities: ShadowEntity;
 }
@@ -85,6 +83,37 @@ export interface RealtimePayload<T extends TableName> {
   old: Partial<TableRow<T>> | null;
   errors: string[] | null;
 }
+
+/**
+ * Event-specific payload types with narrowed nullability
+ * INSERT/UPDATE guarantee `new` exists, DELETE guarantees `old` exists
+ */
+export type InsertPayload<T extends TableName> = Omit<RealtimePayload<T>, 'new' | 'old' | 'eventType'> & {
+  eventType: 'INSERT';
+  new: TableRow<T>;
+  old: null;
+};
+
+export type UpdatePayload<T extends TableName> = Omit<RealtimePayload<T>, 'new' | 'old' | 'eventType'> & {
+  eventType: 'UPDATE';
+  new: TableRow<T>;
+  old: Partial<TableRow<T>>;
+};
+
+export type DeletePayload<T extends TableName> = Omit<RealtimePayload<T>, 'new' | 'old' | 'eventType'> & {
+  eventType: 'DELETE';
+  new: null;
+  old: Partial<TableRow<T>>;
+};
+
+/**
+ * Get payload type for specific event
+ */
+export type PayloadForEvent<T extends TableName, E extends RealtimeEvent> =
+  E extends 'INSERT' ? InsertPayload<T> :
+  E extends 'UPDATE' ? UpdatePayload<T> :
+  E extends 'DELETE' ? DeletePayload<T> :
+  RealtimePayload<T>;
 
 // ============================================================================
 // Filter Types

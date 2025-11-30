@@ -58,11 +58,12 @@ const ContextReferenceType = builder
         description: "Source: user-added, agent-added, inherited",
       }),
       priorityTier: t.exposeInt("priorityTier", {
-        nullable: true,
+        nullable: false,
         description: "Priority: 1 (high) to 3 (low)",
       }),
       addedAt: t.field({
         type: "DateTime",
+        nullable: false,
         resolve: (ref) => ref.addedAt, // Already ISO string from database
       }),
     }),
@@ -81,10 +82,12 @@ const ThreadType = builder.objectRef<Thread>("Thread").implement({
     creator: t.exposeString("creator"),
     createdAt: t.field({
       type: "DateTime",
+      nullable: false,
       resolve: (thread) => thread.createdAt, // Already ISO string from database
     }),
     updatedAt: t.field({
       type: "DateTime",
+      nullable: false,
       resolve: (thread) => thread.updatedAt, // Already ISO string from database
     }),
     messages: t.field({
@@ -110,21 +113,23 @@ const MessageType = builder.objectRef<Message>("Message").implement({
     role: t.exposeString("role"),
     content: t.field({
       type: "JSON",
+      nullable: false,
       description: "Message content blocks (ContentBlock[] stored as JSONB)",
       resolve: (message) => message.content, // Pass-through JSONB from database
     }),
     toolCalls: t.field({
       type: "JSON",
-      nullable: true,
+      nullable: false,
       description: "Tool call IDs referenced in this message (JSON array)",
       resolve: (message) => message.toolCalls,
     }),
     tokensUsed: t.exposeInt("tokensUsed", {
-      nullable: true,
+      nullable: false,
       description: "Number of tokens used",
     }),
     timestamp: t.field({
       type: "DateTime",
+      nullable: false,
       resolve: (message) => message.timestamp, // Already ISO string from database
     }),
     requestId: t.exposeString("requestId", {
@@ -134,7 +139,8 @@ const MessageType = builder.objectRef<Message>("Message").implement({
     }),
     idempotencyKey: t.exposeString("idempotencyKey", {
       nullable: true,
-      description: "Idempotency key for deduplication (prevents duplicate messages)",
+      description:
+        "Idempotency key for deduplication (prevents duplicate messages)",
     }),
   }),
 });
@@ -169,31 +175,36 @@ const CreateThreadInput = builder.inputType("CreateThreadInput", {
   }),
 });
 
-const CreateThreadWithMessageInput = builder.inputType("CreateThreadWithMessageInput", {
-  fields: (t) => ({
-    id: t.field({
-      type: "UUID",
-      required: false,
-      description: "Optional client-provided UUID (for optimistic updates)",
+const CreateThreadWithMessageInput = builder.inputType(
+  "CreateThreadWithMessageInput",
+  {
+    fields: (t) => ({
+      id: t.field({
+        type: "UUID",
+        required: false,
+        description: "Optional client-provided UUID (for optimistic updates)",
+      }),
+      branchTitle: t.string({ required: true }),
+      parentThreadId: t.id({ required: false }),
+      messageContent: t.string({
+        required: true,
+        description: "Initial message content",
+      }),
+      messageIdempotencyKey: t.field({
+        type: "UUID",
+        required: false,
+        description:
+          "Idempotency key for the initial message (prevents duplicates)",
+      }),
+      requestId: t.field({
+        type: "UUID",
+        required: false,
+        description:
+          "Optional client-provided requestId for agent request (enables optimistic updates)",
+      }),
     }),
-    branchTitle: t.string({ required: true }),
-    parentThreadId: t.id({ required: false }),
-    messageContent: t.string({
-      required: true,
-      description: "Initial message content",
-    }),
-    messageIdempotencyKey: t.field({
-      type: "UUID",
-      required: false,
-      description: "Idempotency key for the initial message (prevents duplicates)",
-    }),
-    requestId: t.field({
-      type: "UUID",
-      required: false,
-      description: "Optional client-provided requestId for agent request (enables optimistic updates)",
-    }),
-  }),
-});
+  }
+);
 
 const UpdateThreadInput = builder.inputType("UpdateThreadInput", {
   fields: (t) => ({
@@ -256,12 +267,14 @@ const CreateMessageInput = builder.inputType("CreateMessageInput", {
     idempotencyKey: t.field({
       type: "UUID",
       required: false,
-      description: "Idempotency key for deduplication (prevents duplicate messages)",
+      description:
+        "Idempotency key for deduplication (prevents duplicate messages)",
     }),
     requestId: t.field({
       type: "UUID",
       required: false,
-      description: "Optional client-provided requestId for agent request (enables optimistic updates)",
+      description:
+        "Optional client-provided requestId for agent request (enables optimistic updates)",
     }),
   }),
 });
@@ -343,7 +356,8 @@ builder.mutationField("createThread", (t) =>
 builder.mutationField("createThreadWithMessage", (t) =>
   t.field({
     type: ThreadWithMessageType,
-    description: "Create thread with initial message and trigger execution (atomic operation)",
+    description:
+      "Create thread with initial message and trigger execution (atomic operation)",
     args: {
       input: t.arg({ type: CreateThreadWithMessageInput, required: true }),
     },
@@ -354,9 +368,9 @@ builder.mutationField("createThreadWithMessage", (t) =>
         userId: context.userId,
         title: args.input.branchTitle,
         messageContent: args.input.messageContent,
-        parentThreadId: args.input.parentThreadId || undefined,
+        parentThreadId: args.input.parentThreadId,
         messageIdempotencyKey: args.input.messageIdempotencyKey,
-        requestId: args.input.requestId, // Pass through client-provided UUID
+        requestId: args.input.requestId,
       });
     },
   })
@@ -377,7 +391,9 @@ builder.mutationField("updateThread", (t) =>
       if (thread.ownerUserId !== context.userId) {
         throw new Error("Unauthorized");
       }
-      return await threadRepository.update(args.id, args.input);
+      return await threadRepository.update(args.id, {
+        branchTitle: args.input.branchTitle,
+      });
     },
   })
 );
@@ -426,8 +442,8 @@ builder.mutationField("addContextReference", (t) =>
         ownerUserId: context.userId,
         entityType: args.input.entityType as "file" | "folder" | "thread",
         entityReference: args.input.entityReference,
-        source: args.input.source as "user-added" | "agent-added" | "inherited",
-        priorityTier: args.input.priorityTier || null,
+        source: args.input.source,
+        priorityTier: args.input.priorityTier ?? 1,
       });
     },
   })
@@ -513,11 +529,11 @@ builder.mutationField("createMessage", (t) =>
       const message = await MessageService.createMessageWithExecution({
         threadId: args.input.threadId,
         userId: context.userId,
-        role: args.input.role as "user" | "assistant" | "system",
+        role: args.input.role as "user" | "assistant",
         content: args.input.content,
         contextReferences: [],
         idempotencyKey: args.input.idempotencyKey,
-        requestId: args.input.requestId, // Pass through client-provided UUID
+        requestId: args.input.requestId,
       });
 
       return message;

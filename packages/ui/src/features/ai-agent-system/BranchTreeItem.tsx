@@ -8,7 +8,7 @@ export interface BranchTreeNode {
   parentThreadId: string | null;
   depth: number;
   artifactCount: number;
-  lastActivity?: Date;
+  lastActivity?: string;
   summary?: string;
   children?: BranchTreeNode[];
 }
@@ -140,7 +140,7 @@ export function BranchTreeItem({
               <>
                 <span>•</span>
                 <span>
-                  {branch.lastActivity.toLocaleString([], {
+                  {new Date(branch.lastActivity).toLocaleString([], {
                     month: 'short',
                     day: 'numeric',
                     hour: '2-digit',

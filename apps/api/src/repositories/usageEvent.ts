@@ -35,14 +35,15 @@ export class UsageEventRepository {
 
   /**
    * Find events by user ID with optional date range
+   * Accepts null for options to support GraphQL optional args
    */
   async findByUserId(
     userId: string,
     options?: {
-      startDate?: string;
-      endDate?: string;
-      limit?: number;
-      offset?: number;
+      startDate?: string | null;
+      endDate?: string | null;
+      limit?: number | null;
+      offset?: number | null;
     }
   ) {
     const { db, cleanup } = await getDB();
@@ -56,17 +57,18 @@ export class UsageEventRepository {
         conditions.push(lte(usageEvents.createdAt, options.endDate));
       }
 
-      let query = db
+      const query = db
         .select()
         .from(usageEvents)
         .where(and(...conditions))
-        .orderBy(desc(usageEvents.createdAt));
+        .orderBy(desc(usageEvents.createdAt))
+        .$dynamic();
 
-      if (options?.limit !== undefined) {
-        query = query.limit(options.limit);
+      if (options?.limit != null) {
+        query.limit(options.limit);
       }
-      if (options?.offset !== undefined) {
-        query = query.offset(options.offset);
+      if (options?.offset != null) {
+        query.offset(options.offset);
       }
 
       return await query;

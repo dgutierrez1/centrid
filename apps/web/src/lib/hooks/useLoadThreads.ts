@@ -1,8 +1,9 @@
-import { useEffect } from "react";
 import { aiAgentState, aiAgentActions } from "../state/aiAgentState";
 import { useGraphQLQuery } from "../graphql/useGraphQLQuery";
-import { ListAllThreadsDocument } from "@/types/graphql";
-import type { ListAllThreadsQueryVariables } from "@/types/graphql";
+import {
+  ListAllThreadsDocument,
+  type ListAllThreadsQuery,
+} from "@/types/graphql";
 
 /**
  * Load all threads for the current user to populate branch tree
@@ -13,7 +14,7 @@ import type { ListAllThreadsQueryVariables } from "@/types/graphql";
 export function useLoadThreads() {
   // Load threads using GraphQL
   // Cookies are sent automatically - backend validates auth
-  const { loading, error } = useGraphQLQuery({
+  const { loading, error } = useGraphQLQuery<ListAllThreadsQuery>({
     query: ListAllThreadsDocument,
     // Don't pass variables for queries with no variables
     // No enabled gate - trust cookies for auth

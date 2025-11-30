@@ -10,8 +10,8 @@
  */
 
 import { createLogger } from "../utils/logger.ts";
-import { TOOL_REGISTRY } from "../config/tools.ts";
-import type { ContentBlock } from "../types/graphql.ts";
+import { TOOL_REGISTRY, getToolConfig } from "../config/tools.ts";
+import type { ContentBlock, ToolUseBlock } from "../types/graphql.ts";
 
 // ============================================================================
 // Utility Functions
@@ -19,11 +19,11 @@ import type { ContentBlock } from "../types/graphql.ts";
 
 /**
  * Check if a tool is a native Anthropic tool (handled server-side by Anthropic)
- * Native tools have a 'type' field in their configuration (e.g., web_search_20250305)
+ * Native tools have toolType: 'native' in their configuration (e.g., web_search_20250305)
  */
 function isNativeTool(toolName: string): boolean {
-  const toolConfig = TOOL_REGISTRY[toolName];
-  return !!toolConfig?.type;
+  const toolConfig = getToolConfig(toolName);
+  return toolConfig?.toolType === 'native';
 }
 
 /**
@@ -40,12 +40,14 @@ function sanitizeContentForClaude(
   if (Array.isArray(content)) {
     return content.map((block) => {
       if (block.type === "tool_use") {
+        // Cast to ToolUseBlock after type guard
+        const toolBlock = block as ToolUseBlock;
         // Return ONLY Claude-compatible fields
         return {
-          type: "tool_use",
-          id: block.id,
-          name: block.name,
-          input: block.input,
+          type: "tool_use" as const,
+          id: toolBlock.id,
+          name: toolBlock.name,
+          input: toolBlock.input,
         };
       }
       return block; // text blocks pass through unchanged

@@ -1,19 +1,13 @@
 import { eq, desc, and, gt } from 'drizzle-orm';
 import { getDB } from '../functions/_shared/db.ts';
 import { agentExecutionEvents } from '../db/schema.ts';
-
-export interface CreateAgentExecutionEventInput {
-  requestId: string;
-  userId: string;
-  type: string;
-  data: any;
-}
+import type { InsertAgentExecutionEvent } from '../db/types.ts';
 
 export class AgentExecutionEventRepository {
   /**
    * Insert execution event
    */
-  static async create(input: CreateAgentExecutionEventInput) {
+  static async create(input: Omit<InsertAgentExecutionEvent, 'id' | 'createdAt'>) {
     const { db, cleanup } = await getDB();
     try {
       const [event] = await db

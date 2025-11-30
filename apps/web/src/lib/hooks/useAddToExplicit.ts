@@ -41,7 +41,7 @@ export function useAddToExplicit(threadId: string) {
           ...currentRef,
           source: 'manual',
           priorityTier: 1,
-          addedTimestamp: new Date(),
+          addedTimestamp: new Date().toISOString(),
         });
 
       return { previousReferences, currentRef };

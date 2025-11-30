@@ -38,7 +38,7 @@ export function usePendingToolCall() {
             toolCallId: block.id,
             toolName: block.name,
             toolInput: block.input,
-            messageId: message.id,
+            responseMessageId: message.id,
           };
         }
       }

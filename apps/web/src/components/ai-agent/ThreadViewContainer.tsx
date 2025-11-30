@@ -78,9 +78,9 @@ export function ThreadViewContainer({
         parentThreadId: snap.currentThread.parentThreadId,
         depth: snap.currentThread.depth,
         artifactCount: snap.currentThread.artifactCount,
-        lastActivity: new Date(snap.currentThread.lastActivity),
-        createdAt: new Date(snap.currentThread.createdAt),
-        updatedAt: new Date(snap.currentThread.updatedAt),
+        lastActivity: snap.currentThread.lastActivity,
+        createdAt: snap.currentThread.createdAt,
+        updatedAt: snap.currentThread.updatedAt,
       };
     }
 
@@ -97,9 +97,9 @@ export function ThreadViewContainer({
       parentThreadId: thread.parentThreadId,
       depth: thread.depth,
       artifactCount: thread.artifactCount,
-      lastActivity: new Date(thread.lastActivity), // Convert ISO string to Date
-      createdAt: new Date(thread.createdAt),
-      updatedAt: new Date(thread.updatedAt),
+      lastActivity: thread.lastActivity,
+      createdAt: thread.createdAt,
+      updatedAt: thread.updatedAt,
       isActive: thread.id === threadId,
     }));
   }, [snap.branchTree.threads, threadId]);

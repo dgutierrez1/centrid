@@ -1,37 +1,19 @@
 import { eq, and } from 'drizzle-orm';
 import { getDB } from '../functions/_shared/db.ts';
 import { agentRequests } from '../db/schema.ts';
-
-export interface CreateAgentRequestInput {
-  userId: string;
-  threadId: string;
-  triggeringMessageId: string;
-  agentType: string;
-  content: string;
-  requestId?: string; // Optional client-provided UUID for optimistic updates
-}
-
-export interface UpdateAgentRequestInput {
-  status?: 'pending' | 'in_progress' | 'completed' | 'failed' | 'rejected';
-  progress?: number;
-  responseMessageId?: string;
-  results?: any;
-  checkpoint?: any;
-  tokenCost?: number;
-  completedAt?: Date;
-}
+import type { InsertAgentRequest, AgentRequest } from '../db/types.ts';
 
 export class AgentRequestRepository {
   /**
    * Create agent request
    */
-  static async create(input: CreateAgentRequestInput) {
+  static async create(input: Pick<InsertAgentRequest, 'userId' | 'threadId' | 'triggeringMessageId' | 'agentType' | 'content'> & { requestId?: string | null }) {
     const { db, cleanup } = await getDB();
     try {
       const [request] = await db
         .insert(agentRequests)
         .values({
-          id: input.requestId, // Use client-provided UUID if available, else defaultRandom()
+          id: input.requestId ?? undefined, // Use client-provided UUID if available, else defaultRandom()
           userId: input.userId,
           threadId: input.threadId,
           triggeringMessageId: input.triggeringMessageId,
@@ -84,7 +66,7 @@ export class AgentRequestRepository {
   /**
    * Update request
    */
-  static async update(requestId: string, updates: UpdateAgentRequestInput) {
+  static async update(requestId: string, updates: Partial<Pick<InsertAgentRequest, 'status' | 'progress' | 'responseMessageId' | 'results' | 'checkpoint' | 'tokenCost' | 'completedAt'>>) {
     const { db, cleanup } = await getDB();
     try {
       const [request] = await db

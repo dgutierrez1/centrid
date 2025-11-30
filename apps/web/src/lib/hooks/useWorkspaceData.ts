@@ -41,7 +41,7 @@ export function useWorkspaceData() {
     });
 
     // Only add folder if it has children or is root level
-    if (node.children!.length > 0 || !folder.parent_folder_id) {
+    if (node.children!.length > 0 || !folder.parentFolderId) {
       fileTreeData.push(node);
     }
   });
@@ -86,7 +86,7 @@ export function useWorkspaceData() {
     }
 
     const pathParts: string[] = [];
-    let currentFolderId: string | null = file.folderId;
+    let currentFolderId: string | null = file.folderId ?? null;
 
     // Traverse up the folder hierarchy (limit to 10 to prevent infinite loops)
     let depth = 0;
@@ -95,7 +95,7 @@ export function useWorkspaceData() {
       if (!folder) break;
 
       pathParts.unshift(folder.name);
-      currentFolderId = folder.parent_folder_id;
+      currentFolderId = folder.parentFolderId ?? null;
       depth++;
     }
 

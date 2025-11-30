@@ -10,14 +10,14 @@
  *
  * Usage:
  * ```typescript
- * const { mutate, isLoading } = useGraphQLMutation({
+ * const { mutate, isLoading } = useGraphQLMutation<CreateFolderInput, CreateFolderMutation>({
  *   mutation: CreateFolderDocument,
  *   optimisticUpdate: (tempId, input) => {
  *     const folder = { id: tempId, ...input };
  *     addFolder(folder);
  *     return { tempId, folder };
  *   },
- *   onSuccess: ({ tempId, data }) => {
+ *   onSuccess: ({ tempId }, data) => {
  *     removeFolder(tempId);
  *     addFolder(data.createFolder);
  *   },
@@ -31,16 +31,17 @@
  */
 
 import { useState, useCallback } from 'react';
-import { useMutation, type TypedDocumentNode, type AnyVariables } from 'urql';
+import { useMutation, type AnyVariables } from 'urql';
+import type { DocumentNode } from 'graphql';
 import toast from 'react-hot-toast';
 
 export interface UseGraphQLMutationOptions<
   TInput extends AnyVariables,
-  TOutput = any,
-  TContext = any
+  TOutput,
+  TContext = Record<string, unknown>
 > {
   /** GraphQL mutation document */
-  mutation: TypedDocumentNode<TOutput, TInput> | string;
+  mutation: DocumentNode;
 
   /**
    * Optimistic update function
@@ -78,7 +79,7 @@ export interface UseGraphQLMutationOptions<
   errorMessage: (error: string) => string;
 }
 
-export interface UseGraphQLMutationResult<TInput extends AnyVariables, TOutput = any> {
+export interface UseGraphQLMutationResult<TInput extends AnyVariables, TOutput> {
   /** Execute the mutation */
   mutate: (input: TInput) => { permanentId: string; promise: Promise<{ success: boolean; data?: TOutput; error?: string }> };
 
@@ -91,8 +92,8 @@ export interface UseGraphQLMutationResult<TInput extends AnyVariables, TOutput =
  */
 export function useGraphQLMutation<
   TInput extends AnyVariables,
-  TOutput = any,
-  TContext = any
+  TOutput,
+  TContext = Record<string, unknown>
 >(
   options: UseGraphQLMutationOptions<TInput, TOutput, TContext>
 ): UseGraphQLMutationResult<TInput, TOutput> {

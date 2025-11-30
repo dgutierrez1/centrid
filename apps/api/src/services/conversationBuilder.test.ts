@@ -14,6 +14,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ClaudeConversationBuilder } from './conversationBuilder.ts';
 import { mockToolCall } from '../test/fixtures/tool-calls.ts';
 import { mockMessage } from '../test/fixtures/messages.ts';
+import type { AgentToolCall } from '../db/types.ts';
 
 // Mock the logger to suppress console output
 vi.mock('../utils/logger.ts', () => ({
@@ -180,7 +181,7 @@ describe('ClaudeConversationBuilder', () => {
 
   describe('Test 4: Orphaned tool_use edge case', () => {
     it('skips segment when tool_call record not found', () => {
-      const toolCalls = []; // Empty - no matching record
+      const toolCalls: AgentToolCall[] = []; // Empty - no matching record
 
       const builder = new ClaudeConversationBuilder(toolCalls);
 
@@ -292,11 +293,9 @@ describe('ClaudeConversationBuilder', () => {
             id: mockToolCall.approved.id,
             name: 'read_file',
             input: { file_path: '/test.txt' },
-            // @ts-expect-error - testing internal field removal
             internalField: 'should be stripped',
-            // @ts-expect-error - testing internal field removal
             status: 'pending',
-          },
+          } as any,
         ],
       });
 

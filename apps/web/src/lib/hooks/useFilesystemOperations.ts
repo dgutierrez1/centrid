@@ -130,7 +130,7 @@ export function useFilesystemOperations() {
         throw new Error('Folder not found');
       }
 
-      const originalParentId = folder.parentFolderId;
+      const originalParentId = folder.parentFolderId ?? null;
       updateFolder(input.id, { parentFolderId: input.parentFolderId || null });
 
       return { folderId: input.id, originalParentId };
@@ -165,7 +165,7 @@ export function useFilesystemOperations() {
       const currentFile = currentDocId
         ? filesystemState.files.find((f) => f.id === currentDocId)
         : null;
-      const wasOpenDocInFolder = currentFile && currentFile.folderId === input.id;
+      const wasOpenDocInFolder = !!(currentFile && currentFile.folderId === input.id);
 
       removeFolder(input.id);
 
@@ -213,6 +213,8 @@ export function useFilesystemOperations() {
         mimeType: 'text/markdown',
         version: 0,
         indexingStatus: 'pending',
+        isAIGenerated: false,
+        source: 'user-uploaded',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -283,7 +285,7 @@ export function useFilesystemOperations() {
         throw new Error('File not found');
       }
 
-      const originalFolderId = file.folderId;
+      const originalFolderId: string | null = file.folderId ?? null;
       updateFile(input.id, { folderId: input.folderId || null });
 
       return { fileId: input.id, originalFolderId };
