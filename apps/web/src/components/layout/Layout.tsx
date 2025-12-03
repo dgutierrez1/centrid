@@ -2,7 +2,7 @@
 // Version: 3.1 - Supabase Plus MVP Architecture
 // Pure presentational component - no logic or integrations
 
-import { ReactNode } from 'react';
+import type { ReactNode } from 'react';
 
 interface LayoutProps {
   children: ReactNode;

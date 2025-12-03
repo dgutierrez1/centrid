@@ -49,6 +49,14 @@ module.exports = {
         prefer: 'type-imports',
       },
     ],
+
+    // Ban "as" type assertions for better type safety
+    '@typescript-eslint/consistent-type-assertions': [
+      'error',
+      {
+        assertionStyle: 'never',
+      },
+    ],
   },
   overrides: [
     // Edge Functions - stricter rules

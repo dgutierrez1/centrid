@@ -1,5 +1,5 @@
 import { proxy } from "valtio";
-import type { ContentBlock } from "@/types/graphql";
+import type { ContentBlock, Message } from "@/types/graphql";
 
 /**
  * UI-enhanced Thread type with computed fields for state management.
@@ -25,29 +25,33 @@ export interface UIThread {
 }
 
 /**
- * UI-enhanced Message type with client-side state fields.
+ * UI-enhanced Message type extending GraphQL Message with ephemeral UI state.
  *
- * Extends GraphQL Message type with ephemeral UI state:
- * - events: Aggregated from agent_execution_events (computed)
+ * Inherits all fields from GraphQL Message type (id, threadId, role, content,
+ * requestId, timestamp, tokensUsed, idempotencyKey, toolCalls).
+ *
+ * Note: ownerUserId is optional for optimistic updates (created before server confirmation).
+ *
+ * Adds UI-only ephemeral state (not in database):
+ * - events: Aggregated from agent_execution_events
  * - isStreaming: Client-side loading state for real-time updates
  * - isRequestLoading: Client-side state for pending requests
- * - idempotencyKey: Client-side request deduplication
+ * - streamingBuffer: Temporary content blocks during streaming
  *
  * @see apps/web/src/types/graphql.ts for base GraphQL Message type
  */
-export interface UIMessage {
-  id: string;
-  threadId: string; // Thread this message belongs to (from GraphQL Message type)
+export type UIMessage = Omit<Message, 'ownerUserId' | '__typename' | 'content' | 'role'> & {
+  // Override GraphQL loose types with stricter typing
   role: "user" | "assistant";
-  content?: ContentBlock[]; // ContentBlock[] from GraphQL JSON scalar
-  events?: any[]; // Aggregated from agent_execution_events (not in Message table)
-  toolCalls?: any[];
-  timestamp: string;
-  isStreaming?: boolean; // Client-side state (not in database)
-  isRequestLoading?: boolean; // Client-side state (not in database)
-  tokensUsed?: number;
-  idempotencyKey?: string; // Client-side request ID for deduplication (not in database)
-}
+  content?: ContentBlock[];
+  // Make ownerUserId optional for optimistic updates
+  ownerUserId?: string;
+  // UI-only ephemeral state (not in database)
+  events?: any[];
+  isStreaming?: boolean;
+  isRequestLoading?: boolean;
+  streamingBuffer?: ContentBlock[];
+};
 
 /**
  * UI-enhanced ContextReference type.

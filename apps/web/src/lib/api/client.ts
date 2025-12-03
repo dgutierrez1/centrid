@@ -8,7 +8,8 @@
  * - Support for streaming responses
  */
 
-import axios, { AxiosRequestConfig, AxiosError } from 'axios'
+import type { AxiosRequestConfig, AxiosError } from 'axios';
+import axios from 'axios'
 import { getAuthHeaders } from './getAuthHeaders'
 import { ApiError, handleApiError } from './errors'
 
@@ -34,10 +35,12 @@ axiosInstance.interceptors.request.use(
   (config) => {
     try {
       const headers = getAuthHeaders()
-      config.headers = {
-        ...config.headers,
-        ...headers,
-      }
+      // Set auth headers individually (Axios v1.x type-safe approach)
+      Object.entries(headers).forEach(([key, value]) => {
+        if (value !== undefined) {
+          config.headers.set(key, value)
+        }
+      })
     } catch (error) {
       return Promise.reject(error)
     }

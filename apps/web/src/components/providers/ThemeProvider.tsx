@@ -1,7 +1,8 @@
 // Centrid AI Filesystem - Theme Provider
 // Version: 3.1 - Supabase Plus MVP Architecture
 
-import { useEffect, ReactNode } from 'react';
+import type { ReactNode } from 'react';
+import { useEffect } from 'react';
 import { useSnapshot } from 'valtio';
 import { themeState } from '@/lib/state/theme';
 

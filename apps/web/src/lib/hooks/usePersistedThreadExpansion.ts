@@ -1,4 +1,5 @@
-import { useTreeExpansion, UseTreeExpansionResult } from './useTreeExpansion';
+import type { UseTreeExpansionResult } from './useTreeExpansion';
+import { useTreeExpansion } from './useTreeExpansion';
 import { useLocalStorageState } from './useLocalStorageState';
 
 /**

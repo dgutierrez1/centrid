@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useSnapshot } from "valtio";
 import { aiAgentState } from "@/lib/state/aiAgentState";
+import { isToolUseBlock } from "@/lib/utils/content-block-guards";
 
 /**
  * Stateless hook: derives pending tool call from message content blocks
@@ -33,7 +34,7 @@ export function usePendingToolCall() {
       const blocks = message.streamingBuffer || message.content || [];
 
       for (const block of blocks) {
-        if (block.type === "tool_use" && block.status === "pending") {
+        if (isToolUseBlock(block) && block.status === "pending") {
           return {
             toolCallId: block.id,
             toolName: block.name,

@@ -8,7 +8,7 @@
  */
 
 import { useEffect, useState } from 'react'
-import { GetServerSideProps } from 'next'
+import type { GetServerSideProps } from 'next'
 import { useRouter } from 'next/router'
 import Link from 'next/link'
 import { Button } from '@centrid/ui/components/button'

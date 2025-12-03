@@ -15,8 +15,8 @@
  * 4. TypeScript will catch any DTO/repository mismatches
  */
 
-import { InferSelectModel, InferInsertModel } from 'drizzle-orm';
-import * as schema from './schema.ts';
+import type { InferSelectModel, InferInsertModel } from 'drizzle-orm';
+import type * as schema from './schema.ts';
 
 // ============================================================================
 // SELECT TYPES (Read from Database)

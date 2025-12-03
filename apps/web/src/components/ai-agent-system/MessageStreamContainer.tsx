@@ -36,7 +36,6 @@ export function MessageStreamContainer() {
         id: msg.id, // Add ID field for React keys
         role: msg.role,
         content: msg.content ? [...msg.content] : undefined, // Spread to mutable copy
-        events: msg.events,
         timestamp: msg.timestamp,
         isStreaming: msg.isStreaming,
         isRequestLoading: msg.isRequestLoading,

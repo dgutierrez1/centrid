@@ -1,4 +1,5 @@
-import { z, ZodError, ZodSchema } from 'zod';
+import type { ZodSchema } from 'zod';
+import { z, ZodError } from 'zod';
 
 /**
  * Validates incoming request body against a Zod schema

@@ -85,7 +85,7 @@ export class ConversationLoader {
     }
 
     // Extract accumulated text and tool calls from response message (if exists)
-    let accumulatedText = "";
+    const accumulatedText = "";
     const toolCallsList: Array<{
       id: string;
       toolName: string;

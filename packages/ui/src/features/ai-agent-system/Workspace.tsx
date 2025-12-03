@@ -6,7 +6,8 @@ import { ThreadView, type ThreadViewProps } from './ThreadView';
 import { FileEditorPanel, type FileData, type FileEditorPanelProps } from './FileEditorPanel';
 import { WorkspaceHeader } from './WorkspaceHeader';
 
-export interface WorkspaceProps extends Omit<ThreadViewProps, 'className'> {
+// ThreadViewProps are optional since threadViewContent can override the default ThreadView
+export interface WorkspaceProps extends Partial<Omit<ThreadViewProps, 'className'>> {
   // Sidebar props
   sidebarActiveTab: 'files' | 'threads';
   onSidebarTabChange: (tab: 'files' | 'threads') => void;
@@ -47,7 +48,7 @@ export interface WorkspaceProps extends Omit<ThreadViewProps, 'className'> {
   onCloseFileEditor: () => void;
   onGoToSource?: (branchId: string, messageId: string) => void;
   onFileChange?: (content: string) => void;
-  saveStatus?: 'idle' | 'saving' | 'saved' | 'error' | 'offline';
+  saveStatus?: 'idle' | 'saving' | 'saved' | 'error' | 'offline' | 'conflict';
   lastSavedAt?: string | null; // ISO 8601 string from GraphQL
   hasUnsavedChanges?: boolean;
   sidebarWidth?: number;
@@ -267,19 +268,19 @@ export function Workspace({
             >
               {threadViewContent || (
                 <ThreadView
-                  currentBranch={currentBranch}
-                  branches={branches}
-                  messages={messages}
-                  contextGroups={contextGroups}
-                  messageText={messageText}
+                  currentBranch={currentBranch ?? null}
+                  branches={branches ?? []}
+                  messages={messages ?? []}
+                  contextGroups={contextGroups ?? []}
+                  messageText={messageText ?? ''}
                   isStreaming={isStreaming}
                   isLoading={isLoading}
                   showBranchSelector={false}
                   isContextExpanded={isContextExpanded}
-                  onSelectBranch={onSelectBranch}
-                  onToggleContextPanel={onToggleContextPanel}
-                  onMessageChange={onMessageChange}
-                  onSendMessage={onSendMessage}
+                  onSelectBranch={onSelectBranch ?? (() => {})}
+                  onToggleContextPanel={onToggleContextPanel ?? (() => {})}
+                  onMessageChange={onMessageChange ?? (() => {})}
+                  onSendMessage={onSendMessage ?? (() => {})}
                   onStopStreaming={onStopStreaming}
                   onBranchThread={onBranchThread}
                   onWidgetClick={onWidgetClick}

@@ -1,4 +1,4 @@
-import { GetServerSideProps } from 'next';
+import type { GetServerSideProps } from 'next';
 import { WorkspaceContainer } from '@/components/ai-agent';
 import { withServerAuth } from '@/lib/auth/serverAuth';
 

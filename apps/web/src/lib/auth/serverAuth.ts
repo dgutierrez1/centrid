@@ -5,7 +5,7 @@
  * at the server level (getServerSideProps).
  */
 
-import { GetServerSidePropsContext, GetServerSidePropsResult } from 'next'
+import type { GetServerSidePropsContext, GetServerSidePropsResult } from 'next'
 import { createServerClient } from '@/lib/supabase/server'
 import type { User } from '@supabase/supabase-js'
 

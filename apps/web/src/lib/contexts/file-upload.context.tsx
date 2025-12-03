@@ -9,11 +9,12 @@
  * - Reusable across entire app
  */
 
-import { createContext, useContext, useState, useCallback, useRef, useEffect, ReactNode } from 'react';
+import type { ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import { graphqlClient } from '@/lib/graphql/client';
 import { addFile } from '@/lib/state/filesystem';
-import type { File } from '@/types/graphql';
+import type { File as GraphQLFile } from '@/types/graphql';
 
 // GraphQL mutation for file upload
 const UPLOAD_FILE_MUTATION = `
@@ -34,10 +35,10 @@ const UPLOAD_FILE_MUTATION = `
  * Upload a file using GraphQL uploadFile mutation
  */
 async function uploadFileGraphQL(
-  file: File,
+  file: File, // Browser File type for upload
   folderId: string | null,
   onProgress?: (progress: number) => void
-): Promise<{ success: boolean; data?: File; error?: string }> {
+): Promise<{ success: boolean; data?: GraphQLFile; error?: string }> {
   try {
     // Report progress at start
     onProgress?.(0);
@@ -62,7 +63,7 @@ async function uploadFileGraphQL(
 
     return {
       success: true,
-      data: result.data.uploadFile as Document,
+      data: result.data.uploadFile as GraphQLFile,
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Upload failed';

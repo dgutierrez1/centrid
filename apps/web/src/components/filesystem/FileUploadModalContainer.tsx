@@ -8,7 +8,8 @@
  * - Parent (WorkspaceLayout): Calls useFileUpload hook and passes all state/handlers
  */
 
-import { useRef, useState, DragEvent } from 'react';
+import type { DragEvent } from 'react';
+import { useRef, useState } from 'react';
 import { FileUploadModal } from '@centrid/ui/features/filesystem-markdown-editor';
 import {
   UploadIcon,

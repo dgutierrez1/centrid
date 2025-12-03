@@ -1,7 +1,8 @@
 // Centrid AI Filesystem - Authentication Provider
 // Version: 4.0 - MVP Account Foundation (Updated)
 
-import { createContext, useContext, useEffect, useState, useMemo, useRef, ReactNode } from 'react'
+import type { ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useMemo, useRef } from 'react'
 import { useRouter } from 'next/router'
 import { supabase } from '@/lib/supabase/client'
 import { TokenStore } from '@/lib/api/tokenStore'

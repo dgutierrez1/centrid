@@ -3,6 +3,11 @@ import { aiAgentState } from "@/lib/state/aiAgentState";
 import { createSubscription } from "@/lib/realtime/builder";
 import { supabase } from "@/lib/supabase/client";
 import type { RealtimeChannel } from "@supabase/supabase-js";
+import {
+  isTextBlock,
+  isToolUseBlock,
+  isToolResultBlock,
+} from "@/lib/utils/content-block-guards";
 
 export interface AgentStreamingOptions {
   optimisticMessageIndex: number;
@@ -110,12 +115,10 @@ export function useAgentStreaming() {
 
               // Replace or append to last text block in content (Valtio proxy ensures reactivity)
               if (Array.isArray(msg.content)) {
-                if (
-                  msg.content.length > 0 &&
-                  msg.content[msg.content.length - 1].type === "text"
-                ) {
+                const lastBlock = msg.content[msg.content.length - 1];
+                if (msg.content.length > 0 && lastBlock && isTextBlock(lastBlock)) {
                   // Update existing text block with full accumulated text
-                  msg.content[msg.content.length - 1].text = fullText;
+                  lastBlock.text = fullText;
                 } else {
                   // Create new text block
                   msg.content.push({
@@ -145,8 +148,7 @@ export function useAgentStreaming() {
                 // Check if tool_use block already exists (avoid duplicates)
                 const hasToolBlock = msg.content.some(
                   (block) =>
-                    block.type === "tool_use" &&
-                    block.id === eventData.toolCallId
+                    isToolUseBlock(block) && block.id === eventData.toolCallId
                 );
 
                 if (!hasToolBlock) {
@@ -194,7 +196,7 @@ export function useAgentStreaming() {
                 // Check if tool_result already exists (avoid duplicates)
                 const hasToolResult = msg.content.some(
                   (block) =>
-                    block.type === "tool_result" &&
+                    isToolResultBlock(block) &&
                     block.tool_use_id === eventData.toolCallId
                 );
 

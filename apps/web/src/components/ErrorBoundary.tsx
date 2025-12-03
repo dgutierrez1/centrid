@@ -1,7 +1,8 @@
 // Centrid - Error Boundary Component
 // Catches React errors and displays user-friendly fallback UI
 
-import { Component, ReactNode } from 'react';
+import type { ReactNode } from 'react';
+import { Component } from 'react';
 import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 
 interface ErrorBoundaryProps {

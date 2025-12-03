@@ -9,7 +9,8 @@
  * - Real-time subscription management
  */
 
-import { createContext, useContext, useEffect, useState, ReactNode, useCallback, useRef } from 'react';
+import type { ReactNode} from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { toast } from 'react-hot-toast';
 import { createClient } from '@/lib/supabase/client';
 import { filesystemState, buildFileSystemTree, addFolder, updateFolder, removeFolder, addFile, updateFile, removeFile } from '@/lib/state/filesystem';

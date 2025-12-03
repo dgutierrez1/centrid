@@ -3,7 +3,7 @@ import { Cloud, CloudOff, AlertCircle, Clock } from 'lucide-react';
 import { BrandSpinner } from './icons';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './tooltip';
 
-export type SaveStatus = 'saving' | 'saved' | 'error' | 'offline' | 'idle';
+export type SaveStatus = 'saving' | 'saved' | 'error' | 'offline' | 'idle' | 'conflict';
 
 export interface SaveIndicatorProps {
   status: SaveStatus;

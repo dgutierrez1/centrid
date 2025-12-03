@@ -36,7 +36,8 @@
  */
 
 import { useState, useCallback, useMemo } from 'react';
-import { useMutation, type TypedDocumentNode, type AnyVariables } from 'urql';
+import type { useMutation} from 'urql';
+import { type TypedDocumentNode, type AnyVariables } from 'urql';
 import toast from 'react-hot-toast';
 
 export interface CommandConfig<TInput extends AnyVariables, TOutput = any> {

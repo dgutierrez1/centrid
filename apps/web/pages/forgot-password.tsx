@@ -7,7 +7,8 @@
  * Design: apps/design-system/public/screenshots/account-foundation/03-forgot-password-*
  */
 
-import { useState, FormEvent } from 'react'
+import type { FormEvent } from 'react';
+import { useState } from 'react'
 import Link from 'next/link'
 import { Button } from '@centrid/ui/components/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@centrid/ui/components/card'

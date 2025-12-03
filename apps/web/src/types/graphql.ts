@@ -1477,7 +1477,7 @@ export const CreateAgentRequestDocument = gql`
 
 export function useCreateAgentRequestMutation() {
   return Urql.useMutation<CreateAgentRequestMutation, CreateAgentRequestMutationVariables>(CreateAgentRequestDocument);
-};
+}
 export const CreateFileDocument = gql`
     mutation CreateFile($id: UUID, $name: String!, $content: String!, $threadId: String, $folderId: String) {
   createFile(
@@ -1490,7 +1490,7 @@ export const CreateFileDocument = gql`
 
 export function useCreateFileMutation() {
   return Urql.useMutation<CreateFileMutation, CreateFileMutationVariables>(CreateFileDocument);
-};
+}
 export const UploadFileDocument = gql`
     mutation UploadFile($file: Upload!, $folderId: ID, $threadId: ID) {
   uploadFile(file: $file, folderId: $folderId, threadId: $threadId) {
@@ -1501,7 +1501,7 @@ export const UploadFileDocument = gql`
 
 export function useUploadFileMutation() {
   return Urql.useMutation<UploadFileMutation, UploadFileMutationVariables>(UploadFileDocument);
-};
+}
 export const UpdateFileDocument = gql`
     mutation UpdateFile($id: ID!, $content: String!, $version: Int) {
   updateFile(id: $id, input: {content: $content, version: $version}) {
@@ -1512,7 +1512,7 @@ export const UpdateFileDocument = gql`
 
 export function useUpdateFileMutation() {
   return Urql.useMutation<UpdateFileMutation, UpdateFileMutationVariables>(UpdateFileDocument);
-};
+}
 export const UpdateFilePartialDocument = gql`
     mutation UpdateFilePartial($id: ID!, $name: String, $content: String, $folderId: String) {
   updateFilePartial(
@@ -1526,7 +1526,7 @@ export const UpdateFilePartialDocument = gql`
 
 export function useUpdateFilePartialMutation() {
   return Urql.useMutation<UpdateFilePartialMutation, UpdateFilePartialMutationVariables>(UpdateFilePartialDocument);
-};
+}
 export const DeleteFileDocument = gql`
     mutation DeleteFile($id: ID!) {
   deleteFile(id: $id)
@@ -1535,7 +1535,7 @@ export const DeleteFileDocument = gql`
 
 export function useDeleteFileMutation() {
   return Urql.useMutation<DeleteFileMutation, DeleteFileMutationVariables>(DeleteFileDocument);
-};
+}
 export const CreateFolderDocument = gql`
     mutation CreateFolder($id: UUID, $name: String!, $parentFolderId: String) {
   createFolder(input: {id: $id, name: $name, parentFolderId: $parentFolderId}) {
@@ -1546,7 +1546,7 @@ export const CreateFolderDocument = gql`
 
 export function useCreateFolderMutation() {
   return Urql.useMutation<CreateFolderMutation, CreateFolderMutationVariables>(CreateFolderDocument);
-};
+}
 export const UpdateFolderDocument = gql`
     mutation UpdateFolder($id: ID!, $name: String, $parentFolderId: String) {
   updateFolder(id: $id, input: {name: $name, parentFolderId: $parentFolderId}) {
@@ -1557,7 +1557,7 @@ export const UpdateFolderDocument = gql`
 
 export function useUpdateFolderMutation() {
   return Urql.useMutation<UpdateFolderMutation, UpdateFolderMutationVariables>(UpdateFolderDocument);
-};
+}
 export const DeleteFolderDocument = gql`
     mutation DeleteFolder($id: ID!) {
   deleteFolder(id: $id)
@@ -1566,7 +1566,7 @@ export const DeleteFolderDocument = gql`
 
 export function useDeleteFolderMutation() {
   return Urql.useMutation<DeleteFolderMutation, DeleteFolderMutationVariables>(DeleteFolderDocument);
-};
+}
 export const CreateMessageDocument = gql`
     mutation CreateMessage($input: CreateMessageInput!) {
   createMessage(input: $input) {
@@ -1577,7 +1577,7 @@ export const CreateMessageDocument = gql`
 
 export function useCreateMessageMutation() {
   return Urql.useMutation<CreateMessageMutation, CreateMessageMutationVariables>(CreateMessageDocument);
-};
+}
 export const DeleteMessageDocument = gql`
     mutation DeleteMessage($id: ID!) {
   deleteMessage(id: $id)
@@ -1586,7 +1586,7 @@ export const DeleteMessageDocument = gql`
 
 export function useDeleteMessageMutation() {
   return Urql.useMutation<DeleteMessageMutation, DeleteMessageMutationVariables>(DeleteMessageDocument);
-};
+}
 export const CreateThreadDocument = gql`
     mutation CreateThread($input: CreateThreadInput!) {
   createThread(input: $input) {
@@ -1597,7 +1597,7 @@ export const CreateThreadDocument = gql`
 
 export function useCreateThreadMutation() {
   return Urql.useMutation<CreateThreadMutation, CreateThreadMutationVariables>(CreateThreadDocument);
-};
+}
 export const CreateThreadWithMessageDocument = gql`
     mutation CreateThreadWithMessage($input: CreateThreadWithMessageInput!) {
   createThreadWithMessage(input: $input) {
@@ -1614,7 +1614,7 @@ ${MessageFieldsFragmentDoc}`;
 
 export function useCreateThreadWithMessageMutation() {
   return Urql.useMutation<CreateThreadWithMessageMutation, CreateThreadWithMessageMutationVariables>(CreateThreadWithMessageDocument);
-};
+}
 export const UpdateThreadDocument = gql`
     mutation UpdateThread($id: ID!, $input: UpdateThreadInput!) {
   updateThread(id: $id, input: $input) {
@@ -1625,7 +1625,7 @@ export const UpdateThreadDocument = gql`
 
 export function useUpdateThreadMutation() {
   return Urql.useMutation<UpdateThreadMutation, UpdateThreadMutationVariables>(UpdateThreadDocument);
-};
+}
 export const DeleteThreadDocument = gql`
     mutation DeleteThread($id: ID!) {
   deleteThread(id: $id)
@@ -1634,7 +1634,7 @@ export const DeleteThreadDocument = gql`
 
 export function useDeleteThreadMutation() {
   return Urql.useMutation<DeleteThreadMutation, DeleteThreadMutationVariables>(DeleteThreadDocument);
-};
+}
 export const AddContextReferenceDocument = gql`
     mutation AddContextReference($input: AddContextReferenceInput!) {
   addContextReference(input: $input) {
@@ -1645,7 +1645,7 @@ export const AddContextReferenceDocument = gql`
 
 export function useAddContextReferenceMutation() {
   return Urql.useMutation<AddContextReferenceMutation, AddContextReferenceMutationVariables>(AddContextReferenceDocument);
-};
+}
 export const RemoveContextReferenceDocument = gql`
     mutation RemoveContextReference($id: ID!) {
   removeContextReference(id: $id)
@@ -1654,7 +1654,7 @@ export const RemoveContextReferenceDocument = gql`
 
 export function useRemoveContextReferenceMutation() {
   return Urql.useMutation<RemoveContextReferenceMutation, RemoveContextReferenceMutationVariables>(RemoveContextReferenceDocument);
-};
+}
 export const UpdateContextReferencePriorityDocument = gql`
     mutation UpdateContextReferencePriority($id: ID!, $priorityTier: Int!) {
   updateContextReferencePriority(id: $id, priorityTier: $priorityTier) {
@@ -1665,7 +1665,7 @@ export const UpdateContextReferencePriorityDocument = gql`
 
 export function useUpdateContextReferencePriorityMutation() {
   return Urql.useMutation<UpdateContextReferencePriorityMutation, UpdateContextReferencePriorityMutationVariables>(UpdateContextReferencePriorityDocument);
-};
+}
 export const ConsolidateBranchesDocument = gql`
     mutation ConsolidateBranches($input: ConsolidateBranchesInput!) {
   consolidateBranches(input: $input) {
@@ -1678,7 +1678,7 @@ export const ConsolidateBranchesDocument = gql`
 
 export function useConsolidateBranchesMutation() {
   return Urql.useMutation<ConsolidateBranchesMutation, ConsolidateBranchesMutationVariables>(ConsolidateBranchesDocument);
-};
+}
 export const ApproveToolCallDocument = gql`
     mutation ApproveToolCall($id: ID!) {
   approveToolCall(input: {id: $id}) {
@@ -1689,7 +1689,7 @@ export const ApproveToolCallDocument = gql`
 
 export function useApproveToolCallMutation() {
   return Urql.useMutation<ApproveToolCallMutation, ApproveToolCallMutationVariables>(ApproveToolCallDocument);
-};
+}
 export const RejectToolCallDocument = gql`
     mutation RejectToolCall($id: ID!, $reason: String) {
   rejectToolCall(input: {id: $id, reason: $reason}) {
@@ -1700,7 +1700,7 @@ export const RejectToolCallDocument = gql`
 
 export function useRejectToolCallMutation() {
   return Urql.useMutation<RejectToolCallMutation, RejectToolCallMutationVariables>(RejectToolCallDocument);
-};
+}
 export const UpdateProfileDocument = gql`
     mutation UpdateProfile($firstName: String, $lastName: String) {
   updateProfile(input: {firstName: $firstName, lastName: $lastName}) {
@@ -1711,7 +1711,7 @@ export const UpdateProfileDocument = gql`
 
 export function useUpdateProfileMutation() {
   return Urql.useMutation<UpdateProfileMutation, UpdateProfileMutationVariables>(UpdateProfileDocument);
-};
+}
 export const DeleteAccountDocument = gql`
     mutation DeleteAccount {
   deleteAccount
@@ -1720,7 +1720,7 @@ export const DeleteAccountDocument = gql`
 
 export function useDeleteAccountMutation() {
   return Urql.useMutation<DeleteAccountMutation, DeleteAccountMutationVariables>(DeleteAccountDocument);
-};
+}
 export const GetAgentRequestDocument = gql`
     query GetAgentRequest($id: ID!) {
   agentRequest(id: $id) {
@@ -1731,7 +1731,7 @@ export const GetAgentRequestDocument = gql`
 
 export function useGetAgentRequestQuery(options: Omit<Urql.UseQueryArgs<GetAgentRequestQueryVariables>, 'query'>) {
   return Urql.useQuery<GetAgentRequestQuery, GetAgentRequestQueryVariables>({ query: GetAgentRequestDocument, ...options });
-};
+}
 export const GetAgentRequestWithEventsDocument = gql`
     query GetAgentRequestWithEvents($id: ID!) {
   agentRequest(id: $id) {
@@ -1742,7 +1742,7 @@ export const GetAgentRequestWithEventsDocument = gql`
 
 export function useGetAgentRequestWithEventsQuery(options: Omit<Urql.UseQueryArgs<GetAgentRequestWithEventsQueryVariables>, 'query'>) {
   return Urql.useQuery<GetAgentRequestWithEventsQuery, GetAgentRequestWithEventsQueryVariables>({ query: GetAgentRequestWithEventsDocument, ...options });
-};
+}
 export const ListAgentRequestsByThreadDocument = gql`
     query ListAgentRequestsByThread($threadId: ID!) {
   agentRequestsByThread(threadId: $threadId) {
@@ -1753,7 +1753,7 @@ export const ListAgentRequestsByThreadDocument = gql`
 
 export function useListAgentRequestsByThreadQuery(options: Omit<Urql.UseQueryArgs<ListAgentRequestsByThreadQueryVariables>, 'query'>) {
   return Urql.useQuery<ListAgentRequestsByThreadQuery, ListAgentRequestsByThreadQueryVariables>({ query: ListAgentRequestsByThreadDocument, ...options });
-};
+}
 export const GetAgentExecutionEventsDocument = gql`
     query GetAgentExecutionEvents($requestId: ID!) {
   agentExecutionEvents(requestId: $requestId) {
@@ -1768,7 +1768,7 @@ export const GetAgentExecutionEventsDocument = gql`
 
 export function useGetAgentExecutionEventsQuery(options: Omit<Urql.UseQueryArgs<GetAgentExecutionEventsQueryVariables>, 'query'>) {
   return Urql.useQuery<GetAgentExecutionEventsQuery, GetAgentExecutionEventsQueryVariables>({ query: GetAgentExecutionEventsDocument, ...options });
-};
+}
 export const GetFileDocument = gql`
     query GetFile($id: ID!) {
   file(id: $id) {
@@ -1779,7 +1779,7 @@ export const GetFileDocument = gql`
 
 export function useGetFileQuery(options: Omit<Urql.UseQueryArgs<GetFileQueryVariables>, 'query'>) {
   return Urql.useQuery<GetFileQuery, GetFileQueryVariables>({ query: GetFileDocument, ...options });
-};
+}
 export const ListAllFilesDocument = gql`
     query ListAllFiles {
   files {
@@ -1790,7 +1790,7 @@ export const ListAllFilesDocument = gql`
 
 export function useListAllFilesQuery(options?: Omit<Urql.UseQueryArgs<ListAllFilesQueryVariables>, 'query'>) {
   return Urql.useQuery<ListAllFilesQuery, ListAllFilesQueryVariables>({ query: ListAllFilesDocument, ...options });
-};
+}
 export const GetFileByPathDocument = gql`
     query GetFileByPath($path: String!) {
   fileByPath(path: $path) {
@@ -1801,7 +1801,7 @@ export const GetFileByPathDocument = gql`
 
 export function useGetFileByPathQuery(options: Omit<Urql.UseQueryArgs<GetFileByPathQueryVariables>, 'query'>) {
   return Urql.useQuery<GetFileByPathQuery, GetFileByPathQueryVariables>({ query: GetFileByPathDocument, ...options });
-};
+}
 export const GetFolderDocument = gql`
     query GetFolder($id: ID!) {
   folder(id: $id) {
@@ -1812,7 +1812,7 @@ export const GetFolderDocument = gql`
 
 export function useGetFolderQuery(options: Omit<Urql.UseQueryArgs<GetFolderQueryVariables>, 'query'>) {
   return Urql.useQuery<GetFolderQuery, GetFolderQueryVariables>({ query: GetFolderDocument, ...options });
-};
+}
 export const GetFolderWithChildrenDocument = gql`
     query GetFolderWithChildren($id: ID!) {
   folder(id: $id) {
@@ -1823,7 +1823,7 @@ export const GetFolderWithChildrenDocument = gql`
 
 export function useGetFolderWithChildrenQuery(options: Omit<Urql.UseQueryArgs<GetFolderWithChildrenQueryVariables>, 'query'>) {
   return Urql.useQuery<GetFolderWithChildrenQuery, GetFolderWithChildrenQueryVariables>({ query: GetFolderWithChildrenDocument, ...options });
-};
+}
 export const ListFoldersDocument = gql`
     query ListFolders {
   folders {
@@ -1834,7 +1834,7 @@ export const ListFoldersDocument = gql`
 
 export function useListFoldersQuery(options?: Omit<Urql.UseQueryArgs<ListFoldersQueryVariables>, 'query'>) {
   return Urql.useQuery<ListFoldersQuery, ListFoldersQueryVariables>({ query: ListFoldersDocument, ...options });
-};
+}
 export const ListRootFoldersDocument = gql`
     query ListRootFolders {
   rootFolders {
@@ -1845,7 +1845,7 @@ export const ListRootFoldersDocument = gql`
 
 export function useListRootFoldersQuery(options?: Omit<Urql.UseQueryArgs<ListRootFoldersQueryVariables>, 'query'>) {
   return Urql.useQuery<ListRootFoldersQuery, ListRootFoldersQueryVariables>({ query: ListRootFoldersDocument, ...options });
-};
+}
 export const GetMessagesDocument = gql`
     query GetMessages($threadId: ID!, $limit: Int, $offset: Int) {
   messages(threadId: $threadId, limit: $limit, offset: $offset) {
@@ -1856,7 +1856,7 @@ export const GetMessagesDocument = gql`
 
 export function useGetMessagesQuery(options: Omit<Urql.UseQueryArgs<GetMessagesQueryVariables>, 'query'>) {
   return Urql.useQuery<GetMessagesQuery, GetMessagesQueryVariables>({ query: GetMessagesDocument, ...options });
-};
+}
 export const SearchDocument = gql`
     query Search($query: String!, $limit: Int, $fileTypes: [String!], $entityTypes: [String!]) {
   search(
@@ -1889,7 +1889,7 @@ export const SearchDocument = gql`
 
 export function useSearchQuery(options: Omit<Urql.UseQueryArgs<SearchQueryVariables>, 'query'>) {
   return Urql.useQuery<SearchQuery, SearchQueryVariables>({ query: SearchDocument, ...options });
-};
+}
 export const AutocompleteDocument = gql`
     query Autocomplete($query: String!, $entityType: String, $limit: Int) {
   autocomplete(input: {query: $query, entityType: $entityType, limit: $limit}) {
@@ -1907,7 +1907,7 @@ export const AutocompleteDocument = gql`
 
 export function useAutocompleteQuery(options: Omit<Urql.UseQueryArgs<AutocompleteQueryVariables>, 'query'>) {
   return Urql.useQuery<AutocompleteQuery, AutocompleteQueryVariables>({ query: AutocompleteDocument, ...options });
-};
+}
 export const GetThreadDocument = gql`
     query GetThread($id: ID!) {
   thread(id: $id) {
@@ -1918,7 +1918,7 @@ export const GetThreadDocument = gql`
 
 export function useGetThreadQuery(options: Omit<Urql.UseQueryArgs<GetThreadQueryVariables>, 'query'>) {
   return Urql.useQuery<GetThreadQuery, GetThreadQueryVariables>({ query: GetThreadDocument, ...options });
-};
+}
 export const ListAllThreadsDocument = gql`
     query ListAllThreads {
   threads {
@@ -1929,7 +1929,7 @@ export const ListAllThreadsDocument = gql`
 
 export function useListAllThreadsQuery(options?: Omit<Urql.UseQueryArgs<ListAllThreadsQueryVariables>, 'query'>) {
   return Urql.useQuery<ListAllThreadsQuery, ListAllThreadsQueryVariables>({ query: ListAllThreadsDocument, ...options });
-};
+}
 export const GetToolCallDocument = gql`
     query GetToolCall($id: ID!) {
   toolCall(id: $id) {
@@ -1940,7 +1940,7 @@ export const GetToolCallDocument = gql`
 
 export function useGetToolCallQuery(options: Omit<Urql.UseQueryArgs<GetToolCallQueryVariables>, 'query'>) {
   return Urql.useQuery<GetToolCallQuery, GetToolCallQueryVariables>({ query: GetToolCallDocument, ...options });
-};
+}
 export const ListPendingToolCallsDocument = gql`
     query ListPendingToolCalls($threadId: ID!) {
   pendingToolCalls(threadId: $threadId) {
@@ -1951,7 +1951,7 @@ export const ListPendingToolCallsDocument = gql`
 
 export function useListPendingToolCallsQuery(options: Omit<Urql.UseQueryArgs<ListPendingToolCallsQueryVariables>, 'query'>) {
   return Urql.useQuery<ListPendingToolCallsQuery, ListPendingToolCallsQueryVariables>({ query: ListPendingToolCallsDocument, ...options });
-};
+}
 export const ListToolCallsByRequestDocument = gql`
     query ListToolCallsByRequest($requestId: ID!) {
   toolCallsByRequest(requestId: $requestId) {
@@ -1962,7 +1962,7 @@ export const ListToolCallsByRequestDocument = gql`
 
 export function useListToolCallsByRequestQuery(options: Omit<Urql.UseQueryArgs<ListToolCallsByRequestQueryVariables>, 'query'>) {
   return Urql.useQuery<ListToolCallsByRequestQuery, ListToolCallsByRequestQueryVariables>({ query: ListToolCallsByRequestDocument, ...options });
-};
+}
 export const ListUsageEventsDocument = gql`
     query ListUsageEvents($userId: ID, $startDate: DateTime, $endDate: DateTime, $limit: Int, $offset: Int) {
   usageEvents(
@@ -1985,7 +1985,7 @@ export const ListUsageEventsDocument = gql`
 
 export function useListUsageEventsQuery(options?: Omit<Urql.UseQueryArgs<ListUsageEventsQueryVariables>, 'query'>) {
   return Urql.useQuery<ListUsageEventsQuery, ListUsageEventsQueryVariables>({ query: ListUsageEventsDocument, ...options });
-};
+}
 export const GetUsageStatsDocument = gql`
     query GetUsageStats($userId: ID, $startDate: DateTime) {
   usageStats(userId: $userId, startDate: $startDate) {
@@ -1997,7 +1997,7 @@ export const GetUsageStatsDocument = gql`
 
 export function useGetUsageStatsQuery(options?: Omit<Urql.UseQueryArgs<GetUsageStatsQueryVariables>, 'query'>) {
   return Urql.useQuery<GetUsageStatsQuery, GetUsageStatsQueryVariables>({ query: GetUsageStatsDocument, ...options });
-};
+}
 export const GetMeDocument = gql`
     query GetMe {
   me {
@@ -2008,4 +2008,4 @@ export const GetMeDocument = gql`
 
 export function useGetMeQuery(options?: Omit<Urql.UseQueryArgs<GetMeQueryVariables>, 'query'>) {
   return Urql.useQuery<GetMeQuery, GetMeQueryVariables>({ query: GetMeDocument, ...options });
-};
+}

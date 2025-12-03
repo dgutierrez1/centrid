@@ -7,7 +7,8 @@
  * Design: apps/design-system/public/screenshots/account-foundation/04-reset-password-*
  */
 
-import { useState, FormEvent, useEffect } from 'react'
+import type { FormEvent} from 'react';
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import Link from 'next/link'
 import { Button } from '@centrid/ui/components/button'

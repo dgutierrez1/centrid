@@ -7,8 +7,9 @@
  * Design: apps/design-system/public/screenshots/account-foundation/02-login-*
  */
 
-import { useState, FormEvent } from 'react'
-import { GetServerSideProps } from 'next'
+import type { FormEvent } from 'react';
+import { useState } from 'react'
+import type { GetServerSideProps } from 'next'
 import { useRouter } from 'next/router'
 import Link from 'next/link'
 import { Button } from '@centrid/ui/components/button'

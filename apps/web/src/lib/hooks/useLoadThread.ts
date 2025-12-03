@@ -83,18 +83,9 @@ export function useLoadThread(threadId: string | undefined) {
         };
       });
 
-      const transformedRefs = (thread.contextReferences || []).map(
-        (ref: any) => ({
-          id: ref.id,
-          threadId: ref.threadId,
-          ownerUserId: ref.ownerUserId,
-          entityType: ref.entityType,
-          entityReference: ref.entityReference,
-          source: ref.source,
-          priorityTier: ref.priorityTier || 1,
-          addedTimestamp: ref.addedTimestamp,
-        })
-      );
+      // TODO: contextReferences field not yet implemented in GraphQL Thread type
+      // For now, use empty array - will be populated when Thread.contextReferences resolver is added
+      const transformedRefs: any[] = [];
 
       // Batch update to prevent multiple rerenders
       aiAgentActions.setThreadData(

@@ -7,8 +7,9 @@
  * Design: apps/design-system/public/screenshots/account-foundation/07-account-deletion-*
  */
 
-import { useState, FormEvent } from 'react'
-import { GetServerSideProps } from 'next'
+import type { FormEvent } from 'react';
+import { useState } from 'react'
+import type { GetServerSideProps } from 'next'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import { Button } from '@centrid/ui/components/button'

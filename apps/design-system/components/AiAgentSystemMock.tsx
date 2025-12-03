@@ -1,13 +1,14 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import {
-  Workspace,
-  ThreadView,
+import type {
   Branch,
   ContextGroup,
   ContextReferenceProps,
   Thread,
   File,
-  FileData,
+  FileData} from '@centrid/ui/features';
+import {
+  Workspace,
+  ThreadView,
   type AgentEvent,
   CreateBranchModal,
   ConsolidateModal,

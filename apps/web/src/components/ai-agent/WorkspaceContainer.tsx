@@ -692,7 +692,7 @@ const WorkspaceContentInner = () => {
             id: parsedMessage.id, // Real ID from backend
             threadId: newThreadId, // Real thread ID
             role: 'user' as const,
-            content: parsedMessage.content,      // ✅ JSONB parsed
+            content: parsedMessage.content as ContentBlock[] | undefined, // JSONB parsed
             toolCalls: parsedMessage.toolCalls || [],
             timestamp: parsedMessage.timestamp,  // ✅ ISO string
             tokensUsed: 0,
